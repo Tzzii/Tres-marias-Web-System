@@ -51,8 +51,9 @@ const toMinutes = (time) => {
  * Why a start time on a date cannot be reserved, or '' when it can. Check the date first
  * with dateUnavailableReason. Start times are on the hour or half hour (the booking form
  * only offers those; a typed time like 10:15 is refused). The new event runs `hours` from
- * `time`; every existing event on that date blocks its own service hours plus
- * RULES.eventBufferHours before and after.
+ * `time`; every existing event blocks its own service hours plus RULES.eventBufferHours
+ * before and after. Events on the day before and the day after are checked too, so a late
+ * event that runs past midnight still blocks the early hours of the next day (and the other way round).
  */
 export function timeUnavailableReason(iso, time, snapshot, hours = RULES.defaultEventHours) {
   if (!time) return 'Choose a start time';
@@ -63,10 +64,13 @@ export function timeUnavailableReason(iso, time, snapshot, hours = RULES.default
   if (start % 30 !== 0) return 'Start times are on the hour or half hour, e.g. 6:00 or 6:30';
   const end = start + hours * 60;
   const buffer = RULES.eventBufferHours * 60;
+  // Minutes to add to an event's times so they count from midnight of `iso` (-1440 for the day before)
+  const dayShift = iso ? { [addDays(iso, -1)]: -1440, [iso]: 0, [addDays(iso, 1)]: 1440 } : {};
   const clash = snapshot.events.some((e) => {
-    if (e.date !== iso) return false;
-    const busyFrom = toMinutes(e.startTime) - buffer;
-    const busyTo = toMinutes(e.startTime) + e.hours * 60 + buffer;
+    if (!(e.date in dayShift)) return false;
+    const from = toMinutes(e.startTime) + dayShift[e.date];
+    const busyFrom = from - buffer;
+    const busyTo = from + e.hours * 60 + buffer;
     return start < busyTo && end > busyFrom; // the two time ranges overlap
   });
   return clash ? 'Another event is already booked around that time' : '';
@@ -108,13 +112,16 @@ export function daySchedule(iso, snapshot) {
 export function dateUnavailableReason(iso, snapshot, { enforceLeadTime = true } = {}) {
   if (!iso) return '';
   // Checks in order: past or too soon -> blocked by the admin -> capacity reached -> no start time left between the booked events
+  // (events on the day before or after count too, since a late event can run past midnight)
   if (enforceLeadTime && daysFromToday(iso) < RULES.leadDays) {
     return daysFromToday(iso) < 0 ? 'Past date' : `Needs ${RULES.leadDays} days' notice`;
   }
   const blocked = snapshot.blocked.find((b) => b.date === iso);
   if (blocked) return blocked.reason;
   if ((snapshot.booked[iso] || 0) >= snapshot.capacity) return 'Fully booked';
-  if (snapshot.events.some((e) => e.date === iso) && !daySchedule(iso, snapshot).openStarts.length) return 'Fully booked';
+  const [dayBefore, dayAfter] = [addDays(iso, -1), addDays(iso, 1)];
+  const eventsNearby = snapshot.events.some((e) => e.date >= dayBefore && e.date <= dayAfter);
+  if (eventsNearby && !daySchedule(iso, snapshot).openStarts.length) return 'Fully booked';
   return '';
 }
 
