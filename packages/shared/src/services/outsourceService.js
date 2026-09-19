@@ -1,5 +1,5 @@
 import { BUSINESS, OUTSOURCE_SERVICES } from './config.js';
-import { ApiError, clone, latency, nextId, read, write } from './store.js';
+import { ApiError, clone, latency, nextId, read, uid, write } from './store.js';
 import { formatDate, peso, todayISO } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
 import { EMAIL_RE } from '../utils/validation.js';
@@ -185,7 +185,7 @@ export async function savePartner(id, values) {
 
     if (!id) {
       const partner = {
-        id: `op-${Date.now().toString(36)}`,
+        id: uid('op'),
         ...fields,
         archived: false,
         history: [{ at: Date.now(), actor: ADMIN_NAME(), text: 'Added as an outsourcing partner.' }]
@@ -259,7 +259,7 @@ export async function saveContract(id, values) {
 
     if (!existing) {
       const contract = {
-        id: `oc-${Date.now().toString(36)}`,
+        id: uid('oc'),
         ref: nextId(data, 'outsource', `OUT-${new Date().getFullYear()}-`),
         ...fields,
         status: 'draft',
@@ -316,7 +316,8 @@ export async function sendContract(id, { body } = {}) {
 /**
  * Record what happened next: 'accepted' or 'declined' when the partner answers, 'completed' once the
  * items have arrived, 'cancelled' when the request is called off. A decline or a cancellation needs a
- * short note, so the reason stays on file.
+ * short note, so the reason stays on file. Marking a contract completed without a note keeps what the
+ * partner said when they accepted.
  */
 export async function setContractStatus(id, status, { note = '' } = {}) {
   await latency(300, 550);
@@ -327,7 +328,7 @@ export async function setContractStatus(id, status, { note = '' } = {}) {
     if (['declined', 'cancelled'].includes(status) && reason.length < 5) throw new ApiError('INVALID', 'Give a short reason.', { field: 'note' });
 
     contract.status = status;
-    contract.answerNote = reason;
+    if (status !== 'completed' || reason) contract.answerNote = reason;
     if (['accepted', 'declined'].includes(status)) contract.answeredAt = Date.now();
     const labels = {
       accepted: 'Partner accepted the contract.',
