@@ -1,5 +1,5 @@
 import { SETUP_STYLES } from './config.js';
-import { ApiError, clone, latency, read, write } from './store.js';
+import { ApiError, clone, latency, read, uid, write } from './store.js';
 
 /**
  * Packages and additional charges (add-ons): public browsing plus the admin package manager.
@@ -121,7 +121,7 @@ export async function saveAddon(addon) {
       return clone(existing);
     }
     const created = {
-      id: `add-${Date.now().toString(36)}`,
+      id: uid('add'),
       name,
       description: addon.description.trim(),
       archived: false

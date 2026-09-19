@@ -1,4 +1,4 @@
-import { ApiError, clone, latency, read, write } from './store.js';
+import { ApiError, clone, latency, read, uid, write } from './store.js';
 
 /**
  * Chat between a customer and the Tres Marias admin: one conversation per customer.
@@ -17,7 +17,7 @@ const unreadFlag = (side) => (side === 'customer' ? 'readByCustomer' : 'readByAd
 export function customerThread(data, customerId) {
   let thread = data.threads.find((t) => t.customerId === customerId);
   if (!thread) {
-    thread = { id: `th-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, customerId, messages: [] };
+    thread = { id: uid('th'), customerId, messages: [] };
     data.threads.push(thread);
   }
   return thread;
@@ -69,12 +69,18 @@ export async function getThread(threadId, { customerId, side }) {
   return { ...summarize(thread, data, side), messages: thread.messages.map((m) => ({ ...clone(m), eventName: eventName(m.ref) })) };
 }
 
-/** Mark every message in a thread as read for one side. */
-export async function markThreadRead(threadId, side) {
+/**
+ * Mark every message in a thread as read for one side. With `customerId` (customer portal) only that
+ * customer's own thread can be marked. When nothing is unread nothing is saved, so live pages aren't told
+ * about a change that didn't happen.
+ */
+export async function markThreadRead(threadId, side, { customerId } = {}) {
+  const flag = unreadFlag(side);
+  const current = read().threads.find((t) => t.id === threadId);
+  if (!current || (customerId && current.customerId !== customerId)) return { ok: false };
+  if (current.messages.every((m) => m[flag])) return { ok: true };
   return write((data) => {
     const thread = data.threads.find((t) => t.id === threadId);
-    if (!thread) return { ok: false };
-    const flag = unreadFlag(side);
     thread.messages.forEach((m) => {
       m[flag] = true;
     });
@@ -98,7 +104,7 @@ export async function sendMessage(threadId, { side, senderName, body, customerId
       throw new ApiError('NOT_FOUND', 'We could not find this reservation.');
     }
     const message = {
-      id: `m-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      id: uid('m'),
       from: side,
       senderName,
       body: text,

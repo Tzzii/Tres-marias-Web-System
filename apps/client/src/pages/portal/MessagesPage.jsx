@@ -34,7 +34,7 @@ export default function MessagesPage() {
 
   // Opening the chat marks the admin's messages as read
   useEffect(() => {
-    if (thread.data && thread.data.unread > 0) messageApi.markThreadRead(thread.data.id, 'customer');
+    if (thread.data && thread.data.unread > 0) messageApi.markThreadRead(thread.data.id, 'customer', { customerId: user.id });
   }, [thread.data]);
 
   // Load the reservation an attachment belongs to, then open the document preview

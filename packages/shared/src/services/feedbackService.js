@@ -1,6 +1,6 @@
 import { FEEDBACK_CATEGORIES } from './config.js';
 import { postAdminMessage } from './reservationService.js';
-import { ApiError, clone, latency, read, write } from './store.js';
+import { ApiError, clone, latency, read, uid, write } from './store.js';
 
 /**
  * Customer feedback: the review a customer writes after a completed event
@@ -131,7 +131,7 @@ export async function createFeedback(customerId, { ref, rating, categories = {},
     }
     if (!body || body.trim().length < 20) throw new ApiError('INVALID', 'Tell us a little more (at least 20 characters).', { field: 'body' });
     const feedback = {
-      id: `tst-${Date.now().toString(36)}`,
+      id: uid('tst'),
       customerId,
       ref,
       rating: Number(rating),
@@ -241,9 +241,9 @@ export async function setFeedbackArchived(id, archived) {
 
 /**
  * Admin: answer a feedback (5–1,000 characters). The answer is kept on the feedback,
- * so the customer sees it under their review, and is also sent to the chat thread of
- * that event, so it arrives as a message in the customer portal. Replying again replaces
- * the answer and sends the new one.
+ * so the customer sees it under their review, and is also sent to the customer's chat
+ * (tagged with the event), so it arrives as a message in the customer portal. Replying
+ * again replaces the answer and sends the new one.
  */
 export async function replyToFeedback(id, body) {
   await latency(400, 700);
@@ -254,7 +254,7 @@ export async function replyToFeedback(id, body) {
     const feedback = findOrThrow(data, id);
     feedback.reply = { body: text, at: Date.now(), by: ADMIN_NAME() };
     feedback.readByAdmin = true;
-    // Deliver the same words to the customer's chat thread for that event
+    // Deliver the same words to the customer's chat, tagged with the event
     const reservation = data.reservations.find((r) => r.ref === feedback.ref);
     if (reservation) postAdminMessage(data, reservation, `About your feedback on ${reservation.eventName}: ${text}`);
     return shape(feedback, data, { admin: true });
