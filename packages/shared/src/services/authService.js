@@ -123,17 +123,21 @@ export async function customerLogin({ email, password }) {
  * The parts are saved separately, and `name` ("First Middle Last") is built from them
  * because the rest of the system (admin lists, reservations, profile) displays `name`.
  */
-export async function customerRegister({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password }) {
+export async function customerRegister({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '' }) {
   await latency(450, 850);
   const first = firstName.trim();
   const middle = middleName.trim();
   const last = lastName.trim();
-  // Same required-field check as the form, so the account can't be created with blanks
+  // Same checks as the form (required fields, email and mobile format, password rules), so the account
+  // can't be created with blanks or a bad value even if the form is skipped
   if (!first) throw new ApiError('INVALID', 'First name is required.', { field: 'firstName' });
   if (!last) throw new ApiError('INVALID', 'Last name is required.', { field: 'lastName' });
-  if (!email.trim()) throw new ApiError('INVALID', 'Email is required.', { field: 'email' });
-  if (!mobile.trim()) throw new ApiError('INVALID', 'Mobile number is required.', { field: 'mobile' });
   const address = normalise(email);
+  const problem =
+    (validateEmail(address) && { field: 'email', message: validateEmail(address) }) ||
+    (validateMobile(mobile) && { field: 'mobile', message: validateMobile(mobile) }) ||
+    (validatePassword(password) && { field: 'password', message: validatePassword(password) });
+  if (problem) throw new ApiError('INVALID', problem.message, { field: problem.field });
   return write((data) => {
     if (data.customers.some((c) => c.email.toLowerCase() === address)) {
       throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
@@ -199,11 +203,12 @@ export async function startPasswordReset({ email }) {
   return { challengeId: challenge.id, maskedMobile: maskMobile(customer.mobile), expiresAt: challenge.expiresAt, resendAt: challenge.resendAt };
 }
 
-/** Text a new code: restarts the expiry and resend timers. */
+/** Text a new code (only after the resend cooldown): restarts the expiry and resend timers. */
 export async function resendPasswordResetCode(challengeId) {
   await latency(400, 700);
   const challenge = readResetChallenge(challengeId);
   if (!challenge) throw new ApiError('CHALLENGE_EXPIRED', 'Your reset request expired. Please start again.');
+  if (challenge.resendAt > Date.now()) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
   challenge.expiresAt = Date.now() + RULES.codeValidMinutes * 60000;
   challenge.resendAt = Date.now() + RULES.codeResendSeconds * 1000;
   saveResetChallenge(challenge);
@@ -269,29 +274,48 @@ export async function getCustomerProfile(customerId) {
   return publicCustomer(customer);
 }
 
-/** Save name, mobile and company. */
-export async function updateCustomerProfile(customerId, { name, mobile, company }) {
+/**
+ * Save name, mobile and company (same checks as the profile form: first and last name, a valid mobile number).
+ * The profile form edits the full name only, so when the name changes the first / middle / last parts
+ * saved at sign-up no longer describe it; they are cleared rather than left showing the old name.
+ */
+export async function updateCustomerProfile(customerId, { name = '', mobile = '', company = '' }) {
   await latency(350, 650);
+  const cleanName = String(name).trim().replace(/\s+/g, ' ');
+  if (!cleanName) throw new ApiError('INVALID', 'Full name is required.', { field: 'name' });
+  if (cleanName.split(' ').length < 2) throw new ApiError('INVALID', 'Enter your first and last name.', { field: 'name' });
+  const mobileError = validateMobile(mobile);
+  if (mobileError) throw new ApiError('INVALID', mobileError, { field: 'mobile' });
   return write((data) => {
     const customer = data.customers.find((c) => c.id === customerId);
     if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
-    customer.name = name.trim();
+    if (customer.name !== cleanName) {
+      customer.firstName = '';
+      customer.middleName = '';
+      customer.lastName = '';
+    }
+    customer.name = cleanName;
     customer.mobile = mobile.replace(/[\s-]/g, '');
     customer.company = (company || '').trim();
     return publicCustomer(customer);
   });
 }
 
-/** Change password after checking the current one. */
+/**
+ * Change password: the current password first (wrong guesses count toward a lockout, like the
+ * admin's), then the customer password rules, and the new one must differ from the current one.
+ */
 export async function changeCustomerPassword(customerId, { current, next }) {
   await latency(400, 700);
+  const customer = read().customers.find((c) => c.id === customerId);
+  if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
+  assertCurrentPassword('customer-reauth', customer, current);
+  const problem = validatePassword(next);
+  if (problem) throw new ApiError('INVALID', problem, { field: 'next' });
+  if (next === current) throw new ApiError('INVALID', 'Choose a password different from the current one.', { field: 'next' });
   return write((data) => {
-    const customer = data.customers.find((c) => c.id === customerId);
-    if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
-    if (customer.password !== current) {
-      throw new ApiError('INVALID_CREDENTIALS', 'Your current password is incorrect.', { field: 'current' });
-    }
-    customer.password = next;
+    const target = data.customers.find((c) => c.id === customerId);
+    target.password = next;
     return { ok: true };
   });
 }
