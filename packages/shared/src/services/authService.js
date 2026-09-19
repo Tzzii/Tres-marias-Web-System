@@ -373,14 +373,19 @@ const readChallenge = (challengeId) => {
   }
 };
 
-/** Send a new code: restarts the expiry and resend timers. */
+/** Send a new code (only after the resend cooldown): restarts the expiry and resend timers. */
 export async function adminResendCode(challengeId) {
   await latency(400, 700);
   const challenge = readChallenge(challengeId);
   if (!challenge) throw new ApiError('CHALLENGE_EXPIRED', 'Your sign-in session expired. Please start again.');
+  if (challenge.resendAt > Date.now()) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
   challenge.expiresAt = Date.now() + RULES.codeValidMinutes * 60000;
   challenge.resendAt = Date.now() + RULES.codeResendSeconds * 1000;
-  sessionStorage.setItem(CHALLENGE_KEY, JSON.stringify(challenge));
+  try {
+    sessionStorage.setItem(CHALLENGE_KEY, JSON.stringify(challenge));
+  } catch (e) {
+    /* ignore */
+  }
   return { expiresAt: challenge.expiresAt, resendAt: challenge.resendAt };
 }
 
@@ -486,14 +491,15 @@ export async function updateAdminProfile(adminId, { name }) {
 /**
  * Check the current password before a sensitive change. Wrong guesses count toward a
  * lockout, so a session left open can't be used to guess the password.
+ * `scope` keeps the counters apart: 'admin-reauth' for admins, 'customer-reauth' for customers.
  */
-function assertAdminPassword(admin, password) {
-  assertNotLocked('admin-reauth', admin.id);
-  if (admin.password === password) {
-    clearFailures('admin-reauth', admin.id);
+function assertCurrentPassword(scope, account, password) {
+  assertNotLocked(scope, account.id);
+  if (account.password === password) {
+    clearFailures(scope, account.id);
     return;
   }
-  const result = registerFailure('admin-reauth', admin.id, RULES.maxLoginAttempts, RULES.loginLockMinutes);
+  const result = registerFailure(scope, account.id, RULES.maxLoginAttempts, RULES.loginLockMinutes);
   if (result.locked) {
     throw new ApiError('LOCKED', `Too many incorrect passwords. Try again in ${RULES.loginLockMinutes} minutes.`, { lockedUntil: result.lockedUntil, field: 'current' });
   }
@@ -505,7 +511,7 @@ export async function changeAdminPassword(adminId, { current, next }) {
   await latency(400, 700);
   const admin = read().admins.find((a) => a.id === adminId);
   if (!admin) throw new ApiError('NOT_FOUND', 'Account not found.');
-  assertAdminPassword(admin, current);
+  assertCurrentPassword('admin-reauth', admin, current);
   const problem = validateAdminPassword(next);
   if (problem) throw new ApiError('INVALID', problem, { field: 'next' });
   if (next === current) throw new ApiError('INVALID', 'Choose a password different from the current one.', { field: 'next' });
@@ -537,7 +543,7 @@ export async function adminStartContactChange(adminId, { field, value, password 
   if (field === 'email' && read().admins.some((a) => a.id !== adminId && a.email.toLowerCase() === clean)) {
     throw new ApiError('EMAIL_TAKEN', 'Another admin account already uses this email.', { field: 'value' });
   }
-  assertAdminPassword(admin, password);
+  assertCurrentPassword('admin-reauth', admin, password);
 
   const challenge = {
     id: makeToken('chc'),

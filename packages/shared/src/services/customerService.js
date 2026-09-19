@@ -1,4 +1,5 @@
 import { daysFromToday } from '../utils/format.js';
+import { validateEmail, validateMobile } from '../utils/validation.js';
 import { financials } from './reservationService.js';
 import { ApiError, latency, read, write } from './store.js';
 
@@ -57,13 +58,17 @@ export async function getCustomer(customerId) {
   };
 }
 
-/** Contact corrections only; the customer owns the rest of their profile. */
-export async function updateCustomerContact(customerId, { email, mobile }) {
+/** Contact corrections only; the customer owns the rest of their profile. The email and mobile number must be valid. */
+export async function updateCustomerContact(customerId, { email = '', mobile = '' }) {
   await latency(350, 600);
+  const address = String(email).trim().toLowerCase();
+  const emailError = validateEmail(address);
+  if (emailError) throw new ApiError('INVALID', emailError, { field: 'email' });
+  const mobileError = validateMobile(mobile);
+  if (mobileError) throw new ApiError('INVALID', mobileError, { field: 'mobile' });
   return write((data) => {
     const customer = data.customers.find((c) => c.id === customerId);
     if (!customer) throw new ApiError('NOT_FOUND', 'Customer not found.');
-    const address = email.trim().toLowerCase();
     // Two accounts can't share an email
     if (data.customers.some((c) => c.email.toLowerCase() === address && c.id !== customerId)) {
       throw new ApiError('EMAIL_TAKEN', 'Another account already uses this email.', { field: 'email' });
