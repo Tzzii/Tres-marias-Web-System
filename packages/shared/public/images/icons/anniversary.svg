@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80" fill="none">
+  <defs>
+    <linearGradient id="anniHeart" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="100%" stop-color="#be123c"/>
+    </linearGradient>
+    <linearGradient id="anniGold" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#dfba73"/>
+      <stop offset="100%" stop-color="#9d7c38"/>
+    </linearGradient>
+    <linearGradient id="anniBg" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fff1f2"/>
+      <stop offset="100%" stop-color="#ffe4e6"/>
+    </linearGradient>
+    <filter id="anniGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#e11d48" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="80" height="80" rx="20" fill="url(#anniBg)" stroke="#fecdd3" stroke-width="1.5"/>
+  <g filter="url(#anniGlow)">
+    <!-- Laurel Wreath Leaves Left -->
+    <path d="M19 50 Q16 35 25 24 Q24 29 28 32 Q23 38 24 46 Z" fill="url(#anniGold)" opacity="0.9"/>
+    <!-- Laurel Wreath Leaves Right -->
+    <path d="M61 50 Q64 35 55 24 Q56 29 52 32 Q57 38 56 46 Z" fill="url(#anniGold)" opacity="0.9"/>
+    <!-- Left Heart -->
+    <path d="M35 34 C35 29 27 27 26 34 C25 41 35 48 35 48 C35 48 45 41 44 34 C43 27 35 29 35 34 Z" fill="url(#anniHeart)" opacity="0.95"/>
+    <!-- Right Heart (Interlocked) -->
+    <path d="M47 38 C47 33 39 31 38 38 C37 45 47 52 47 52 C47 52 57 45 56 38 C55 31 47 33 47 38 Z" fill="url(#anniGold)"/>
+    <!-- Anniversary Ribbon Banner -->
+    <path d="M22 58 L58 58 L54 65 L26 65 Z" fill="url(#anniGold)"/>
+    <text x="40" y="63.5" font-size="6.5" font-weight="800" fill="#0f172a" text-anchor="middle" font-family="-apple-system, sans-serif" letter-spacing="1">ANNIVERSARY</text>
+    <!-- Top Sparkle -->
+    <path d="M40 18 L41 21 L44 22 L41 23 L40 26 L39 23 L36 22 L39 21 Z" fill="#dfba73"/>
+  </g>
+</svg>

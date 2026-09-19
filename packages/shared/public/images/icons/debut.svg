@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80" fill="none">
+  <defs>
+    <linearGradient id="debutCrown" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#dfba73"/>
+      <stop offset="100%" stop-color="#9d7c38"/>
+    </linearGradient>
+    <linearGradient id="debutBg" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#faf5ff"/>
+      <stop offset="100%" stop-color="#f3e8ff"/>
+    </linearGradient>
+    <filter id="debutGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#8b5cf6" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="80" height="80" rx="20" fill="url(#debutBg)" stroke="#e9d5ff" stroke-width="1.5"/>
+  <g filter="url(#debutGlow)">
+    <!-- Tiara Base Arch -->
+    <path d="M20 54 Q40 50 60 54" stroke="url(#debutCrown)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+    <!-- Tiara Peaks -->
+    <path d="M22 52 L26 40 L32 46 L40 28 L48 46 L54 40 L58 52 Z" fill="url(#debutCrown)" stroke="url(#debutCrown)" stroke-width="1.5" stroke-linejoin="round"/>
+    <!-- Tiara Jewels -->
+    <circle cx="40" cy="27" r="3.5" fill="#c084fc"/>
+    <circle cx="40" cy="27" r="1.8" fill="#ffffff"/>
+    <circle cx="26" cy="39" r="2.5" fill="#c084fc"/>
+    <circle cx="54" cy="39" r="2.5" fill="#c084fc"/>
+    <circle cx="32" cy="45" r="2" fill="#a855f7"/>
+    <circle cx="48" cy="45" r="2" fill="#a855f7"/>
+    <!-- 18 Badge / Emblem below tiara -->
+    <rect x="33" y="56" width="14" height="11" rx="4" fill="#8b5cf6"/>
+    <text x="40" y="64.5" font-size="8.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="-apple-system, sans-serif">18</text>
+    <!-- Sparkles -->
+    <path d="M40 16 L41 19 L44 20 L41 21 L40 24 L39 21 L36 20 L39 19 Z" fill="#dfba73"/>
+    <circle cx="21" cy="30" r="1.5" fill="#c084fc"/>
+    <circle cx="59" cy="30" r="1.5" fill="#c084fc"/>
+  </g>
+</svg>
