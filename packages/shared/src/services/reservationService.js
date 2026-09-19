@@ -169,6 +169,7 @@ export async function createReservation(customerId, form) {
     const pkg = data.packages.find((p) => p.id === form.packageId && p.visible && !p.archived);
     if (!pkg) throw new ApiError('INVALID', 'Please choose an available package.', { field: 'packageId' });
 
+    if (!form.date) throw new ApiError('INVALID', 'Choose the event date.', { field: 'date' });
     const snapshot = availabilitySnapshot();
     const reason = dateUnavailableReason(form.date, snapshot);
     if (reason) throw new ApiError('DATE_UNAVAILABLE', `That date is not available (${reason.toLowerCase()}). Please pick another date.`, { field: 'date' });

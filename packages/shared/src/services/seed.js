@@ -712,6 +712,8 @@ export function buildSeed() {
     },
     inventory: inventory.items,
     outsourcing: { partners: outsourcing.partners, contracts: outsourcing.contracts },
-    counters: { receipt: receiptSeq, payment: payments.length + 1, inventory: inventory.counter, outsource: outsourcing.counter }
+    // Counters: `receipt` is the NEXT receipt number (used, then increased); the others are the LAST number
+    // used (increased, then used), so the next payment after pay-0032 is pay-0033
+    counters: { receipt: receiptSeq, payment: payments.length, inventory: inventory.counter, outsource: outsourcing.counter }
   };
 }

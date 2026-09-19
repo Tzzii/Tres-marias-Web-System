@@ -64,20 +64,22 @@ export function OtpInput({ length = 6, value, onChange, onComplete, disabled, st
   };
 
   // Keyboard: a digit key fills this box and moves on (replacing any digit already there);
-  // Backspace clears this box (or the previous one if empty); arrow keys move between boxes
+  // Backspace clears this box and every box after it (or the previous box if this one is empty);
+  // arrow keys move between boxes.
+  // The code is one string filled left to right, so it can't have a gap in the middle: clearing only
+  // box 2 of "123456" would slide the later digits left ("13456"). Clearing from box 2 on ("1") keeps
+  // every digit that stays in its own box.
   const handleKeyDown = (index, event) => {
     if (/^\d$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault(); // we set the digit ourselves, so the browser doesn't also type it
       enterDigit(index, event.key);
     } else if (event.key === 'Backspace') {
       event.preventDefault();
-      const next = toDigits(valueRef.current);
-      if (next[index]) {
-        next[index] = '';
-        emit(next.join(''));
+      const code = valueRef.current;
+      if (code[index]) {
+        emit(code.slice(0, index));
       } else if (index > 0) {
-        next[index - 1] = '';
-        emit(next.join(''));
+        emit(code.slice(0, index - 1));
         refs.current[index - 1]?.focus();
       }
     } else if (event.key === 'ArrowLeft' && index > 0) refs.current[index - 1]?.focus();
