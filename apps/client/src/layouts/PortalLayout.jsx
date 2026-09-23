@@ -13,7 +13,7 @@ import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import { PortalShell, formatDate, messageApi, reservationApi, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
-/** Customer account chrome (1g–1l, 1p): sidebar on desktop, bottom tabs on phones. */
+/** The customer account frame (1g–1l, 1p): sidebar on desktop, bottom tabs on phones. */
 export default function PortalLayout() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -84,7 +84,6 @@ export default function PortalLayout() {
   return (
     <PortalShell
       portalKey={`client.${user.id}`}
-      brandSubtitle="Client Portal"
       navItems={navItems}
       secondaryNavItems={[{ key: 'profile', label: 'My Profile', icon: AccountCircleOutlinedIcon, to: '/portal/profile' }]}
       bottomNav={bottomNav}

@@ -22,25 +22,27 @@ import {
   FormField,
   ListSkeleton,
   PageHeader,
+  DISH_CATEGORIES,
+  PRICE_PER_PLATE_RANGE,
   Pill,
   RULES,
-  SETUP_STYLES,
+  SelectField,
   catalogApi,
   formatPackageItem,
+  isRentalPackage,
   peso,
-  setupsFor,
   tokens,
   useDocumentTitle,
   useNotify,
   useResource
 } from '@tm/shared';
 
-// Empty form values for a new package (new packages start hidden and offer Buffet)
-const blankPackage = () => ({ name: '', price: '', guests: '', description: '', itemsText: '', setups: ['Buffet'], visible: false });
+// Empty form values for a new package (new packages start hidden)
+const blankPackage = () => ({ name: '', price: '', guests: '', description: '', itemsText: '', visible: false });
 
-// Convert a saved package into form values: numbers become strings, the items become one line each
-// ("100 Porcelain Plates"), and the setup styles are filled in for packages saved without them
-const toForm = ({ items, ...p }) => ({ ...p, price: String(p.price), guests: String(p.guests), itemsText: items.map(formatPackageItem).join('\n'), setups: setupsFor(p) });
+// Convert a saved package into form values: numbers become strings and the items become one line
+// each ("100 Porcelain Plates")
+const toForm = ({ items, ...p }) => ({ ...p, price: String(p.price), guests: String(p.guests), itemsText: items.map(formatPackageItem).join('\n') });
 
 /**
  * Turn the "What's included" text into items, one per line. A number at the start of a line is the quantity:
@@ -57,32 +59,39 @@ const parseItems = (text) =>
     });
 
 /**
- * 1u · Packages manager. What customers see on the public site and the reservation form.
- * A package is a flat price for equipment and service (no food), covering a number of guests.
+ * 1u · Catalogue manager. What customers see on the public site and the reservation form.
+ * A package is a flat price for equipment and service (never food), covering a number of guests.
  * Additional charges are extras customers can tick; the admin prices them in each quotation.
+ * Dishes are what a buffet menu is built from, one per category, and the buffet price per person
+ * is set here too, because every buffet is charged the same way.
  */
 export default function PackagesPage() {
   useDocumentTitle('Packages', 'Tres Marias Admin');
   const notify = useNotify();
   // Load packages and additional charges, including hidden and archived ones
   const { data, loading, error, reload } = useResource(async () => {
-    const [packages, addons] = await Promise.all([
+    const [packages, addons, dishes] = await Promise.all([
       catalogApi.listPackages({ includeHidden: true, includeArchived: true }),
-      catalogApi.listAddons({ includeArchived: true })
+      catalogApi.listAddons({ includeArchived: true }),
+      catalogApi.listDishes({ includeArchived: true })
     ]);
-    return { packages, addons };
+    return { packages, addons, dishes, pricePerPlate: catalogApi.pricePerPlate() };
   }, []);
 
-  const [tab, setTab] = useState('packages'); // packages / addons / archived
+  const [tab, setTab] = useState('packages'); // packages / addons / dishes / archived
   const [editingId, setEditingId] = useState(null); // package in the editor, or 'new'
   const [addonDialog, setAddonDialog] = useState(null); // additional charge being edited ({} = new)
+  const [dishDialog, setDishDialog] = useState(null); // dish being edited ({} = new)
   const [archive, setArchive] = useState(null); // item waiting for archive confirmation
 
   // Active (not archived) items for each tab
   const packages = data ? data.packages.filter((p) => !p.archived) : [];
   const addons = data ? data.addons.filter((a) => !a.archived) : [];
-  // Total archived items across both types
-  const archivedCount = data ? data.packages.filter((p) => p.archived).length + data.addons.filter((a) => a.archived).length : 0;
+  const dishes = data ? data.dishes.filter((d) => !d.archived) : [];
+  // Total archived items across all three types
+  const archivedCount = data
+    ? data.packages.filter((p) => p.archived).length + data.addons.filter((a) => a.archived).length + data.dishes.filter((d) => d.archived).length
+    : 0;
 
   // Open the first package in the editor when nothing is selected
   useEffect(() => {
@@ -129,6 +138,7 @@ export default function PackagesPage() {
             options={[
               { value: 'packages', label: 'Packages', count: loading ? undefined : packages.length },
               { value: 'addons', label: 'Additional charges', count: loading ? undefined : addons.length },
+              { value: 'dishes', label: 'Buffet menu', count: loading ? undefined : dishes.length },
               { value: 'archived', label: 'Archived', count: loading ? undefined : archivedCount }
             ]}
           />
@@ -146,14 +156,14 @@ export default function PackagesPage() {
             <CardTitle>Packages · {packages.length}</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {packages.map((p) => (
-                <Box key={p.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1.5px solid ${editingId === p.id ? tokens.headerBg : tokens.cardLightBorder}`, flexWrap: 'wrap' }}>
+                <Box key={p.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1.5px solid ${editingId === p.id ? tokens.ink : tokens.cardLightBorder}`, flexWrap: 'wrap' }}>
                   <ButtonBase onClick={() => setEditingId(p.id)} sx={{ flex: 1, minWidth: 200, display: 'block', textAlign: 'left', fontFamily: 'inherit' }}>
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                       <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>{p.name}</Typography>
                       <Pill size="sm" label={p.visible ? 'Visible on site' : 'Hidden'} bg={p.visible ? 'rgba(16,185,129,0.12)' : tokens.surfaceMuted} fg={p.visible ? '#047857' : tokens.textMuted} />
                     </Box>
                     <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                      {peso(p.price)} · covers {p.guests} guests · {p.items.length} items
+                      {isRentalPackage(p) ? 'Priced per piece from the inventory' : `${peso(p.price)} · covers ${p.guests} guests · ${p.items.length} items`}
                     </Typography>
                   </ButtonBase>
                   <Button size="small" onClick={() => setEditingId(p.id)}>Edit</Button>
@@ -198,16 +208,54 @@ export default function PackagesPage() {
             empty={<EmptyState compact title="No additional charges" description="Add extras customers can ask for on the reservation form, such as a tent or stage decoration." />}
           />
         </DashCard>
+      ) : tab === 'dishes' ? (
+        // Buffet menu tab: the price per person, then the dishes grouped by category
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.6fr' }, gap: 2.5, alignItems: 'start' }}>
+          <PricePerPlateCard current={data.pricePerPlate} onSaved={() => { notify('Buffet price per person saved.'); reload(); }} />
+          <DashCard>
+            <CardTitle
+              subtitle="Suggestions offered under each box on the booking form. Customers write their own menu, so this guides them without limiting them."
+              action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDishDialog({})}>New dish</Button>}
+            >
+              Dishes · {dishes.length}
+            </CardTitle>
+            {DISH_CATEGORIES.map(({ key, label }) => {
+              const inCategory = dishes.filter((d) => d.category === key);
+              return (
+                <Box key={key} sx={{ mt: 2 }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: tokens.textMuted, mb: 0.75 }}>
+                    {label} · {inCategory.length}
+                  </Typography>
+                  {/* A category with nothing in it blocks every new buffet booking, so say so */}
+                  {inCategory.length === 0 ? (
+                    <AlertBanner tone="info">No suggestions for this line yet. Customers can still book a buffet and write their own {label.toLowerCase()}.</AlertBanner>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {inCategory.map((d) => (
+                        <Box key={d.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pl: 1.5, pr: 0.5, py: 0.5, borderRadius: 999, border: `1px solid ${tokens.cardLightBorder}` }}>
+                          <Typography sx={{ fontSize: 13.5 }}>{d.name}</Typography>
+                          <Button size="small" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setDishDialog(d)}>Edit</Button>
+                          <Button size="small" color="error" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setArchive({ type: 'dish', item: d })}>Archive</Button>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </DashCard>
+        </Box>
       ) : (
-        // Archived tab: packages and additional charges combined into one list, each with a Restore button
+        // Archived tab: packages, additional charges and dishes in one list, each with a Restore button
         <DashCard>
           {archivedCount === 0 ? (
-            <EmptyState compact title="Nothing archived" description="Archived packages and additional charges appear here and can be restored." />
+            <EmptyState compact title="Nothing archived" description="Archived packages, additional charges and dishes appear here and can be restored." />
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {[
-                ...data.packages.filter((p) => p.archived).map((p) => ({ type: 'package', id: p.id, name: p.name, meta: `Package · ${peso(p.price)}`, restore: () => catalogApi.setPackageArchived(p.id, false) })),
-                ...data.addons.filter((a) => a.archived).map((a) => ({ type: 'addon', id: a.id, name: a.name, meta: 'Additional charge', restore: () => catalogApi.setAddonArchived(a.id, false) }))
+                ...data.packages.filter((p) => p.archived).map((p) => ({ type: 'package', id: p.id, name: p.name, meta: `Package · ${isRentalPackage(p) ? 'priced per piece' : peso(p.price)}`, restore: () => catalogApi.setPackageArchived(p.id, false) })),
+                ...data.addons.filter((a) => a.archived).map((a) => ({ type: 'addon', id: a.id, name: a.name, meta: 'Additional charge', restore: () => catalogApi.setAddonArchived(a.id, false) })),
+                ...data.dishes.filter((d) => d.archived).map((d) => ({ type: 'dish', id: d.id, name: d.name, meta: `Dish · ${(DISH_CATEGORIES.find((c) => c.key === d.category) || {}).label || d.category}`, restore: () => catalogApi.setDishArchived(d.id, false) }))
               ].map((item) => (
                 <Box key={`${item.type}-${item.id}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
                   <Box sx={{ flex: 1 }}>
@@ -224,6 +272,8 @@ export default function PackagesPage() {
 
       <AddonDialog addon={addonDialog} onClose={() => setAddonDialog(null)} onSaved={(isNew) => { setAddonDialog(null); notify(isNew ? 'Additional charge created.' : 'Additional charge saved.'); }} />
 
+      <DishDialog dish={dishDialog} onClose={() => setDishDialog(null)} onSaved={(isNew) => { setDishDialog(null); notify(isNew ? 'Dish added to the menu.' : 'Dish saved.'); }} />
+
       <ConfirmDialog
         open={Boolean(archive)}
         onClose={() => setArchive(null)}
@@ -231,7 +281,9 @@ export default function PackagesPage() {
         description={
           archive?.type === 'package'
             ? 'The package disappears from the site and the reservation form. Existing reservations keep it.'
-            : 'Customers can no longer add this to new reservations. Existing reservations keep it.'
+            : archive?.type === 'dish'
+              ? 'The dish stops being suggested on the booking form. Customers can still type it, and past reservations keep what they wrote.'
+              : 'Customers can no longer add this to new reservations. Existing reservations keep it.'
         }
         confirmLabel="Archive"
         tone="danger"
@@ -240,6 +292,7 @@ export default function PackagesPage() {
           const { type, item } = archive;
           if (type === 'package') await catalogApi.setPackageArchived(item.id, true);
           if (type === 'addon') await catalogApi.setAddonArchived(item.id, true);
+          if (type === 'dish') await catalogApi.setDishArchived(item.id, true);
           setArchive(null);
           if (type === 'package') setEditingId(null);
           notify(`${item.name} archived.`);
@@ -249,8 +302,13 @@ export default function PackagesPage() {
   );
 }
 
-/** Form for creating or editing a package: name, price, guests covered, description, what's included, setup styles, visibility. */
+/**
+ * Form for creating or editing a package: name, price, guests covered, description, what's included, setup styles, visibility.
+ * The Equipment Rental package only has a name, description and visibility here: its prices are each
+ * rentable item's rent price on the Inventory page.
+ */
 function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
+  const rental = isRentalPackage(pkg);
   const [form, setForm] = useState(() => (pkg ? toForm(pkg) : blankPackage()));
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
@@ -279,20 +337,15 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   const validate = () => {
     const e = {};
     if (form.name.trim().length < 3) e.name = 'Enter a package name.';
+    if (form.description.trim().length < 10) e.description = 'Describe the package in at least 10 characters.';
+    // The rental package has no price, guests or items of its own
+    if (rental) return e;
     const price = Number(form.price);
     if (!price || price < 100) e.price = 'Enter a price of at least ₱100.';
     const guests = Number(form.guests);
     if (!Number.isInteger(guests) || guests < 1 || guests > RULES.maxGuests) e.guests = `Between 1 and ${RULES.maxGuests}.`;
-    if (form.description.trim().length < 10) e.description = 'Describe the package in at least 10 characters.';
     if (!parseItems(form.itemsText).length) e.itemsText = 'List at least one item.';
-    if (!form.setups.length) e.setups = 'Choose at least one setup style.';
     return e;
-  };
-
-  // Tick or untick a setup style (kept in SETUP_STYLES order)
-  const toggleSetup = (style) => {
-    setForm((f) => ({ ...f, setups: SETUP_STYLES.filter((s) => (s === style ? !f.setups.includes(s) : f.setups.includes(s))) }));
-    setErrors((er) => ({ ...er, setups: '' }));
   };
 
   // Validate, then save the package: trim text, convert numbers back, turn the lines into items
@@ -326,24 +379,32 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
       {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <FormField id="p-name" label="Package name" required value={form.name} onChange={set('name')} error={errors.name} sx={{ gridColumn: { sm: '1 / -1' } }} />
-        <FormField id="p-price" label="Package price" required type="number" value={form.price} onChange={set('price')} error={errors.price} hint="Flat price, food not included" InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} />
-        <FormField id="p-guests" label="Guests covered" required type="number" value={form.guests} onChange={set('guests')} error={errors.guests} hint="How many guests the tableware and chairs cover" />
+        {!rental && (
+          <>
+            <FormField id="p-price" label="Package price" required type="number" value={form.price} onChange={set('price')} error={errors.price} hint="Flat price, food not included" InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} />
+            <FormField id="p-guests" label="Guests covered" required type="number" value={form.guests} onChange={set('guests')} error={errors.guests} hint="How many guests the tableware and chairs cover" />
+          </>
+        )}
         <FormField id="p-desc" label="Description shown on the site" required multiline minRows={2} value={form.description} onChange={set('description')} error={errors.description} sx={{ gridColumn: { sm: '1 / -1' } }} />
-        <FormField id="p-items" label="What's included" required multiline minRows={8} value={form.itemsText} onChange={set('itemsText')} error={errors.itemsText} hint='One item per line. Start with the quantity when there is one, e.g. "100 Porcelain Plates" or "Buffet Table".' sx={{ gridColumn: { sm: '1 / -1' } }} />
+        {!rental && (
+          <FormField id="p-items" label="What's included" required multiline minRows={8} value={form.itemsText} onChange={set('itemsText')} error={errors.itemsText} hint='One item per line. Start with the quantity when there is one, e.g. "100 Porcelain Plates" or "Buffet Table".' sx={{ gridColumn: { sm: '1 / -1' } }} />
+        )}
       </Box>
 
-      {/* Setup styles customers can pick with this package on the reservation form */}
-      <Box sx={{ mt: 2 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-          Setup styles <Box component="span" sx={{ color: tokens.red }}>*</Box>
+      {/* Every package can be booked either way, so there is nothing to choose here.
+          The rental package is priced from the inventory instead. */}
+      <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
+        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+          {rental ? (
+            <>
+              <b>How it is priced</b> · customers pick items and pay each one's rent price per piece. Set which items can be rented, their rent price and their damage fee on the Inventory page (Edit → "Customers can rent this item").
+            </>
+          ) : (
+            <>
+              <b>How it can be booked</b> · as a Buffet (this equipment plus food we cook, charged per person) or as Catering only (this equipment on its own). Customers choose when they reserve.
+            </>
+          )}
         </Typography>
-        <Typography sx={{ fontSize: 12, color: tokens.textMuted, mb: 0.5 }}>Customers can only pick these for this package. Offer only what its equipment and staff can serve.</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1 }}>
-          {SETUP_STYLES.map((style) => (
-            <FormControlLabel key={style} control={<Checkbox size="small" checked={form.setups.includes(style)} onChange={() => toggleSetup(style)} />} label={<Typography sx={{ fontSize: 13.5 }}>{style}</Typography>} />
-          ))}
-        </Box>
-        {errors.setups && <Typography sx={{ fontSize: 12, color: tokens.redPress }}>{errors.setups}</Typography>}
       </Box>
 
       <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: `1px dashed ${tokens.borderInput}` }}>
@@ -379,7 +440,7 @@ function AddonDialog({ addon, onClose, onSaved }) {
   // When the dialog opens, fill the form with the additional charge (or blanks for a new one)
   useEffect(() => {
     if (addon) {
-      setValues({ name: addon.name || '', description: addon.description || '' });
+      setValues({ name: addon.name || '', description: addon.description || '', hasQuantity: Boolean(addon.hasQuantity) });
       setErrors({});
     }
   }, [addon]);
@@ -407,6 +468,121 @@ function AddonDialog({ addon, onClose, onSaved }) {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <FormField id="addon-name" label="Name" required value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} error={errors.name} autoFocus />
         <FormField id="addon-desc" label="Description" required multiline minRows={2} value={values.description} onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))} error={errors.description} />
+        {/* Counted by the piece: the booking form asks how many, and the quotation prices one */}
+        <FormControlLabel
+          control={<Checkbox size="small" checked={Boolean(values.hasQuantity)} onChange={(e) => setValues((v) => ({ ...v, hasQuantity: e.target.checked }))} />}
+          label={
+            <Box>
+              <Typography sx={{ fontSize: 13.5 }}>Ask the customer how many</Typography>
+              <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>For charges counted by the piece, such as extra waiters. You then price one of them in the quotation.</Typography>
+            </Box>
+          }
+          sx={{ alignItems: 'flex-start' }}
+        />
+      </Box>
+    </AppDialog>
+  );
+}
+
+/**
+ * The buffet price per person, the one price set here rather than per booking. Changing it applies
+ * to new bookings only: every reservation keeps the rate it was made at, so a quotation already
+ * sent can never move on its own.
+ */
+function PricePerPlateCard({ current, onSaved }) {
+  const [value, setValue] = useState(String(current));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  // Follow the saved price when it changes elsewhere
+  useEffect(() => setValue(String(current)), [current]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await catalogApi.setPricePerPlate(Number(value));
+      setError('');
+      onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DashCard>
+      <CardTitle subtitle="What one guest costs on a buffet booking. Catering only bookings are not charged per person.">Buffet price per person</CardTitle>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+        <FormField
+          id="price-per-plate"
+          type="number"
+          value={value}
+          onChange={(e) => { setValue(e.target.value); setError(''); }}
+          error={error}
+          InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
+          inputProps={{ min: PRICE_PER_PLATE_RANGE.min, max: PRICE_PER_PLATE_RANGE.max, step: 50, 'aria-label': 'Buffet price per person' }}
+          sx={{ width: 170 }}
+        />
+        <BusyButton busy={busy} disabled={String(current) === value} onClick={save} sx={{ height: 40 }}>
+          Save
+        </BusyButton>
+      </Box>
+      <Typography sx={{ mt: 1.5, fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
+        A 100-guest buffet comes to {peso(100 * (Number(value) || 0))}. Reservations already made keep the price they were booked at, so raising this never changes what an existing customer owes.
+      </Typography>
+    </DashCard>
+  );
+}
+
+/** Dialog to add or rename a suggested dish in one of the four buffet categories. */
+function DishDialog({ dish, onClose, onSaved }) {
+  const [values, setValues] = useState({ name: '', category: DISH_CATEGORIES[0].key });
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+
+  // Start from the dish being edited, or a blank one in the first category
+  useEffect(() => {
+    if (dish) setValues({ name: dish.name || '', category: dish.category || DISH_CATEGORIES[0].key });
+    setErrors({});
+  }, [dish]);
+
+  const save = async () => {
+    if (values.name.trim().length < 2) return setErrors({ name: 'Enter the name of the dish.' });
+    setBusy(true);
+    try {
+      await catalogApi.saveDish({ id: dish.id, ...values });
+      onSaved(!dish.id);
+    } catch (e) {
+      if (e.meta && e.meta.field) setErrors({ [e.meta.field]: e.message });
+      else setErrors({ form: e.message });
+    } finally {
+      setBusy(false);
+    }
+    return undefined;
+  };
+
+  return (
+    <AppDialog
+      open={Boolean(dish)}
+      onClose={onClose}
+      busy={busy}
+      maxWidth="xs"
+      title={dish && dish.id ? 'Edit dish' : 'New dish'}
+      description="Suggested under the matching box on the booking form. Customers can still write anything they like."
+      actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save</BusyButton></>}
+    >
+      {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <FormField id="dish-name" label="Dish name" required value={values.name} onChange={(e) => { setValues((v) => ({ ...v, name: e.target.value })); setErrors({}); }} error={errors.name} placeholder="e.g. Lechon Kawali" autoFocus />
+        <SelectField
+          id="dish-category"
+          label="Part of the menu"
+          required
+          value={values.category}
+          onChange={(e) => { setValues((v) => ({ ...v, category: e.target.value })); setErrors({}); }}
+          options={DISH_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
+          error={errors.category}
+        />
       </Box>
     </AppDialog>
   );

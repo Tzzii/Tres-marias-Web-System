@@ -30,8 +30,12 @@ export function BrandLogo({ size = 165, sx }) {
   );
 }
 
-/** Logo avatar with the wordmark and a subtitle ("Catering Services", "Admin"). */
-export function BrandMark({ subtitle = 'Catering Services', size = 42, hideTextOnXs = false, onClick, light = true }) {
+/** Logo avatar with the wordmark and an optional subtitle ("Catering Services" by default).
+ * Pass `subtitle={null}` for the wordmark alone (the admin and customer portals do this).
+ * `light` (the default) is for the app shell, where the wordmark and the gold subtitle follow
+ * the dark / light mode; `light={false}` is for the public website's ivory nav bar.
+ * `textColor` overrides the wordmark colour (the phone drawer uses cream on the dark sidebar). */
+export function BrandMark({ subtitle = 'Catering Services', size = 42, hideTextOnXs = false, onClick, light = true, textColor }) {
   return (
     // Rendered as a real <button> when clickable (keyboard accessible), otherwise a plain <div>
     <Box
@@ -43,10 +47,12 @@ export function BrandMark({ subtitle = 'Catering Services', size = 42, hideTextO
     >
       <Avatar src={LOGO_SRC} alt="" sx={{ width: size, height: size, border: `2px solid ${tokens.gold}` }} />
       <Box sx={{ display: hideTextOnXs ? { xs: 'none', sm: 'flex' } : 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-        <Typography sx={{ fontSize: 15.5, fontWeight: 700, color: light ? tokens.textLight : tokens.textPrimary }}>Tres Marias</Typography>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: light ? tokens.gold : tokens.goldDark }}>
-          {subtitle}
-        </Typography>
+        <Typography sx={{ fontSize: 15.5, fontWeight: 700, color: textColor || (light ? tokens.textLight : tokens.textPrimary) }}>Tres Marias</Typography>
+        {subtitle && (
+          <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: light ? tokens.goldText : tokens.goldDark }}>
+            {subtitle}
+          </Typography>
+        )}
       </Box>
     </Box>
   );

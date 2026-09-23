@@ -45,7 +45,7 @@ const FILTERS = [
   ['unpaid', 'Unpaid']
 ];
 
-/** Does a reservation belong in a filter tab? "awaiting" = has a proof to verify; the rest match the balance standing. */
+/** Does a reservation belong in a filter tab? "awaiting" = has a proof to verify; the rest match the balance status. */
 const inFilter = (key, r) => (key === 'all' ? true : key === 'awaiting' ? r.awaitingCount > 0 : r.balanceState === key);
 
 /**

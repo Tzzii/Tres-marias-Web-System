@@ -48,7 +48,7 @@ export async function listThreads({ customerId, side }) {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** Synchronous unread count for navigation badges. */
+/** Unread count for navigation badges, returned right away (no waiting). */
 export function unreadCount({ customerId, side }) {
   const flag = unreadFlag(side);
   return read()

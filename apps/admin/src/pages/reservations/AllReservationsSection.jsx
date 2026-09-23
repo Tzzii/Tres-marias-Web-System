@@ -18,6 +18,7 @@ import {
   StatusChip,
   daysFromToday,
   formatDate,
+  isRental,
   peso,
   reservationApi,
   statusLabel,
@@ -80,7 +81,7 @@ export default function AllReservationsSection() {
 
   // Download the currently filtered reservations as a plain-text table
   const exportTxt = () => {
-    const rowsOut = filtered.map((r) => ({ Reference: r.ref, Customer: r.customerName, Email: r.customerEmail, Event: r.eventName, Occasion: r.occasion, Date: r.date, Start: r.startTime, Guests: r.guests, Package: r.packageName, Venue: `${r.venue.name}, ${r.venue.city}`, Status: statusLabel(r.status), Total: r.total, Paid: r.paid, Balance: r.balance }));
+    const rowsOut = filtered.map((r) => ({ Reference: r.ref, Customer: r.customerName, Email: r.customerEmail, Event: r.eventName, Occasion: r.occasion, Date: r.date, Start: r.startTime, Guests: isRental(r.serviceType) ? 'Rental' : r.guests, Package: r.packageName, Venue: `${r.venue.name}, ${r.venue.city}`, Status: statusLabel(r.status), Total: r.total, Paid: r.paid, Balance: r.balance }));
     const text = [
       'TRES MARIAS - RESERVATIONS',
       `Generated: ${formatDate(todayISO())}`,
@@ -97,7 +98,8 @@ export default function AllReservationsSection() {
     { key: 'customer', label: 'Customer', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
     { key: 'date', label: 'Event date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
-    { key: 'pax', label: 'Pax', align: 'right', render: (r) => r.guests },
+    // An equipment rental has no guest count
+    { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'balance', label: 'Payment', render: (r) => (['pending', 'declined', 'cancelled'].includes(r.status) ? <Typography component="span" sx={{ fontSize: 12.5, color: tokens.textMuted }}>—</Typography> : <BalanceChip state={r.balanceState} size="sm" />) },
     { key: 'status', label: 'Status', render: (r) => <StatusChip status={r.status} size="sm" /> }

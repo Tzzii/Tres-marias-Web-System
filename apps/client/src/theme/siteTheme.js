@@ -1,5 +1,5 @@
 import { createTheme } from '@mui/material/styles';
-import { lightTheme, tokens } from '@tm/shared';
+import { lightPalette, lightTheme } from '@tm/shared';
 
 /**
  * "Warm Ivory & Gold" look for the public website (home, package pages, log in, sign up).
@@ -23,8 +23,9 @@ export const site = {
   inkMuted: '#8a8078',
 
   // Gold: `gold` for icons, lines and stars; `goldText` for gold words on light backgrounds (readable contrast)
-  gold: tokens.gold,
-  goldLight: tokens.goldLight,
+  // Raw hex values, not the `var(--tm-...)` tokens: MUI measures contrast on palette colours
+  gold: lightPalette.gold,
+  goldLight: lightPalette.goldLight,
   goldText: '#8a6a2f',
   goldTint: 'rgba(197, 160, 89, 0.12)',
 
@@ -36,7 +37,7 @@ export const site = {
   onEspressoMuted: '#9c9186',
   espressoBorder: 'rgba(197, 160, 89, 0.22)',
 
-  // Fonts: serif headings echo "TRES MARIAS" in the logo, the sans body echoes "Catering Services"
+  // Fonts: serif headings match "TRES MARIAS" in the logo, the sans body matches "Catering Services"
   fontSerif: '"Playfair Display", Georgia, "Times New Roman", serif',
   fontSans: '"Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 

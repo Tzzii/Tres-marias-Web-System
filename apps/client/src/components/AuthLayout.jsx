@@ -1,13 +1,52 @@
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import { keyframes } from '@mui/material/styles';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import { BrandLogo, formatDateLong, shakeSx, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
+
+// Log in <-> Sign up card flip. The card turns to the right until it is edge-on (flipOut),
+// the page changes, then the new card finishes the turn from the other side (flipIn).
+const FLIP_MS = 500;
+const flipOut = keyframes`
+  from { transform: perspective(1400px) rotateY(0deg); opacity: 1; }
+  to   { transform: perspective(1400px) rotateY(90deg); opacity: 0.6; }
+`;
+const flipIn = keyframes`
+  from { transform: perspective(1400px) rotateY(-90deg); opacity: 0.6; }
+  to   { transform: perspective(1400px) rotateY(0deg); opacity: 1; }
+`;
+// Visitors who ask for less motion get a plain page change
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * Switches between Log in and Sign up with the card flip. Returns `flipping` (pass it to FormCard)
+ * and `flipTo(path)`, which plays the flip-out, then opens `path` and tells its card to flip in.
+ * Used as the onClick of the "Sign up" / "Log in" links (the links keep their href for new tabs).
+ */
+export function useCardFlip() {
+  const navigate = useNavigate();
+  const [flipping, setFlipping] = useState(false);
+  const flipTo = (to) => (event) => {
+    // Let Ctrl/Cmd/Shift/middle clicks open a new tab as usual
+    if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1)) return;
+    if (event) event.preventDefault();
+    if (flipping) return;
+    if (prefersReducedMotion()) {
+      navigate(to);
+      return;
+    }
+    setFlipping(true);
+    window.setTimeout(() => navigate(to, { state: { flip: true } }), FLIP_MS);
+  };
+  return { flipping, flipTo };
+}
 
 /**
  * Two-panel layout for Sign up (1d) and Log in (1e) in the light website look: brand on a warm
@@ -67,15 +106,27 @@ export default function AuthLayout({ headline, perks, children, backTo = '/', ba
   );
 }
 
-/** The white card the auth forms sit in (fields and buttons follow the light website theme). */
-export function FormCard({ shake, onAnimationEnd, children, component = 'div', ...rest }) {
+/**
+ * The white card the auth forms sit in (fields and buttons follow the light website theme).
+ * `flipping` turns the card away (see useCardFlip); a card opened by a flip (location state
+ * `flip`) turns into view once when it first shows. A shake replaces the flip while it plays.
+ */
+export function FormCard({ shake, flipping = false, onAnimationEnd, children, component = 'div', ...rest }) {
+  const location = useLocation();
+  // Read once on mount so later re-renders (typing, errors) never replay the flip-in
+  const [flippedIn] = useState(() => Boolean(location.state && location.state.flip) && !prefersReducedMotion());
+  const flipSx = flipping
+    ? { animation: `${flipOut} ${FLIP_MS}ms ease-in forwards`, pointerEvents: 'none' }
+    : flippedIn
+      ? { animation: `${flipIn} ${FLIP_MS}ms ease-out both` }
+      : null;
   return (
       <Paper
         component={component}
         elevation={0}
         onAnimationEnd={onAnimationEnd}
         {...rest}
-        sx={{ p: { xs: 2.5, sm: 3.5 }, display: 'flex', flexDirection: 'column', gap: 2, backgroundColor: site.card, color: site.ink, border: `1px solid ${site.border}`, borderRadius: 3, boxShadow: site.shadowPanel, ...shakeSx(shake) }}
+        sx={{ p: { xs: 2.5, sm: 3.5 }, display: 'flex', flexDirection: 'column', gap: 2, backgroundColor: site.card, color: site.ink, border: `1px solid ${site.border}`, borderRadius: 3, boxShadow: site.shadowPanel, ...flipSx, ...shakeSx(shake) }}
       >
         {children}
       </Paper>

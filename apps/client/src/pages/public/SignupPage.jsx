@@ -25,7 +25,7 @@ import {
   validatePassword
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
-import AuthLayout, { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
+import AuthLayout, { BookingIntentBanner, FormCard, useCardFlip } from '../../components/AuthLayout.jsx';
 import { readIntent } from '../../lib/booking.js';
 
 // Validation rule for each field. Each returns an error message, or '' when valid.
@@ -59,6 +59,9 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false); // terms dialog open
+  // "Log in" flips the card over to the login page (keeps the booking the visitor started)
+  const { flipping, flipTo } = useCardFlip();
+  const loginPath = continuingBooking ? '/login?next=/portal/book' : '/login';
 
   // Already signed in: skip this page
   if (isAuthenticated) return <Navigate to={destination} replace />;
@@ -100,7 +103,7 @@ export default function SignupPage() {
 
   return (
     <AuthLayout headline="One account, every celebration you host." perks={['Reserve dates and follow each request live', 'See quotations, contracts and receipts in one place', 'Save drafts and finish your booking any time']}>
-      <FormCard component="form" noValidate onSubmit={submit} shake={shake} onAnimationEnd={() => setShake(false)}>
+      <FormCard component="form" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
         <Box>
           <Typography component="h1" sx={{ fontSize: 24, fontWeight: 700 }}>
             Sign up
@@ -144,7 +147,7 @@ export default function SignupPage() {
 
         <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
           Already have an account?{' '}
-          <Link component={RouterLink} to={continuingBooking ? '/login?next=/portal/book' : '/login'} sx={{ fontWeight: 700, color: tokens.goldDark }}>
+          <Link component={RouterLink} to={loginPath} onClick={flipTo(loginPath)} sx={{ fontWeight: 700, color: tokens.goldDark }}>
             Log in
           </Link>
         </Typography>

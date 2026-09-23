@@ -29,6 +29,7 @@ import {
   formatDateLong,
   formatTime,
   formatWeekday,
+  headcount,
   parseISODate,
   reservationApi,
   toISODate,
@@ -199,7 +200,7 @@ export default function CalendarSection() {
                   {weekDays.map((iso) => {
                     const info = describe(iso);
                     return (
-                      <ButtonBase key={iso} onClick={() => setSelected(iso)} sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, p: 1.5, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `1.5px solid ${selected === iso ? tokens.headerBg : iso === todayISO() ? tokens.gold : tokens.cardLightBorder}`, backgroundColor: info.blocked ? tokens.surfaceMuted : '#fff' }}>
+                      <ButtonBase key={iso} onClick={() => setSelected(iso)} sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, p: 1.5, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `1.5px solid ${selected === iso ? tokens.ink : iso === todayISO() ? tokens.gold : tokens.cardLightBorder}`, backgroundColor: info.blocked ? tokens.surfaceMuted : '#fff' }}>
                         <Box sx={{ width: 110, flexShrink: 0 }}>
                           <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{formatWeekday(iso)}</Typography>
                           <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{formatDate(iso)}</Typography>
@@ -209,7 +210,7 @@ export default function CalendarSection() {
                           {info.events.length === 0 && !info.blocked && <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>Open</Typography>}
                           {info.events.map((e) => (
                             <Typography key={e.ref} noWrap sx={{ fontSize: 13, color: tokens.textPrimary }}>
-                              {formatTime(e.startTime)} · {e.eventName} · {e.guests} pax
+                              {formatTime(e.startTime)} · {e.eventName} · {headcount(e, 'pax')}
                             </Typography>
                           ))}
                         </Box>
@@ -235,7 +236,7 @@ export default function CalendarSection() {
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{e.eventName}</Typography>
                         <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                          {formatTime(e.startTime)} · {e.customerName} · {e.guests} pax · {e.venue.city}
+                          {formatTime(e.startTime)} · {e.customerName} · {headcount(e, 'pax')} · {e.venue.city}
                         </Typography>
                       </Box>
                       <StatusChip status={e.status} size="sm" />

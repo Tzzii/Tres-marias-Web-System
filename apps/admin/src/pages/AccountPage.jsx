@@ -353,7 +353,7 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Clear every field each time the dialog opens, so no password lingers in memory
+  // Clear every field each time the dialog opens, so no password stays in memory
   useEffect(() => {
     if (open) {
       setValues(empty);

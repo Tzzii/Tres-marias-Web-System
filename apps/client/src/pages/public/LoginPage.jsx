@@ -26,7 +26,7 @@ import {
 } from '@tm/shared';
 import Button from '@mui/material/Button';
 import { useAuth } from '../../auth.js';
-import AuthLayout, { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
+import AuthLayout, { BookingIntentBanner, FormCard, useCardFlip } from '../../components/AuthLayout.jsx';
 import { readIntent } from '../../lib/booking.js';
 
 // Storage key for the email saved by "Remember me"
@@ -63,6 +63,9 @@ export default function LoginPage() {
   const [shake, setShake] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetDone, setResetDone] = useState(false); // shows "Password changed" after a reset
+  // "Sign up" flips the card over to the sign-up page (keeps the booking the visitor started)
+  const { flipping, flipTo } = useCardFlip();
+  const signupPath = continuingBooking ? '/signup?continue=booking' : '/signup';
   // Seconds left on the lockout
   const lockSeconds = useCountdown(lockedUntil);
 
@@ -119,7 +122,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout headline="Welcome to your celebrations." perks={['Follow every reservation from request to event day', 'Pay securely and keep every receipt', 'Message the admin directly']}>
-      <FormCard component="form" noValidate onSubmit={submit} shake={shake} onAnimationEnd={() => setShake(false)}>
+      <FormCard component="form" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
         <Box>
           <Typography component="h1" sx={{ fontSize: 24, fontWeight: 700 }}>
             Log in
@@ -180,7 +183,7 @@ export default function LoginPage() {
 
         <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
           No account yet?{' '}
-          <Link component={RouterLink} to={continuingBooking ? '/signup?continue=booking' : '/signup'} sx={{ fontWeight: 700, color: tokens.goldDark }}>
+          <Link component={RouterLink} to={signupPath} onClick={flipTo(signupPath)} sx={{ fontWeight: 700, color: tokens.goldDark }}>
             Sign up
           </Link>
         </Typography>
@@ -318,7 +321,8 @@ function ForgotPasswordDialog({ open, onClose, initialEmail, onDone }) {
     }
   };
 
-  // Text a new code (allowed once the resend timer ends)
+  // Text a new code (allowed once the resend timer ends). Asking too soon only shows the message;
+  // any other failure (e.g. the request expired) starts the reset again.
   const resend = async () => {
     setBusy(true);
     setFormError('');
@@ -328,7 +332,8 @@ function ForgotPasswordDialog({ open, onClose, initialEmail, onDone }) {
       setCode('');
       setCodeState('idle');
     } catch (error) {
-      restart(error.message);
+      if (error.code === 'TOO_SOON') setFormError(error.message);
+      else restart(error.message);
     } finally {
       setBusy(false);
     }

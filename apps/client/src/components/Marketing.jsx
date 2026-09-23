@@ -7,11 +7,12 @@ import Typography from '@mui/material/Typography';
 import { keyframes } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import CelebrationOutlinedIcon from '@mui/icons-material/CelebrationOutlined';
+import ChairOutlinedIcon from '@mui/icons-material/ChairOutlined';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import RestaurantOutlinedIcon from '@mui/icons-material/RestaurantOutlined';
 import WorkOutlineRoundedIcon from '@mui/icons-material/WorkOutlineRounded';
-import { peso, tokens } from '@tm/shared';
+import { isRentalPackage, peso, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 import { reducedMotionSx, useInView } from './Reveal.jsx';
 
@@ -20,7 +21,8 @@ export const PACKAGE_ICONS = {
   restaurant: RestaurantOutlinedIcon,
   celebration: CelebrationOutlinedIcon,
   favorite: FavoriteBorderRoundedIcon,
-  work: WorkOutlineRoundedIcon
+  work: WorkOutlineRoundedIcon,
+  chair: ChairOutlinedIcon
 };
 
 // Package illustrations shown instead of the plain icon on the public website, keyed by package slug.
@@ -32,7 +34,7 @@ export const PACKAGE_BACKDROPS = Object.fromEntries(
 );
 
 /**
- * Eyebrow, serif title, description and gold rule on the light website background (design system: SectionHead).
+ * Small label above the title, serif title, description and gold line on the light website background (design system: SectionHead).
  * Every time it scrolls into view, the lines fade up one after another and the gold rule draws
  * itself outward from the centre. It then stays still until it leaves the screen.
  */
@@ -72,7 +74,7 @@ export function SectionHead({ eyebrow, title, description, align = 'center' }) {
 }
 
 /**
- * Mood wash + outlined icon panel used by package cards and the package hero.
+ * Soft colour background + outlined icon panel used by package cards and the package hero.
  * `light` uses the light website washes (public pages); without it the navy washes are kept (customer portal).
  * On the light website, packages with an illustration in PACKAGE_BACKDROPS show it instead of the icon;
  * the illustration sits in a "tm-mood-art" layer (panel class "tm-has-art") so a parent can zoom it on hover.
@@ -104,7 +106,7 @@ const iconFloat = keyframes`
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 `;
-// A soft gold ring that breathes around the icon
+// A soft gold ring that slowly grows and shrinks around the icon
 const iconHalo = keyframes`
   0%, 100% { opacity: 0.25; transform: translate(-50%, -50%) scale(0.85); }
   50% { opacity: 0.55; transform: translate(-50%, -50%) scale(1.05); }
@@ -117,6 +119,7 @@ const shineSweep = keyframes`
 
 /**
  * One package in the public catalog (1a): a white card with a light mood panel, serif name and price.
+ * The Equipment Rental package has no single price, so its card says "Per piece" and links to its price list.
  * Animations: the card rises and fades in every time it is scrolled into view (cards in the same row follow
  * one another, using `index`); on hover it lifts with a gold glow, a light sweeps across the top
  * panel, the icon grows and tilts (or the package illustration zooms in slowly), the price turns gold,
@@ -129,12 +132,13 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
   const [ref, shown] = useInView();
   // true once the entrance animation has finished; hover then reacts immediately and a little faster
   const [settled, setSettled] = useState(false);
-  // When the card leaves the screen, reset so the next entrance uses the row stagger again
+  // When the card leaves the screen, reset so next time the cards in a row appear one after another again
   useEffect(() => {
     if (!shown) setSettled(false);
   }, [shown]);
   // Open this package's detail page
   const open = () => navigate(`/packages/${pkg.slug}`);
+  const rental = isRentalPackage(pkg);
   // Entrance delay by the card's position in a 3-column row: 0 ms, 110 ms, 220 ms (none after it has settled)
   const delay = settled ? 0 : (index % 3) * 110;
   const duration = settled ? 0.45 : 0.7;
@@ -142,7 +146,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
   return (
     <Paper
       ref={ref}
-      // The card's own rise-in finished (ignore transitions bubbling up from the button or icon)
+      // The card's own rise-in finished (ignore animations coming from the button or icon inside it)
       onTransitionEnd={(e) => {
         if (shown && e.target === e.currentTarget && e.propertyName === 'transform') setSettled(true);
       }}
@@ -176,7 +180,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           transform: 'skewX(-18deg)',
           pointerEvents: 'none'
         },
-        // Soft white halo behind the icon
+        // Soft white glow behind the icon
         '& .tm-mood-panel::before': {
           content: '""',
           position: 'absolute',
@@ -189,7 +193,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           animation: `${iconHalo} 4s ease-in-out infinite`,
           pointerEvents: 'none'
         },
-        // Illustrated backdrops have no icon, so no halo; the illustration eases in and out of its hover zoom
+        // Illustrated backdrops have no icon, so no glow; the illustration eases in and out of its hover zoom
         '& .tm-has-art::before': { display: 'none' },
         '& .tm-mood-art': { transition: 'transform 0.9s cubic-bezier(0.22, 1, 0.36, 1)' },
         // The icon bobs gently; its hover grow/tilt sits on the wrapper transform below
@@ -243,13 +247,14 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
         <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: site.inkSoft }}>{pkg.description}</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 12.5, color: site.inkMuted }}>
           <GroupsOutlinedIcon sx={{ fontSize: 16, color: site.gold }} />
-          Covers {pkg.guests} guests
+          {rental ? 'Rent only what you need' : `Covers ${pkg.guests} guests`}
         </Box>
-        {/* Flat package price; food is cooked to the customer's request and quoted separately */}
+        {/* Flat package price; food is cooked to the customer's request and quoted separately.
+            A rental is priced item by item instead. */}
         <Box sx={{ mt: 'auto', pt: 1.5 }}>
-          <Typography className="tm-card-price" sx={{ fontFamily: site.fontSerif, fontSize: 28, fontWeight: 700, color: site.goldText }}>{peso(pkg.price)}</Typography>
+          <Typography className="tm-card-price" sx={{ fontFamily: site.fontSerif, fontSize: 28, fontWeight: 700, color: site.goldText }}>{rental ? 'Per piece' : peso(pkg.price)}</Typography>
         </Box>
-        <Typography sx={{ fontSize: 12, color: site.inkMuted }}>Food quoted separately</Typography>
+        <Typography sx={{ fontSize: 12, color: site.inkMuted }}>{rental ? 'Pick up or delivery' : 'Food quoted separately'}</Typography>
         <Button
           onClick={open}
           fullWidth
@@ -266,7 +271,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
             '&:hover': { color: site.ivory, backgroundColor: site.goldText, borderColor: site.goldText }
           }}
         >
-          View package
+          {rental ? 'See the price list' : 'View package'}
         </Button>
       </Box>
     </Paper>

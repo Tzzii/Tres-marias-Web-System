@@ -102,7 +102,7 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath }) {
       [persist]
     );
 
-    // Idle timeout: record activity (throttled) and check every 20 seconds
+    // Idle timeout: record activity (at most once every 15 seconds) and check every 20 seconds
     useEffect(() => {
       if (!session) return undefined;
 

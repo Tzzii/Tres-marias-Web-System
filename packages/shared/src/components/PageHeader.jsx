@@ -7,8 +7,8 @@ import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded';
 import { tokens } from '../theme/tokens.js';
 
 /**
- * Page title row on the dark portal background: breadcrumb trail, title,
- * subtitle and an actions slot that wraps under the title on phones.
+ * Page title row on the portal background (navy in dark mode, ivory in light):
+ * breadcrumb trail, title, subtitle and an actions slot that wraps under the title on phones.
  */
 export function PageHeader({ title, subtitle, crumbs, actions, chip }) {
   return (
@@ -23,7 +23,7 @@ export function PageHeader({ title, subtitle, crumbs, actions, chip }) {
                   {crumb.label}
                 </Link>
               ) : (
-                <Typography key={crumb.label} sx={{ fontSize: 12.5, color: tokens.goldLight }}>
+                <Typography key={crumb.label} sx={{ fontSize: 12.5, color: tokens.goldText }}>
                   {crumb.label}
                 </Typography>
               )

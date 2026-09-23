@@ -4,7 +4,7 @@ import Typography from '@mui/material/Typography';
 import { tokens } from '@tm/shared';
 
 /**
- * Underlined tabs on the dark page background that switch between the sections of one page
+ * Underlined tabs on the page background that switch between the sections of one page
  * (e.g. Requests / All reservations / Calendar). Options: { value, label, badge? }.
  * On narrow screens the row can be swiped sideways, but no scrollbar is shown.
  */
@@ -24,7 +24,7 @@ export function SectionTabs({ options, value, onChange, ariaLabel }) {
         scrollbarWidth: 'none',
         '&::-webkit-scrollbar': { display: 'none' },
         // Grey line under the tabs, drawn inside the row so the gold underline can sit on it without overflowing
-        boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.12)'
+        boxShadow: `inset 0 -1px 0 ${tokens.shellBorder}`
       }}
     >
       {options.map((option) => {
@@ -43,9 +43,9 @@ export function SectionTabs({ options, value, onChange, ariaLabel }) {
               fontWeight: active ? 700 : 500,
               fontFamily: 'inherit',
               whiteSpace: 'nowrap',
-              color: active ? tokens.goldLight : tokens.textOnDarkSoft,
+              color: active ? tokens.goldText : tokens.textOnDarkSoft,
               borderBottom: `2px solid ${active ? tokens.gold : 'transparent'}`,
-              '&:hover': { color: tokens.goldLight }
+              '&:hover': { color: tokens.goldText }
             }}
           >
             {option.label}

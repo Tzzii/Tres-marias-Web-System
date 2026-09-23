@@ -1,4 +1,4 @@
-import { BUSINESS, OUTSOURCE_SERVICES } from './config.js';
+import { BUSINESS, OUTSOURCE_SERVICES, isRental } from './config.js';
 import { ApiError, clone, latency, nextId, read, uid, write } from './store.js';
 import { formatDate, peso, todayISO } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
@@ -142,13 +142,16 @@ export async function listContracts() {
   return data.outsourcing.contracts.map((contract) => enrichContract(contract, data)).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-/** Reservations a contract can be assigned to: approved to confirmed bookings, soonest first. */
+/**
+ * Reservations a contract can be assigned to: approved to confirmed bookings, soonest first.
+ * `rental` is true for an Equipment Rental booking (it has no guest count).
+ */
 export async function listOutsourceEvents() {
   await latency(120, 300);
   return read()
     .reservations.filter((r) => HOLDS_DATE.includes(r.status))
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, guests: r.guests, venue: `${r.venue.name}, ${r.venue.city}` }));
+    .map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, guests: r.guests, rental: isRental(r.serviceType), venue: `${r.venue.name}, ${r.venue.city}` }));
 }
 
 // Check a partner's details. A partner with neither an email nor a mobile number could not be

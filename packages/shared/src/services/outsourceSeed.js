@@ -4,7 +4,7 @@ import { composeContractText } from './outsourceService.js';
 /**
  * Starting outsourcing partners and contracts, used by seed.js.
  *
- * The partners deliberately differ in how they can be reached — some have both an email address and a
+ * The partners differ on purpose in in how they can be reached — some have both an email address and a
  * mobile number, some only one — because a contract is sent to whatever channels a partner has, with
  * the same text in each. `composeContractText` comes from the service so seeded contracts read exactly
  * like the ones the admin sends.

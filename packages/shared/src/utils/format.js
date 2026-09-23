@@ -6,8 +6,17 @@ const pesoFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 
 /** Number -> "₱12,500". Invalid values show as ₱0. */
 export const peso = (amount) => `₱${pesoFormatter.format(Math.round(Number(amount) || 0))}`;
 
-/** One package inclusion as text: { qty: 100, name: 'Porcelain Plates' } -> "100 Porcelain Plates"; no qty -> just the name. */
+/** One item included in a package, as text: { qty: 100, name: 'Porcelain Plates' } -> "100 Porcelain Plates"; no qty -> just the name. */
 export const formatPackageItem = (item) => (item.qty ? `${item.qty} ${item.name}` : item.name);
+
+/**
+ * A reservation's head count for lists: "150 guests" (or "150 pax" with `word`), and "Equipment rental"
+ * for a rental, which has no guests. Same test as isRental in services/config.js.
+ */
+export const headcount = (reservation, word = 'guests') => (reservation.serviceType === 'Equipment rental' ? 'Equipment rental' : `${reservation.guests} ${word}`);
+
+/** The rented items of a rental as one line: [{ qty: 100, name: 'Monobloc chair' }] -> "100 × Monobloc chair". */
+export const formatRentalItems = (lines = []) => lines.map((line) => `${line.qty} × ${line.name}`).join(', ');
 
 // 5 -> "05"
 const pad = (n) => String(n).padStart(2, '0');

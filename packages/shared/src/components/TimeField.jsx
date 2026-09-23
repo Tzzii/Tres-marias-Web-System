@@ -48,7 +48,7 @@ export function TimeField({ id, label, required, optional, error, hint, value, o
   // The hour and minute lists always show every option (hours 01 … 12, minutes every `step`) so none
   // looks missing; options outside min–max for the chosen AM/PM and hour are greyed out
   // (e.g. 12 AM to 5 AM before a 6 AM start).
-  // While a part is still blank the next one lists the first option's times, so the field never dead-ends.
+  // While a part is still blank the next one lists the first option's times, so the field never gets stuck.
   const meridiems = uniq(slots, 'meridiem');
   const openHours = uniq(slots.filter((s) => s.meridiem === (meridiem || meridiems[0])), 'hour');
   const hours = ALL_HOURS.map((h) => ({ value: h, disabled: !openHours.includes(h) }));

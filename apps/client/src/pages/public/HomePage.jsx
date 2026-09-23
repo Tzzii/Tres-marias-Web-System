@@ -16,7 +16,7 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import LocalBarOutlinedIcon from '@mui/icons-material/LocalBarOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
-import { BUSINESS, RULES, catalogApi, feedbackApi, tokens, useDocumentTitle, useResource } from '@tm/shared';
+import { BUSINESS, RULES, catalogApi, feedbackApi, isRentalPackage, tokens, useDocumentTitle, useResource } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import BookingBar from '../../components/BookingBar.jsx';
 import { PackageCard, SectionHead } from '../../components/Marketing.jsx';
@@ -37,7 +37,7 @@ const heroLine = (shown, delay) => ({
 
 // Services section cards as [icon, title, description]
 const SERVICES = [
-  [RestaurantMenuOutlinedIcon, 'Food cooked to your request', 'Tell us the dishes you want and our kitchen cooks them for your buffet, adjusted for dietary needs, allergies and halal requirements.'],
+  [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick one pork, chicken, fish and vegetable dish from our menu, with water and juice for every guest. Served plated by our team, at one price per person.'],
   [AutoAwesomeOutlinedIcon, 'Event styling', 'Themed table setups, floral centrepieces, backdrops and mood lighting designed around your motif.'],
   [EventAvailableOutlinedIcon, 'Online reservations', 'Check open dates, reserve online and follow every step, from approval to the final headcount.'],
   [CreditCardOutlinedIcon, 'Flexible payments', 'Secure your date with a 50% downpayment through cash, GCash or bank transfer and settle the rest on the day.'],
@@ -51,7 +51,9 @@ const FAQS = [
   ['How much is the downpayment?', `A ${RULES.downpaymentRate * 100}% downpayment secures your date. It is due within ${RULES.downpaymentDueDays} days after we approve your reservation, and the balance is settled on the event day.`],
   ['How can I pay?', 'Through GCash or bank transfer. Upload your proof of payment in your account and our team will verify it.'],
   ['Where do you cater?', `We serve ${BUSINESS.serviceArea}. For venues farther away, send us a message and we will let you know if we can accommodate your event.`],
-  ['Is food included in a package?', 'No. Packages cover the buffet setup, tableware, tables and chairs, and some include waiters. You tell us the food you want when you reserve, our kitchen cooks it, and the food price is added to your quotation.'],
+  ['Is food included in a package?', 'A package covers the equipment: buffet setup, tableware, tables and chairs, and some include waiters. When you reserve, you choose a buffet, where we cook for you and charge per person on top of the package, or catering only, where you get the equipment alone and cook the food yourself.'],
+  ['What is on the buffet?', `One pork dish, one chicken dish, one fish dish and one vegetable dish, all picked by you from our menu, with water and juice for every guest. It is served plated by our team and charged per person, so you know your food cost the moment you enter your guest count.`],
+  ['What time can our event start?', `Any time, any day. We run 24 hours a day, Monday to Sunday, so an event can start at six in the morning or at midnight. Pick the hour that suits your celebration and that is when our team arrives.`],
   ['Can I use any package for my event?', 'Yes. Packages are not tied to an occasion, so you can book any package for a wedding, birthday, corporate event or anything else.'],
   ['How many guests can you serve?', `Each package lists how many guests its tableware and chairs cover. If you have more guests than that, you can still book it and we add the extra charges to your quotation, from ${RULES.minGuests} up to ${RULES.maxGuests.toLocaleString('en-PH')} guests.`]
 ];
@@ -153,7 +155,8 @@ export default function HomePage() {
       {/* ==================== PACKAGES ==================== */}
       <Box component="section" id="packages" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: '80px' }}>
         <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
-          <SectionHead eyebrow="Our packages" title="Pick the package that fits your guest count" description={`${packages.data ? packages.data.length : 'Our'} packages, each a flat price for the buffet setup, tableware, tables and chairs. Any package works for any occasion, and the food is cooked to your request.`} />
+          {/* The count leaves out the Equipment Rental package, which is priced per piece rather than flat */}
+          <SectionHead eyebrow="Our packages" title="Pick the package that fits your guest count" description={`${packages.data ? packages.data.filter((p) => !isRentalPackage(p)).length : 'Our'} packages, each a flat price for the buffet setup, tableware, tables and chairs. Any package works for any occasion, as a buffet we cook for you or as catering only. Need only a few things? Rent them by the piece.`} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
             {/* Grey placeholder cards while loading, then one card per package (its position staggers the entrance animation) */}
             {packages.loading

@@ -7,8 +7,8 @@ import { PIPELINE, STATUS, pipelineIndex } from '../utils/status.js';
 
 /**
  * The five-step status strip shown on both portals. Horizontal from `md` up,
- * stacked vertically on phones. Declined / cancelled reservations show where the
- * pipeline stopped.
+ * stacked vertically on phones. Declined / cancelled reservations show every step
+ * greyed out, with a line underneath saying the reservation was declined or cancelled.
  */
 export function StatusPipeline({ status, compact = false }) {
   const stopped = status === 'declined' || status === 'cancelled';

@@ -8,7 +8,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { keyframes } from '@mui/material/styles';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import { availabilitySnapshot, dateUnavailableReason, daySchedule } from '../services/calendarService.js';
+import { availabilitySnapshot, dateUnavailableReason, daySchedule } from '../services/facade/calendar.js';
 import { RULES } from '../services/config.js';
 import { useStoreVersion } from '../hooks/useResource.js';
 import { tokens } from '../theme/tokens.js';
@@ -39,13 +39,15 @@ const scheduleFadeIn = keyframes`
  *            date picks it straight away and shows its schedule underneath. Light surfaces only.
  * `mode="any"` lets the admin pick any date from today on (blocking dates,
  * rescheduling); the popup closes on the first tap and no schedule is shown.
+ * `rental` is for an equipment rental: it takes no event slot, so only too-soon and blocked
+ * dates are greyed out, and no event times are shown.
  * The schedule slides open and closed, and its content fades in when the date changes
  * (both off when the device asks for reduced motion).
  */
-export function DateField({ id, label, value, onChange, error, hint, required, mode = 'booking', placeholder = 'Select a date', dark = false, disabled = false, inline = false }) {
+export function DateField({ id, label, value, onChange, error, hint, required, mode = 'booking', placeholder = 'Select a date', dark = false, disabled = false, inline = false, rental = false }) {
   const [anchor, setAnchor] = useState(null); // element the calendar popup opens under (null = closed)
   const [preview, setPreview] = useState(''); // date tapped in the popup whose booked times are shown (booking mode)
-  const version = useStoreVersion(); // changes whenever stored data changes
+  const version = useStoreVersion(); // changes whenever the data changes (browser store or API)
   // Blocked/booked dates and event times; refreshed when data changes or the popup opens
   const snapshot = useMemo(() => availabilitySnapshot(), [version, anchor]); // eslint-disable-line react-hooks/exhaustive-deps
   const booking = mode === 'booking';
@@ -81,17 +83,20 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
     if (!booking) {
       return iso < todayISO() ? { tone: 'disabled', label: 'Past date' } : { tone: 'open' };
     }
-    const reason = dateUnavailableReason(iso, snapshot);
+    const reason = dateUnavailableReason(iso, snapshot, { rental });
     if (reason) return { tone: 'disabled', label: reason };
+    // Events that day don't matter to a rental, so it gets no dots
+    if (rental) return { tone: 'open', label: 'Available' };
     const count = snapshot.booked[iso] || 0;
     return count ? { tone: 'open', label: `Available · ${count} ${count === 1 ? 'event' : 'events'} already booked`, dots: count } : { tone: 'open', label: 'Available' };
   };
 
   // Date whose schedule is shown: the picked date inline, the tapped date in the popup
   const shown = inline ? value : preview;
-  const schedule = booking && shown && !dateUnavailableReason(shown, snapshot) ? daySchedule(shown, snapshot) : null;
+  // A rental has no event times to show
+  const schedule = booking && !rental && shown && !dateUnavailableReason(shown, snapshot) ? daySchedule(shown, snapshot) : null;
   // Popup only: booked times on the chosen date, repeated under the input once the popup closes
-  const valueBooked = booking && !inline && value ? daySchedule(value, snapshot).booked : [];
+  const valueBooked = booking && !rental && !inline && value ? daySchedule(value, snapshot).booked : [];
 
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)'); // device setting to cut animations
   // Last schedule shown, kept while the panel slides closed so its content doesn't vanish mid-animation
@@ -99,7 +104,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   if (schedule) lastPanel.current = { date: shown, schedule };
   const panel = lastPanel.current;
 
-  const errorColor = dark ? '#fca5a5' : tokens.redPress;
+  const errorColor = dark ? tokens.dangerSoft : tokens.redPress;
   const mutedColor = dark ? tokens.textOnDarkMuted : tokens.textMuted;
 
   // Calendar, the shown date's schedule and the legend; used in the popup and inline
@@ -139,7 +144,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
               </>
             ) : (
               <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.5, color: tokens.textSecondary }}>
-                No events booked yet. You can start any time from {formatTime(RULES.earliestStart)} to {formatTime(RULES.latestStart)}.
+                No events booked yet. We cater 24 hours a day, so you can start at any time.
               </Typography>
             )}
             {!inline && (
@@ -208,11 +213,11 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
           fontSize: 14,
           textAlign: 'left',
           color: value ? (dark ? tokens.textLight : tokens.textPrimary) : dark ? tokens.textOnDarkMuted : tokens.placeholder,
-          backgroundColor: dark ? 'rgba(255, 255, 255, 0.04)' : '#fff',
+          backgroundColor: dark ? tokens.shellInset : tokens.cardLight,
           border: `1px solid ${error ? errorColor : dark ? 'rgba(197, 160, 89, 0.28)' : tokens.borderInput}`,
-          '&:hover': { borderColor: dark ? 'rgba(197, 160, 89, 0.5)' : '#94a3b8' },
+          '&:hover': { borderColor: dark ? 'rgba(197, 160, 89, 0.5)' : tokens.placeholder },
           '&.Mui-disabled': { backgroundColor: dark ? 'transparent' : tokens.surfaceSubtle, color: tokens.textMuted },
-          '&:focus-visible': { outline: 'none', borderColor: dark ? tokens.gold : tokens.headerBg, boxShadow: dark ? 'none' : '0 0 0 3px rgba(15, 23, 42, 0.12)' }
+          '&:focus-visible': { outline: 'none', borderColor: dark ? tokens.gold : tokens.borderFocus, boxShadow: dark ? 'none' : '0 0 0 3px rgba(15, 23, 42, 0.12)' }
         }}
       >
         <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

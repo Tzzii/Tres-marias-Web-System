@@ -12,9 +12,9 @@ import { ApiError, clone, latency, read, write } from './store.js';
 // Reservation statuses that can take payments (approved and later, but not declined or cancelled)
 const PAYABLE = ['approved', 'downpayment_paid', 'confirmed', 'completed'];
 
-// What a payment is for, from what was paid before it: the first payment is "full" when it covers
-// the total, else "downpayment"; any later payment is "balance"
-const kindOf = (money, amount) => (money.paid === 0 ? (amount >= money.total ? 'full' : 'downpayment') : 'balance');
+// What a payment is for, from what was paid before it: "full" when it is the first payment and covers the
+// total, "downpayment" while the 50% downpayment isn't reached yet, and "balance" after that
+const kindOf = (money, amount) => (money.paid === 0 && amount >= money.total ? 'full' : money.paid < money.downpayment ? 'downpayment' : 'balance');
 
 // Name of the signed-in admin, for the activity log and chat messages
 const ADMIN_NAME = () => {
@@ -86,7 +86,7 @@ export async function submitPayment(customerId, { ref, method, amount, reference
     }
     if (method === 'cash') throw new ApiError('INVALID', 'Cash payments are paid on site and recorded by Tres Marias.');
     if (!['gcash', 'bank'].includes(method)) throw new ApiError('INVALID', 'Choose how you paid.', { field: 'method' });
-    // Only one payment can wait for verification at a time, and it can't exceed the balance
+    // Only one payment can wait for verification at a time, and it can't go over the balance
     const money = financials(reservation, data.payments);
     if (money.awaitingCount > 0) {
       throw new ApiError('PENDING_PAYMENT', 'A payment for this reservation is still being verified.');
@@ -230,7 +230,7 @@ export async function recordCashPayment(ref, amount) {
       ref,
       customerId: reservation.customerId,
       amount: value,
-      // First payment is "full" or "downpayment"; any later payment is "balance"
+      // "full", "downpayment" or "balance" (see kindOf)
       kind: kindOf(money, value),
       method: 'cash',
       referenceNo: '',

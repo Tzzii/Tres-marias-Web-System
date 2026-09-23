@@ -26,6 +26,7 @@ import {
   formatDateLong,
   formatRelative,
   formatTime,
+  headcount,
   messageApi,
   peso,
   pluralize,
@@ -61,7 +62,7 @@ export default function DashboardPage() {
 
   // Numbers and items for the dashboard cards
   const reservations = data ? data.reservations : [];
-  // Active events from today onward, soonest first
+  // Active events from today on, soonest first
   const upcoming = reservations.filter((r) => ACTIVE.includes(r.status) && daysFromToday(r.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
   const next = upcoming[0]; // the very next event
   const pending = reservations.filter((r) => r.status === 'pending').length;
@@ -170,7 +171,7 @@ export default function DashboardPage() {
                         <StatusChip status={next.status} size="sm" />
                       </Box>
                       <Typography sx={{ mt: 0.5, fontSize: 13.5, color: tokens.textSecondary }}>
-                        {formatDateLong(next.date)} · {formatTime(next.startTime)} · {next.guests} guests
+                        {formatDateLong(next.date)} · {formatTime(next.startTime)} · {headcount(next)}
                       </Typography>
                       <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
                         {next.venue.name}, {next.venue.city}

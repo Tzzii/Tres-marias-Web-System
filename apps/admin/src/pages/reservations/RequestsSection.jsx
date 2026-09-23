@@ -17,6 +17,7 @@ import {
   StatusChip,
   formatDate,
   formatRelative,
+  isRental,
   peso,
   reservationApi,
   statusLabel,
@@ -107,7 +108,8 @@ export default function RequestsSection() {
     { key: 'customer', label: 'Customer', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.ref} · {formatRelative(r.createdAt)}</Typography></Box>) },
     { key: 'event', label: 'Event and date', render: (r) => (<Box><Typography sx={{ fontSize: 13.5 }}>{r.occasion} · {formatDate(r.date)}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
-    { key: 'pax', label: 'Pax', align: 'right', render: (r) => r.guests },
+    // An equipment rental has no guest count
+    { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     { key: 'quoted', label: 'Quoted', align: 'right', render: (r) => (r.quotation ? peso(r.quotation.net) : <Typography component="span" sx={{ color: tokens.textMuted }} title={`Estimate ${peso(r.estimate.net)}`}>—</Typography>) },
     tab === 'pending'
       ? {
@@ -149,12 +151,12 @@ export default function RequestsSection() {
 
             {/* Bulk action bar, shown when at least one row is ticked */}
             {selectedRows.length > 0 && (
-              <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.headerBg, color: '#fff' }}>
+              <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
                 <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{selectedRows.length} selected</Typography>
                 <Button size="small" variant="contained" sx={{ bgcolor: tokens.gold, color: tokens.onGold, '&:hover': { bgcolor: tokens.goldLight } }} onClick={() => setConfirm({ type: 'approve', refs: selectedRows.map((r) => r.ref) })}>
                   Approve selected
                 </Button>
-                <Button size="small" sx={{ color: '#fca5a5' }} onClick={() => setConfirm({ type: 'decline', refs: selectedRows.map((r) => r.ref) })}>
+                <Button size="small" sx={{ color: tokens.dangerOnInk }} onClick={() => setConfirm({ type: 'decline', refs: selectedRows.map((r) => r.ref) })}>
                   Decline selected
                 </Button>
               </Box>

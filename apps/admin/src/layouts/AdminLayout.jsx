@@ -13,7 +13,7 @@ import { PortalShell, authApi, feedbackApi, formatDate, messageApi, outsourceApi
 import { useAuth } from '../auth.js';
 import { MessagesButton, MessengerProvider, useMessenger } from '../components/MessagesWidget.jsx';
 
-/** Admin chrome for every admin screen (1r–1y), with the chat window available on every page. */
+/** The admin frame (top bar and sidebar) around every admin screen (1r–1y), with the chat window on every page. */
 export default function AdminLayout() {
   return (
     <MessengerProvider>
@@ -26,7 +26,7 @@ export default function AdminLayout() {
 function AdminChrome() {
   const navigate = useNavigate();
   const { user, signOut, updateUser } = useAuth();
-  const { openMessages } = useMessenger();
+  const { openMessages, closeMessages } = useMessenger();
 
   // The session keeps a copy of the admin's details from sign-in. Compare it with the account record
   // (re-checked whenever data changes) so the top bar and pages never show an old name, email or mobile.
@@ -118,7 +118,6 @@ function AdminChrome() {
   return (
     <PortalShell
       portalKey={`admin.${user.id}`}
-      brandSubtitle="Admin"
       navItems={navItems}
       secondaryNavItems={[{ key: 'account', label: 'My account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
       user={user}
@@ -126,6 +125,8 @@ function AdminChrome() {
       // The top search bar sends the admin to the All reservations tab filtered by what they typed
       search={{ placeholder: 'Search reservations or customers', onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`) }}
       notifications={notifications}
+      // Opening the notification list closes the messages window so they don't stack on top of each other
+      onNotificationsOpen={closeMessages}
       // Chat icon to the right of the bell; opens the messages dropdown window under it
       headerActions={<MessagesButton unread={unread} />}
       // Go to the login page first, then clear the session

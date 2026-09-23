@@ -47,7 +47,7 @@ export const PAYMENT_METHODS = {
 /** What a payment was for, as shown on receipts and payment lists: 'downpayment' -> 'Downpayment (50%)'. */
 export const paymentKindLabel = (kind) => (kind === 'downpayment' ? 'Downpayment (50%)' : kind === 'full' ? 'Full payment' : 'Balance');
 
-/** Balance standing used by the admin Payments filters. */
+/** Balance status used by the admin Payments filters. */
 export const BALANCE_STATE = {
   unpaid: { label: 'Unpaid', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
   partial: { label: 'Partially paid', bg: 'rgba(59, 130, 246, 0.12)', fg: '#1d4ed8' },
@@ -57,7 +57,7 @@ export const BALANCE_STATE = {
 
 // Display name and chip colours for where a customer's feedback stands on the website.
 // 'featured' and 'flagged' are not stored as the status: they are the featured / flagged
-// flags on the record, resolved by feedbackState() below.
+// flags on the record, worked out by feedbackState() below.
 export const FEEDBACK_STATUS = {
   featured: { label: 'Featured', bg: 'rgba(197, 160, 89, 0.16)', fg: '#9d7c38' },
   published: { label: 'Published', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },

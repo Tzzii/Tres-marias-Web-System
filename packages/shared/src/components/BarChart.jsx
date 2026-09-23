@@ -39,7 +39,7 @@ export function BarChart({ data, height = 220, format = (v) => String(v), highli
           ))}
           {data.map((d, i) => {
             const pct = (d.value / niceMax) * 100; // bar height as % of the chart
-            // Gold bar: the chosen bar (highlightIndex), the last bar (highlightLast) or the highest value; others are dark
+            // Gold bar: the chosen bar (highlightIndex), the last bar (highlightLast) or the highest value; the rest use tokens.gradientBar
             const strong = highlightIndex !== undefined ? i === highlightIndex : highlightLast ? i === data.length - 1 : d.value === max && max > 0;
             return (
               <Tooltip key={`${d.label}-${i}`} title={`${d.title || d.label}: ${format(d.value)}`} placement="top" arrow>
@@ -51,7 +51,7 @@ export function BarChart({ data, height = 220, format = (v) => String(v), highli
                       height: `${Math.max(pct, d.value > 0 ? 2 : 0)}%`,
                       minHeight: d.value > 0 ? 3 : 0,
                       borderRadius: '6px 6px 0 0',
-                      background: strong ? `linear-gradient(180deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` : 'linear-gradient(180deg, #334155 0%, #1e293b 100%)',
+                      background: strong ? `linear-gradient(180deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` : tokens.gradientBar,
                       transition: 'height 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
                     }}
                   />

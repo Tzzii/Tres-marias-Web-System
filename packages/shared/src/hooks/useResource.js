@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribe } from '../services/store.js';
+import { subscribe } from '../services/events.js';
 
 /**
  * Loads data from a service call and keeps it fresh.
@@ -39,7 +39,7 @@ export function useResource(loader, deps = [], { live = true } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  // Live mode: reload quietly whenever the data store reports a change
+  // Live mode: reload quietly on every change event (a browser-store write, another tab, or an API write)
   useEffect(() => {
     if (!live) return undefined;
     return subscribe(() => run(true));
@@ -53,7 +53,7 @@ export function useResource(loader, deps = [], { live = true } = {}) {
   return { ...state, reload: () => run(true), setData };
 }
 
-/** Re-renders the caller whenever the data store changes (for synchronous selectors). */
+/** Re-renders the caller on every change event, like live useResource (for functions that return data right away, such as availabilitySnapshot). */
 export function useStoreVersion() {
   const [version, setVersion] = useState(0);
   useEffect(() => subscribe(() => setVersion((v) => v + 1)), []);

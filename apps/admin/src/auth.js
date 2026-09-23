@@ -2,7 +2,7 @@ import { createAuth } from '@tm/shared';
 
 /**
  * Admin session. The key "tm.admin.session" is also read by the service layer to
- * attribute activity-log entries to the signed-in admin.
+ * show which admin made each activity-log entry.
  */
 // createAuth returns three pieces:
 //  - AuthProvider: wraps the app and keeps the session

@@ -6,6 +6,7 @@ import Badge from '@mui/material/Badge';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
+import ClickAwayListener from '@mui/material/ClickAwayListener';
 import Divider from '@mui/material/Divider';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
@@ -27,6 +28,7 @@ import { tokens } from '../theme/tokens.js';
 import { formatRelative, initials } from '../utils/format.js';
 import { ConfirmDialog } from './AppDialog.jsx';
 import { BrandMark } from './Brand.jsx';
+import { ThemeModeToggle } from './ThemeModeToggle.jsx';
 
 // Shared animation timing for the sidebar and nav items
 const EASE = `all 0.25s ${tokens.easeStandard}`;
@@ -41,20 +43,20 @@ const readSet = (key) => {
 };
 
 /**
- * Authenticated portal chrome shared by both apps (design system: PortalShell).
+ * The signed-in portal frame (top bar, sidebar, menus) shared by both apps (design system: PortalShell).
  *
  * - Desktop: fixed top bar + collapsible 264px sidebar.
  * - Tablet / phone: hamburger opens the navigation drawer. When `bottomNav` is
  *   given, a five-tab bar is pinned to the bottom of the screen on phones.
  * - Nav items: { key, label, icon, to, exact?, match?, badge? }. The active item
  *   is worked out from the current URL.
- * - Notifications: [{ id, title, body, at, to, onClick? }]; read state is remembered per portal.
+ * - Notifications: [{ id, title, body, at, to, onClick? }]; read state is remembered per portal and user.
  *   `onClick` runs instead of navigating to `to` (e.g. opening the admin chat window).
+ * - onNotificationsOpen: runs when the bell opens the list (the admin uses it to close the chat window).
  * - headerActions: extra top-bar buttons shown just after the notification bell.
  */
 export default function PortalShell({
   portalKey,
-  brandSubtitle,
   navItems,
   secondaryNavItems = [],
   bottomNav,
@@ -62,6 +64,7 @@ export default function PortalShell({
   profileItems = [],
   search,
   notifications = [],
+  onNotificationsOpen,
   headerActions,
   onLogout,
   children
@@ -69,6 +72,7 @@ export default function PortalShell({
   const navigate = useNavigate();
   const location = useLocation();
   // Storage keys are per portal and per user, so settings don't mix between accounts
+  // (each layout passes a portalKey that includes the user id, e.g. 'admin.adm-001')
   const collapseKey = `tm.${portalKey}.sidebar`;
   const readKey = `tm.${portalKey}.notifications.read`;
 
@@ -145,11 +149,11 @@ export default function PortalShell({
           fontFamily: 'inherit',
           fontSize: 13.5,
           fontWeight: active ? 700 : 500,
-          color: active ? tokens.goldLight : tokens.textOnDarkSoft,
-          backgroundColor: active ? 'rgba(197, 160, 89, 0.16)' : 'transparent',
+          color: active ? tokens.sidebarActiveText : tokens.sidebarText,
+          backgroundColor: active ? tokens.sidebarActiveBg : 'transparent',
           borderLeft: `3px solid ${active ? tokens.gold : 'transparent'}`,
           transition: EASE,
-          '&:hover': { backgroundColor: active ? 'rgba(197, 160, 89, 0.22)' : 'rgba(255, 255, 255, 0.05)', color: tokens.goldLight }
+          '&:hover': { backgroundColor: active ? tokens.sidebarActiveHover : tokens.sidebarHover, color: tokens.sidebarActiveText }
         }}
       >
         <Badge color="error" variant={narrow ? 'dot' : 'standard'} badgeContent={narrow ? (item.badge ? 1 : 0) : 0} invisible={!narrow || !item.badge}>
@@ -192,12 +196,14 @@ export default function PortalShell({
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>{secondaryNavItems.map((item) => renderNavItem(item, forceExpanded))}</Box>
     );
 
+  // Log out is always red (light red text and a soft red fill on the dark sidebar) so it stands apart
+  // from the nav links; hover deepens the fill
   const logoutButton = (forceExpanded) => {
     const narrow = collapsed && !forceExpanded;
     const button = (
       <ButtonBase
         onClick={() => setLogoutOpen(true)}
-        sx={{ width: '100%', display: 'flex', justifyContent: narrow ? 'center' : 'flex-start', gap: 1.4, px: narrow ? 1 : 1.75, py: 1.15, borderRadius: 1.25, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 500, color: tokens.textOnDarkSoft, borderLeft: '3px solid transparent', '&:hover': { color: '#fca5a5', backgroundColor: 'rgba(239, 68, 68, 0.08)' } }}
+        sx={{ width: '100%', display: 'flex', justifyContent: narrow ? 'center' : 'flex-start', gap: 1.4, px: narrow ? 1 : 1.75, py: 1.15, borderRadius: 1.25, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 500, color: tokens.sidebarDanger, backgroundColor: tokens.sidebarDangerBg, borderLeft: '3px solid transparent', '&:hover': { backgroundColor: tokens.sidebarDangerHover } }}
       >
         <LogoutRoundedIcon sx={{ fontSize: 19 }} />
         {!narrow && 'Log out'}
@@ -218,12 +224,12 @@ export default function PortalShell({
       </Box>
 
       {/* ==================== TOP BAR ==================== */}
-      <AppBar className="tm-no-print" position="fixed" elevation={0} sx={{ height: tokens.headerHeight, justifyContent: 'center', backgroundColor: tokens.headerBg, borderBottom: `1px solid ${tokens.divider}`, zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+      <AppBar className="tm-no-print" position="fixed" elevation={0} sx={{ height: tokens.headerHeight, justifyContent: 'center', backgroundColor: tokens.headerBg, color: tokens.textLight, borderBottom: `1px solid ${tokens.divider}`, zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar sx={{ gap: { xs: 1, md: 2 }, px: { xs: 1.5, md: 3 } }}>
           <IconButton onClick={() => setDrawerOpen(true)} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', lg: 'none' }, color: tokens.textOnDarkSoft }}>
             <MenuRoundedIcon />
           </IconButton>
-          <BrandMark subtitle={brandSubtitle} hideTextOnXs onClick={() => navigate(navItems[0].to)} />
+          <BrandMark subtitle={null} hideTextOnXs onClick={() => navigate(navItems[0].to)} />
 
           <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
             {search && (
@@ -235,7 +241,7 @@ export default function PortalShell({
                   e.preventDefault();
                   if (query.trim()) search.onSubmit(query.trim());
                 }}
-                sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, width: '100%', maxWidth: 440, px: 1.75, py: 0.75, borderRadius: 999, backgroundColor: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.09)', transition: EASE, '&:focus-within': { borderColor: tokens.gold, backgroundColor: 'rgba(255, 255, 255, 0.09)' } }}
+                sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, width: '100%', maxWidth: 440, px: 1.75, py: 0.75, borderRadius: 999, backgroundColor: tokens.shellInset, border: `1px solid ${tokens.shellBorder}`, transition: EASE, '&:focus-within': { borderColor: tokens.gold, backgroundColor: tokens.shellHover } }}
               >
                 <SearchRoundedIcon sx={{ fontSize: 18, color: tokens.textOnDarkMuted }} />
                 <InputBase value={query} onChange={(e) => setQuery(e.target.value)} placeholder={search.placeholder} inputProps={{ 'aria-label': search.placeholder, autoComplete: 'off' }} sx={{ flex: 1, fontSize: 13.5, color: tokens.textLight }} />
@@ -245,12 +251,18 @@ export default function PortalShell({
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.25, sm: 0.75 }, flexShrink: 0 }}>
             <Tooltip title="Notifications">
-              <IconButton onClick={(e) => setNotifAnchor(e.currentTarget)} aria-label={`Notifications, ${unread.length} unread`} sx={{ color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}>
+              <IconButton
+                onClick={(e) => {
+                  setNotifAnchor(e.currentTarget);
+                  if (onNotificationsOpen) onNotificationsOpen();
+                }}
+                aria-label={`Notifications, ${unread.length} unread`} sx={{ color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}>
                 <Badge badgeContent={unread.length} color="error" max={9}>
                   <NotificationsNoneRoundedIcon sx={{ fontSize: 21 }} />
                 </Badge>
               </IconButton>
             </Tooltip>
+            <ThemeModeToggle />
             {headerActions}
 
             <Button
@@ -258,28 +270,36 @@ export default function PortalShell({
               aria-haspopup="menu"
               aria-expanded={Boolean(profileAnchor)}
               endIcon={<ExpandMoreRoundedIcon sx={{ fontSize: 14, display: { xs: 'none', sm: 'block' } }} />}
-              sx={{ gap: 1, minWidth: 0, pl: 0.5, pr: { xs: 0.5, sm: 1.25 }, py: 0.5, borderRadius: 999, color: tokens.textLight, border: '1px solid rgba(255, 255, 255, 0.1)', '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.06)', borderColor: tokens.gold } }}
+              sx={{ gap: 1, minWidth: 0, pl: 0.5, pr: { xs: 0.5, sm: 1.25 }, py: 0.5, borderRadius: 999, color: tokens.textLight, border: `1px solid ${tokens.shellBorder}`, '&:hover': { backgroundColor: tokens.shellInset, borderColor: tokens.gold } }}
             >
               <Avatar sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, color: tokens.onGold, backgroundColor: tokens.gold }}>{initials(user?.name)}</Avatar>
               <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.15, maxWidth: 160 }}>
                 <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 700, maxWidth: 160 }}>{user?.name}</Typography>
-                <Typography sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.09em', color: tokens.gold, textTransform: 'uppercase' }}>{user?.role}</Typography>
+                <Typography sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.09em', color: tokens.goldText, textTransform: 'uppercase' }}>{user?.role}</Typography>
               </Box>
             </Button>
           </Box>
         </Toolbar>
       </AppBar>
 
-      {/* Notifications */}
+      {/* Notifications. The page behind stays clickable (no blocking backdrop), so one click on another
+          top-bar button (e.g. the admin Messages icon) both closes this list and does its own action. */}
       <Menu
         anchorEl={notifAnchor}
         open={Boolean(notifAnchor)}
         onClose={() => setNotifAnchor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{ paper: { sx: { mt: 1, width: 360, maxWidth: 'calc(100vw - 24px)', borderRadius: 1.5 } } }}
+        hideBackdrop
+        disableScrollLock
+        disableEnforceFocus
+        sx={{ pointerEvents: 'none' }}
+        slotProps={{ paper: { sx: { mt: 1, width: 360, maxWidth: 'calc(100vw - 24px)', borderRadius: 1.5, pointerEvents: 'auto' } } }}
         MenuListProps={{ sx: { py: 0 } }}
       >
+        {/* Clicking anywhere outside the list closes it (clicking the bell again also closes it) */}
+        <ClickAwayListener onClickAway={() => setNotifAnchor(null)}>
+        <Box>
         <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textLight }}>Notifications</Typography>
           <Button size="small" disabled={!unread.length} onClick={() => markRead(notifications.map((n) => n.id))} sx={{ fontSize: 12, minWidth: 0, p: 0 }}>
@@ -320,6 +340,8 @@ export default function PortalShell({
             })}
           </Box>
         )}
+        </Box>
+        </ClickAwayListener>
       </Menu>
 
       {/* Profile */}
@@ -357,7 +379,7 @@ export default function PortalShell({
             setProfileAnchor(null);
             setLogoutOpen(true);
           }}
-          sx={{ color: '#fca5a5' }}
+          sx={{ color: tokens.dangerSoft }}
         >
           <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
             <LogoutRoundedIcon sx={{ fontSize: 18 }} />
@@ -370,15 +392,16 @@ export default function PortalShell({
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        PaperProps={{ sx: { width: 280, backgroundColor: tokens.bgBase, backgroundImage: 'none', borderRight: `1px solid ${tokens.divider}` } }}
+        // Same dark colour as the desktop sidebar
+        PaperProps={{ sx: { width: 280, backgroundColor: tokens.sidebarBg, backgroundImage: 'none', borderRight: `1px solid ${tokens.sidebarBorder}` } }}
       >
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <BrandMark subtitle={brandSubtitle} />
-          <IconButton onClick={() => setDrawerOpen(false)} aria-label="Close navigation" sx={{ color: tokens.textOnDarkSoft }}>
+          <BrandMark subtitle={null} textColor={tokens.onInk} />
+          <IconButton onClick={() => setDrawerOpen(false)} aria-label="Close navigation" sx={{ color: tokens.sidebarText, '&:hover': { color: tokens.gold } }}>
             <MenuOpenRoundedIcon />
           </IconButton>
         </Box>
-        <Divider sx={{ borderColor: tokens.dividerFaint }} />
+        <Divider sx={{ borderColor: tokens.sidebarBorder }} />
         <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, gap: 2 }}>
           {navList(true)}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -405,8 +428,9 @@ export default function PortalShell({
             gap: 2,
             py: 2,
             px: 1.25,
-            backgroundColor: tokens.bgBase,
-            borderRight: `1px solid ${tokens.dividerFaint}`,
+            // Darker than the page ("Espresso" in light mode) so the sidebar reads as its own column
+            backgroundColor: tokens.sidebarBg,
+            borderRight: `1px solid ${tokens.sidebarBorder}`,
             overflowY: 'auto',
             transition: EASE,
             zIndex: 10
@@ -414,8 +438,8 @@ export default function PortalShell({
         >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', px: collapsed ? 0 : 1, pb: 1 }}>
-              {!collapsed && <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: tokens.textOnDarkMuted }}>Navigation</Typography>}
-              <IconButton onClick={toggleSidebar} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} size="small" sx={{ color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}>
+              {!collapsed && <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: tokens.sidebarTextMuted }}>Navigation</Typography>}
+              <IconButton onClick={toggleSidebar} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} size="small" sx={{ color: tokens.sidebarText, '&:hover': { color: tokens.gold } }}>
                 {collapsed ? <MenuRoundedIcon sx={{ fontSize: 20 }} /> : <MenuOpenRoundedIcon sx={{ fontSize: 20 }} />}
               </IconButton>
             </Box>
@@ -437,11 +461,11 @@ export default function PortalShell({
 
       {/* Phone bottom navigation */}
       {hasBottomNav && (
-        <Box component="nav" aria-label="Quick navigation" className="tm-no-print" sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100, display: { xs: 'grid', md: 'none' }, gridTemplateColumns: `repeat(${bottomNav.length}, 1fr)`, backgroundColor: 'rgba(15, 23, 42, 0.97)', backdropFilter: 'blur(14px)', borderTop: `1px solid ${tokens.divider}`, pb: 'env(safe-area-inset-bottom)' }}>
+        <Box component="nav" aria-label="Quick navigation" className="tm-no-print" sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100, display: { xs: 'grid', md: 'none' }, gridTemplateColumns: `repeat(${bottomNav.length}, 1fr)`, backgroundColor: tokens.shellScrim, backdropFilter: 'blur(14px)', borderTop: `1px solid ${tokens.divider}`, pb: 'env(safe-area-inset-bottom)' }}>
           {bottomNav.map((item) => {
             const active = bottomActive && bottomActive.key === item.key;
             return (
-              <ButtonBase key={item.key} onClick={() => navigate(item.to)} aria-current={active ? 'page' : undefined} sx={{ py: 1, display: 'flex', flexDirection: 'column', gap: 0.25, fontFamily: 'inherit', fontSize: 10.5, fontWeight: active ? 700 : 500, color: active ? tokens.goldLight : tokens.textOnDarkMuted }}>
+              <ButtonBase key={item.key} onClick={() => navigate(item.to)} aria-current={active ? 'page' : undefined} sx={{ py: 1, display: 'flex', flexDirection: 'column', gap: 0.25, fontFamily: 'inherit', fontSize: 10.5, fontWeight: active ? 700 : 500, color: active ? tokens.goldText : tokens.textOnDarkMuted }}>
                 <Badge color="error" badgeContent={item.badge || 0} max={9}>
                   <item.icon sx={{ fontSize: 22 }} />
                 </Badge>

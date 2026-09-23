@@ -8,6 +8,11 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "concurrently -n api,client,admin -c yellow,cyan,magenta \"npm:dev:api\" \"npm:dev:client\" \"npm:dev:admin\"",
+    "dev:api": "npm run dev -w apps/api",
+    "seed:api": "npm run seed -w apps/api",
+    "db:reset": "npm run db:reset -w apps/api",
+    "db:ping": "npm run db:ping -w apps/api",
     "dev:client": "node scripts/vite-run.mjs dev client",
     "dev:admin": "node scripts/vite-run.mjs dev admin",
     "build": "npm run build:client && npm run build:admin",
@@ -18,5 +23,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }

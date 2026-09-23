@@ -491,10 +491,10 @@ export default function OutsourcePage() {
 
         {/* Bulk bar, shown when contracts are ticked */}
         {ticked.length > 0 && (
-          <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.headerBg, color: '#fff' }}>
+          <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
             <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{ticked.length} selected</Typography>
-            <Button size="small" sx={{ color: '#fff' }} onClick={downloadTicked}>Download .txt</Button>
-            <Button size="small" sx={{ color: '#fff' }} onClick={() => setSelected([])}>Clear</Button>
+            <Button size="small" sx={{ color: tokens.onInk }} onClick={downloadTicked}>Download .txt</Button>
+            <Button size="small" sx={{ color: tokens.onInk }} onClick={() => setSelected([])}>Clear</Button>
           </Box>
         )}
 
@@ -753,7 +753,7 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
             setErrors({});
           }}
           error={errors.reservationRef}
-          options={[{ value: NO_EVENT, label: 'No event (e.g. topping up stock)' }, ...events.map((e) => ({ value: e.ref, label: `${formatDate(e.date)} · ${e.eventName} · ${e.guests} pax` }))]}
+          options={[{ value: NO_EVENT, label: 'No event (e.g. topping up stock)' }, ...events.map((e) => ({ value: e.ref, label: `${formatDate(e.date)} · ${e.eventName} · ${e.rental ? 'equipment rental' : `${e.guests} pax`}` }))]}
         />
       </Box>
 

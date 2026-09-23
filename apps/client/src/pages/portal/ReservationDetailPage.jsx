@@ -12,6 +12,7 @@ import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import {
   AlertBanner,
   AppDialog,
+  BUFFET_DRINKS,
   BusyButton,
   CUSTOMER_EDITABLE,
   CardTitle,
@@ -25,6 +26,7 @@ import {
   FormField,
   ListSkeleton,
   PageHeader,
+  RENTAL,
   StarRating,
   StatusChip,
   StatusPipeline,
@@ -35,6 +37,8 @@ import {
   formatDateTime,
   formatPackageItem,
   formatTime,
+  includesFood,
+  isRental,
   peso,
   reservationApi,
   toISODate,
@@ -89,6 +93,9 @@ export default function ReservationDetailPage() {
   const canPay = ['approved', 'downpayment_paid', 'confirmed'].includes(r.status) && r.balance > 0 && !r.awaitingCount;
   // Quotation, contract and receipts for this reservation
   const docs = documentsFor(r);
+  // An equipment rental shows its items, pick up or delivery and any damage charges instead of a package and menu
+  const rental = isRental(r.serviceType);
+  const delivered = rental && r.fulfilment === 'delivery';
 
   return (
     <>
@@ -105,7 +112,7 @@ export default function ReservationDetailPage() {
               </Button>
             )}
             {editable && (
-              <Button startIcon={<EventBusyOutlinedIcon />} onClick={() => setCancelOpen(true)} sx={{ color: '#fca5a5' }}>
+              <Button startIcon={<EventBusyOutlinedIcon />} onClick={() => setCancelOpen(true)} sx={{ color: tokens.dangerSoft }}>
                 Cancel
               </Button>
             )}
@@ -139,37 +146,61 @@ export default function ReservationDetailPage() {
                 <ThemeIcon occasion={r.occasion} size={84} />
                 <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
                   <Field label="Date">{formatDateLong(r.date)}</Field>
-                  <Field label="Start">{formatTime(r.startTime)}</Field>
+                  <Field label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start'}>{formatTime(r.startTime)}</Field>
                   <Field label="Occasion">{r.occasion}</Field>
-                  <Field label="Guests">{r.guests}</Field>
+                  {rental ? <Field label="Getting the items">{delivered ? 'Delivery' : 'Pick up'}</Field> : <Field label="Guests">{r.guests}</Field>}
                 </Box>
               </Box>
             </DashCard>
 
+            {rental ? (
+              <RentalItemsCard r={r} />
+            ) : (
             <DashCard>
-              <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · covers ${r.package.guests} guests`}>Package and food</CardTitle>
+              <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · covers ${r.package.guests} guests`}>{r.serviceType}</CardTitle>
               <Field label="Package includes">{r.package.items.map(formatPackageItem).join(', ')}</Field>
               <Divider sx={{ my: 2 }} />
+              {/* A buffet lists the dish chosen for each category; catering only has no menu */}
+              {includesFood(r.serviceType) ? (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                  {(r.menuDishes || []).map((dish) => (
+                    <Field key={dish.key} label={dish.label}>
+                      {dish.name}
+                    </Field>
+                  ))}
+                </Box>
+              ) : (
+                <Field label="Food">Catering only: equipment and setup, with no food.</Field>
+              )}
+              <Divider sx={{ my: 2 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                <Field label="Food you asked us to cook">{r.foodRequest}</Field>
-                <Field label="Additional charges">{r.addons.length ? r.addons.map((a) => a.name).join(', ') : 'None'}</Field>
+                {includesFood(r.serviceType) && <Field label="Drinks">{BUFFET_DRINKS.join(' and ')} for every guest</Field>}
+                {/* Charges counted by the piece show how many were asked for */}
+                <Field label="Additional charges">
+                  {r.addons.length ? r.addons.map((a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name)).join(', ') : 'None'}
+                </Field>
+                {r.foodNotes && <Field label="Your note about the food">{r.foodNotes}</Field>}
               </Box>
             </DashCard>
+            )}
 
             <DashCard>
-              <CardTitle>Venue and logistics</CardTitle>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                <Field label="Venue">{r.venue.name}</Field>
-                <Field label="Address">{`${r.venue.address}, ${r.venue.city}`}</Field>
-                <Field label="Setup style">{r.venue.setup}</Field>
-                <Field label="Access notes">{r.venue.accessNotes || 'None'}</Field>
-              </Box>
+              <CardTitle>{rental ? 'Pick up or delivery' : 'Venue and logistics'}</CardTitle>
+              {rental && !delivered ? (
+                <Field label="Pick up at">{RENTAL.pickupAddress} · free</Field>
+              ) : (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                  <Field label={rental ? 'Deliver to' : 'Venue'}>{r.venue.name}</Field>
+                  <Field label="Address">{`${r.venue.address}, ${r.venue.city}`}</Field>
+                  <Field label={rental ? 'Notes for the delivery' : 'Access notes'}>{r.venue.accessNotes || 'None'}</Field>
+                </Box>
+              )}
             </DashCard>
           </Box>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
-              <CardTitle subtitle={r.quotation ? 'Final quotation' : 'Package price only until your quotation prices the food and additional charges'}>Payment summary</CardTitle>
+              <CardTitle subtitle={r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'Package price only until your quotation prices the food and additional charges'}>Payment summary</CardTitle>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
               <DetailRow label="Downpayment · 50%">{peso(r.downpayment)}</DetailRow>
               <DetailRow label="Paid">{peso(r.paid)}</DetailRow>
@@ -348,5 +379,32 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
     >
       <FormField id="change-message" label="Your request" multiline minRows={4} value={message} onChange={(e) => { setMessage(e.target.value); setError(''); }} error={error} placeholder="e.g. Please change the guest count from 150 to 170 and add Mango Float to the food." />
     </AppDialog>
+  );
+}
+
+/**
+ * What a rental includes: each item with how many and its price per piece (the prices it was booked
+ * at), and any damage charges recorded after the items came back. The quotation is what the customer
+ * pays; this card only lists the booking.
+ */
+function RentalItemsCard({ r }) {
+  const damage = r.damageCharges || [];
+  return (
+    <DashCard>
+      <CardTitle subtitle={`${r.packageName} · priced per piece`}>Rented items</CardTitle>
+      {r.rentalItems.map((line) => (
+        <DetailRow key={line.itemId} label={`${line.name} · ${line.qty} × ${peso(line.price)}`}>
+          {peso(line.qty * line.price)}
+        </DetailRow>
+      ))}
+      <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textSecondary }}>
+        Pieces that come back damaged or missing are charged at each item's damage fee: {r.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}.
+      </Typography>
+      {damage.length > 0 && (
+        <AlertBanner tone="warning" sx={{ mt: 2 }} title="Damage charges">
+          {damage.map((line) => `${line.qty} × ${line.name} (${peso(line.fee)} each)`).join(', ')}: {peso(damage.reduce((sum, line) => sum + line.qty * line.fee, 0))}. {r.quotationStale ? 'They apply once our revised quotation reaches you.' : 'They are included in your quotation.'}
+        </AlertBanner>
+      )}
+    </DashCard>
   );
 }

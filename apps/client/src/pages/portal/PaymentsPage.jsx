@@ -137,10 +137,9 @@ export default function PaymentsPage() {
 
     setBusy(true);
     try {
+      // Whether it counts as downpayment, full or balance is worked out by the payment service from the amount
       await paymentApi.submitPayment(user.id, {
         ref: selected.ref,
-        // downpayment / full / balance, depending on the situation and the plan chosen
-        kind: firstPayment ? (plan === 'half' ? 'downpayment' : 'full') : 'balance',
         method,
         amount,
         referenceNo,
@@ -245,8 +244,8 @@ export default function PaymentsPage() {
                           ).map(([value, title, sub]) => {
                             const on = firstPayment ? plan === value : true;
                             return (
-                              <ButtonBase key={value} onClick={() => setPlan(value)} aria-pressed={on} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, p: 1.75, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `2px solid ${on ? tokens.headerBg : tokens.cardLightBorder}` }}>
-                                {on ? <CheckCircleRoundedIcon sx={{ color: tokens.headerBg }} /> : <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput }} />}
+                              <ButtonBase key={value} onClick={() => setPlan(value)} aria-pressed={on} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, p: 1.75, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `2px solid ${on ? tokens.ink : tokens.cardLightBorder}` }}>
+                                {on ? <CheckCircleRoundedIcon sx={{ color: tokens.ink }} /> : <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput }} />}
                                 <Box>
                                   <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>{title}</Typography>
                                   <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{sub}</Typography>
@@ -263,8 +262,8 @@ export default function PaymentsPage() {
                           {METHODS.map((m) => {
                             const on = method === m.value;
                             return (
-                              <ButtonBase key={m.value} onClick={() => setMethod(m.value)} aria-pressed={on} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, p: 1.5, fontFamily: 'inherit', borderRadius: 1.5, border: `2px solid ${on ? tokens.headerBg : tokens.cardLightBorder}`, backgroundColor: on ? tokens.surfaceSubtle : '#fff' }}>
-                                <m.icon sx={{ color: on ? tokens.headerBg : tokens.textMuted }} />
+                              <ButtonBase key={m.value} onClick={() => setMethod(m.value)} aria-pressed={on} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, p: 1.5, fontFamily: 'inherit', borderRadius: 1.5, border: `2px solid ${on ? tokens.ink : tokens.cardLightBorder}`, backgroundColor: on ? tokens.surfaceSubtle : tokens.cardLight }}>
+                                <m.icon sx={{ color: on ? tokens.ink : tokens.textMuted }} />
                                 <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textPrimary, textAlign: 'center' }}>{m.label}</Typography>
                               </ButtonBase>
                             );
@@ -328,7 +327,7 @@ export default function PaymentsPage() {
                                   e.preventDefault();
                                   chooseFile({ target: { files: e.dataTransfer.files, value: '' } });
                                 }}
-                                sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.75, py: 3, px: 2, fontFamily: 'inherit', borderRadius: 1.5, border: `2px dashed ${errors.proof ? tokens.red : tokens.borderInput}`, backgroundColor: tokens.surfaceSubtle, '&:hover': { borderColor: tokens.headerBg } }}
+                                sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.75, py: 3, px: 2, fontFamily: 'inherit', borderRadius: 1.5, border: `2px dashed ${errors.proof ? tokens.red : tokens.borderInput}`, backgroundColor: tokens.surfaceSubtle, '&:hover': { borderColor: tokens.ink } }}
                               >
                                 <CloudUploadOutlinedIcon sx={{ fontSize: 30, color: tokens.textMuted }} />
                                 <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>Drop a screenshot or receipt here, or browse</Typography>

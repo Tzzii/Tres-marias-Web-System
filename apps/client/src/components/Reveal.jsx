@@ -52,7 +52,7 @@ export const reducedMotionSx = {
 
 /**
  * Wraps content that fades in and rises into place every time it scrolls into view.
- * `delay` (ms) staggers items in a list, `y` is how far below it starts (px) and
+ * `delay` (ms) makes items in a list appear one after another, `y` is how far below it starts (px) and
  * `scale` lets larger blocks grow in very slightly (e.g. 0.98).
  * Extra props go to the wrapping Box (e.g. sx={{ height: '100%' }} inside a grid).
  */

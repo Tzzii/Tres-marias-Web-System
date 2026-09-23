@@ -20,6 +20,7 @@ import {
   daysFromToday,
   formatDateLong,
   formatTime,
+  headcount,
   parseISODate,
   reservationApi,
   todayISO,
@@ -119,7 +120,7 @@ export default function CalendarPage() {
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography noWrap sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>{r.eventName}</Typography>
                             <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                              {formatDateLong(r.date)} · {formatTime(r.startTime)} · {r.guests} guests
+                              {formatDateLong(r.date)} · {formatTime(r.startTime)} · {headcount(r)}
                             </Typography>
                           </Box>
                           <Box sx={{ display: { xs: 'none', sm: 'block' } }}>

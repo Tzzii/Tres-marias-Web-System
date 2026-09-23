@@ -29,7 +29,7 @@ const dayPop = keyframes`
 // Turns the animations off for people who set "reduce motion" on their device
 const noMotion = { '@media (prefers-reduced-motion: reduce)': { animation: 'none' } };
 
-/** Monday-first grid of dates for a month, padded with the neighbouring months. */
+/** Monday-first grid of dates for a month, filled in with days from the months before and after. */
 export function monthGrid(year, month) {
   const first = new Date(year, month, 1);
   // Days from Monday to the 1st (getDay() is 0 for Sunday, so shift it to make Monday 0)
@@ -160,12 +160,12 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
                 opacity: cell.inMonth ? 1 : 0.4,
                 background: tone.bg,
                 color: tone.fg,
-                border: `1.5px solid ${isSelected ? tokens.headerBg : isToday ? tokens.gold : tone.border}`,
+                border: `1.5px solid ${isSelected ? tokens.ink : isToday ? tokens.gold : tone.border}`,
                 boxShadow: isSelected ? '0 0 0 3px rgba(15, 23, 42, 0.14)' : 'none',
                 cursor: clickable ? 'pointer' : 'default',
                 transition: 'border-color 0.15s ease, box-shadow 0.2s ease, transform 0.15s ease',
                 animation: isSelected && popDay.current === cell.iso ? `${dayPop} 240ms ease-out` : 'none',
-                '&:hover': clickable ? { borderColor: tokens.headerBg } : undefined,
+                '&:hover': clickable ? { borderColor: tokens.ink } : undefined,
                 '&.Mui-disabled': { color: tone.fg },
                 ...noMotion
               }}

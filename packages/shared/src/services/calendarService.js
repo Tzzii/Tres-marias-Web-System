@@ -1,6 +1,6 @@
 import { addDays, daysFromToday, formatTime, parseISODate, toISODate } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
-import { RULES } from './config.js';
+import { RULES, isRental } from './config.js';
 import { ApiError, clone, latency, read, write } from './store.js';
 
 /**
@@ -9,10 +9,17 @@ import { ApiError, clone, latency, read, write } from './store.js';
  * booking bar, the reservation date picker and the admin calendar.
  */
 
-/** Count reservations holding each date, e.g. { '2026-10-03': 2 }. Pending/declined/cancelled don't count. */
+/**
+ * True for a reservation that takes one of the day's event slots: approved to confirmed, and not an
+ * equipment rental. A rental only hands over equipment (no crew at an event), so it never fills a
+ * date or blocks a start time.
+ */
+const holdsSlot = (r) => HOLDS_DATE.includes(r.status) && !isRental(r.serviceType);
+
+/** Count reservations holding each date, e.g. { '2026-10-03': 2 }. Pending/declined/cancelled and rentals don't count. */
 function bookedCounts(data) {
   return data.reservations
-    .filter((r) => HOLDS_DATE.includes(r.status))
+    .filter(holdsSlot)
     .reduce((counts, r) => {
       counts[r.date] = (counts[r.date] || 0) + 1;
       return counts;
@@ -26,11 +33,11 @@ function bookedCounts(data) {
  */
 function scheduledEvents(data) {
   return data.reservations
-    .filter((r) => HOLDS_DATE.includes(r.status) && r.startTime)
+    .filter((r) => holdsSlot(r) && r.startTime)
     .map((r) => ({ ref: r.ref, date: r.date, startTime: r.startTime, hours: RULES.defaultEventHours }));
 }
 
-/** The availability map, synchronous so date pickers can grey out days while rendering. */
+/** The availability map, returned right away (no waiting) so date pickers can grey out days while rendering. */
 export function availabilitySnapshot() {
   const data = read();
   return {
@@ -107,9 +114,10 @@ export function daySchedule(iso, snapshot) {
 
 /**
  * Why a date cannot be reserved, or '' when it can.
- * `snapshot` comes from availabilitySnapshot().
+ * `snapshot` comes from availabilitySnapshot(). `rental: true` checks a date for an equipment
+ * rental, which only needs the notice and an open (not blocked) day: it takes no event slot.
  */
-export function dateUnavailableReason(iso, snapshot, { enforceLeadTime = true } = {}) {
+export function dateUnavailableReason(iso, snapshot, { enforceLeadTime = true, rental = false } = {}) {
   if (!iso) return '';
   // Checks in order: past or too soon -> blocked by the admin -> capacity reached -> no start time left between the booked events
   // (events on the day before or after count too, since a late event can run past midnight)
@@ -118,6 +126,7 @@ export function dateUnavailableReason(iso, snapshot, { enforceLeadTime = true } 
   }
   const blocked = snapshot.blocked.find((b) => b.date === iso);
   if (blocked) return blocked.reason;
+  if (rental) return '';
   if ((snapshot.booked[iso] || 0) >= snapshot.capacity) return 'Fully booked';
   const [dayBefore, dayAfter] = [addDays(iso, -1), addDays(iso, 1)];
   const eventsNearby = snapshot.events.some((e) => e.date >= dayBefore && e.date <= dayAfter);

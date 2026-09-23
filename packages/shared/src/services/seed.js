@@ -1,4 +1,5 @@
 import { addDays, formatDate, todayISO } from '../utils/format.js';
+import { DEFAULT_PRICE_PER_PLATE, RENTAL_SERVICE } from './config.js';
 import { buildInventorySeed } from './inventorySeed.js';
 import { buildOutsourceSeed } from './outsourceSeed.js';
 import { computeQuote } from './pricing.js';
@@ -10,7 +11,7 @@ import { makeReservationRef } from './reservationRef.js';
  * today, requests waiting, payments to verify and a year of completed events.
  */
 
-// Package inclusions as [quantity, name]; quantity is null for items without a count (e.g. "Buffet Table")
+// Items included in a package as [quantity, name]; quantity is null for items without a count (e.g. "Buffet Table")
 const items = (list) => list.map(([qty, name]) => ({ qty, name }));
 
 // What every catering package (not the wedding ones) starts with
@@ -51,7 +52,12 @@ const WEDDING_EXTRAS = [
  * Packages from the Tres Marias price lists. A package is equipment and service only:
  * food is cooked to the customer's request and priced by the admin in the quotation.
  * Packages are not tied to an occasion; any package can be booked for any event.
- * `guests` is how many guests the tableware and chairs cover, and `setups` the setup styles it can be booked with.
+ * `guests` is how many guests the tableware and chairs cover. Any package can be booked as a
+ * Buffet (food cooked, charged per person) or as Catering only (the equipment on its own).
+ *
+ * The last one, Equipment Rental (`kind: 'rental'`), has no price, guests or items of its own: the
+ * customer picks inventory items and pays each one's rental price per piece. Every other package
+ * is `kind: 'package'`.
  */
 const PACKAGES = [
   {
@@ -62,8 +68,7 @@ const PACKAGES = [
     guests: 60,
     description: 'A buffet setup with tableware, round tables and chairs for small gatherings of up to 60 guests.',
     items: cateringItems({ guests: 60, warmers: 5, warmerName: 'Food Warmers', tables: 5, pitchers: 2, jugs: 1 }),
-    mood: 0,
-    setups: ['Buffet', 'Family style']
+    mood: 0
   },
   {
     id: 'pkg-1',
@@ -73,8 +78,7 @@ const PACKAGES = [
     guests: 100,
     description: 'A buffet setup with tableware, round tables and chairs for up to 100 guests.',
     items: cateringItems({ guests: 100, warmers: 8, warmerName: 'Food Warmers', tables: 10, pitchers: 4, jugs: 1 }),
-    mood: 1,
-    setups: ['Buffet', 'Family style']
+    mood: 1
   },
   {
     id: 'pkg-1-waiters',
@@ -84,8 +88,7 @@ const PACKAGES = [
     guests: 100,
     description: 'Everything in Package 1 for up to 100 guests, with 2 waiters/dishwashers.',
     items: cateringItems({ guests: 100, warmers: 8, warmerName: 'Food Warmers', tables: 10, pitchers: 4, jugs: 1, waiters: 2 }),
-    mood: 1,
-    setups: ['Buffet', 'Plated', 'Family style']
+    mood: 1
   },
   {
     id: 'pkg-2',
@@ -95,8 +98,7 @@ const PACKAGES = [
     guests: 150,
     description: 'A buffet setup with elegant food warmers, tableware, round tables and chairs for up to 150 guests.',
     items: cateringItems({ guests: 150, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 15, pitchers: 4, jugs: 1 }),
-    mood: 2,
-    setups: ['Buffet', 'Family style']
+    mood: 2
   },
   {
     id: 'pkg-2-waiters',
@@ -106,8 +108,7 @@ const PACKAGES = [
     guests: 150,
     description: 'Everything in Package 2 for up to 150 guests, with 3 waiters/dishwashers.',
     items: cateringItems({ guests: 150, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 15, pitchers: 4, jugs: 1, waiters: 3 }),
-    mood: 2,
-    setups: ['Buffet', 'Plated', 'Family style']
+    mood: 2
   },
   {
     id: 'pkg-3',
@@ -117,8 +118,7 @@ const PACKAGES = [
     guests: 200,
     description: 'A buffet setup with elegant food warmers, tableware, round tables and chairs for up to 200 guests.',
     items: cateringItems({ guests: 200, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 20, pitchers: 6, jugs: 2 }),
-    mood: 3,
-    setups: ['Buffet', 'Family style']
+    mood: 3
   },
   {
     id: 'pkg-3-waiters',
@@ -128,8 +128,7 @@ const PACKAGES = [
     guests: 200,
     description: 'Everything in Package 3 for up to 200 guests, with 4 waiters/dishwashers.',
     items: cateringItems({ guests: 200, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 20, pitchers: 6, jugs: 2, waiters: 4 }),
-    mood: 3,
-    setups: ['Buffet', 'Plated', 'Family style']
+    mood: 3
   },
   {
     id: 'pkg-wedding-1',
@@ -154,7 +153,6 @@ const PACKAGES = [
       ...WEDDING_EXTRAS
     ]),
     mood: 3,
-    setups: ['Buffet', 'Plated'],
     icon: 'favorite'
   },
   {
@@ -180,10 +178,21 @@ const PACKAGES = [
       ...WEDDING_EXTRAS
     ]),
     mood: 3,
-    setups: ['Buffet', 'Plated'],
     icon: 'favorite'
+  },
+  {
+    id: 'pkg-equipment-rental',
+    slug: 'equipment-rental',
+    name: 'Equipment Rental',
+    kind: 'rental',
+    price: 0,
+    guests: 0,
+    description: 'Rent only what you need: tables, chairs, linens, food warmers, tableware, tents and decor, priced per piece. Pick up in Magapi, Malvar, Batangas, or have it delivered.',
+    items: [],
+    mood: 1,
+    icon: 'chair'
   }
-].map((pkg) => ({ icon: 'restaurant', featured: false, visible: true, archived: false, ...pkg }));
+].map((pkg) => ({ kind: 'package', icon: 'restaurant', featured: false, visible: true, archived: false, ...pkg }));
 
 /**
  * Additional charges a customer can tick on the reservation form. They have no fixed
@@ -193,8 +202,117 @@ const ADDONS = [
   { id: 'add-stage', name: 'Stage decoration', description: 'Backdrop and styling for the stage or program area.' },
   { id: 'add-balloons', name: 'Balloon decoration', description: 'Balloon arches, garlands or columns in your motif.' },
   { id: 'add-tent', name: 'Tent', description: 'A tent over the dining area for outdoor venues.' },
-  { id: 'add-waiters', name: 'Waiter/Dishwasher', description: 'Extra waiters or dishwashers for the event.' }
-].map((addon) => ({ ...addon, archived: false }));
+  { id: 'add-sounds-lights', name: 'Sounds and lights', description: 'Speakers, microphones and event lighting for the program.' },
+  { id: 'add-host', name: 'Host', description: 'A host or emcee to run the program.' },
+  { id: 'add-clown', name: 'Clown', description: 'A clown with games and balloon art for children.' },
+  { id: 'add-photographer', name: 'Photographer', description: 'Event photographer with edited photos after the event.' },
+  { id: 'add-videographer', name: 'Videographer', description: 'Event videographer with an edited highlights video.' },
+  // The only charge counted by the piece: the customer says how many, and the admin prices one of them
+  { id: 'add-waiters', name: 'Waiter/Dishwasher', description: 'Extra waiters or dishwashers on top of what your package includes.', hasQuantity: true }
+].map((addon) => ({ hasQuantity: false, archived: false, ...addon }));
+
+/**
+ * The dishes the admin offers, grouped by the four categories a buffet menu is built from.
+ * A buffet takes exactly one dish from each category; the admin adds, renames and archives
+ * them on the Packages page. Every dish costs the same, because a buffet is charged per person.
+ */
+const DISHES = [
+  ['pork', [
+    ['lechon-kawali', 'Lechon Kawali'],
+    ['crispy-pata', 'Crispy Pata'],
+    ['menudo', 'Pork Menudo'],
+    ['bbq', 'Pork Barbecue'],
+    ['adobo-gata', 'Pork Adobo sa Gata'],
+    ['humba', 'Pork Humba'],
+    ['sisig', 'Pork Sisig']
+  ]],
+  ['chicken', [
+    ['inasal', 'Chicken Inasal'],
+    ['cordon-bleu', 'Chicken Cordon Bleu'],
+    ['fried', 'Crispy Fried Chicken'],
+    ['adobo', 'Chicken Adobo'],
+    ['relleno', 'Chicken Relleno'],
+    ['afritada', 'Chicken Afritada'],
+    ['buffalo', 'Buffalo Chicken Wings'],
+    ['teriyaki', 'Chicken Teriyaki']
+  ]],
+  ['fish', [
+    ['fillet-tartar', 'Fish Fillet with Tartar Sauce'],
+    ['fillet-lemon', 'Fish Fillet in Lemon Butter'],
+    ['escabeche', 'Fish Escabeche'],
+    ['grilled-tilapia', 'Grilled Tilapia'],
+    ['sinigang-hipon', 'Sinigang na Hipon'],
+    ['baked-scallops', 'Baked Scallops'],
+    ['tahong', 'Cheesy Baked Tahong']
+  ]],
+  ['vegetable', [
+    ['chopsuey', 'Chopsuey'],
+    ['kare-kare', 'Kare-Kare'],
+    ['buttered', 'Buttered Mixed Vegetables'],
+    ['lumpiang-gulay', 'Lumpiang Gulay'],
+    ['pinakbet', 'Pinakbet'],
+    ['laing', 'Laing']
+  ]]
+].flatMap(([category, list]) => list.map(([slug, name]) => ({ id: `dish-${category}-${slug}`, category, name, archived: false })));
+
+// The dish name behind a slug, e.g. ('pork', 'lechon-kawali') -> 'Lechon Kawali'
+const named = (category, slug) => {
+  const dish = DISHES.find((d) => d.id === `dish-${category}-${slug}`);
+  return dish ? dish.name : slug;
+};
+
+/**
+ * Short form for a menu row: the four dish slugs, in category order (pork, chicken, fish, vegetable).
+ * A menu line is stored as the text the customer wrote, not as a dish id, so these are turned into
+ * names here. A line can name more than one dish - pass an array to get "A and B".
+ */
+const menu = (pork, chicken, fish, vegetable) => {
+  const line = (category, slug) => (Array.isArray(slug) ? slug.map((one) => named(category, one)).join(' and ') : named(category, slug));
+  return {
+    pork: line('pork', pork),
+    chicken: line('chicken', chicken),
+    fish: line('fish', fish),
+    vegetable: line('vegetable', vegetable)
+  };
+};
+
+/** The buffet menu each sample reservation ordered, by the row key used in the RES table below. */
+const MENUS = {
+  'santos-wedding': menu(['lechon-kawali', 'crispy-pata'], 'relleno', 'escabeche', 'chopsuey'),
+  'lola-carmen': menu('menudo', 'inasal', 'fillet-lemon', 'chopsuey'),
+  'santos-christmas': menu('adobo-gata', 'cordon-bleu', 'escabeche', 'buttered'),
+  'sofia-debut': menu('bbq', 'cordon-bleu', 'fillet-lemon', 'buttered'),
+  'cruz-wedding': menu('crispy-pata', 'inasal', 'escabeche', 'kare-kare'),
+  'villanueva-yearend': menu('crispy-pata', 'inasal', 'grilled-tilapia', 'kare-kare'),
+  'liam-christening': menu('bbq', 'fried', 'fillet-tartar', 'lumpiang-gulay'),
+  'mendoza-anniversary': menu('humba', 'relleno', 'sinigang-hipon', 'buttered'),
+  'bautista-graduation': menu('bbq', 'fried', 'fillet-tartar', 'lumpiang-gulay'),
+  'aquino-seminar': menu('menudo', 'inasal', 'escabeche', 'buttered'),
+  'ramos-reunion': menu('lechon-kawali', 'afritada', 'grilled-tilapia', 'kare-kare'),
+  'villanueva-townhall': menu('bbq', 'inasal', 'fillet-tartar', 'chopsuey'),
+  'aquino-anniversary': menu('humba', 'cordon-bleu', 'baked-scallops', 'buttered'),
+  'rhea-sister-debut': menu('bbq', 'fried', 'fillet-tartar', 'lumpiang-gulay'),
+  'cruz-engagement': menu('crispy-pata', 'adobo', 'sinigang-hipon', 'kare-kare'),
+  'tabra-birthday': menu('sisig', 'buffalo', 'fillet-tartar', 'buttered'),
+  'tabra-reunion': menu('lechon-kawali', 'afritada', 'grilled-tilapia', 'chopsuey'),
+  'tabra-teambuilding': menu('humba', 'teriyaki', 'fillet-lemon', 'lumpiang-gulay'),
+  'althea-christening': menu('bbq', 'fried', 'fillet-tartar', 'lumpiang-gulay'),
+  'tabra-anniversary': menu('humba', 'relleno', 'grilled-tilapia', 'buttered'),
+  'tabra-graduation': menu('bbq', 'afritada', 'tahong', 'chopsuey'),
+  'tabra-christmas': menu('humba', 'cordon-bleu', 'escabeche', 'buttered'),
+  'jhen-debut': menu('humba', 'cordon-bleu', 'fillet-tartar', 'buttered'),
+  'tabra-company-anniversary': menu('menudo', 'inasal', 'escabeche', 'chopsuey'),
+  'tabra-outing': menu('bbq', 'adobo', 'fillet-tartar', 'chopsuey')
+};
+
+/** Rows booked as Catering only: the equipment on its own, no menu and no per-person charge. */
+const SERVICE_ONLY = new Set(['lim-thanksgiving', 'mendoza-outing', 'paolo-engagement']);
+
+/** What a Catering only customer wrote instead of a menu. */
+const SERVICE_ONLY_NOTE = 'We are cooking the food ourselves. We only need the equipment and the setup.';
+
+/** How many of a by-the-piece additional charge a row asked for, e.g. four extra waiters. */
+const ADDON_QTY = { 'villanueva-yearend': { 'add-waiters': 4 } };
 
 // Customers as [id, name, email, mobile, days since joining, password (optional, default Celebrate2026)]
 const CUSTOMERS = [
@@ -223,10 +341,19 @@ export function buildSeed() {
 
   const pkgById = Object.fromEntries(PACKAGES.map((p) => [p.id, p]));
 
-  // Prices the admin put on each additional charge in the sample quotations
-  const ADDON_PRICES = { 'add-stage': 8000, 'add-balloons': 4500, 'add-tent': 7000, 'add-waiters': 3000 };
-  // Food price per guest used for the sample quotations (the admin sets the food amount per booking)
-  const FOOD_PER_GUEST = 280;
+  // Prices the admin put on each additional charge in the sample quotations.
+  // 'add-waiters' is counted by the piece, so its amount is the price of ONE waiter.
+  const ADDON_PRICES = {
+    'add-stage': 8000,
+    'add-balloons': 4500,
+    'add-tent': 7000,
+    'add-sounds-lights': 12000,
+    'add-host': 6000,
+    'add-clown': 4000,
+    'add-photographer': 9500,
+    'add-videographer': 14000,
+    'add-waiters': 800
+  };
   // Charge per guest above what the package covers, used for the sample quotations
   const EXTRA_GUEST_CHARGE = 60;
 
@@ -279,7 +406,9 @@ export function buildSeed() {
 
   /**
    * [key, customerId, eventName, occasion, dateOffset, start, guests, packageId,
-   *  status, createdOffset, addonIds, venue, food request, extras]
+   *  status, createdOffset, addonIds, venue, food notes, extras]
+   * The buffet menu, the service type and any add-on quantities come from MENUS, SERVICE_ONLY
+   * and ADDON_QTY above, keyed by `key`, so the rows stay one line of reading each.
    * `key` is a short name used only inside this file; the real reference (RES-YYYY-MMDD-NN) is built from the event date below.
    * The occasion and the package are independent: e.g. a corporate event can use Package 1.
    * Extras: quoted, dueOffset, paidFull (balanceMethod: 'cash' = paid on the event day), paidHalf,
@@ -393,11 +522,17 @@ export function buildSeed() {
 
   // Turn each RES row into a full reservation: quotation, activity history and payments
   const reservations = RES.map(
-    ([key, customerId, eventName, occasion, dateOffset, startTime, guests, packageId, status, createdOffset, addonIds, venue, foodRequest, extra]) => {
+    ([key, customerId, eventName, occasion, dateOffset, startTime, guests, packageId, status, createdOffset, addonIds, venue, foodNotes, extra]) => {
       const ref = REF[key];
       const pkg = pkgById[packageId];
-      // Before a quotation only the package price is known
-      const estimate = computeQuote({ pkg, addonIds });
+      // Catering only is the equipment on its own; every other row is a buffet with a four-dish menu
+      const serviceType = SERVICE_ONLY.has(key) ? 'Catering only' : 'Buffet and Catering';
+      const buffetMenu = serviceType === 'Buffet and Catering' ? MENUS[key] : null;
+      const addonQty = ADDON_QTY[key] || {};
+      // What every quote for this row shares. The buffet is charged per person, so the food price
+      // is already known before the admin sends anything; only the add-on prices are still missing.
+      const quoteBase = { pkg, serviceType, guests, pricePerPlate: DEFAULT_PRICE_PER_PLATE, addonIds, addonQty };
+      const estimate = computeQuote(quoteBase);
       const hasQuote = extra.quoted || !['pending', 'declined'].includes(status);
       const discount = status === 'completed' && guests >= 150 ? 2000 : 0;
       // Guests above what the package covers are charged under "Other charges"
@@ -405,9 +540,7 @@ export function buildSeed() {
       const quotation = hasQuote
         ? {
             ...computeQuote({
-              pkg,
-              addonIds,
-              food: guests * FOOD_PER_GUEST,
+              ...quoteBase,
               addonPrices: ADDON_PRICES,
               otherCharges: over * EXTRA_GUEST_CHARGE,
               discount
@@ -478,9 +611,14 @@ export function buildSeed() {
         startTime,
         guests,
         packageId,
-        foodRequest,
-        venue: { name: venue[0], address: venue[1], city: venue[2], setup: 'Buffet', accessNotes: extra.accessNotes ? 'Service entrance at the side gate. Parking for the catering van is available.' : '' },
+        serviceType,
+        menu: buffetMenu,
+        foodNotes: serviceType === 'Buffet and Catering' ? foodNotes : SERVICE_ONLY_NOTE,
+        // The rate this booking was made at, so re-quoting it never picks up a newer price
+        pricePerPlate: DEFAULT_PRICE_PER_PLATE,
+        venue: { name: venue[0], address: venue[1], city: venue[2], accessNotes: extra.accessNotes ? 'Service entrance at the side gate. Parking for the catering van is available.' : '' },
         addonIds,
+        addonQty,
         status,
         estimate,
         quotation,
@@ -689,16 +827,63 @@ export function buildSeed() {
 
   // Equipment inventory (items and the counter for new item codes); some pieces are out at today's two events
   const inventory = buildInventorySeed(REF);
+
+  // An Equipment Rental request from the demo customer: chairs, tables, linens and warmers delivered
+  // in ten days, waiting for its quotation. Added after the table above so every other reference,
+  // payment id and receipt number stays the same. Prices are copied from the inventory, as a booking does.
+  const rentalWanted = [['Monobloc chair', 100], ['Round table (10 seats)', 10], ['Round tablecloth', 10], ['Food warmer', 4], ['Table skirting', 2]];
+  const rentalItems = rentalWanted.map(([name, qty]) => {
+    const item = inventory.items.find((i) => i.name === name);
+    return { itemId: item.id, name, qty, price: item.rentPrice, damageFee: item.damageFee };
+  });
+  const rentalRef = makeReservationRef(day(10), reservations.map((r) => r.ref));
+  reservations.push({
+    ref: rentalRef,
+    customerId: 'cus-009',
+    eventName: 'Tabra Family Barbecue Party',
+    occasion: 'Reunion',
+    date: day(10),
+    startTime: '08:00',
+    guests: 0,
+    packageId: 'pkg-equipment-rental',
+    serviceType: RENTAL_SERVICE,
+    menu: null,
+    foodNotes: '',
+    pricePerPlate: 0,
+    rentalItems,
+    fulfilment: 'delivery',
+    damageCharges: [],
+    venue: { name: 'Tabra Residence', address: '31 Kamagong Street, Barangay San Antonio', city: 'Pasig City', accessNotes: 'Please call when you are at the gate.' },
+    addonIds: [],
+    addonQty: {},
+    status: 'pending',
+    estimate: computeQuote({ pkg: pkgById['pkg-equipment-rental'], serviceType: RENTAL_SERVICE, rentalItems, deliveryFee: 100 }),
+    quotation: null,
+    downpaymentDue: null,
+    notes: '',
+    declineReason: '',
+    cancelReason: '',
+    activity: [{ at: at(0, 8, 30), actor: 'Jherson Gabrial Tabra', text: 'Submitted the equipment rental request.' }],
+    createdAt: at(0, 8, 30)
+  });
+  // The automatic thank-you the booking form posts in the customer's chat
+  const tabraThread = threads.find((t) => t.customerId === 'cus-009');
+  tabraThread.messages.push(
+    msg('admin', 'Tres Marias team', `Thank you for your equipment rental request for ${formatDate(day(10))}. We are checking the items and will send your quotation within 24 hours.`, 0, 8, 31, { ref: rentalRef, readByCustomer: false })
+  );
   // Outsourcing partners and the contracts sent to them (with the counter for new contract numbers)
   const outsourcing = buildOutsourceSeed(REF, reservations);
 
   return {
-    version: 11,
+    version: 15,
     seededOn: T,
+    // Settings the admin edits in the app (the buffet price per person is one of them)
+    settings: { pricePerPlate: DEFAULT_PRICE_PER_PLATE },
     admins,
     customers,
     packages: PACKAGES,
     addons: ADDONS,
+    dishes: DISHES,
     reservations,
     payments,
     threads,

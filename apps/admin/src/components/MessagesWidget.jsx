@@ -42,7 +42,9 @@ export function MessengerProvider({ children }) {
         setMode((was) => (was === 'full' ? 'full' : nextMode));
       },
       // The header icon opens the window, or closes it when it is already open
-      toggleMessages: () => setMode((was) => (was === 'closed' ? 'mini' : 'closed'))
+      toggleMessages: () => setMode((was) => (was === 'closed' ? 'mini' : 'closed')),
+      // Close the window, e.g. when the notification list opens so the two don't overlap
+      closeMessages: () => setMode('closed')
     }),
     [mode]
   );
@@ -174,7 +176,7 @@ function MessagesWindow({ mode, setMode, activeId, setActiveId, anchorRef }) {
                 height: `min(600px, calc(100dvh - ${tokens.headerHeight + 24}px))`,
                 borderRadius: 2,
                 border: `1px solid ${tokens.divider}`,
-                boxShadow: '0 18px 50px rgba(0, 0, 0, 0.45)'
+                boxShadow: tokens.shadowPanel
               })
         }}
       >

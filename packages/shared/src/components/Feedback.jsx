@@ -7,6 +7,7 @@ import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlin
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LockClockOutlinedIcon from '@mui/icons-material/LockClockOutlined';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { tokens } from '../theme/tokens.js';
 
 /** Inline banner (design system: AlertBanner) for light surfaces. */
@@ -14,17 +15,20 @@ const ALERT = {
   error: { bg: '#fef2f2', border: '#fecaca', fg: '#b91c1c', icon: ErrorOutlineRoundedIcon },
   info: { bg: '#eff6ff', border: '#bfdbfe', fg: '#1d4ed8', icon: InfoOutlinedIcon },
   success: { bg: '#ecfdf5', border: '#a7f3d0', fg: '#047857', icon: CheckCircleOutlineRoundedIcon },
+  // Something needs attention but nothing has gone wrong, e.g. an edit that changes what a customer owes
+  warning: { bg: '#fffbeb', border: '#fde68a', fg: '#92400e', icon: WarningAmberRoundedIcon },
   locked: { bg: '#fffbeb', border: '#fde68a', fg: '#92400e', icon: LockClockOutlinedIcon }
 };
 
-/** Coloured message box. tone: error / info / success / locked. */
+/** Coloured message box. tone: error / info / success / warning / locked. */
 export function AlertBanner({ tone = 'info', title, children, action, sx }) {
-  const a = ALERT[tone];
+  // An unknown tone falls back to info: a mistyped tone should never blank the page it sits on
+  const a = ALERT[tone] || ALERT.info;
   const Icon = a.icon;
   return (
     // role="alert" makes screen readers announce errors right away
     <Box
-      role={tone === 'error' || tone === 'locked' ? 'alert' : 'status'}
+      role={['error', 'warning', 'locked'].includes(tone) ? 'alert' : 'status'}
       sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start', px: 1.75, py: 1.4, borderRadius: 1.5, backgroundColor: a.bg, border: `1px solid ${a.border}`, color: a.fg, ...sx }}
     >
       <Icon sx={{ fontSize: 19, mt: '1px', flexShrink: 0 }} />

@@ -1,15 +1,19 @@
 /**
  * @tm/shared: everything both portals reuse.
  *
- *   theme/       design tokens (JS + CSS) and the dark / light MUI themes
+ *   theme/       design tokens (JS + CSS), the dark / light colour schemes and the MUI themes
  *   components/  buttons, inputs, cards, dialogs, calendar, charts, portal shell
  *   hooks/       data loading, countdowns, toasts, page titles
  *   auth/        session provider factory and route guard
- *   services/    the data layer (swap for API calls when the backend lands)
+ *   services/    the data layer; each xxxApi goes through services/facade/, which picks the
+ *                browser store or the API per service (VITE_API_SERVICES, see services/backend.js)
  *   utils/       formatting, status pipeline, validation
  */
 export { tokens, eyebrowSx, shakeSx } from './theme/tokens.js';
-export { darkTheme, lightTheme } from './theme/createTheme.js';
+export { darkPalette, lightPalette } from './theme/palettes.js';
+export { darkTheme, lightTheme, warmTheme, themeForMode, surfaceThemeForMode } from './theme/createTheme.js';
+export { ColorModeProvider, useColorMode, applyColorMode, readColorMode } from './theme/colorMode.jsx';
+export { ThemeModeToggle } from './components/ThemeModeToggle.jsx';
 
 export { LightSurface, DarkSurface } from './components/Surface.jsx';
 export { DashCard, CardTitle, StatCard, DetailRow, Field } from './components/DashCard.jsx';
@@ -45,17 +49,17 @@ export * from './utils/format.js';
 export * from './utils/status.js';
 export * from './utils/validation.js';
 
-export { BUSINESS, RULES, OCCASIONS, SETUP_STYLES, setupsFor, BLOCK_REASONS, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
-export { computeQuote, extraGuests } from './services/pricing.js';
-export { ApiError } from './services/store.js';
-export * as authApi from './services/authService.js';
-export * as catalogApi from './services/catalogService.js';
-export * as calendarApi from './services/calendarService.js';
-export * as reservationApi from './services/reservationService.js';
-export * as paymentApi from './services/paymentService.js';
-export * as messageApi from './services/messageService.js';
-export * as customerApi from './services/customerService.js';
-export * as feedbackApi from './services/feedbackService.js';
-export * as reportApi from './services/reportService.js';
-export * as inventoryApi from './services/inventoryService.js';
-export * as outsourceApi from './services/outsourceService.js';
+export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, BLOCK_REASONS, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
+export { computeQuote, extraGuests, isRentalPackage } from './services/pricing.js';
+export { ApiError } from './services/errors.js';
+export * as authApi from './services/facade/auth.js';
+export * as catalogApi from './services/facade/catalog.js';
+export * as calendarApi from './services/facade/calendar.js';
+export * as reservationApi from './services/facade/reservation.js';
+export * as paymentApi from './services/facade/payment.js';
+export * as messageApi from './services/facade/message.js';
+export * as customerApi from './services/facade/customer.js';
+export * as feedbackApi from './services/facade/feedback.js';
+export * as reportApi from './services/facade/report.js';
+export * as inventoryApi from './services/facade/inventory.js';
+export * as outsourceApi from './services/facade/outsource.js';

@@ -1,0 +1,24 @@
+# Phase 0 checks for the API skeleton (VS Code REST Client: click "Send Request" above a block).
+# Start the API first: npm run dev:api
+
+@api = http://localhost:4000/api
+
+### Health: 200 { "ok": true, "time": <millis> }
+GET {{api}}/health
+
+### Unknown route: 404 { "code": "NOT_FOUND", "message": "Not found.", "meta": {} }
+GET {{api}}/walang-ito
+
+### Malformed JSON: 400 { "code": "INVALID", "message": "The request body is not valid JSON.", "meta": {} }
+POST {{api}}/health
+Content-Type: application/json
+
+{bad json
+
+### CORS, allowed portal: the response has Access-Control-Allow-Origin: http://localhost:5173
+GET {{api}}/health
+Origin: http://localhost:5173
+
+### CORS, other origin: the response has NO Access-Control-Allow-Origin header (a browser would block it)
+GET {{api}}/health
+Origin: http://localhost:4173

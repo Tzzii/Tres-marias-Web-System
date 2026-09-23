@@ -33,6 +33,8 @@ import {
   formatRelative,
   formatTime,
   formatWeekday,
+  headcount,
+  isRental,
   parseISODate,
   paymentApi,
   peso,
@@ -280,7 +282,7 @@ export default function DashboardPage() {
                         <StatusChip status={e.status} size="sm" />
                       </Box>
                       <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                        {formatTime(e.startTime)} · {e.guests} guests · {e.venue.setup.toLowerCase()} · {e.venue.name}, {e.venue.city}
+                        {formatTime(e.startTime)} · {isRental(e.serviceType) ? 'equipment rental' : `${e.guests} guests · ${e.serviceType.toLowerCase()}`} · {e.venue.name}, {e.venue.city}
                       </Typography>
                       <Box sx={{ mt: 0.75, display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
                         <Pill size="sm" label={e.balance === 0 ? 'Fully paid' : `Balance ${peso(e.balance)}`} bg={e.balance === 0 ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'} fg={e.balance === 0 ? '#047857' : '#b45309'} />
@@ -309,7 +311,7 @@ export default function DashboardPage() {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700 }}>{r.customerName}</Typography>
                       <Typography noWrap sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                        {r.packageName} · {formatDateShort(r.date)} · {r.guests} pax
+                        {r.packageName} · {formatDateShort(r.date)} · {headcount(r, 'pax')}
                       </Typography>
                       <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>Received {formatRelative(r.createdAt)}</Typography>
                     </Box>
@@ -361,7 +363,7 @@ export default function DashboardPage() {
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography noWrap className="tm-up-name" sx={{ fontSize: 13.5, fontWeight: 700 }}>{u.eventName}</Typography>
                   <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>
-                    {formatTime(u.startTime)} · {u.guests} guests
+                    {formatTime(u.startTime)} · {headcount(u)}
                   </Typography>
                 </Box>
                 <StatusChip status={u.status} size="sm" />

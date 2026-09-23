@@ -2,7 +2,7 @@
  * The booking a visitor starts before signing in (package, date, start time,
  * guests, occasion) and the reservation form draft a signed-in customer is filling.
  *
- * The intent survives sign-up / log-in in sessionStorage; drafts are kept per
+ * The started booking is kept through sign-up / log-in in sessionStorage; drafts are kept per
  * customer in localStorage so they survive closing the tab.
  */
 
@@ -11,7 +11,7 @@ const INTENT_KEY = 'tm.client.bookingIntent';
 // Each customer gets their own draft key
 const draftKey = (customerId) => `tm.client.draft.${customerId}`;
 
-/** Merge new details into the saved booking intent and stamp the time. */
+/** Add new details to the saved booking and record the time. */
 export function saveIntent(patch) {
   try {
     const next = { ...readIntent(), ...patch, savedAt: Date.now() };
@@ -23,11 +23,11 @@ export function saveIntent(patch) {
   }
 }
 
-/** Read the saved booking intent, or null if there is none or it's older than a day. */
+/** Read the saved booking, or null if there is none or it's older than a day. */
 export function readIntent() {
   try {
     const intent = JSON.parse(sessionStorage.getItem(INTENT_KEY));
-    // A booking started more than a day ago is stale
+    // A booking started more than a day ago is too old to use
     if (intent && Date.now() - intent.savedAt < 86400000) return intent;
   } catch (e) {
     /* ignore */
@@ -35,7 +35,7 @@ export function readIntent() {
   return null;
 }
 
-/** Remove the booking intent (after it has been used). */
+/** Remove the saved booking (after it has been used). */
 export function clearIntent() {
   try {
     sessionStorage.removeItem(INTENT_KEY);

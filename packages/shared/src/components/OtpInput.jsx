@@ -128,12 +128,12 @@ export function OtpInput({ length = 6, value, onChange, onComplete, disabled, st
             fontWeight: 700,
             color: tokens.textPrimary,
             backgroundColor: disabled ? tokens.surfaceSubtle : '#fff',
-            border: `1.5px solid ${digit && state === 'idle' ? tokens.headerBg : border}`,
+            border: `1.5px solid ${digit && state === 'idle' ? tokens.ink : border}`,
             borderRadius: 1.5,
             outline: 'none',
             boxShadow: ring,
             transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
-            '&:focus': { borderColor: state === 'idle' ? tokens.headerBg : border, boxShadow: state === 'idle' ? '0 0 0 3px rgba(15, 23, 42, 0.12)' : ring }
+            '&:focus': { borderColor: state === 'idle' ? tokens.ink : border, boxShadow: state === 'idle' ? '0 0 0 3px rgba(15, 23, 42, 0.12)' : ring }
           }}
         />
       ))}

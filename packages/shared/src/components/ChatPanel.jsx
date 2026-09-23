@@ -75,11 +75,14 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
     ? { height: '100%', minHeight: 0, borderRadius: compact ? 0 : 2 }
     : { height: { xs: 'calc(100dvh - 190px)', md: 'calc(100vh - 190px)' }, minHeight: 460, borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, boxShadow: tokens.shadowDash };
 
+  // minmax(0, 1fr) keeps columns from stretching to fit long one-line text, so previews end in "..."
+  const fill = 'minmax(0, 1fr)';
+
   return (
     <LightSurface>
-    <Box sx={{ display: 'grid', gridTemplateColumns: compact || single ? '1fr' : { xs: '1fr', md: '320px 1fr' }, overflow: 'hidden', backgroundColor: '#fff', ...sizeSx }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: compact || single ? fill : { xs: fill, md: `320px ${fill}` }, overflow: 'hidden', backgroundColor: '#fff', ...sizeSx }}>
       {/* Threads */}
-      <Box sx={{ display: single ? 'none' : compact ? (activeId ? 'none' : 'flex') : { xs: activeId ? 'none' : 'flex', md: 'flex' }, flexDirection: 'column', borderRight: compact ? 'none' : { md: `1px solid ${tokens.cardLightBorder}` }, minHeight: 0 }}>
+      <Box sx={{ display: single ? 'none' : compact ? (activeId ? 'none' : 'flex') : { xs: activeId ? 'none' : 'flex', md: 'flex' }, flexDirection: 'column', borderRight: compact ? 'none' : { md: `1px solid ${tokens.cardLightBorder}` }, minHeight: 0, minWidth: 0 }}>
         <Typography sx={{ px: 2, py: 1.75, fontSize: 15, fontWeight: 700, color: tokens.textPrimary, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>Threads</Typography>
         <Box className="tm-scroll" sx={{ overflowY: 'auto', flex: 1 }}>
           {threads.length === 0 && <Typography sx={{ p: 2, fontSize: 13.5, color: tokens.textSecondary }}>{emptyText}</Typography>}
@@ -93,7 +96,7 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                 </Avatar>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                    <Typography noWrap sx={{ fontSize: 13.5, fontWeight: t.unread ? 800 : 700, color: tokens.textPrimary }}>
+                    <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: t.unread ? 800 : 700, color: tokens.textPrimary }}>
                       {side === 'admin' ? t.customerName : 'Admin'}
                     </Typography>
                     {t.updatedAt > 0 && <Typography sx={{ flexShrink: 0, fontSize: 11, color: tokens.textMuted }}>{formatRelative(t.updatedAt)}</Typography>}
@@ -102,7 +105,7 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                     {side === 'admin' ? t.customerEmail : 'Tres Marias Catering'}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Typography noWrap sx={{ flex: 1, fontSize: 12.5, color: t.unread ? tokens.textPrimary : tokens.textMuted }}>{t.lastMessage ? t.lastMessage.body : 'No messages yet'}</Typography>
+                    <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 12.5, color: t.unread ? tokens.textPrimary : tokens.textMuted }}>{t.lastMessage ? t.lastMessage.body : 'No messages yet'}</Typography>
                     {t.unread > 0 && <Box sx={{ minWidth: 18, height: 18, px: 0.5, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700, color: '#fff', backgroundColor: tokens.red }}>{t.unread}</Box>}
                   </Box>
                 </Box>
@@ -161,7 +164,7 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                               </Box>
                             </Box>
                           )}
-                          <Box sx={{ px: 1.75, py: 1.1, borderRadius: 2, borderTopRightRadius: mine ? 4 : 16, borderTopLeftRadius: mine ? 16 : 4, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: mine ? '#fff' : tokens.textPrimary, backgroundColor: mine ? tokens.headerBg : '#fff', border: mine ? 'none' : `1px solid ${tokens.cardLightBorder}` }}>
+                          <Box sx={{ px: 1.75, py: 1.1, borderRadius: 2, borderTopRightRadius: mine ? 4 : 16, borderTopLeftRadius: mine ? 16 : 4, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: mine ? tokens.onInk : tokens.textPrimary, backgroundColor: mine ? tokens.ink : tokens.cardLight, border: mine ? 'none' : `1px solid ${tokens.cardLightBorder}` }}>
                             {m.body}
                             {m.attachment && (
                               <ButtonBase onClick={() => onOpenAttachment && onOpenAttachment(m.attachment)} sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, width: '100%', px: 1.25, py: 1, borderRadius: 1.5, fontFamily: 'inherit', textAlign: 'left', backgroundColor: mine ? 'rgba(255,255,255,0.12)' : tokens.surfaceMuted }}>
@@ -223,10 +226,10 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                 multiline
                 maxRows={5}
                 inputProps={{ 'aria-label': 'Write a message', maxLength: 2000 }}
-                sx={{ flex: 1, px: 1.5, py: 1, fontSize: 14, color: tokens.textPrimary, borderRadius: 1.5, border: `1px solid ${tokens.borderInput}`, '&.Mui-focused': { borderColor: tokens.headerBg } }}
+                sx={{ flex: 1, px: 1.5, py: 1, fontSize: 14, color: tokens.textPrimary, borderRadius: 1.5, border: `1px solid ${tokens.borderInput}`, '&.Mui-focused': { borderColor: tokens.borderFocus } }}
               />
-              <IconButton type="submit" disabled={!text.trim() || sending} aria-label="Send" sx={{ width: 44, height: 44, color: '#fff', backgroundColor: tokens.headerBg, '&:hover': { backgroundColor: tokens.slate700 }, '&.Mui-disabled': { color: '#fff', backgroundColor: tokens.placeholder } }}>
-                {sending ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <SendRoundedIcon sx={{ fontSize: 20 }} />}
+              <IconButton type="submit" disabled={!text.trim() || sending} aria-label="Send" sx={{ width: 44, height: 44, color: tokens.onInk, backgroundColor: tokens.ink, '&:hover': { backgroundColor: tokens.inkHover }, '&.Mui-disabled': { color: tokens.onInk, backgroundColor: tokens.placeholder } }}>
+                {sending ? <CircularProgress size={18} sx={{ color: tokens.onInk }} /> : <SendRoundedIcon sx={{ fontSize: 20 }} />}
               </IconButton>
             </Box>
             {error && <Typography sx={{ px: 2, pb: 1, fontSize: 12.5, color: tokens.redPress }}>{error}</Typography>}

@@ -5,10 +5,13 @@ import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -41,6 +44,7 @@ import {
   formatDate,
   formatDateTime,
   inventoryApi,
+  peso,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -59,6 +63,7 @@ const STATUSES = [
   ['out', 'Out of stock', (i) => i.stock === 'out'],
   ['in_use', 'In use', (i) => i.inUse > 0],
   ['damaged', 'With damaged', (i) => i.damaged > 0],
+  ['rentable', 'For rent', (i) => i.rentable],
   ['archived', 'Archived', () => true]
 ];
 
@@ -68,6 +73,7 @@ const OPTIONAL_COLUMNS = [
   ['total', 'Total'],
   ['available', 'Available'],
   ['inUse', 'In use'],
+  ['rent', 'Rent price'],
   ['condition', 'Condition']
 ];
 const COLUMNS_KEY = 'tm.admin.inventory.columns'; // this browser remembers the admin's column choice
@@ -83,6 +89,8 @@ const ACTIONS = {
 
 /**
  * Equipment inventory (from the Logistics wireframe): what Tres Marias owns, what is out at events and what is damaged.
+ * Items can also be offered for rent through the Equipment Rental package: the Rent price column shows each
+ * one's price per piece and damage fee, and the "For rent" filter lists only those.
  * Top: four summary cards (click one to filter). Card: search by name or code, Category and Status filters,
  * "Filter columns" to show/hide columns, then a paged table with checkboxes (bulk archive/restore) and a ⋮ menu per item
  * (details, edit, check out, return, report damage, repair, dispose, request from an outsourcing partner, archive).
@@ -204,6 +212,21 @@ export default function InventoryPage() {
       )
     },
     columns.inUse && { key: 'inUse', label: 'In use', align: 'right', render: (i) => i.inUse },
+    columns.rent && {
+      key: 'rent',
+      label: 'Rent price',
+      align: 'right',
+      // Price per piece with the damage fee underneath, or a dash for items only our team uses
+      render: (i) =>
+        i.rentable ? (
+          <Box>
+            <Typography component="span" sx={{ fontSize: 13.5, fontWeight: 700 }}>{peso(i.rentPrice)}</Typography>
+            <Typography sx={{ fontSize: 11, color: tokens.textMuted }}>damage {peso(i.damageFee)}</Typography>
+          </Box>
+        ) : (
+          <Typography component="span" sx={{ fontSize: 12.5, color: tokens.textMuted }}>Not for rent</Typography>
+        )
+    },
     columns.condition && {
       key: 'condition',
       label: 'Condition',
@@ -260,14 +283,14 @@ export default function InventoryPage() {
 
         {/* Bulk bar, shown when rows are ticked */}
         {ticked.length > 0 && (
-          <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.headerBg, color: '#fff' }}>
+          <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
             <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{ticked.length} selected</Typography>
             {status === 'archived' ? (
               <Button size="small" variant="contained" sx={{ bgcolor: tokens.gold, color: tokens.onGold, '&:hover': { bgcolor: tokens.goldLight } }} onClick={() => setArchive({ ids: ticked.map((i) => i.id), archived: false })}>Restore selected</Button>
             ) : (
-              <Button size="small" sx={{ color: '#fca5a5' }} onClick={() => setArchive({ ids: ticked.map((i) => i.id), archived: true })}>Archive selected</Button>
+              <Button size="small" sx={{ color: tokens.dangerOnInk }} onClick={() => setArchive({ ids: ticked.map((i) => i.id), archived: true })}>Archive selected</Button>
             )}
-            <Button size="small" sx={{ color: '#fff' }} onClick={() => setSelected([])}>Clear</Button>
+            <Button size="small" sx={{ color: tokens.onInk }} onClick={() => setSelected([])}>Clear</Button>
           </Box>
         )}
 
@@ -277,7 +300,7 @@ export default function InventoryPage() {
           rows={pageRows}
           rowKey={(i) => i.id}
           onRowClick={(i) => setDetailsId(i.id)}
-          minWidth={820}
+          minWidth={920}
           empty={<EmptyState compact title={status === 'archived' ? 'Nothing archived' : 'No items match'} description={status === 'archived' ? 'Archived items appear here and can be restored.' : 'Try another search, category or status.'} />}
         />
         {!loading && filtered.length > 0 && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}
@@ -339,11 +362,12 @@ export default function InventoryPage() {
 }
 
 // A blank row in the Add item(s) dialog
-const blankRow = () => ({ name: '', category: '', total: '', lowStockAt: '' });
+const blankRow = () => ({ name: '', category: '', total: '', lowStockAt: '', rentPrice: '', damageFee: '' });
 
 /**
- * Add one or more items at once. Each row: name, category, quantity and low-stock alert level.
- * A blank alert level defaults to 10% of the quantity. All rows are checked before anything is saved.
+ * Add one or more items at once. Each row: name, category, quantity, low-stock alert level, and the
+ * rental price and damage fee for items customers can rent. A blank alert level defaults to 10% of
+ * the quantity; a blank rent price means the item is not for rent. All rows are checked before anything is saved.
  */
 function AddItemsDialog({ open, onClose, onSaved }) {
   const isPhone = useMediaQuery('(max-width:599px)');
@@ -370,7 +394,16 @@ function AddItemsDialog({ open, onClose, onSaved }) {
     // Turn the text inputs into numbers; the alert level defaults to 10% of the quantity
     const items = rows.map((row) => {
       const total = Number(row.total);
-      return { name: row.name, category: row.category, total, lowStockAt: row.lowStockAt === '' ? Math.floor(total * 0.1) : Number(row.lowStockAt) };
+      const rentable = row.rentPrice !== '';
+      return {
+        name: row.name,
+        category: row.category,
+        total,
+        lowStockAt: row.lowStockAt === '' ? Math.floor(total * 0.1) : Number(row.lowStockAt),
+        rentable,
+        rentPrice: rentable ? Number(row.rentPrice) : 0,
+        damageFee: rentable ? Number(row.damageFee) || 0 : 0
+      };
     });
     setBusy(true);
     try {
@@ -390,17 +423,20 @@ function AddItemsDialog({ open, onClose, onSaved }) {
       maxWidth="md"
       fullScreenOnMobile
       title="Add item(s)"
-      description="New items start fully available with no damage. Leave the alert level blank to use 10% of the quantity."
+      description="New items start fully available with no damage. Leave the alert level blank to use 10% of the quantity, and the rent price blank for items customers can't rent."
       actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{rows.length === 1 ? 'Add item' : `Add ${rows.length} items`}</BusyButton></>}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {rows.map((row, index) => (
-          <Box key={index} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '2fr 1.4fr 0.9fr 0.9fr auto' }, gap: 1, alignItems: 'start', pb: { xs: 1.5, sm: 0 }, borderBottom: { xs: `1px solid ${tokens.cardLightBorder}`, sm: 0 } }}>
+          <Box key={index} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '2fr 1.4fr 0.9fr 0.9fr 0.9fr 0.9fr auto' }, gap: 1, alignItems: 'start', pb: { xs: 1.5, sm: 0 }, borderBottom: { xs: `1px solid ${tokens.cardLightBorder}`, sm: 0 } }}>
             {/* Labels on the first row only on wide screens; on every row on phones */}
             <FormField id={`add-name-${index}`} label={isPhone || index === 0 ? 'Item name' : undefined} required={isPhone || index === 0} value={row.name} onChange={set(index, 'name')} error={errorFor(index, 'name')} inputProps={{ 'aria-label': 'Item name', maxLength: 80 }} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />
             <SelectField id={`add-cat-${index}`} label={isPhone || index === 0 ? 'Category' : undefined} required={isPhone || index === 0} placeholder="Choose" value={row.category} onChange={set(index, 'category')} options={INVENTORY_CATEGORIES} error={errorFor(index, 'category')} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />
             <FormField id={`add-total-${index}`} label={isPhone || index === 0 ? 'Quantity' : undefined} required={isPhone || index === 0} type="number" value={row.total} onChange={set(index, 'total')} error={errorFor(index, 'total')} inputProps={{ min: 1, 'aria-label': 'Quantity' }} />
             <FormField id={`add-low-${index}`} label={isPhone || index === 0 ? 'Alert at' : undefined} type="number" value={row.lowStockAt} onChange={set(index, 'lowStockAt')} error={errorFor(index, 'lowStockAt')} inputProps={{ min: 0, 'aria-label': 'Low-stock alert level' }} />
+            {/* For rent only when a rent price is typed */}
+            <FormField id={`add-rent-${index}`} label={isPhone || index === 0 ? 'Rent ₱' : undefined} type="number" value={row.rentPrice} onChange={set(index, 'rentPrice')} error={errorFor(index, 'rentPrice')} inputProps={{ min: 1, 'aria-label': 'Rent price per piece' }} />
+            <FormField id={`add-fee-${index}`} label={isPhone || index === 0 ? 'Damage ₱' : undefined} type="number" value={row.damageFee} onChange={set(index, 'damageFee')} error={errorFor(index, 'damageFee')} disabled={row.rentPrice === ''} inputProps={{ min: 0, 'aria-label': 'Damage fee per piece' }} />
             <IconButton aria-label="Remove row" disabled={rows.length === 1 || busy} onClick={() => { setRows((r) => r.filter((_, i) => i !== index)); setError(null); }} sx={{ mt: { sm: index === 0 ? 3.25 : 0 }, justifySelf: { xs: 'start', sm: 'center' } }}>
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
@@ -414,9 +450,12 @@ function AddItemsDialog({ open, onClose, onSaved }) {
   );
 }
 
-/** Edit one item's name, category, total, low-stock alert level and notes. */
+/**
+ * Edit one item's name, category, total, low-stock alert level, rental settings and notes.
+ * A new rent price or damage fee only applies to rentals booked from now on; bookings already made keep theirs.
+ */
 function EditItemDialog({ item, onClose, onSaved }) {
-  const [values, setValues] = useState({ name: '', category: '', total: '', lowStockAt: '', notes: '' });
+  const [values, setValues] = useState({ name: '', category: '', total: '', lowStockAt: '', rentable: false, rentPrice: '', damageFee: '', notes: '' });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const id = item && item.id;
@@ -424,20 +463,21 @@ function EditItemDialog({ item, onClose, onSaved }) {
   // Fill the form when a different item opens
   useEffect(() => {
     if (item) {
-      setValues({ name: item.name, category: item.category, total: String(item.total), lowStockAt: String(item.lowStockAt), notes: item.notes });
+      setValues({ name: item.name, category: item.category, total: String(item.total), lowStockAt: String(item.lowStockAt), rentable: Boolean(item.rentable), rentPrice: item.rentPrice ? String(item.rentPrice) : '', damageFee: item.damageFee ? String(item.damageFee) : '', notes: item.notes });
       setErrors({});
     }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Change handler for one field (the "For rent" switch sends checked instead of a value)
   const set = (field) => (e) => {
-    setValues((v) => ({ ...v, [field]: e.target.value }));
+    setValues((v) => ({ ...v, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
     setErrors({});
   };
 
   const save = async () => {
     setBusy(true);
     try {
-      await inventoryApi.updateInventoryItem(id, { ...values, total: Number(values.total), lowStockAt: Number(values.lowStockAt) });
+      await inventoryApi.updateInventoryItem(id, { ...values, total: Number(values.total), lowStockAt: Number(values.lowStockAt), rentPrice: Number(values.rentPrice), damageFee: Number(values.damageFee) || 0 });
       onSaved();
     } catch (e) {
       setErrors({ [(e.meta && e.meta.field) || 'name']: e.message });
@@ -454,6 +494,14 @@ function EditItemDialog({ item, onClose, onSaved }) {
         <SelectField id="edit-category" label="Category" required value={values.category} onChange={set('category')} options={INVENTORY_CATEGORIES} error={errors.category} sx={{ gridColumn: { sm: '1 / -1' } }} />
         <FormField id="edit-total" label="Total owned" required type="number" value={values.total} onChange={set('total')} error={errors.total} hint={minimum ? `At least ${minimum} (in use + damaged)` : undefined} inputProps={{ min: Math.max(1, minimum) }} />
         <FormField id="edit-low" label="Low-stock alert at" required type="number" value={values.lowStockAt} onChange={set('lowStockAt')} error={errors.lowStockAt} hint="Flagged when available is at or below this" inputProps={{ min: 0 }} />
+        {/* Offered through the Equipment Rental package */}
+        <FormControlLabel sx={{ gridColumn: { sm: '1 / -1' } }} control={<Switch checked={values.rentable} onChange={set('rentable')} />} label={<Typography sx={{ fontSize: 13.5 }}>Customers can rent this item</Typography>} />
+        {values.rentable && (
+          <>
+            <FormField id="edit-rent" label="Rent price per piece" required type="number" value={values.rentPrice} onChange={set('rentPrice')} error={errors.rentPrice} hint="Applies to rentals booked from now on" InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} inputProps={{ min: 1 }} />
+            <FormField id="edit-fee" label="Damage fee per piece" type="number" value={values.damageFee} onChange={set('damageFee')} error={errors.damageFee} hint="Charged for each piece that comes back damaged or missing" InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} inputProps={{ min: 0 }} />
+          </>
+        )}
         <FormField id="edit-notes" label="Notes" optional multiline minRows={2} value={values.notes} onChange={set('notes')} inputProps={{ maxLength: 300 }} placeholder="Supplier, storage place, care instructions…" sx={{ gridColumn: { sm: '1 / -1' } }} />
       </Box>
     </AppDialog>
@@ -558,7 +606,7 @@ function StockDialog({ action, item, events, onClose, onDone }) {
             value={values.ref}
             onChange={set('ref')}
             error={errors.ref}
-            options={[{ value: NO_EVENT, label: 'No event (e.g. lending, off-site use)' }, ...events.map((e) => ({ value: e.ref, label: `${formatDate(e.date)} · ${e.eventName} · ${e.guests} pax` }))]}
+            options={[{ value: NO_EVENT, label: 'No event (e.g. lending, off-site use)' }, ...events.map((e) => ({ value: e.ref, label: `${formatDate(e.date)} · ${e.eventName} · ${e.rental ? 'equipment rental' : `${e.guests} pax`}` }))]}
             hint="Approved, downpayment-paid and confirmed reservations"
           />
         )}
@@ -622,6 +670,9 @@ function DetailsDialog({ item, onClose, onAction }) {
         <Field label="Damaged">{String(item.damaged)}</Field>
         <Field label="Alert at">{String(item.lowStockAt)}</Field>
       </Box>
+      <Typography sx={{ mt: 1.25, fontSize: 13, color: tokens.textSecondary }}>
+        {item.rentable ? `For rent at ${peso(item.rentPrice)} per piece · damage fee ${peso(item.damageFee)}` : 'Not for rent: only our team uses this item.'}
+      </Typography>
 
       <Typography sx={{ mt: 2.5, mb: 1, fontSize: 14, fontWeight: 700 }}>Currently out</Typography>
       {item.out.length === 0 ? (

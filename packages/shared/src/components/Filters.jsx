@@ -28,17 +28,17 @@ export function FilterTabs({ options, value, onChange, ariaLabel = 'Filter' }) {
               fontWeight: 600,
               fontFamily: 'inherit',
               whiteSpace: 'nowrap',
-              color: active ? '#fff' : tokens.textSecondary,
-              backgroundColor: active ? tokens.headerBg : tokens.surfaceMuted,
-              border: `1px solid ${active ? tokens.headerBg : tokens.cardLightBorder}`,
+              color: active ? tokens.onInk : tokens.textSecondary,
+              backgroundColor: active ? tokens.ink : tokens.surfaceMuted,
+              border: `1px solid ${active ? tokens.ink : tokens.cardLightBorder}`,
               transition: 'all 0.18s ease',
-              '&:hover': { backgroundColor: active ? tokens.slate700 : '#e2e8f0' }
+              '&:hover': { backgroundColor: active ? tokens.inkHover : tokens.cardLightBorder }
             }}
           >
             {option.label}
             {/* Count bubble (hidden while loading, when count is undefined) */}
             {option.count !== undefined && (
-              <Box component="span" sx={{ ml: 0.75, px: 0.75, borderRadius: 999, fontSize: 11, fontWeight: 700, backgroundColor: active ? 'rgba(255,255,255,0.18)' : '#fff', color: active ? '#fff' : tokens.textMuted }}>
+              <Box component="span" sx={{ ml: 0.75, px: 0.75, borderRadius: 999, fontSize: 11, fontWeight: 700, backgroundColor: active ? 'rgba(255,255,255,0.18)' : tokens.cardLight, color: active ? tokens.onInk : tokens.textMuted }}>
                 {option.count}
               </Box>
             )}

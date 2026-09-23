@@ -19,6 +19,8 @@ import {
   SearchField,
   StatusChip,
   formatDate,
+  headcount,
+  isRental,
   peso,
   reservationApi,
   tokens,
@@ -83,7 +85,8 @@ export default function ReservationsPage() {
     { key: 'event', label: 'Event', render: (r) => (<Box><Typography sx={{ fontSize: 14, fontWeight: 700 }}>{r.eventName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.ref} · {r.occasion}</Typography></Box>) },
     { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
-    { key: 'guests', label: 'Guests', align: 'right', render: (r) => r.guests },
+    // An equipment rental has no guest count
+    { key: 'guests', label: 'Guests', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'status', label: 'Status', render: (r) => <StatusChip status={r.status} /> },
     { key: 'action', label: '', align: 'right', render: (r) => <Button size="small" onClick={() => navigate(`/portal/reservations/${r.ref}`)}>View details</Button> }
@@ -142,7 +145,7 @@ export default function ReservationsPage() {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography noWrap sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>{r.eventName}</Typography>
                       <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                        {formatDate(r.date)} · {r.packageName} · {r.guests} guests
+                        {formatDate(r.date)} · {r.packageName} · {headcount(r)}
                       </Typography>
                       <Box sx={{ mt: 0.75 }}>
                         <StatusChip status={r.status} size="sm" />

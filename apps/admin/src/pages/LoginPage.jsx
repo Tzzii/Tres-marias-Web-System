@@ -142,7 +142,8 @@ export default function LoginPage() {
     }
   };
 
-  // Ask the server to email a new code (allowed once the resend timer ends)
+  // Ask the server to email a new code (allowed once the resend timer ends). Asking too soon only
+  // shows the message; any other failure (e.g. the sign-in expired) closes the code step.
   const resend = async () => {
     setBusy(true);
     setFormError('');
@@ -152,7 +153,8 @@ export default function LoginPage() {
       setCode('');
       setCodeState('idle');
     } catch (error) {
-      closeCode(error.message);
+      if (error.code === 'TOO_SOON') setFormError(error.message);
+      else closeCode(error.message);
     } finally {
       setBusy(false);
     }
