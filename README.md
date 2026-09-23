@@ -86,6 +86,22 @@ npm run preview:client   # http://localhost:4173
 npm run preview:admin    # http://localhost:4174
 ```
 
+### Trying the site on a phone
+
+The phone and the computer must be on the same Wi-Fi. Stop `npm run dev:client` first (both use port 5173), then:
+
+```bash
+npm run dev:client:phone   # same as dev:client, but other devices on the Wi-Fi can open it
+```
+
+Vite prints a `Network:` address such as `http://192.168.x.x:5173/`; open that on the phone.
+If the phone cannot connect, allow Node.js through Windows Firewall for the network type the
+Wi-Fi uses (Private or Public). The admin site works the same way: `npm run dev:admin -- --host`.
+
+The front-end phase keeps records in each browser (see below), so the phone starts with its own
+copy of the seed data: a reservation made on the phone does not appear in the admin site on the
+computer until the backend is connected.
+
 ### A note on the folder name
 
 Rollup (inside Vite) treats everything after `#` in a path as a URL fragment, so Vite fails

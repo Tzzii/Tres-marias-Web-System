@@ -169,11 +169,12 @@ function MessagesWindow({ mode, setMode, activeId, setActiveId, anchorRef }) {
           ...(full
             ? { top: `${tokens.headerHeight}px`, left: 0, right: 0, bottom: 0 }
             : {
-                // Dropdown just under the top bar, right-aligned with the chat icon
+                // Dropdown just under the top bar, right-aligned with the chat icon. On phones it also
+                // stops above the bottom tab bar (--tm-bottom-nav is 0px on larger screens).
                 top: `${tokens.headerHeight + 8}px`,
                 right: { xs: 8, sm: right },
                 width: { xs: 'calc(100vw - 16px)', sm: MINI_WIDTH },
-                height: `min(600px, calc(100dvh - ${tokens.headerHeight + 24}px))`,
+                height: `min(600px, calc(100dvh - ${tokens.headerHeight + 24}px - var(--tm-bottom-nav, 0px)))`,
                 borderRadius: 2,
                 border: `1px solid ${tokens.divider}`,
                 boxShadow: tokens.shadowPanel

@@ -26,9 +26,9 @@ export const RULES = {
    *  half hour of the day is offered; 23:30 is simply the last one that starts before midnight. */
   earliestStart: '00:00',
   latestStart: '23:30',
-  /** Hours kept free before and after every event for setup, travel and clean-up. */
+  /** Hours kept free before every event for setup, and after it for tear-down; no other event can start in them. */
   eventBufferHours: 2,
-  /** Event length used to check that start times on the same day don't overlap (packages don't set their own hours). */
+  /** How long a booked event runs, for the window it blocks on the calendar (packages don't set their own hours). */
   defaultEventHours: 4,
   /** Guest counts the venue accepts; forms keep the number inside this range. */
   minGuests: 50,

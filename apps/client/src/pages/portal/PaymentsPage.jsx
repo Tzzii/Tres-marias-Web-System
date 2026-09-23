@@ -6,6 +6,7 @@ import ButtonBase from '@mui/material/ButtonBase';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -53,6 +54,24 @@ const METHODS = [
   { value: 'cash', label: 'Cash on site', icon: StorefrontOutlinedIcon }
 ];
 
+/**
+ * The older way to copy text, for pages where navigator.clipboard does not exist: put the text in a
+ * hidden text box, select it and run the browser's copy command. Throws if the browser refuses.
+ */
+function copyWithTextArea(value) {
+  const box = document.createElement('textarea');
+  box.value = value;
+  box.setAttribute('readonly', '');
+  // Off screen, and 16px so an iPhone does not zoom in when it is selected
+  Object.assign(box.style, { position: 'fixed', top: '0', left: '-9999px', fontSize: '16px' });
+  document.body.appendChild(box);
+  box.select();
+  box.setSelectionRange(0, value.length); // iPhones ignore select() alone
+  const copied = document.execCommand('copy');
+  document.body.removeChild(box);
+  if (!copied) throw new Error('Copy was refused');
+}
+
 /** 1k · Payments: downpayment, balance, proof upload, history and receipts. */
 export default function PaymentsPage() {
   useDocumentTitle('Payments');
@@ -83,6 +102,7 @@ export default function PaymentsPage() {
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState(null); // receipt open in the document dialog
   const fileInput = useRef(null); // hidden <input type="file">, clicked by the upload box
+  const touch = useMediaQuery('(pointer: coarse)'); // phones and tablets: tap to upload, no drag and drop
 
   // If no valid reservation is selected, pick the first payable one
   useEffect(() => {
@@ -166,10 +186,14 @@ export default function PaymentsPage() {
     }
   };
 
-  // Copy an account number to the clipboard (spaces removed)
+  // Copy an account number to the clipboard (spaces removed). navigator.clipboard only exists on
+  // https:// pages and localhost; opened any other way (e.g. a phone testing the portal over the
+  // Wi-Fi at http://192.168.x.x) the older copy command is used instead.
   const copy = async (text) => {
+    const value = text.replace(/\s/g, '');
     try {
-      await navigator.clipboard.writeText(text.replace(/\s/g, ''));
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(value);
+      else copyWithTextArea(value);
       notify('Copied to clipboard.', 'info');
     } catch (e) {
       notify('Could not copy. Please select the text instead.', 'warning');
@@ -233,8 +257,9 @@ export default function PaymentsPage() {
                     <>
                       <Box>
                         <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Choose how to pay</Typography>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: firstPayment ? '1fr 1fr' : '1fr', gap: 1.25 }}>
-                          {/* First payment: 50% or full. Later: only "Pay remaining balance". */}
+                        <Box sx={{ display: 'grid', gridTemplateColumns: firstPayment ? { xs: '1fr', sm: '1fr 1fr' } : '1fr', gap: 1.25 }}>
+                          {/* First payment: 50% or full, side by side (stacked on phones so each reads on one or two lines).
+                              Later: only "Pay remaining balance". */}
                           {(firstPayment
                             ? [
                                 ['half', 'Pay 50% now', `${peso(selected.downpayment - selected.paid)} · balance on event day`],
@@ -288,9 +313,9 @@ export default function PaymentsPage() {
                                 <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                   <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{value}</Typography>
-                                  {/* Copy button only next to rows whose label contains "number" */}
+                                  {/* Copy button only next to rows whose label contains "number" (40px on touch screens, for the thumb) */}
                                   {/number/i.test(label) && (
-                                    <IconButton size="small" onClick={() => copy(value)} aria-label={`Copy ${label}`}>
+                                    <IconButton size="small" onClick={() => copy(value)} aria-label={`Copy ${label}`} sx={{ '@media (pointer: coarse)': { width: 40, height: 40 } }}>
                                       <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
                                     </IconButton>
                                   )}
@@ -319,7 +344,7 @@ export default function PaymentsPage() {
                                 </IconButton>
                               </Box>
                             ) : (
-                              // Upload box: click to open the file picker, or drag and drop a file onto it
+                              // Upload box: click (tap on phones) to open the file picker, or drag and drop a file onto it
                               <ButtonBase
                                 onClick={() => fileInput.current && fileInput.current.click()}
                                 onDragOver={(e) => e.preventDefault()}
@@ -330,7 +355,7 @@ export default function PaymentsPage() {
                                 sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.75, py: 3, px: 2, fontFamily: 'inherit', borderRadius: 1.5, border: `2px dashed ${errors.proof ? tokens.red : tokens.borderInput}`, backgroundColor: tokens.surfaceSubtle, '&:hover': { borderColor: tokens.ink } }}
                               >
                                 <CloudUploadOutlinedIcon sx={{ fontSize: 30, color: tokens.textMuted }} />
-                                <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>Drop a screenshot or receipt here, or browse</Typography>
+                                <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>{touch ? 'Tap to choose a screenshot or receipt' : 'Drop a screenshot or receipt here, or browse'}</Typography>
                                 <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>JPG, PNG, WebP or PDF · up to {MAX_FILE_MB} MB</Typography>
                               </ButtonBase>
                             )}
@@ -352,7 +377,9 @@ export default function PaymentsPage() {
           )}
         </DashCard>
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* minWidth 0 lets this column shrink to the phone's width; without it the long one-line
+            receipt names below stretch the whole page wider than the screen */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
           <DashCard>
             <CardTitle>Payment history</CardTitle>
             {loading ? (

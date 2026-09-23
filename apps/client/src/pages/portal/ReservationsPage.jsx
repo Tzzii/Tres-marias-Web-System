@@ -46,7 +46,8 @@ export default function ReservationsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  const isPhone = useMediaQuery('(max-width:599px)');
+  // Phones and portrait tablets (below 900px) get cards: the seven-column table would need side-scrolling there
+  const showCards = useMediaQuery('(max-width:899px)');
   // Load only this customer's reservations
   const { data, loading, error, reload } = useResource(() => reservationApi.listReservations({ customerId: user.id }), [user.id]);
 
@@ -137,8 +138,8 @@ export default function ReservationsPage() {
                 description={rows.length ? 'Try another status or search term.' : 'When you submit a reservation it will appear here with its status.'}
                 action={!rows.length && <Button variant="contained" onClick={() => navigate('/portal/book')}>New reservation</Button>}
               />
-            ) : isPhone ? (
-              // Phones: tappable cards instead of a wide table
+            ) : showCards ? (
+              // Phones and tablets: tappable cards instead of a wide table
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {pageRows.map((r) => (
                   <ButtonBase key={r.ref} onClick={() => navigate(`/portal/reservations/${r.ref}`)} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, textAlign: 'left', borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, fontFamily: 'inherit' }}>

@@ -9,6 +9,7 @@ import ButtonBase from '@mui/material/ButtonBase';
 import ClickAwayListener from '@mui/material/ClickAwayListener';
 import Divider from '@mui/material/Divider';
 import Drawer from '@mui/material/Drawer';
+import GlobalStyles from '@mui/material/GlobalStyles';
 import IconButton from '@mui/material/IconButton';
 import InputBase from '@mui/material/InputBase';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -18,6 +19,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Toolbar from '@mui/material/Toolbar';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MenuOpenRoundedIcon from '@mui/icons-material/MenuOpenRounded';
@@ -32,6 +34,8 @@ import { ThemeModeToggle } from './ThemeModeToggle.jsx';
 
 // Shared animation timing for the sidebar and nav items
 const EASE = `all 0.25s ${tokens.easeStandard}`;
+// Height of the phone bottom tab bar, not counting the iPhone home-bar area under it
+const BOTTOM_NAV_HEIGHT = 56;
 
 // Load a saved list of IDs from localStorage as a Set (used for read notifications)
 const readSet = (key) => {
@@ -46,8 +50,12 @@ const readSet = (key) => {
  * The signed-in portal frame (top bar, sidebar, menus) shared by both apps (design system: PortalShell).
  *
  * - Desktop: fixed top bar + collapsible 264px sidebar.
- * - Tablet / phone: hamburger opens the navigation drawer. When `bottomNav` is
- *   given, a five-tab bar is pinned to the bottom of the screen on phones.
+ * - Tablet / phone: hamburger opens the navigation drawer, and a magnifier opens the search bar
+ *   over the top bar. When `bottomNav` is given, a five-tab bar is pinned to the bottom of the
+ *   screen on phones; its height is published on :root as the CSS variable --tm-bottom-nav (0px
+ *   when there is no bar), so a fixed bar or window can sit just above it.
+ *   A bottom tab with `drawer: true` (e.g. "More") opens the navigation drawer instead of a page,
+ *   and lights up on pages that have no tab of their own.
  * - Nav items: { key, label, icon, to, exact?, match?, badge? }. The active item
  *   is worked out from the current URL.
  * - Notifications: [{ id, title, body, at, to, onClick? }]; read state is remembered per portal and user.
@@ -89,10 +97,23 @@ export default function PortalShell({
   const [notifAnchor, setNotifAnchor] = useState(null); // notifications menu (null = closed)
   const [readIds, setReadIds] = useState(() => readSet(readKey)); // notifications already read
   const [query, setQuery] = useState(''); // top search box text
+  const [searchOpen, setSearchOpen] = useState(false); // phone / tablet search bar open over the top bar
   const [logoutOpen, setLogoutOpen] = useState(false); // logout confirmation
 
-  // Close the phone menu after navigating to another page
-  useEffect(() => setDrawerOpen(false), [location.pathname]);
+  // Close the phone menu and the phone search bar after navigating to another page
+  useEffect(() => {
+    setDrawerOpen(false);
+    setSearchOpen(false);
+  }, [location.pathname]);
+
+  // Pressing Enter (or the keyboard's Search key) passes the search text to the portal, which opens
+  // its results page. The phone search bar closes so the results are not hidden behind it.
+  const submitSearch = (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    search.onSubmit(query.trim());
+    setSearchOpen(false);
+  };
 
   // Items match their path and everything under it, unless marked `exact`
   const isActive = (item) => (item.match || [item.to]).some((pattern) => matchPath({ path: pattern, end: Boolean(item.exact) }, location.pathname));
@@ -213,11 +234,25 @@ export default function PortalShell({
   };
 
   const hasBottomNav = Boolean(bottomNav && bottomNav.length);
-  // Which bottom tab matches the current page
-  const bottomActive = useMemo(() => (hasBottomNav ? bottomNav.find((item) => isActive(item)) : null), [location.pathname, bottomNav]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Which bottom tab matches the current page. A page with no tab of its own lights up the
+  // drawer ("More") tab, if there is one.
+  const bottomActive = useMemo(() => {
+    if (!hasBottomNav) return null;
+    return bottomNav.find((item) => !item.drawer && isActive(item)) || bottomNav.find((item) => item.drawer) || null;
+  }, [location.pathname, bottomNav]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: tokens.bgBase, backgroundImage: tokens.gradientPage, backgroundAttachment: 'fixed' }}>
+      {/* --tm-bottom-nav: height of the phone tab bar (56px plus the iPhone home-bar area), 0px where there
+          is none. Set on :root so fixed bars and windows outside this frame (e.g. the admin chat window) see it too. */}
+      <GlobalStyles
+        styles={(theme) => ({
+          ':root': {
+            '--tm-bottom-nav': hasBottomNav ? `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom))` : '0px',
+            [theme.breakpoints.up('md')]: { '--tm-bottom-nav': '0px' }
+          }
+        })}
+      />
       {/* Hidden "Skip to content" link; appears when keyboard users press Tab */}
       <Box component="a" href="#main" sx={{ position: 'absolute', left: -9999, '&:focus': { left: 12, top: 12, zIndex: 2000, px: 2, py: 1, borderRadius: 1, backgroundColor: tokens.gold, color: tokens.onGold, fontWeight: 700 } }}>
         Skip to content
@@ -232,15 +267,12 @@ export default function PortalShell({
           <BrandMark subtitle={null} hideTextOnXs onClick={() => navigate(navItems[0].to)} />
 
           <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
+            {/* Desktop search box in the middle of the top bar */}
             {search && (
               <Box
                 component="form"
                 role="search"
-                // Pressing Enter passes the search text to the portal (which opens its results page)
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (query.trim()) search.onSubmit(query.trim());
-                }}
+                onSubmit={submitSearch}
                 sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, width: '100%', maxWidth: 440, px: 1.75, py: 0.75, borderRadius: 999, backgroundColor: tokens.shellInset, border: `1px solid ${tokens.shellBorder}`, transition: EASE, '&:focus-within': { borderColor: tokens.gold, backgroundColor: tokens.shellHover } }}
               >
                 <SearchRoundedIcon sx={{ fontSize: 18, color: tokens.textOnDarkMuted }} />
@@ -250,6 +282,12 @@ export default function PortalShell({
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.25, sm: 0.75 }, flexShrink: 0 }}>
+            {/* Phone / tablet: the magnifier opens the search bar over the top bar */}
+            {search && (
+              <IconButton onClick={() => setSearchOpen(true)} aria-label="Search" sx={{ display: { xs: 'inline-flex', md: 'none' }, color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}>
+                <SearchRoundedIcon sx={{ fontSize: 22 }} />
+              </IconButton>
+            )}
             <Tooltip title="Notifications">
               <IconButton
                 onClick={(e) => {
@@ -279,15 +317,40 @@ export default function PortalShell({
               </Box>
             </Button>
           </Box>
+
+          {/* Phone / tablet search bar: covers the top bar while open. The back arrow or Esc closes it.
+              16px text keeps iPhones from zooming in when the box is tapped. */}
+          {search && searchOpen && (
+            <Box
+              component="form"
+              role="search"
+              onSubmit={submitSearch}
+              onKeyDown={(e) => e.key === 'Escape' && setSearchOpen(false)}
+              sx={{ position: 'absolute', inset: 0, zIndex: 1, display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1, px: 1.5, backgroundColor: tokens.headerBg }}
+            >
+              <IconButton onClick={() => setSearchOpen(false)} aria-label="Close search" sx={{ color: tokens.textOnDarkSoft }}>
+                <ArrowBackRoundedIcon />
+              </IconButton>
+              <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, px: 1.75, py: 0.75, borderRadius: 999, backgroundColor: tokens.shellHover, border: `1px solid ${tokens.gold}` }}>
+                <SearchRoundedIcon sx={{ fontSize: 18, color: tokens.textOnDarkMuted }} />
+                <InputBase autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={search.placeholder} inputProps={{ 'aria-label': search.placeholder, autoComplete: 'off', enterKeyHint: 'search' }} sx={{ flex: 1, fontSize: 16, color: tokens.textLight }} />
+              </Box>
+            </Box>
+          )}
         </Toolbar>
       </AppBar>
 
       {/* Notifications. The page behind stays clickable (no blocking backdrop), so one click on another
-          top-bar button (e.g. the admin Messages icon) both closes this list and does its own action. */}
+          top-bar button (e.g. the admin Messages icon) both closes this list and does its own action.
+          variant="menu" and disableAutoFocusItem stop the menu from handing focus props (autoFocus,
+          tabIndex) to its first child, the ClickAwayListener, which cannot take them; the list itself
+          still gets focus when it opens. */}
       <Menu
         anchorEl={notifAnchor}
         open={Boolean(notifAnchor)}
         onClose={() => setNotifAnchor(null)}
+        variant="menu"
+        disableAutoFocusItem
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         hideBackdrop
@@ -388,10 +451,12 @@ export default function PortalShell({
         </MenuItem>
       </Menu>
 
-      {/* Mobile / tablet navigation drawer */}
+      {/* Mobile / tablet navigation drawer. It opens over the top bar (the top bar sits above ordinary
+          drawers), so its own logo row and close button are not hidden behind the top bar. */}
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        sx={{ zIndex: (theme) => theme.zIndex.drawer + 2 }}
         // Same dark colour as the desktop sidebar
         PaperProps={{ sx: { width: 280, backgroundColor: tokens.sidebarBg, backgroundImage: 'none', borderRight: `1px solid ${tokens.sidebarBorder}` } }}
       >
@@ -454,18 +519,26 @@ export default function PortalShell({
         {/* Empty spacer the same width as the fixed sidebar, so page content isn't hidden behind it */}
         <Box className="tm-no-print" sx={{ width, flexShrink: 0, display: { xs: 'none', lg: 'block' }, transition: EASE }} />
 
-        <Box component="main" id="main" tabIndex={-1} sx={{ flex: 1, minWidth: 0, outline: 'none', px: { xs: 1.5, sm: 2.5, md: 3 }, pt: { xs: 2, md: 3 }, pb: { xs: hasBottomNav ? 11 : 4, md: 5 } }}>
+        {/* On phones the bottom padding clears the tab bar (its height plus 32px), so the end of the page is never hidden under it */}
+        <Box component="main" id="main" tabIndex={-1} sx={{ flex: 1, minWidth: 0, outline: 'none', px: { xs: 1.5, sm: 2.5, md: 3 }, pt: { xs: 2, md: 3 }, pb: { xs: hasBottomNav ? 'calc(var(--tm-bottom-nav) + 32px)' : 4, md: 5 } }}>
           <Box sx={{ maxWidth: 1400, mx: 'auto' }}>{children}</Box>
         </Box>
       </Box>
 
-      {/* Phone bottom navigation */}
+      {/* Phone bottom navigation: BOTTOM_NAV_HEIGHT tall, plus the iPhone home-bar area under the tabs */}
       {hasBottomNav && (
-        <Box component="nav" aria-label="Quick navigation" className="tm-no-print" sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100, display: { xs: 'grid', md: 'none' }, gridTemplateColumns: `repeat(${bottomNav.length}, 1fr)`, backgroundColor: tokens.shellScrim, backdropFilter: 'blur(14px)', borderTop: `1px solid ${tokens.divider}`, pb: 'env(safe-area-inset-bottom)' }}>
+        <Box component="nav" aria-label="Quick navigation" className="tm-no-print" sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100, height: 'var(--tm-bottom-nav)', display: { xs: 'grid', md: 'none' }, gridTemplateColumns: `repeat(${bottomNav.length}, 1fr)`, backgroundColor: tokens.shellScrim, backdropFilter: 'blur(14px)', borderTop: `1px solid ${tokens.divider}`, pb: 'env(safe-area-inset-bottom)' }}>
           {bottomNav.map((item) => {
             const active = bottomActive && bottomActive.key === item.key;
             return (
-              <ButtonBase key={item.key} onClick={() => navigate(item.to)} aria-current={active ? 'page' : undefined} sx={{ py: 1, display: 'flex', flexDirection: 'column', gap: 0.25, fontFamily: 'inherit', fontSize: 10.5, fontWeight: active ? 700 : 500, color: active ? tokens.goldText : tokens.textOnDarkMuted }}>
+              // A drawer tab ("More") opens the full navigation; every other tab goes to its page
+              <ButtonBase
+                key={item.key}
+                onClick={() => (item.drawer ? setDrawerOpen(true) : navigate(item.to))}
+                aria-current={active && !item.drawer ? 'page' : undefined}
+                aria-haspopup={item.drawer ? 'dialog' : undefined}
+                sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, fontFamily: 'inherit', fontSize: 11, fontWeight: active ? 700 : 500, color: active ? tokens.goldText : tokens.textOnDarkMuted }}
+              >
                 <Badge color="error" badgeContent={item.badge || 0} max={9}>
                   <item.icon sx={{ fontSize: 22 }} />
                 </Badge>

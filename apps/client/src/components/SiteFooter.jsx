@@ -12,7 +12,10 @@ import { site } from '../theme/siteTheme.js';
 
 // Shared styles for the column headings, the page links and the contact rows
 const headingSx = { fontSize: 11.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: site.gold, mb: 2 };
-const linkSx = { display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5, color: site.onEspressoSoft, textDecoration: 'none', '&:hover': { color: site.goldLight } };
+// On touch screens the links get 6px more above and below (a finger-sized target) and the list gap
+// drops to 0, so the space between two links stays about the same (12px instead of 10px)
+const linkSx = { display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5, color: site.onEspressoSoft, textDecoration: 'none', '&:hover': { color: site.goldLight }, '@media (pointer: coarse)': { py: 0.75 } };
+const linkListSx = { display: 'flex', flexDirection: 'column', gap: 1.25, '@media (pointer: coarse)': { gap: 0 } };
 // Contact details are plain text, not tel:/mailto: links, so clicking them never asks to open another app
 const contactSx = { display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5, color: site.onEspressoSoft };
 
@@ -58,7 +61,7 @@ export default function SiteFooter({ bottomSpace = false }) {
 
           <Box>
             <Typography sx={headingSx}>Packages</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+            <Box sx={linkListSx}>
               {/* [URL slug, display name] for each package page link */}
               {[
                 ['mini-package', 'Mini Package'],
@@ -76,7 +79,7 @@ export default function SiteFooter({ bottomSpace = false }) {
 
           <Box>
             <Typography sx={headingSx}>Your account</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+            <Box sx={linkListSx}>
               <Link component="button" type="button" onClick={() => navigate('/login')} sx={{ ...linkSx, textAlign: 'left' }}>
                 Log in
               </Link>

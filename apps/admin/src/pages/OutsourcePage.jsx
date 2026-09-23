@@ -328,6 +328,7 @@ export default function OutsourcePage() {
       label: 'Actions',
       align: 'right',
       width: 72,
+      card: 'aside', // on phone cards the ⋮ menu sits at the top right, next to the status
       render: (c) => (
         <IconButton size="small" aria-label={`Actions for ${c.ref}`} onClick={(e) => setRowMenu({ anchor: e.currentTarget, contract: c })}>
           <MoreVertRoundedIcon fontSize="small" />
@@ -366,6 +367,7 @@ export default function OutsourcePage() {
       label: 'Actions',
       align: 'right',
       width: 72,
+      card: 'aside', // on phone cards the ⋮ menu sits at the top right
       render: (p) => (
         <IconButton size="small" aria-label={`Actions for ${p.name}`} onClick={(e) => setPartnerMenu({ anchor: e.currentTarget, partner: p })}>
           <MoreVertRoundedIcon fontSize="small" />
@@ -393,8 +395,8 @@ export default function OutsourcePage() {
         }
       />
 
-      {/* Summary cards; clicking one opens the matching contract filter */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' }, gap: 2.5, mb: 2.5 }}>
+      {/* Summary cards; clicking one opens the matching contract filter. Two per row on phones and tablets. */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
         <StatCard
           icon={StorefrontOutlinedIcon}
           tone="gold"

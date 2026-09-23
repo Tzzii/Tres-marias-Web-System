@@ -57,19 +57,20 @@ const toMinutes = (time) => {
 /**
  * Why a start time on a date cannot be reserved, or '' when it can. Check the date first
  * with dateUnavailableReason. Start times are on the hour or half hour (the booking form
- * only offers those; a typed time like 10:15 is refused). The new event runs `hours` from
- * `time`; every existing event blocks its own service hours plus RULES.eventBufferHours
- * before and after. Events on the day before and the day after are checked too, so a late
- * event that runs past midnight still blocks the early hours of the next day (and the other way round).
+ * only offers those; a typed time like 10:15 is refused). Every existing event blocks a window:
+ * RULES.eventBufferHours of setup before it, its service hours, then RULES.eventBufferHours of
+ * tear-down after it. A start time inside that window is refused; any time outside it is open.
+ * e.g. an 11:00 am – 3:00 pm event blocks 9:00 am – 5:00 pm, so 8:30 am and 5:00 pm are both open.
+ * Events on the day before and the day after are checked too, so a late event that runs past
+ * midnight still blocks the early hours of the next day (and the other way round).
  */
-export function timeUnavailableReason(iso, time, snapshot, hours = RULES.defaultEventHours) {
+export function timeUnavailableReason(iso, time, snapshot) {
   if (!time) return 'Choose a start time';
   const start = toMinutes(time);
   if (start < toMinutes(RULES.earliestStart) || start > toMinutes(RULES.latestStart)) {
     return `Events can start between ${formatTime(RULES.earliestStart)} and ${formatTime(RULES.latestStart)}`;
   }
   if (start % 30 !== 0) return 'Start times are on the hour or half hour, e.g. 6:00 or 6:30';
-  const end = start + hours * 60;
   const buffer = RULES.eventBufferHours * 60;
   // Minutes to add to an event's times so they count from midnight of `iso` (-1440 for the day before)
   const dayShift = iso ? { [addDays(iso, -1)]: -1440, [iso]: 0, [addDays(iso, 1)]: 1440 } : {};
@@ -78,7 +79,7 @@ export function timeUnavailableReason(iso, time, snapshot, hours = RULES.default
     const from = toMinutes(e.startTime) + dayShift[e.date];
     const busyFrom = from - buffer;
     const busyTo = from + e.hours * 60 + buffer;
-    return start < busyTo && end > busyFrom; // the two time ranges overlap
+    return start >= busyFrom && start < busyTo; // the start falls inside the blocked window
   });
   return clash ? 'Another event is already booked around that time' : '';
 }
@@ -92,8 +93,10 @@ const toHHMM = (minutes) => {
 /**
  * One date's schedule for the customer date picker. Times only, never who booked:
  *   booked:     [{ from: '18:00', to: '22:00' }]  events already holding the date, earliest first
- *   openStarts: [{ from: '06:00', to: '12:00' }]  start times (30-minute steps) that don't clash, grouped into ranges;
- *               `to` is the last allowed start time, not an end time. Empty when nothing is left that day.
+ *   openStarts: [{ from: '00:00', to: '09:00' }, { from: '17:00', to: '23:59' }]  free stretches of the day
+ *               a new event can start in. `to` is where the next event's setup begins (so 09:00 itself is
+ *               taken; 8:30 is the last start), or '23:59' when the stretch runs to the end of the day.
+ *               Empty when nothing is left that day.
  */
 export function daySchedule(iso, snapshot) {
   const booked = snapshot.events
@@ -101,15 +104,19 @@ export function daySchedule(iso, snapshot) {
     .map((e) => ({ from: e.startTime, to: toHHMM(toMinutes(e.startTime) + e.hours * 60) }))
     .sort((a, b) => a.from.localeCompare(b.from));
 
-  // Walk every start time from earliest to latest; join neighbouring open times into one range
+  // Walk every start time (30-minute steps) from earliest to latest; join neighbouring open times into one
+  // stretch that ends 30 minutes after its last open start, i.e. where the blocked window begins
   const openStarts = [];
+  let lastOpen = null; // minutes of the previous open start, to tell if this one continues the stretch
   for (let t = toMinutes(RULES.earliestStart); t <= toMinutes(RULES.latestStart); t += 30) {
     if (timeUnavailableReason(iso, toHHMM(t), snapshot)) continue;
-    const last = openStarts[openStarts.length - 1];
-    if (last && toMinutes(last.to) === t - 30) last.to = toHHMM(t);
-    else openStarts.push({ from: toHHMM(t), to: toHHMM(t) });
+    if (lastOpen === t - 30) openStarts[openStarts.length - 1].to = t + 30;
+    else openStarts.push({ from: t, to: t + 30 });
+    lastOpen = t;
   }
-  return { booked, openStarts };
+  // Minutes -> "HH:MM"; a stretch that reaches midnight shows as 11:59 pm, not 12:00 am
+  const ranges = openStarts.map(({ from, to }) => ({ from: toHHMM(from), to: to >= 1440 ? '23:59' : toHHMM(to) }));
+  return { booked, openStarts: ranges };
 }
 
 /**

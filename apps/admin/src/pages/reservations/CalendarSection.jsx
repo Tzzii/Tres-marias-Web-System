@@ -89,19 +89,23 @@ export default function CalendarSection() {
     return map;
   }, [data]);
 
-  // For one date: its events, whether it's blocked, and whether it has reached capacity
+  // For one date: its reservations (pending requests and rentals included), whether it's blocked,
+  // how many event slots are taken, and whether customers see it as fully booked.
+  // `slots` and `full` use the same rule as the customer date picker: rentals and pending requests take
+  // no slot, and a day is also full when no start time is left between the booked events.
   const describe = (iso) => {
     const events = byDate[iso] || [];
     const blocked = data.availability.blocked.find((b) => b.date === iso);
-    const full = events.filter((r) => HOLDS_DATE.includes(r.status)).length >= data.availability.capacity;
-    return { events, blocked, full };
+    const slots = data.availability.booked[iso] || 0;
+    const full = !blocked && Boolean(calendarApi.dateUnavailableReason(iso, data.availability, { enforceLeadTime: false }));
+    return { events, blocked, slots, full };
   };
 
   // Tell the month calendar how to colour and label each day (blocked > full > has events > open)
   const getDay = (iso) => {
-    const { events, blocked, full } = describe(iso);
+    const { events, blocked, slots, full } = describe(iso);
     if (blocked) return { tone: 'blocked', label: blocked.reason, badge: blocked.reason, dots: events.length };
-    if (full) return { tone: 'full', label: 'Capacity reached', badge: `${events.length} events · full`, dots: events.length };
+    if (full) return { tone: 'full', label: 'Fully booked', badge: `${slots} ${slots === 1 ? 'event' : 'events'} · full`, dots: events.length };
     if (events.length) return { tone: 'event', label: events.map((e) => e.eventName).join(', '), badge: events.length === 1 ? events[0].eventName : `${events.length} events`, dots: events.length };
     return { tone: 'open', label: 'Open' };
   };
@@ -150,11 +154,12 @@ export default function CalendarSection() {
   // The 7 dates of the week shown in week view
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Month / Week switch button
+  // Month / Week switch button. On phones it fills its own row (each button half, 40px tall for fingers).
+  const toggleSx = { px: 1.75, textTransform: 'none', fontWeight: 600, flex: { xs: 1, sm: 'none' }, minHeight: { xs: 40, sm: 0 } };
   const modeToggle = (
-    <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, v) => v && setMode(v)} aria-label="Calendar view">
-      <ToggleButton value="month" sx={{ px: 1.75, textTransform: 'none', fontWeight: 600 }}>Month</ToggleButton>
-      <ToggleButton value="week" sx={{ px: 1.75, textTransform: 'none', fontWeight: 600 }}>Week</ToggleButton>
+    <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, v) => v && setMode(v)} aria-label="Calendar view" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+      <ToggleButton value="month" sx={toggleSx}>Month</ToggleButton>
+      <ToggleButton value="week" sx={toggleSx}>Week</ToggleButton>
     </ToggleButtonGroup>
   );
 
@@ -178,23 +183,25 @@ export default function CalendarSection() {
                 legend={[
                   { tone: 'event', label: 'Booked event' },
                   { tone: 'blocked', label: 'Blocked' },
-                  { tone: 'full', label: 'Capacity reached' },
+                  { tone: 'full', label: 'Fully booked' },
                   { tone: 'open', label: 'Open' }
                 ]}
               />
             ) : (
               <>
-                {/* Week view: previous/next week buttons, then one row per day */}
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1, flexWrap: 'wrap' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {/* Week view: previous/next week buttons, then one row per day.
+                    Phones: the Month / Week switch gets the first row, and the dates may wrap to two lines
+                    so the arrows and "This week" still fit on one row. */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1, rowGap: 1.5, flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, flex: { xs: '1 1 100%', sm: '0 1 auto' } }}>
                     <IconButton size="small" onClick={() => setWeekStart((w) => addDays(w, -7))} aria-label="Previous week"><ChevronLeftRoundedIcon /></IconButton>
-                    <Typography sx={{ fontSize: 15, fontWeight: 700, minWidth: 190, textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: 15, fontWeight: 700, minWidth: { xs: 0, sm: 190 }, flex: { xs: 1, sm: 'none' }, textAlign: 'center' }}>
                       {formatDate(weekDays[0])} – {formatDate(weekDays[6])}
                     </Typography>
                     <IconButton size="small" onClick={() => setWeekStart((w) => addDays(w, 7))} aria-label="Next week"><ChevronRightRoundedIcon /></IconButton>
                     <Button size="small" onClick={() => setWeekStart(mondayOf(todayISO()))}>This week</Button>
                   </Box>
-                  {modeToggle}
+                  <Box sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: -1, sm: 0 } }}>{modeToggle}</Box>
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {weekDays.map((iso) => {
@@ -226,7 +233,8 @@ export default function CalendarSection() {
           {/* Details of the clicked date: its reservations and a Block/Unblock button */}
           {selectedInfo && (
             <DashCard>
-              <CardTitle subtitle={selectedInfo.blocked ? `Blocked · ${selectedInfo.blocked.reason}` : `${selectedInfo.events.filter((e) => HOLDS_DATE.includes(e.status)).length} of ${data.availability.capacity} slots taken`}>{formatDateLong(selected)}</CardTitle>
+              {/* Slots count approved events only (not rentals or pending requests); a day can be full before every slot is taken when no start time is left */}
+              <CardTitle subtitle={selectedInfo.blocked ? `Blocked · ${selectedInfo.blocked.reason}` : `${selectedInfo.slots} of ${data.availability.capacity} event slots taken${selectedInfo.full && selectedInfo.slots < data.availability.capacity ? ' · no start time left' : ''}`}>{formatDateLong(selected)}</CardTitle>
               {selectedInfo.events.length === 0 ? (
                 <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>No reservations on this date.</Typography>
               ) : (

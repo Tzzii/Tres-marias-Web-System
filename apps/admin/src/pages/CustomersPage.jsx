@@ -95,7 +95,8 @@ export default function CustomersPage() {
 
   const columns = [
     { key: 'name', label: 'Customer', render: (c) => (<Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}><Avatar sx={{ width: 34, height: 34, fontSize: 12.5, fontWeight: 700, bgcolor: 'rgba(197,160,89,0.18)', color: tokens.goldDark }}>{initials(c.name)}</Avatar><Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{c.name}</Typography>{c.company && <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{c.company}</Typography>}</Box></Box>) },
-    { key: 'contact', label: 'Contact', render: (c) => (<Box><Typography sx={{ fontSize: 13 }}>{c.email}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{formatMobile(c.mobile)}</Typography></Box>) },
+    // card: 'wide' — on phone cards the email gets a whole line instead of breaking mid-word
+    { key: 'contact', label: 'Contact', card: 'wide', render: (c) => (<Box><Typography sx={{ fontSize: 13 }}>{c.email}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{formatMobile(c.mobile)}</Typography></Box>) },
     { key: 'res', label: 'Reservations', align: 'right', render: (c) => c.reservationCount },
     { key: 'up', label: 'Upcoming', align: 'right', render: (c) => c.upcomingCount },
     { key: 'bal', label: 'Balance', align: 'right', render: (c) => (c.balance ? <b>{peso(c.balance)}</b> : peso(0)) },

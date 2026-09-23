@@ -242,8 +242,9 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
         {FEEDBACK_CATEGORIES.map(({ key, label }) => (
           <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
             <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{label}</Typography>
-            {/* Each part is its own radio group, so MUI needs a name of its own */}
-            <Rating name={`rating-${key}`} aria-label={label} value={categories[key]} onChange={(_, v) => chooseCategory(key, v)} size="small" sx={{ color: tokens.gold }} />
+            {/* Each part is its own radio group, so MUI needs a name of its own.
+                Touch screens get bigger stars (26px instead of 18px) so the right one is easy to tap. */}
+            <Rating name={`rating-${key}`} aria-label={label} value={categories[key]} onChange={(_, v) => chooseCategory(key, v)} size="small" sx={{ color: tokens.gold, '@media (pointer: coarse)': { fontSize: '1.625rem' } }} />
           </Box>
         ))}
       </Box>

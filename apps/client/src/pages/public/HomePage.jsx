@@ -9,6 +9,7 @@ import Container from '@mui/material/Container';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Typography from '@mui/material/Typography';
+import { keyframes } from '@mui/material/styles';
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
@@ -34,6 +35,13 @@ const heroLine = (shown, delay) => ({
   transition: `opacity 0.8s ease ${delay}ms, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
   ...reducedMotionSx
 });
+
+// Reviews strip: the track rolls to the left for ever. It holds the same run of cards twice, so
+// sliding it exactly one half (-50%) lands on an identical picture and the jump back is invisible.
+const reviewRoll = keyframes`
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+`;
 
 // Services section cards as [icon, title, description]
 const SERVICES = [
@@ -95,6 +103,9 @@ export default function HomePage() {
 
   // Only reviews the admin published on the Feedbacks page reach the website
   const reviews = testimonials.data || [];
+  // One run of the rolling strip: the published reviews repeated until there are at least six cards,
+  // so even a single review fills the width. The track below shows this run twice (see reviewRoll).
+  const reviewRun = reviews.length ? Array.from({ length: Math.ceil(6 / reviews.length) }, () => reviews).flat() : [];
 
   return (
     <Box sx={{ backgroundColor: site.ivory, color: site.ink, minHeight: '100vh' }}>
@@ -207,28 +218,52 @@ export default function HomePage() {
 
           {/* Customer reviews under the gallery (only if there are any) */}
           {reviews.length > 0 && (
-            <Box sx={{ mt: 6, display: 'grid', gridTemplateColumns: { xs: '1fr', md: `repeat(${reviews.length}, 1fr)` }, gap: 2.5 }}>
-              {/* Reviews fade up one after another */}
-              {reviews.map((review, i) => (
-                <Reveal key={review.id} delay={i * 120} sx={{ height: '100%' }}>
-                  <Paper component="figure" elevation={0} sx={{ height: '100%', m: 0, p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>
-                    <Box sx={{ display: 'flex', color: site.gold, mb: 1.5 }} aria-label={`${review.rating} out of 5 stars`}>
-                      {Array.from({ length: review.rating }, (_, i) => (
-                        <StarRoundedIcon key={i} sx={{ fontSize: 17 }} />
-                      ))}
-                    </Box>
-                    <Typography component="blockquote" sx={{ m: 0, fontFamily: site.fontSerif, fontSize: 16.5, fontStyle: 'italic', lineHeight: 1.65, color: site.ink }}>
-                      “{review.body}”
-                    </Typography>
-                    <Typography component="figcaption" sx={{ mt: 2, fontSize: 13, fontWeight: 600, color: site.ink }}>
-                      {review.customerName}
-                      <Box component="span" sx={{ display: 'block', fontSize: 12, fontWeight: 400, color: site.inkMuted }}>
-                        {review.eventName}
+            /* Window on the strip: it hides everything outside, fades both edges so cards slip in and out
+               instead of being cut off, and holds the roll still while the visitor points at a card.
+               Reduced motion: the roll stops and the strip becomes a normal side-scrolling row. */
+            <Box
+              sx={{
+                mt: 6,
+                overflow: 'hidden',
+                maskImage: 'linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%)',
+                '&:hover .tm-review-track': { animationPlayState: 'paused' },
+                '@media (prefers-reduced-motion: reduce)': { overflowX: 'auto', maskImage: 'none', WebkitMaskImage: 'none' }
+              }}
+            >
+              {/* The track: the same run of reviews twice, rolling left without stopping (see reviewRoll).
+                  Longer runs take proportionally longer, so the cards always drift at the same speed.
+                  The second copy is only there to keep the loop seamless, so screen readers skip it. */}
+              <Box
+                className="tm-review-track"
+                sx={{
+                  display: 'flex',
+                  width: 'max-content',
+                  animation: `${reviewRoll} ${reviewRun.length * 7}s linear infinite`,
+                  '@media (prefers-reduced-motion: reduce)': { animation: 'none' }
+                }}
+              >
+                {[...reviewRun, ...reviewRun].map((review, i) => (
+                  <Box key={i} aria-hidden={i >= reviewRun.length} sx={{ flex: '0 0 auto', display: 'flex', width: { xs: 268, sm: 320, md: 364 }, pr: 2.5 }}>
+                    <Paper component="figure" elevation={0} sx={{ width: '100%', m: 0, p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>
+                      <Box sx={{ display: 'flex', color: site.gold, mb: 1.5 }} aria-label={`${review.rating} out of 5 stars`}>
+                        {Array.from({ length: review.rating }, (_, star) => (
+                          <StarRoundedIcon key={star} sx={{ fontSize: 17 }} />
+                        ))}
                       </Box>
-                    </Typography>
-                  </Paper>
-                </Reveal>
-              ))}
+                      <Typography component="blockquote" sx={{ m: 0, fontFamily: site.fontSerif, fontSize: 16.5, fontStyle: 'italic', lineHeight: 1.65, color: site.ink }}>
+                        “{review.body}”
+                      </Typography>
+                      <Typography component="figcaption" sx={{ mt: 2, fontSize: 13, fontWeight: 600, color: site.ink }}>
+                        {review.customerName}
+                        <Box component="span" sx={{ display: 'block', fontSize: 12, fontWeight: 400, color: site.inkMuted }}>
+                          {review.eventName}
+                        </Box>
+                      </Typography>
+                    </Paper>
+                  </Box>
+                ))}
+              </Box>
             </Box>
           )}
         </Container>

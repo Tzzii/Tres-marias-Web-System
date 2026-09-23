@@ -232,7 +232,8 @@ export default function InventoryPage() {
       label: 'Condition',
       render: (i) => (i.archived ? <Pill size="sm" label="Archived" bg={tokens.surfaceMuted} fg={tokens.textMuted} dot={false} /> : i.damaged > 0 ? <Pill size="sm" label={`${i.damaged} damaged`} bg="rgba(245,158,11,0.14)" fg="#b45309" /> : <Pill size="sm" label="Good" bg="rgba(16,185,129,0.12)" fg="#047857" />)
     },
-    { key: 'actions', label: 'Actions', align: 'right', width: 72, render: (i) => <IconButton size="small" aria-label={`Actions for ${i.name}`} onClick={(e) => setRowMenu({ anchor: e.currentTarget, item: i })}><MoreVertRoundedIcon fontSize="small" /></IconButton> }
+    // card: 'aside' — on phone cards the ⋮ menu sits at the top right
+    { key: 'actions', label: 'Actions', align: 'right', width: 72, card: 'aside', render: (i) => <IconButton size="small" aria-label={`Actions for ${i.name}`} onClick={(e) => setRowMenu({ anchor: e.currentTarget, item: i })}><MoreVertRoundedIcon fontSize="small" /></IconButton> }
   ].filter(Boolean);
 
   if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
@@ -247,8 +248,8 @@ export default function InventoryPage() {
         actions={<Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setAdding(true)}>Add item(s)</Button>}
       />
 
-      {/* Summary cards; clicking one filters the table */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' }, gap: 2.5, mb: 2.5 }}>
+      {/* Summary cards; clicking one filters the table. Two per row on phones and tablets, four on wide screens. */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
         <StatCard icon={Inventory2OutlinedIcon} tone="gold" label="Total items" value={`${totals.total.toLocaleString('en-PH')} pcs`} meta={`${active.length} item types`} loading={loading} onClick={() => setStatus('all')} />
         <StatCard icon={CheckCircleOutlineRoundedIcon} tone="green" label="Available items" value={`${totals.available.toLocaleString('en-PH')} pcs`} meta={`${totals.low} low · ${totals.out} out of stock`} loading={loading} onClick={() => setStatus('in_stock')} />
         <StatCard icon={LocalShippingOutlinedIcon} tone="blue" label="In use items" value={`${totals.inUse.toLocaleString('en-PH')} pcs`} meta="Out at events" loading={loading} onClick={() => setStatus('in_use')} />

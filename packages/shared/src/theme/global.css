@@ -139,10 +139,15 @@ img {
     display: block !important;
     height: auto !important;
   }
+  /* The height and overflow lines matter on phones, where the dialog is full-screen and scrolls
+     inside itself: without them only the first screenful of the document would print */
   .tm-print-root .MuiDialog-paper {
     margin: 0 !important;
     max-width: none !important;
     width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     box-shadow: none !important;
   }
 }

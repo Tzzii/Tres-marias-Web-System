@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import { DashCard, ErrorState, ListSkeleton, PageHeader, RENTAL, catalogApi, formatPackageItem, isRentalPackage, peso, tokens, useDocumentTitle, useResource } from '@tm/shared';
@@ -63,14 +65,7 @@ export default function PackagesPage() {
                     Choose tables, chairs, linens, food warmers, tableware, tents or decor on the form and type how many you need. See details for the full price list.
                   </Typography>
                 )}
-                <Box component="ul" sx={{ m: 0, mt: 0.5, p: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.75 }}>
-                  {pkg.items.map((item) => (
-                    <Box component="li" key={item.name} sx={{ display: 'flex', gap: 0.75, fontSize: 12.5, color: tokens.textSecondary }}>
-                      <CheckRoundedIcon sx={{ fontSize: 15, color: tokens.goldDark, mt: '2px' }} />
-                      {formatPackageItem(item)}
-                    </Box>
-                  ))}
-                </Box>
+                <IncludedItems items={pkg.items} />
                 <Box sx={{ mt: 'auto', pt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button variant="contained" onClick={() => book(pkg)}>
                     {isRentalPackage(pkg) ? 'Rent equipment' : 'Book this package'}
@@ -83,6 +78,39 @@ export default function PackagesPage() {
             </DashCard>
           ))}
         </Box>
+      )}
+    </>
+  );
+}
+
+// Items a package card lists on a phone before "Show all"
+const PHONE_ITEMS = 5;
+
+/**
+ * What a package includes, with quantities. On phones only the first few items show, with a
+ * "Show all" button, so each card stays short and the next package is a quick scroll away.
+ * Tablets and computers always show the whole list in two columns.
+ */
+function IncludedItems({ items }) {
+  const isPhone = useMediaQuery('(max-width:599px)');
+  const [expanded, setExpanded] = useState(false);
+  const cut = isPhone && !expanded && items.length > PHONE_ITEMS; // list is shortened right now
+  const shown = cut ? items.slice(0, PHONE_ITEMS) : items;
+  return (
+    <>
+      <Box component="ul" sx={{ m: 0, mt: 0.5, p: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.75 }}>
+        {shown.map((item) => (
+          <Box component="li" key={item.name} sx={{ display: 'flex', gap: 0.75, fontSize: 12.5, color: tokens.textSecondary }}>
+            <CheckRoundedIcon sx={{ fontSize: 15, color: tokens.goldDark, mt: '2px' }} />
+            {formatPackageItem(item)}
+          </Box>
+        ))}
+      </Box>
+      {/* Phones only: open or close the rest of the list */}
+      {isPhone && items.length > PHONE_ITEMS && (
+        <Button size="small" onClick={() => setExpanded((open) => !open)} aria-expanded={expanded} sx={{ alignSelf: 'flex-start', px: 0.5, color: tokens.goldDark }}>
+          {expanded ? 'Show fewer' : `Show all ${items.length} items`}
+        </Button>
       )}
     </>
   );

@@ -14,6 +14,7 @@
     "db:reset": "npm run db:reset -w apps/api",
     "db:ping": "npm run db:ping -w apps/api",
     "dev:client": "node scripts/vite-run.mjs dev client",
+    "dev:client:phone": "node scripts/vite-run.mjs dev client --host",
     "dev:admin": "node scripts/vite-run.mjs dev admin",
     "build": "npm run build:client && npm run build:admin",
     "build:client": "node scripts/vite-run.mjs build client",

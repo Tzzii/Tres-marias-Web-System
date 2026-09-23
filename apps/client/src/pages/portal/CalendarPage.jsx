@@ -54,15 +54,22 @@ export default function CalendarPage() {
     return map;
   }, [data]);
 
-  // Decide how each calendar day looks:
-  // my event > open > past date > too soon to book ("Needs...") > fully booked/blocked
+  // Decide how each calendar day looks, using the same rules and marks as the booking date picker:
+  // my event > open > past date > too soon to book ("Needs...") > blocked by the admin > fully booked.
+  // Days with other customers' events get gold dots (never their names).
   const getDay = (iso) => {
     const mine = byDate[iso];
     if (mine) return { tone: 'event', label: mine.map((r) => r.eventName).join(', '), badge: mine[0].eventName, dots: mine.length };
     const reason = calendarApi.dateUnavailableReason(iso, data.availability);
-    if (!reason) return { tone: 'open', label: 'Available — start a reservation' };
+    const count = data.availability.booked[iso] || 0; // events already holding the date
+    if (!reason) {
+      return count
+        ? { tone: 'open', label: `Available · ${count} ${count === 1 ? 'event' : 'events'} already booked — start a reservation`, dots: count }
+        : { tone: 'open', label: 'Available — start a reservation' };
+    }
     if (daysFromToday(iso) < 0) return { tone: 'disabled', label: 'Past date', unselectable: true };
     if (reason.startsWith('Needs')) return { tone: 'disabled', label: reason, unselectable: true };
+    if (data.availability.blocked.some((b) => b.date === iso)) return { tone: 'blocked', label: reason, badge: reason, unselectable: true };
     return { tone: 'full', label: reason, badge: reason, unselectable: true };
   };
 
@@ -97,14 +104,18 @@ export default function CalendarPage() {
             legend={[
               { tone: 'event', label: 'My event' },
               { tone: 'full', label: 'Fully booked date' },
-              { tone: 'open', label: 'Available' }
+              { tone: 'blocked', label: 'Blocked' },
+              { tone: 'open', label: 'Available (gold dots: events already booked)' }
             ]}
           />
         ) : (
           <>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            {/* Same place for the switch as in the month view: its own full-width row on top on phones */}
+            <Box sx={{ display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, justifyContent: 'space-between', alignItems: 'center', gap: 1.5, mb: 2 }}>
               <Typography sx={{ fontSize: 16, fontWeight: 700 }}>My events</Typography>
-              <ModeToggle mode={mode} setMode={setMode} />
+              <Box sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: -1, sm: 0 } }}>
+                <ModeToggle mode={mode} setMode={setMode} />
+              </Box>
             </Box>
             {sorted.length === 0 ? (
               <EmptyState compact title="No events yet" description="Your reservations will appear here." action={<Button variant="contained" onClick={() => navigate('/portal/book')}>New reservation</Button>} />
@@ -141,14 +152,20 @@ export default function CalendarPage() {
   );
 }
 
-/** Month / List switch. `v && setMode(v)` ignores clicks that would unselect both buttons. */
+// Switch buttons: on phones each takes half the row and is 40px tall for fingers
+const toggleSx = { px: 1.75, textTransform: 'none', fontWeight: 600, flex: { xs: 1, sm: 'none' }, minHeight: { xs: 40, sm: 0 } };
+
+/**
+ * Month / List switch. `v && setMode(v)` ignores clicks that would unselect both buttons.
+ * Full width on phones, where it sits on its own row above the calendar or the list.
+ */
 function ModeToggle({ mode, setMode }) {
   return (
-    <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, v) => v && setMode(v)} aria-label="Calendar view">
-      <ToggleButton value="month" sx={{ px: 1.75, textTransform: 'none', fontWeight: 600 }}>
+    <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, v) => v && setMode(v)} aria-label="Calendar view" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+      <ToggleButton value="month" sx={toggleSx}>
         Month
       </ToggleButton>
-      <ToggleButton value="list" sx={{ px: 1.75, textTransform: 'none', fontWeight: 600 }}>
+      <ToggleButton value="list" sx={toggleSx}>
         List
       </ToggleButton>
     </ToggleButtonGroup>

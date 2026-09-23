@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import Box from '@mui/material/Box';
 import { ChatPanel, DocumentDialog, ErrorState, DashCard, PageHeader, Spinner, messageApi, reservationApi, useDocumentTitle, useNotify, useResource } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
@@ -52,7 +53,15 @@ export default function MessagesPage() {
 
   return (
     <>
-      <PageHeader title="Chat" subtitle="Message the Tres Marias admin directly. We usually reply within an hour during office hours." />
+      {/* The subtitle is hidden on phones to leave more room for the messages; the chat header below says the same */}
+      <PageHeader
+        title="Chat"
+        subtitle={
+          <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>
+            Message the Tres Marias admin directly. We usually reply within an hour during office hours.
+          </Box>
+        }
+      />
       {threadId.loading ? (
         <Spinner />
       ) : (

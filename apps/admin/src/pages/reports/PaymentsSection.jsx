@@ -155,7 +155,8 @@ export default function PaymentsSection() {
 
   const columns = [
     { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
-    { key: 'customer', label: 'Customer', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
+    // card: 'title' — on phone cards the customer and event are the heading (REF becomes a field)
+    { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
     { key: 'date', label: 'Event date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
@@ -187,7 +188,8 @@ export default function PaymentsSection() {
     <>
       <SectionBar text="Verify uploaded proofs, record cash payments and follow up on balances." />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' }, gap: 2.5, mb: 2.5 }}>
+      {/* Summary cards, two per row on phones and tablets */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
         <StatCard icon={PendingActionsOutlinedIcon} tone="amber" label="Awaiting verification" value={awaitingCount} loading={loading} onClick={() => setFilter('awaiting')} />
         <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Collected this month" value={peso(collectedThisMonth)} loading={loading} />
         <StatCard icon={AccountBalanceWalletOutlinedIcon} tone="blue" label="Outstanding balance" value={peso(outstanding)} loading={loading} onClick={() => setFilter('partial')} />

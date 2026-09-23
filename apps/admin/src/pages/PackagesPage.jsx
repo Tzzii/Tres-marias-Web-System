@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -7,6 +7,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import InputAdornment from '@mui/material/InputAdornment';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import {
   AlertBanner,
@@ -101,6 +102,29 @@ export default function PackagesPage() {
   // The package object being edited (null when creating a new one)
   const editing = editingId === 'new' ? null : packages.find((p) => p.id === editingId) || null;
 
+  // Below extra-large screens the editor sits under the package list instead of beside it, so opening
+  // a package there scrolls down to the editor; otherwise tapping Edit on a phone would seem to do nothing.
+  const editorRef = useRef(null);
+  const stacked = useMediaQuery((theme) => theme.breakpoints.down('xl'));
+  const scrollPending = useRef(false); // scroll once the newly chosen package's editor has rendered
+  const scrollToEditor = () => {
+    if (stacked && editorRef.current) editorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  // Open a package, or 'new', in the editor (from Edit, a package row or New package)
+  const openEditor = (id) => {
+    if (id === editingId) {
+      scrollToEditor();
+      return;
+    }
+    scrollPending.current = true;
+    setEditingId(id);
+  };
+  useEffect(() => {
+    if (!scrollPending.current) return;
+    scrollPending.current = false;
+    scrollToEditor();
+  }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
 
   // Run an action and show a success or error toast
@@ -123,7 +147,7 @@ export default function PackagesPage() {
             <Button variant="outlined" startIcon={<AddRoundedIcon />} onClick={() => { setTab('addons'); setAddonDialog({}); }} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
               New additional charge
             </Button>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setTab('packages'); setEditingId('new'); }}>
+            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setTab('packages'); openEditor('new'); }}>
               New package
             </Button>
           </>
@@ -150,14 +174,14 @@ export default function PackagesPage() {
           <ListSkeleton rows={5} height={60} />
         </DashCard>
       ) : tab === 'packages' ? (
-        // Packages tab: list on the left, editor on the right
+        // Packages tab: list on the left, editor on the right (extra-large screens); smaller screens stack them
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.2fr' }, gap: 2.5, alignItems: 'start' }}>
           <DashCard>
             <CardTitle>Packages · {packages.length}</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {packages.map((p) => (
                 <Box key={p.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1.5px solid ${editingId === p.id ? tokens.ink : tokens.cardLightBorder}`, flexWrap: 'wrap' }}>
-                  <ButtonBase onClick={() => setEditingId(p.id)} sx={{ flex: 1, minWidth: 200, display: 'block', textAlign: 'left', fontFamily: 'inherit' }}>
+                  <ButtonBase onClick={() => openEditor(p.id)} sx={{ flex: 1, minWidth: 200, display: 'block', textAlign: 'left', fontFamily: 'inherit' }}>
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                       <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>{p.name}</Typography>
                       <Pill size="sm" label={p.visible ? 'Visible on site' : 'Hidden'} bg={p.visible ? 'rgba(16,185,129,0.12)' : tokens.surfaceMuted} fg={p.visible ? '#047857' : tokens.textMuted} />
@@ -166,27 +190,33 @@ export default function PackagesPage() {
                       {isRentalPackage(p) ? 'Priced per piece from the inventory' : `${peso(p.price)} · covers ${p.guests} guests · ${p.items.length} items`}
                     </Typography>
                   </ButtonBase>
-                  <Button size="small" onClick={() => setEditingId(p.id)}>Edit</Button>
-                  <Button size="small" onClick={() => run(() => catalogApi.setPackageVisibility(p.id, !p.visible), p.visible ? `${p.name} is hidden from customers.` : `${p.name} is now visible on the site.`)}>
-                    {p.visible ? 'Hide' : 'Show'}
-                  </Button>
+                  {/* Edit and Hide/Show stay together; on a phone they drop under the name, on the right */}
+                  <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                    <Button size="small" onClick={() => openEditor(p.id)}>Edit</Button>
+                    <Button size="small" onClick={() => run(() => catalogApi.setPackageVisibility(p.id, !p.visible), p.visible ? `${p.name} is hidden from customers.` : `${p.name} is now visible on the site.`)}>
+                      {p.visible ? 'Hide' : 'Show'}
+                    </Button>
+                  </Box>
                 </Box>
               ))}
             </Box>
           </DashCard>
 
-          {/* `key` forces a fresh editor (and fresh form) each time a different package is selected */}
-          <PackageEditor
-            key={editingId || 'none'}
-            pkg={editing}
-            isNew={editingId === 'new'}
-            onCancelNew={() => setEditingId(packages[0] ? packages[0].id : null)}
-            onSaved={(saved, isNew) => {
-              notify(isNew ? `${saved.name} created. It stays hidden until you show it.` : 'Package saved.');
-              setEditingId(saved.id);
-            }}
-            onArchive={(p) => setArchive({ type: 'package', item: p })}
-          />
+          {/* `key` forces a fresh editor (and fresh form) each time a different package is selected.
+              The wrapper is what openEditor scrolls to; scrollMarginTop keeps it clear of the top bar. */}
+          <Box ref={editorRef} sx={{ minWidth: 0, scrollMarginTop: `${tokens.headerHeight + 12}px` }}>
+            <PackageEditor
+              key={editingId || 'none'}
+              pkg={editing}
+              isNew={editingId === 'new'}
+              onCancelNew={() => setEditingId(packages[0] ? packages[0].id : null)}
+              onSaved={(saved, isNew) => {
+                notify(isNew ? `${saved.name} created. It stays hidden until you show it.` : 'Package saved.');
+                setEditingId(saved.id);
+              }}
+              onArchive={(p) => setArchive({ type: 'package', item: p })}
+            />
+          </Box>
         </Box>
       ) : tab === 'addons' ? (
         <DashCard>

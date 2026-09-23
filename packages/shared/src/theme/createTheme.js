@@ -36,12 +36,24 @@ const shared = {
   }
 };
 
+// Touch screens (phones and tablets). A mouse can hit a 30px button, a finger needs about 36px,
+// so the small sizes grow only here and computers keep the compact desktop look.
+const TOUCH = '@media (pointer: coarse)';
+
 // Default styles for MUI components used by every theme
 const baseComponents = {
   MuiButton: {
     defaultProps: { disableElevation: true },
-    styleOverrides: { root: { borderRadius: 10, transition: `all 0.2s ${tokens.easeStandard}` } }
+    // Small buttons ("View all", "Open", Prev / Next) are 36px tall on touch screens
+    styleOverrides: { root: { borderRadius: 10, transition: `all 0.2s ${tokens.easeStandard}` }, sizeSmall: { [TOUCH]: { minHeight: 36 } } }
   },
+  // Small icon buttons (close X, show password, month arrows, copy) are 36px or more on touch screens.
+  // A button that sets its own padding in `sx` keeps it, because `sx` is applied after these styles.
+  MuiIconButton: { styleOverrides: { sizeSmall: { [TOUCH]: { padding: 8 } } } },
+  // Text links ("Forgot password?", "Sign up", breadcrumbs) get 6px more above and below on touch
+  // screens, so they are about 32px tall to a finger. On a link inside a sentence this padding
+  // does not move the text; a link drawn as a button grows by those 12px.
+  MuiLink: { styleOverrides: { root: { [TOUCH]: { paddingTop: 6, paddingBottom: 6 } } } },
   MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
   MuiTooltip: {
     styleOverrides: {
@@ -110,7 +122,20 @@ const lightComponents = {
     }
   },
   MuiDialog: {
-    styleOverrides: { paper: { borderRadius: 16, boxShadow: tokens.shadowCard } }
+    styleOverrides: {
+      paper: {
+        borderRadius: 16,
+        boxShadow: tokens.shadowCard,
+        // A full-screen dialog (phones) has square corners, like a page
+        '&.MuiDialog-paperFullScreen': { borderRadius: 0 },
+        // Phones: 16px from the screen edges instead of MUI's 32px, so forms in a dialog get more room.
+        // Full-screen dialogs keep no margin at all.
+        '@media (max-width: 599.95px)': {
+          '&:not(.MuiDialog-paperFullScreen)': { margin: 16, maxHeight: 'calc(100% - 32px)' },
+          '&.MuiDialog-paperFullWidth:not(.MuiDialog-paperFullScreen)': { width: 'calc(100% - 32px)', maxWidth: 'calc(100% - 32px)' }
+        }
+      }
+    }
   },
   MuiTab: { styleOverrides: { root: { textTransform: 'none', fontWeight: 600, minHeight: 44 } } }
 };

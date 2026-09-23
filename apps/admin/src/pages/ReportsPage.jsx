@@ -154,8 +154,8 @@ export default function ReportsPage() {
 
       {tab === 'overview' && !error && (
         <>
-          {/* Summary numbers for the selected range */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' }, gap: 2.5, mb: 2.5 }}>
+          {/* Summary numbers for the selected range, two per row on phones and tablets */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
             <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events served" value={data ? data.eventsServed : 0} loading={loading} />
             <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue" value={data ? peso(data.revenue) : '₱0'} meta="Verified payments" loading={loading} />
             <StatCard icon={AssessmentOutlinedIcon} tone="blue" label="Average per event" value={data ? peso(data.averagePerEvent) : '₱0'} loading={loading} />

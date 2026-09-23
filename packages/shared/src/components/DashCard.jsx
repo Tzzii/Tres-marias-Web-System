@@ -55,12 +55,20 @@ const ICON_TONES = {
   violet: { color: '#7c3aed', bg: 'rgba(139, 92, 246, 0.12)' }
 };
 
-/** One summary metric. Pass `onClick` to make the whole card an entry point. */
+// A StatCard narrower than this (e.g. two side by side on a phone) puts its icon above the text
+const NARROW_CARD = '@container (max-width: 240px)';
+
+/**
+ * One summary metric. Pass `onClick` to make the whole card an entry point.
+ * The card measures its own width (a CSS container query): a narrow card, such as two side by side
+ * on a phone, stacks the icon above the text and uses a little less padding. Wide cards are unchanged.
+ */
 export function StatCard({ icon: Icon, tone = 'gold', label, value, meta, onClick, loading = false }) {
   const palette = ICON_TONES[tone] || ICON_TONES.gold;
+  const padSx = { p: 2.25, [NARROW_CARD]: { p: 1.75 } };
   const body = (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', textAlign: 'left' }}>
-      <Box sx={{ width: 46, height: 46, flexShrink: 0, borderRadius: 1.5, display: 'grid', placeItems: 'center', color: palette.color, backgroundColor: palette.bg }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', textAlign: 'left', [NARROW_CARD]: { flexDirection: 'column', alignItems: 'flex-start', gap: 1.25 } }}>
+      <Box sx={{ width: 46, height: 46, flexShrink: 0, borderRadius: 1.5, display: 'grid', placeItems: 'center', color: palette.color, backgroundColor: palette.bg, [NARROW_CARD]: { width: 38, height: 38 } }}>
         <Icon sx={{ fontSize: 22 }} />
       </Box>
       <Box sx={{ minWidth: 0 }}>
@@ -74,14 +82,15 @@ export function StatCard({ icon: Icon, tone = 'gold', label, value, meta, onClic
   );
 
   return (
-    <DashCard sx={{ p: 0, overflow: 'hidden', transition: 'box-shadow 0.25s ease, transform 0.25s ease', ...(onClick && { '&:hover': { boxShadow: tokens.shadowDashHover, transform: 'translateY(-2px)' } }) }}>
+    // containerType lets the card's contents react to the card's own width (NARROW_CARD above)
+    <DashCard sx={{ p: 0, overflow: 'hidden', containerType: 'inline-size', transition: 'box-shadow 0.25s ease, transform 0.25s ease', ...(onClick && { '&:hover': { boxShadow: tokens.shadowDashHover, transform: 'translateY(-2px)' } }) }}>
       {/* Clickable cards are wrapped in a button; others are a plain box */}
       {onClick ? (
-        <ButtonBase onClick={onClick} sx={{ width: '100%', p: 2.25, display: 'block' }}>
+        <ButtonBase onClick={onClick} sx={{ width: '100%', display: 'block', ...padSx }}>
           {body}
         </ButtonBase>
       ) : (
-        <Box sx={{ p: 2.25 }}>{body}</Box>
+        <Box sx={padSx}>{body}</Box>
       )}
     </DashCard>
   );

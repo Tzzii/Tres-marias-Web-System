@@ -4,6 +4,7 @@ import Dialog from '@mui/material/Dialog';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { BUFFET_DRINKS, BUSINESS, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
@@ -64,8 +65,10 @@ function Line({ label, value, strong, muted }) {
  * An equipment rental prints its rented items (how many x the price per piece), the delivery fee and
  * any damage charges instead of a package, menu and guest count, and its contract carries the rental
  * terms: pick up or delivery, returning the items, and damage fees applying only through a revised quotation.
+ * On phones the document fills the screen and its top bar (name, print, close) stays pinned while scrolling.
  */
 export function DocumentDialog({ open, onClose, detail, doc }) {
+  const isPhone = useMediaQuery('(max-width:599px)'); // same phone width as AppDialog's fullScreenOnMobile
   if (!detail || !doc) return null;
   // Prices come from the sent quotation, or the estimate if none was sent
   const quote = detail.quotation || detail.estimate;
@@ -84,12 +87,14 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
 
   return (
     <LightSurface>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" className="tm-print-root" scroll="body">
-        <Box className="tm-no-print" sx={{ px: 2, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{doc.name}</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={isPhone} className="tm-print-root" scroll="body">
+        {/* Top bar. Sticky, so on a phone the close button is always in reach; a long file name ends in "…" */}
+        <Box className="tm-no-print" sx={{ position: 'sticky', top: 0, zIndex: 1, px: 2, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, borderBottom: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
+          <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{doc.name}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+            {/* Phones open the same print screen, where "Save as PDF" is one of the choices */}
             <Button size="small" variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
-              Print / Save as PDF
+              {isPhone ? 'Print / PDF' : 'Print / Save as PDF'}
             </Button>
             <IconButton size="small" onClick={onClose} aria-label="Close document">
               <CloseRoundedIcon fontSize="small" />

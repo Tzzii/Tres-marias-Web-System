@@ -174,13 +174,16 @@ export default function DashboardPage() {
     return map;
   }, [calendar.data]);
 
-  // Tell the small calendar how to colour each day: blocked > has events > open
+  // Tell the small calendar how to colour each day: blocked > fully booked > has events > open.
+  // "Fully booked" uses the same rule as the Calendar tab and the customer date picker.
   const getDay = (iso) => {
     if (!calendar.data) return { tone: 'open' };
     const blocked = calendar.data.availability.blocked.find((b) => b.date === iso);
     const events = eventsByDate[iso] || [];
     if (blocked) return { tone: 'blocked', label: `Blocked · ${blocked.reason}` };
-    if (events.length) return { tone: 'event', label: events.map((e) => e.eventName).join(', ') };
+    const names = events.map((e) => e.eventName).join(', ');
+    if (calendarApi.dateUnavailableReason(iso, calendar.data.availability, { enforceLeadTime: false })) return { tone: 'full', label: `Fully booked · ${names}` };
+    if (events.length) return { tone: 'event', label: names };
     return { tone: 'open' };
   };
 
@@ -255,7 +258,8 @@ export default function DashboardPage() {
         </DashCard>
 
         {/* Four summary cards beside the chart; clicking one opens the related page */}
-        <Box sx={{ gridArea: 'kpi', display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2.5 }}>
+        {/* Two cards per row on every screen; on phones they switch to their narrow layout (icon above the text) */}
+        <Box sx={{ gridArea: 'kpi', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: { xs: 1.5, sm: 2.5 } }}>
           <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events today" value={data ? data.eventsToday.length : 0} meta="Confirmed and in progress" loading={loading} onClick={() => navigate('/reservations?tab=calendar')} />
           <StatCard icon={MarkEmailUnreadOutlinedIcon} tone="amber" label="Pending requests" value={data ? data.pending.length : 0} meta={data && data.pending.length ? `Oldest ${data.pendingOldestDays === 0 ? 'from today' : `${pluralize(data.pendingOldestDays, 'day')} ago`}` : 'Queue is clear'} loading={loading} onClick={() => navigate('/reservations?tab=requests')} />
           <StatCard icon={PendingActionsOutlinedIcon} tone="blue" label="Unverified payments" value={data ? data.unverifiedPayments : 0} meta="Proofs waiting for review" loading={loading} onClick={() => navigate('/reports?tab=payments&filter=awaiting')} />
@@ -342,6 +346,7 @@ export default function DashboardPage() {
               onSelect={(iso) => navigate(`/reservations?tab=calendar&date=${iso}`)}
               legend={[
                 { tone: 'event', label: 'Booked' },
+                { tone: 'full', label: 'Fully booked' },
                 { tone: 'blocked', label: 'Blocked' }
               ]}
             />

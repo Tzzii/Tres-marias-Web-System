@@ -1,5 +1,8 @@
 /**
- * Runs Vite for one app: node scripts/vite-run.mjs <dev|build|preview> <client|admin>
+ * Runs Vite for one app: node scripts/vite-run.mjs <dev|build|preview> <client|admin> [Vite options]
+ *
+ * Anything after the app name goes straight to Vite. `--host` (used by `npm run dev:client:phone`)
+ * opens the dev server to other devices on the same Wi-Fi, so the site can be tried on a phone.
  *
  * Why this wrapper exists: Rollup (the bundler behind Vite) reads everything after
  * a "#" in a path as a URL fragment, so builds fail in a folder named
@@ -16,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [, , command = 'dev', app = 'client'] = process.argv;
+const [, , command = 'dev', app = 'client', ...viteOptions] = process.argv;
 
 if (!['dev', 'build', 'preview'].includes(command)) {
   console.error(`Unknown command "${command}". Use dev, build or preview.`);
@@ -52,6 +55,8 @@ const viteBin = path.join(workspace, 'node_modules', 'vite', 'bin', 'vite.js');
 const args = workspace === PROJECT_ROOT ? [viteBin] : ['--preserve-symlinks', '--preserve-symlinks-main', viteBin];
 if (command !== 'dev') args.push(command);
 args.push('--config', path.join(appDir, 'vite.config.js'));
+// Extra options from the command line (e.g. --host), passed on unchanged
+args.push(...viteOptions);
 
 // The dev server's dependency optimizer (esbuild) reports output paths relative to the
 // *real* working directory, while Vite compares them against the junction path. Running

@@ -7,7 +7,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { tokens } from '../theme/tokens.js';
 
-/** Horizontal filter chips with optional counts. Scrolls sideways on phones. */
+/** Horizontal filter chips with optional counts. Scrolls sideways on phones; chips are 36px tall on touch screens. */
 export function FilterTabs({ options, value, onChange, ariaLabel = 'Filter' }) {
   return (
     <Box role="tablist" aria-label={ariaLabel} className="tm-scroll" sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', pb: 0.5, mx: -0.25, px: 0.25 }}>
@@ -32,7 +32,9 @@ export function FilterTabs({ options, value, onChange, ariaLabel = 'Filter' }) {
               backgroundColor: active ? tokens.ink : tokens.surfaceMuted,
               border: `1px solid ${active ? tokens.ink : tokens.cardLightBorder}`,
               transition: 'all 0.18s ease',
-              '&:hover': { backgroundColor: active ? tokens.inkHover : tokens.cardLightBorder }
+              '&:hover': { backgroundColor: active ? tokens.inkHover : tokens.cardLightBorder },
+              // Taller chips for fingers
+              '@media (pointer: coarse)': { py: 1 }
             }}
           >
             {option.label}

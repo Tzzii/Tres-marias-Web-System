@@ -9,7 +9,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
-import { DateField, OCCASIONS, RULES, calendarApi, formatDateLong, formatTime, validateGuests } from '@tm/shared';
+import { DateField, OCCASIONS, RULES, TimeField, calendarApi, formatDateLong, formatTime, validateGuests } from '@tm/shared';
 import { readIntent, saveIntent } from '../lib/booking.js';
 import { site } from '../theme/siteTheme.js';
 import { siteFieldSx, siteLabelSx } from './Marketing.jsx';
@@ -67,7 +67,9 @@ export default function BookingBar({ onAvailable }) {
 
   return (
     <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, borderRadius: 3, backgroundColor: site.card, boxShadow: site.shadowPanel }}>
-      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1.2fr 0.8fr 1fr 0.7fr auto' }, gap: 2, alignItems: 'start' }}>
+      {/* One row only on wide screens (lg): the start time holds three dropdowns, so it gets a wider column,
+          and below lg the fields sit two per row so the guest count isn't squeezed */}
+      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1.1fr 1.15fr 1fr 0.7fr auto' }, gap: 2, alignItems: 'start' }}>
         {/* Own label (same style as the other three fields) above the shared date picker */}
         <Box>
           <Typography component="label" htmlFor="bar-date" sx={siteLabelSx}>
@@ -76,21 +78,20 @@ export default function BookingBar({ onAvailable }) {
           <DateField id="bar-date" value={date} onChange={(v) => { setDate(v); setErrors((e) => ({ ...e, date: '' })); setResult(null); }} error={errors.date} />
         </Box>
 
-        {/* Start time in 30-minute steps; checked against other events booked that day */}
+        {/* Start time: the same hour : minute : AM/PM picker as the reservation form (30-minute steps only);
+            checked against other events booked that day */}
         <Box>
-          <Typography component="label" htmlFor="bar-time" sx={siteLabelSx}>
+          <Typography component="label" htmlFor="bar-time-hour" sx={siteLabelSx}>
             Start time
           </Typography>
-          <TextField
+          <TimeField
             id="bar-time"
-            type="time"
-            fullWidth
-            size="small"
             value={startTime}
-            onChange={(e) => { setStartTime(e.target.value); setErrors((er) => ({ ...er, startTime: '' })); setResult(null); }}
-            inputProps={{ step: 1800, min: RULES.earliestStart, max: RULES.latestStart }}
-            error={Boolean(errors.startTime)}
-            helperText={errors.startTime}
+            onChange={(v) => { setStartTime(v); setErrors((er) => ({ ...er, startTime: '' })); setResult(null); }}
+            min={RULES.earliestStart}
+            max={RULES.latestStart}
+            step={30}
+            error={errors.startTime}
             sx={siteFieldSx}
           />
         </Box>
@@ -140,7 +141,7 @@ export default function BookingBar({ onAvailable }) {
           />
         </Box>
 
-        <Box sx={{ pt: { xs: 0, md: 2.9 }, gridColumn: { sm: '1 / -1', md: 'auto' } }}>
+        <Box sx={{ pt: { xs: 0, lg: 2.9 }, gridColumn: { sm: '1 / -1', lg: 'auto' } }}>
           <Button type="submit" variant="contained" disabled={checking} fullWidth sx={{ height: 40, px: 3, borderRadius: 999, whiteSpace: 'nowrap' }}>
             {checking ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Check availability'}
           </Button>

@@ -157,7 +157,8 @@ export default function FeedbacksPage() {
       />
 
       {/* ==================== Reports and analytics ==================== */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' }, gap: 2, mb: 2.5 }}>
+      {/* Two per row on phones (narrow card layout), four on large screens */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: 2.5 }}>
         <StatCard icon={RateReviewOutlinedIcon} tone="gold" label="Total reviews" value={stats.total} meta={stats.archived ? `${stats.archived} archived` : 'From completed events'} loading={loading} />
         <StatCard icon={StarRoundedIcon} tone="amber" label="Average rating" value={stats.average} meta="out of 5 stars" loading={loading} />
         <StatCard icon={ThumbUpAltOutlinedIcon} tone="green" label="Positive (4–5)" value={stats.positiveShare} meta={`${stats.positive} of ${stats.total}`} loading={loading} />

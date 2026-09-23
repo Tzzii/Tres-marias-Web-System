@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -6,6 +6,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import InputBase from '@mui/material/InputBase';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -26,6 +27,8 @@ import { formatClock, formatDate, formatRelative, initials, parseISODate, toISOD
  * `single` shows only the open conversation (the customer has just one), with no list or back button.
  * `composeTag` ({ label }) shows what the next message is about above the text box; `onClearComposeTag` removes it.
  * `embedded` fills its parent (e.g. the admin chat window) instead of sizing itself to the page.
+ * On a page (not embedded), phones and small tablets fit the card between its top edge and the
+ * bottom tab bar, so the text box is always on screen without scrolling the page.
  * `compact` always uses the one-pane phone layout, for narrow windows on any screen size.
  */
 export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, loadingThread, onSend, onOpenAttachment, threadTitle, threadSubtitle, headerAction, emptyText, composeTag, onClearComposeTag, embedded = false, compact = false, single = false }) {
@@ -33,6 +36,31 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const scroller = useRef(null); // the scrolling messages area
+  const panel = useRef(null); // the whole card, measured to fit it on phones
+  const phone = useMediaQuery((theme) => theme.breakpoints.down('md')); // phones and small tablets (the bottom tab bar shows)
+  const [fitHeight, setFitHeight] = useState(null); // card height in px on phones; null = use the desktop size
+
+  // Phones, page mode: make the card end where the page's own bottom padding starts (that padding
+  // keeps content clear of the tab bar). Measured again when the screen size changes, e.g. when the
+  // browser's address bar hides or the phone turns sideways.
+  useLayoutEffect(() => {
+    if (embedded || !phone) {
+      setFitHeight(null);
+      return undefined;
+    }
+    const measure = () => {
+      const el = panel.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY; // distance from the top of the page
+      const main = el.closest('main');
+      const reserved = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+      // Rounded down: rounding up by half a pixel would make the page scroll by 1px
+      setFitHeight(Math.max(320, Math.floor(window.innerHeight - top - reserved)));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [embedded, phone]);
 
   // Scroll to the newest message when a thread opens or a message arrives
   useEffect(() => {
@@ -70,17 +98,20 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
     return formatDate(iso);
   };
 
-  // Page mode sizes itself to the viewport as a card; embedded mode just fills its parent
+  // Page mode sizes itself to the viewport as a card (the measured height on phones); embedded mode just fills its parent
+  const cardSx = { borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, boxShadow: tokens.shadowDash };
   const sizeSx = embedded
     ? { height: '100%', minHeight: 0, borderRadius: compact ? 0 : 2 }
-    : { height: { xs: 'calc(100dvh - 190px)', md: 'calc(100vh - 190px)' }, minHeight: 460, borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, boxShadow: tokens.shadowDash };
+    : fitHeight
+      ? { height: fitHeight, ...cardSx }
+      : { height: { xs: 'calc(100dvh - 190px)', md: 'calc(100vh - 190px)' }, minHeight: 460, ...cardSx };
 
   // minmax(0, 1fr) keeps columns from stretching to fit long one-line text, so previews end in "..."
   const fill = 'minmax(0, 1fr)';
 
   return (
     <LightSurface>
-    <Box sx={{ display: 'grid', gridTemplateColumns: compact || single ? fill : { xs: fill, md: `320px ${fill}` }, overflow: 'hidden', backgroundColor: '#fff', ...sizeSx }}>
+    <Box ref={panel} sx={{ display: 'grid', gridTemplateColumns: compact || single ? fill : { xs: fill, md: `320px ${fill}` }, overflow: 'hidden', backgroundColor: '#fff', ...sizeSx }}>
       {/* Threads */}
       <Box sx={{ display: single ? 'none' : compact ? (activeId ? 'none' : 'flex') : { xs: activeId ? 'none' : 'flex', md: 'flex' }, flexDirection: 'column', borderRight: compact ? 'none' : { md: `1px solid ${tokens.cardLightBorder}` }, minHeight: 0, minWidth: 0 }}>
         <Typography sx={{ px: 2, py: 1.75, fontSize: 15, fontWeight: 700, color: tokens.textPrimary, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>Threads</Typography>
@@ -225,8 +256,10 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                 placeholder="Write a message"
                 multiline
                 maxRows={5}
-                inputProps={{ 'aria-label': 'Write a message', maxLength: 2000 }}
-                sx={{ flex: 1, px: 1.5, py: 1, fontSize: 14, color: tokens.textPrimary, borderRadius: 1.5, border: `1px solid ${tokens.borderInput}`, '&.Mui-focused': { borderColor: tokens.borderFocus } }}
+                // enterKeyHint shows "Send" on the phone keyboard's Enter key
+                inputProps={{ 'aria-label': 'Write a message', maxLength: 2000, enterKeyHint: 'send' }}
+                // 16px on touch screens: iPhones zoom the whole page in when a smaller text box is tapped
+                sx={{ flex: 1, px: 1.5, py: 1, fontSize: 14, '@media (pointer: coarse)': { fontSize: 16 }, color: tokens.textPrimary, borderRadius: 1.5, border: `1px solid ${tokens.borderInput}`, '&.Mui-focused': { borderColor: tokens.borderFocus } }}
               />
               <IconButton type="submit" disabled={!text.trim() || sending} aria-label="Send" sx={{ width: 44, height: 44, color: tokens.onInk, backgroundColor: tokens.ink, '&:hover': { backgroundColor: tokens.inkHover }, '&.Mui-disabled': { color: tokens.onInk, backgroundColor: tokens.placeholder } }}>
                 {sending ? <CircularProgress size={18} sx={{ color: tokens.onInk }} /> : <SendRoundedIcon sx={{ fontSize: 20 }} />}

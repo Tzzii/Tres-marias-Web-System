@@ -7,13 +7,18 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
+import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import { PortalShell, authApi, feedbackApi, formatDate, messageApi, outsourceApi, paymentApi, peso, reservationApi, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
 import { MessagesButton, MessengerProvider, useMessenger } from '../components/MessagesWidget.jsx';
 
-/** The admin frame (top bar and sidebar) around every admin screen (1r–1y), with the chat window on every page. */
+/**
+ * The admin frame (top bar, sidebar on desktop, bottom tabs on phones) around every admin screen
+ * (1r–1y), with the chat window on every page.
+ */
 export default function AdminLayout() {
   return (
     <MessengerProvider>
@@ -115,10 +120,22 @@ function AdminChrome() {
     { key: 'feedbacks', label: 'Feedbacks', icon: RateReviewOutlinedIcon, to: '/feedbacks', badge: newFeedback }
   ];
 
+  // Phone bottom tabs: the pages used most on the go. Payments opens the Payments tab of Reports
+  // (and stays lit on the Overview tab). "More" opens the full menu; its badge adds up the pages
+  // it hides that are waiting on the admin (partner replies and new feedback).
+  const bottomNav = [
+    { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
+    { key: 'reservations', label: 'Reservations', icon: EventNoteOutlinedIcon, to: '/reservations', badge: pending },
+    { key: 'payments', label: 'Payments', icon: PaymentsOutlinedIcon, to: '/reports?tab=payments', match: ['/reports'], badge: awaiting },
+    { key: 'inventory', label: 'Inventory', icon: Inventory2OutlinedIcon, to: '/inventory' },
+    { key: 'more', label: 'More', icon: MoreHorizRoundedIcon, drawer: true, badge: awaitingReply + newFeedback }
+  ];
+
   return (
     <PortalShell
       portalKey={`admin.${user.id}`}
       navItems={navItems}
+      bottomNav={bottomNav}
       secondaryNavItems={[{ key: 'account', label: 'My account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
       user={user}
       profileItems={[{ key: 'account', label: 'My account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}

@@ -48,8 +48,11 @@ export function monthGrid(year, month) {
  * Month calendar used by the customer calendar, the admin calendar and the
  * date picker. Each day is described by `getDay(iso)`:
  *   { tone: 'event' | 'blocked' | 'full' | 'open' | 'disabled', label, badge, dots }
- * `dots` > 0 shows up to 3 dots on phones in the large calendar, and one small dot in the small (date picker) calendar.
+ * `dots` > 0 shows one small dot in the small (date picker) calendar. The large calendar shows up to 3 dots on
+ * phones, and on every screen size when the day has no `badge` (on tablets/desktop a badge takes the dots' place).
  * Changing month slides the days in from the side you moved towards; the selected day pops briefly.
+ * On phones the month arrows move to the two edges (easier to reach with a thumb), and `headerAction`
+ * (e.g. the customer's Month / List switch) gets its own full-width row above them.
  */
 export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, selected, size = 'lg', legend, headerAction }) {
   const today = todayISO();
@@ -90,8 +93,8 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: small ? 1 : 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Box sx={{ display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, alignItems: 'center', justifyContent: 'space-between', gap: 1, rowGap: 1.5, mb: small ? 1 : 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: { xs: '1 1 100%', sm: '0 0 auto' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
           <IconButton size="small" onClick={() => shift(-1)} aria-label="Previous month">
             <ChevronLeftRoundedIcon />
           </IconButton>
@@ -102,7 +105,8 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
             <ChevronRightRoundedIcon />
           </IconButton>
         </Box>
-        {headerAction}
+        {/* Phones: first row, full width. Wider screens: right end of the month row. */}
+        {headerAction && <Box sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: -1, sm: 0 } }}>{headerAction}</Box>}
       </Box>
 
       <Box role="grid" aria-label={`${MONTH_NAMES[month]} ${year}`}>
@@ -177,14 +181,15 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
               {small && info.dots > 0 && (
                 <Box component="span" aria-hidden sx={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', width: 5, height: 5, borderRadius: '50%', backgroundColor: tokens.goldDark }} />
               )}
-              {/* Large calendar: event name on tablets/desktop, up to 3 dots on phones */}
+              {/* Large calendar: the badge (e.g. event name) on tablets/desktop, up to 3 dots on phones.
+                  A day with dots but no badge keeps its dots on every screen, so it never looks empty. */}
               {!small && info.badge && (
                 <Typography component="span" sx={{ display: { xs: 'none', sm: 'block' }, width: '100%', fontSize: 10.5, fontWeight: 700, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {info.badge}
                 </Typography>
               )}
               {!small && info.dots > 0 && (
-                <Box sx={{ display: { xs: 'flex', sm: 'none' }, gap: 0.25, mt: 'auto' }}>
+                <Box sx={{ display: { xs: 'flex', sm: info.badge ? 'none' : 'flex' }, gap: 0.25, mt: 'auto' }}>
                   {Array.from({ length: Math.min(info.dots, 3) }, (_, i) => (
                     <Box key={i} sx={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: tokens.goldDark }} />
                   ))}
