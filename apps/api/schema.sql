@@ -4,11 +4,13 @@
 -- Run it with `npm run db:reset` (scripts/db-reset.js), which refuses to run in production
 -- without --force. It runs inside the database named by DB_NAME in apps/api/.env, so there is
 -- no CREATE DATABASE / USE here (apps/api/db-setup.sql creates the database and its user).
--- Load the sample data afterwards with the seeder (Phase 2).
+-- Load the sample data afterwards with `npm run seed:api` (src/seed.js).
 --
--- Works on MySQL 8.0 and MariaDB 10.6+ (XAMPP): no expression defaults, no functional indexes,
--- no utf8mb4_0900_* collations. On MariaDB, JSON is an alias of LONGTEXT and comes back to
--- Node as a string, so the repo layer reads it with parseJson() (src/lib/json.js).
+-- For MySQL 8 only: 8.0.16 or newer, because older servers read the CHECK constraints but never
+-- enforce them. Tested on 8.0.46. MariaDB (and XAMPP, which runs MariaDB) is not supported.
+-- MySQL gives JSON objects back with their keys re-sorted, not in the order they were written,
+-- so nothing may depend on key order. The repo layer reads JSON columns with parseJson() and
+-- writes them with toJson() (src/lib/json.js).
 --
 -- Conventions (docs/backend-development-phases.md §7.5, §7.6):
 --   *_at            instants as BIGINT UNSIGNED milliseconds, the same numbers as Date.now()
@@ -19,8 +21,8 @@
 --   money, counts   whole numbers as signed INT, so SQL arithmetic on them can go below zero
 --                   without an "out of range" error; CHECKs keep the stored values in range
 --   ids, refs       VARCHAR(40) with the frontend's prefixes (cus-, pay-, RES-…, th-, m-, …)
---   yes/no          BOOLEAN NOT NULL DEFAULT 0: the same TINYINT(1) column on both databases,
---                   written BOOLEAN because MySQL 8 warns that TINYINT(1)'s display width is
+--   yes/no          BOOLEAN NOT NULL DEFAULT 0, which MySQL stores as TINYINT(1); written
+--                   BOOLEAN because MySQL 8 warns that TINYINT(1)'s display width is
 --                   deprecated. mysql2 returns 0/1 numbers: Boolean() them in the repo
 --   snapshots       JSON (package items, quotation, estimate, chat attachment, …)
 --   free text       TEXT NOT NULL with no default (MySQL allows no literal default on TEXT),
@@ -80,7 +82,7 @@ CREATE TABLE admins (
   password_hash             VARCHAR(255)    NOT NULL,             -- bcrypt; the seed's plain `password` is hashed by the seeder
   role                      VARCHAR(40)     NOT NULL DEFAULT 'Administrator', -- job title shown in the UI; the token role is always 'admin'
   created_at                BIGINT UNSIGNED NOT NULL,
-  password_changed_at       BIGINT UNSIGNED NULL,
+  password_changed_at       BIGINT UNSIGNED NULL,                 -- tokens made before this are refused (a change signs out every session)
   last_sign_in_at           BIGINT UNSIGNED NULL,
   last_sign_in_device       VARCHAR(255)    NOT NULL DEFAULT '',  -- e.g. "Chrome · Windows", from the User-Agent
   previous_sign_in_at       BIGINT UNSIGNED NULL,                 -- the sign-in before the last one
@@ -103,7 +105,7 @@ CREATE TABLE customers (
   password_hash       VARCHAR(255)    NOT NULL,
   company             VARCHAR(160)    NOT NULL DEFAULT '',
   created_at          BIGINT UNSIGNED NOT NULL,
-  password_changed_at BIGINT UNSIGNED NULL,                 -- tokens issued before this are refused (a reset signs out old sessions)
+  password_changed_at BIGINT UNSIGNED NULL,                 -- tokens made before this are refused (a reset or change signs out old sessions)
   PRIMARY KEY (id),
   UNIQUE KEY uq_customers_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -663,10 +665,11 @@ CREATE TABLE counters (
 -- tm.auth.contactChallenge, tm.auth.resetChallenge)
 -- ============================================================================
 
--- Failed attempts and lockouts, one row per scope and account.
--- Scopes used by authService: 'customer', 'admin' (password, keyed by email), 'admin-code',
--- 'reset-code' (codes, keyed by email), 'customer-reauth', 'admin-reauth' (current password
--- before a change, keyed by account id) and 'admin-contact' (contact-change code, keyed by admin id).
+-- Failed attempts and lockouts, one row per scope and account (src/modules/auth/lockout.js).
+-- Scopes: 'customer', 'admin' (password, keyed by email), 'admin-code', 'reset-code' (codes,
+-- keyed by email), 'customer-reauth', 'admin-reauth' (current password before a change, keyed by
+-- account id), 'admin-contact' (contact-change code, keyed by admin id) and 'reset-sms' (password-
+-- reset texts sent to one customer, keyed by customer id: 5 in a row, then an hour's pause).
 CREATE TABLE login_attempts (
   scope        VARCHAR(20)     NOT NULL,
   identifier   VARCHAR(254)    NOT NULL,                    -- lower-case email or account id, per scope
@@ -715,8 +718,8 @@ CREATE TABLE password_resets (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Rows the API needs even before any data is loaded. The seeder (Phase 2) empties
--- and refills every table, these two included.
+-- Rows the API needs even before any data is loaded. The seeder (src/seed.js) empties
+-- and refills every table, these three included, with the seed's values.
 -- ============================================================================
 
 -- The one catalogue settings row: the buffet price per person, as in the seed

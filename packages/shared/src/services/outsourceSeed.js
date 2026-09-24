@@ -1,13 +1,14 @@
+import { NO_EVENT, channelsOf, composeContractText } from '../domain/outsource.js';
 import { addDays, todayISO } from '../utils/format.js';
-import { composeContractText } from './outsourceService.js';
 
 /**
  * Starting outsourcing partners and contracts, used by seed.js.
  *
- * The partners differ on purpose in in how they can be reached — some have both an email address and a
+ * The partners differ on purpose in how they can be reached — some have both an email address and a
  * mobile number, some only one — because a contract is sent to whatever channels a partner has, with
- * the same text in each. `composeContractText` comes from the service so seeded contracts read exactly
- * like the ones the admin sends.
+ * the same text in each. `composeContractText` and `channelsOf` come from domain/outsource.js, the
+ * same rules the service uses, so seeded contracts read exactly like the ones the admin sends.
+ * Nothing here touches the browser store, so the API seeder (apps/api/src/seed.js) runs it in Node.
  */
 
 // Partners as [id, name, service, contact person, email, mobile, address, notes]
@@ -66,7 +67,7 @@ export function buildOutsourceSeed(refs, events, actor = 'Teresa Marquez') {
 
   const contracts = CONTRACTS.map(([id, number, partnerId, eventKey, itemPairs, needByOffset, amount, status, draftedDaysAgo, note]) => {
     const partner = partners.find((p) => p.id === partnerId);
-    const reservationRef = eventKey ? refs[eventKey] : 'none';
+    const reservationRef = eventKey ? refs[eventKey] : NO_EVENT;
     const reservation = eventKey ? events.find((r) => r.ref === reservationRef) : null;
     const items = itemPairs.map(([name, qty]) => ({ name, qty }));
     const ref = `OUT-${today.slice(0, 4)}-${String(number).padStart(4, '0')}`;
@@ -90,7 +91,7 @@ export function buildOutsourceSeed(refs, events, actor = 'Teresa Marquez') {
           });
     // Sent an hour after drafting, to every channel that partner has
     const sentAt = status === 'draft' ? null : createdAt + 3600000;
-    const channels = [...(partner.email ? ['email'] : []), ...(partner.mobile ? ['sms'] : [])];
+    const channels = channelsOf(partner);
     const deliveries = sentAt ? channels.map((channel) => ({ channel, to: channel === 'email' ? partner.email : partner.mobile, at: sentAt, body })) : [];
     // Answered the day after it was sent (accepted, declined and completed contracts only)
     const answeredAt = ['accepted', 'declined', 'completed'].includes(status) ? sentAt + 86400000 : null;

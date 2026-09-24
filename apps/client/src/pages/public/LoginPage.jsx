@@ -79,7 +79,8 @@ export default function LoginPage() {
 
   if (isAuthenticated) return <Navigate to={next} replace />;
 
-  // Validate, log in, save or forget the email for "Remember me", then continue
+  // Validate, log in, save or forget the email for "Remember me", then continue.
+  // `remember` also goes to the server, which then issues a longer-lasting session token.
   const submit = async (event) => {
     event.preventDefault();
     const nextErrors = {};
@@ -92,7 +93,7 @@ export default function LoginPage() {
 
     setBusy(true);
     try {
-      const result = await authApi.customerLogin({ email, password });
+      const result = await authApi.customerLogin({ email, password, remember });
       try {
         if (remember) localStorage.setItem(REMEMBERED_EMAIL, email.trim());
         else localStorage.removeItem(REMEMBERED_EMAIL);
@@ -134,6 +135,8 @@ export default function LoginPage() {
 
         {resetDone && !formError && <AlertBanner tone="success">Password changed. Log in with your new password.</AlertBanner>}
         {params.get('reason') === 'idle' && <AlertBanner tone="info">You were signed out after 15 minutes of inactivity. Please log in again.</AlertBanner>}
+        {/* The server ended the session: it expired, or the password was changed on another device */}
+        {params.get('reason') === 'expired' && <AlertBanner tone="info">Your session has ended. Please log in again.</AlertBanner>}
         <BookingIntentBanner intent={intent} />
         {locked && (
           <AlertBanner tone="locked" title="Account temporarily locked">

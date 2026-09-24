@@ -2,7 +2,7 @@ import mysql from 'mysql2/promise';
 import { config } from './config.js';
 
 /**
- * The MySQL / MariaDB connection pool shared by the whole API, and the transaction helper.
+ * The MySQL 8 connection pool shared by the whole API, and the transaction helper.
  *
  * - Creating the pool opens no connection: the first query does. So importing this file never
  *   fails when MySQL is down, and the API still answers /api/health.
@@ -30,10 +30,11 @@ export const pool = mysql.createPool({
  * 2. utf8mb4_unicode_ci for the connection (§7.5), so ₱, ñ and en dashes are compared like the
  *    columns they meet.
  * 3. Strict mode: STRICT_TRANS_TABLES added to the server's own sql_mode, keeping its other modes
- *    (e.g. MySQL 8's ONLY_FULL_GROUP_BY). MariaDB under XAMPP may run non-strict, and then text that
- *    is too long is silently cut and a bad value is silently turned into '' or 0; in strict mode
- *    those writes fail with an error instead. The IF leaves a mode that already has it unchanged,
- *    and the TRIM drops the leading comma when the server's mode was empty.
+ *    (e.g. ONLY_FULL_GROUP_BY). MySQL 8 is strict by default, but a server's own settings (my.ini,
+ *    or a hosting provider's) can turn it off, and then text that is too long is silently cut and a
+ *    bad value is silently turned into '' or 0; in strict mode those writes fail with an error
+ *    instead. The IF leaves a mode that already has it unchanged, and the TRIM drops the leading
+ *    comma when the server's mode was empty.
  * Exported so scripts/db-reset.js gives its own connection the same session.
  */
 export const SESSION_SETUP = [
@@ -108,7 +109,7 @@ export function dbErrorHint(err) {
   const { host, port, user, database } = config.db;
   switch (err && err.code) {
     case 'ECONNREFUSED':
-      return `Nothing is accepting connections on ${host}:${port}. Start MySQL (the MySQL80 Windows service, or MySQL in the XAMPP control panel), or fix DB_HOST / DB_PORT in apps/api/.env.`;
+      return `Nothing is accepting connections on ${host}:${port}. Start MySQL (on Windows, the MySQL80 service), or fix DB_HOST / DB_PORT in apps/api/.env.`;
     case 'ENOTFOUND':
     case 'EAI_AGAIN':
       return `The host "${host}" could not be found. Check DB_HOST in apps/api/.env.`;

@@ -1,6 +1,7 @@
-import { BUSINESS, OUTSOURCE_SERVICES, isRental } from './config.js';
+import { OUTSOURCE_SERVICES, isRental } from './config.js';
 import { ApiError, clone, latency, nextId, read, uid, write } from './store.js';
-import { formatDate, peso, todayISO } from '../utils/format.js';
+import { NEXT_STATUS, NO_EVENT, channelsOf } from '../domain/outsource.js';
+import { todayISO } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
 import { EMAIL_RE } from '../utils/validation.js';
 
@@ -15,21 +16,13 @@ import { EMAIL_RE } from '../utils/validation.js';
  *
  * Contract statuses: draft -> sent -> accepted or declined; accepted -> completed.
  * Cancelled is the exit from draft, sent or accepted.
+ *
+ * The rules that need no stored data (NO_EVENT, the statuses and NEXT_STATUS, channelsOf,
+ * composeContractText) live in domain/outsource.js, shared with the seed and the API server.
+ * The public ones are re-exported below, so code that imports them from this file keeps working.
  */
 
-// Value used on a contract that is not tied to a reservation (e.g. topping up stock)
-export const NO_EVENT = 'none';
-
-// Contract statuses, and the statuses each one may move to next
-export const CONTRACT_STATUSES = ['draft', 'sent', 'accepted', 'declined', 'completed', 'cancelled'];
-const NEXT_STATUS = {
-  draft: ['cancelled'],
-  sent: ['accepted', 'declined', 'cancelled'],
-  accepted: ['completed', 'cancelled'],
-  declined: [],
-  completed: [],
-  cancelled: []
-};
+export { CONTRACT_STATUSES, NO_EVENT, channelsOf, composeContractText } from '../domain/outsource.js';
 
 // Name of the signed-in admin, for the history logs
 const ADMIN_NAME = () => {
@@ -40,9 +33,6 @@ const ADMIN_NAME = () => {
     return 'Tres Marias team';
   }
 };
-
-/** How a partner can be reached, in sending order: ['email', 'sms'], one of the two, or none. */
-export const channelsOf = (partner) => [...(partner.email ? ['email'] : []), ...(partner.mobile ? ['sms'] : [])];
 
 // Add an entry to a contract's history. When the contract is for a reservation, the same line also
 // goes in that reservation's audit trail, e.g. "Outsourcing / Batangas Party Rentals: Sent the contract."
@@ -99,30 +89,6 @@ function enrichContract(contract, data) {
     eventVenue: reservation ? `${reservation.venue.name}, ${reservation.venue.city}` : '',
     itemsSummary: contract.items.map((i) => `${i.name} × ${i.qty}`).join(', ')
   };
-}
-
-/**
- * The contract text, built once and sent unchanged to email and SMS.
- * A pure function, so the compose dialog can show the admin exactly what will go out and their
- * edits to it are what both channels carry.
- */
-export function composeContractText({ ref, partner, items = [], needBy, eventName, eventDate, venue, amount, notes }) {
-  const greeting = partner.contactPerson ? `Hi ${partner.contactPerson} (${partner.name}),` : `Hi ${partner.name},`;
-  const forEvent = eventName ? ` for ${eventName}${eventDate ? ` on ${formatDate(eventDate)}` : ''}` : '';
-  const lines = [
-    `${BUSINESS.name} · Outsourcing contract ${ref}`,
-    '',
-    greeting,
-    '',
-    `We would like to rent the following${forEvent}:`,
-    ...items.filter((i) => i.name && i.qty).map((i) => `- ${i.name}: ${i.qty} pcs`),
-    ''
-  ];
-  if (needBy) lines.push(`Needed on ${formatDate(needBy)}${venue ? ` at ${venue}` : ''}.`);
-  if (Number(amount) > 0) lines.push(`Agreed amount: ${peso(amount)}.`);
-  if (notes && notes.trim()) lines.push(notes.trim());
-  lines.push('', 'Please reply YES to accept or NO if you cannot supply this.', `${BUSINESS.name} · ${BUSINESS.phone}`);
-  return lines.join('\n');
 }
 
 /** All partners (archived ones only when asked), sorted by service order, then name. */

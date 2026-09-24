@@ -1,5 +1,6 @@
 import { RULES } from './config.js';
 import { ApiError, latency, read, write } from './store.js';
+import { cleanMobile, cleanName, describeDevice, fullNameProblem, normaliseEmail } from '../domain/account.js';
 import { maskEmail, maskMobile } from '../utils/format.js';
 import { validateAdminPassword, validateEmail, validateMobile, validatePassword } from '../utils/validation.js';
 
@@ -8,6 +9,12 @@ import { validateAdminPassword, validateEmail, validateMobile, validatePassword 
  * after repeated failures, the customer's forgot-password flow (a 6-digit code
  * texted to the mobile number on the account), and the two-stage admin sign-in
  * (password, then a 6-digit code emailed to the address on file).
+ *
+ * This is the browser-store version, used when VITE_API_SERVICES does not include "auth".
+ * The API version (remote/auth.js, backed by apps/api/src/modules/auth) is the default since
+ * Phase 3: it keeps lockouts on the server, stores only hashes, and really emails / texts the
+ * codes. The browser store cannot send anything, so here every code request gets its own random
+ * code, printed in the browser's developer console (issueCode). There is no fixed code.
  */
 
 const LOCK_KEY = 'tm.auth.attempts'; // failed-attempt counters and lockouts, per account
@@ -31,8 +38,20 @@ const writeAttempts = (value) => {
   }
 };
 
-// Compare emails without spaces or upper/lower case differences
-const normalise = (email) => String(email || '').trim().toLowerCase();
+// Compare emails without spaces or upper/lower case differences (the same rule the API uses)
+const normalise = normaliseEmail;
+
+/**
+ * A new random code for one code request. The browser store cannot email or text it, so it is
+ * printed in the browser's developer console for whoever is testing (never on the page); the API
+ * version sends it instead. `what` and `to` say which code it is and where it would have gone.
+ */
+function issueCode(what, to) {
+  const random = crypto.getRandomValues(new Uint32Array(1))[0];
+  const code = String(random % 10 ** RULES.codeLength).padStart(RULES.codeLength, '0');
+  console.info(`[browser store] ${what} for ${to}: ${code}`);
+  return code;
+}
 
 /** Throws when the account is locked; returns the attempt record otherwise. */
 function assertNotLocked(scope, email) {
@@ -149,7 +168,7 @@ export async function customerRegister({ firstName = '', middleName = '', lastNa
       lastName: last,
       name: [first, middle, last].filter(Boolean).join(' '),
       email: address,
-      mobile: mobile.replace(/[\s-]/g, ''),
+      mobile: cleanMobile(mobile),
       password,
       company: '',
       createdAt: Date.now()
@@ -179,8 +198,9 @@ const saveResetChallenge = (challenge) => {
 };
 
 /**
- * Step 1: check that an account uses this email, then text a 6-digit code to the mobile
- * number on that account. Returns the request ID and the masked number to show.
+ * Step 1: check that an account uses this email, then "text" a 6-digit code to the mobile
+ * number on that account (here: printed in the console, see issueCode). Returns the request ID
+ * and the masked number to show.
  */
 export async function startPasswordReset({ email }) {
   await latency(500, 900);
@@ -195,6 +215,7 @@ export async function startPasswordReset({ email }) {
     id: makeToken('rst'),
     customerId: customer.id,
     email: address,
+    code: issueCode('Password reset code', customer.mobile),
     expiresAt: Date.now() + RULES.codeValidMinutes * 60000,
     resendAt: Date.now() + RULES.codeResendSeconds * 1000,
     verified: false
@@ -203,12 +224,14 @@ export async function startPasswordReset({ email }) {
   return { challengeId: challenge.id, maskedMobile: maskMobile(customer.mobile), expiresAt: challenge.expiresAt, resendAt: challenge.resendAt };
 }
 
-/** Text a new code (only after the resend cooldown): restarts the expiry and resend timers. */
+/** Text a new code (only after the resend cooldown): the old code stops working, and the expiry and resend timers restart. */
 export async function resendPasswordResetCode(challengeId) {
   await latency(400, 700);
   const challenge = readResetChallenge(challengeId);
   if (!challenge) throw new ApiError('CHALLENGE_EXPIRED', 'Your reset request expired. Please start again.');
   if (challenge.resendAt > Date.now()) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
+  const customer = read().customers.find((c) => c.id === challenge.customerId);
+  challenge.code = issueCode('Password reset code', customer ? customer.mobile : challenge.email);
   challenge.expiresAt = Date.now() + RULES.codeValidMinutes * 60000;
   challenge.resendAt = Date.now() + RULES.codeResendSeconds * 1000;
   saveResetChallenge(challenge);
@@ -222,7 +245,7 @@ export async function verifyPasswordResetCode({ challengeId, code }) {
   if (!challenge) throw new ApiError('CHALLENGE_EXPIRED', 'Your reset request expired. Please start again.');
   assertNotLocked('reset-code', challenge.email);
   if (challenge.expiresAt < Date.now()) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
-  if (code !== resetCodeFor()) {
+  if (code !== challenge.code) {
     const result = registerFailure('reset-code', challenge.email, RULES.maxCodeAttempts, RULES.codeLockMinutes);
     if (result.locked) throw new ApiError('LOCKED', 'Too many incorrect codes. Code entry is paused.', { lockedUntil: result.lockedUntil });
     throw new ApiError('INVALID_CODE', 'That code is incorrect.', { remaining: result.remaining });
@@ -258,14 +281,6 @@ export async function completePasswordReset({ challengeId, password }) {
   return result;
 }
 
-/**
- * Until SMS sending is connected the reset code is the one configured for the environment
- * (see README, "Customer password reset code").
- */
-function resetCodeFor() {
-  return import.meta.env?.VITE_CUSTOMER_RESET_CODE || '615204';
-}
-
 /** Latest profile details for a customer. */
 export async function getCustomerProfile(customerId) {
   await latency(120, 260);
@@ -281,21 +296,21 @@ export async function getCustomerProfile(customerId) {
  */
 export async function updateCustomerProfile(customerId, { name = '', mobile = '', company = '' }) {
   await latency(350, 650);
-  const cleanName = String(name).trim().replace(/\s+/g, ' ');
-  if (!cleanName) throw new ApiError('INVALID', 'Full name is required.', { field: 'name' });
-  if (cleanName.split(' ').length < 2) throw new ApiError('INVALID', 'Enter your first and last name.', { field: 'name' });
+  const clean = cleanName(name);
+  const nameError = fullNameProblem(clean);
+  if (nameError) throw new ApiError('INVALID', nameError, { field: 'name' });
   const mobileError = validateMobile(mobile);
   if (mobileError) throw new ApiError('INVALID', mobileError, { field: 'mobile' });
   return write((data) => {
     const customer = data.customers.find((c) => c.id === customerId);
     if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
-    if (customer.name !== cleanName) {
+    if (customer.name !== clean) {
       customer.firstName = '';
       customer.middleName = '';
       customer.lastName = '';
     }
-    customer.name = cleanName;
-    customer.mobile = mobile.replace(/[\s-]/g, '');
+    customer.name = clean;
+    customer.mobile = cleanMobile(mobile);
     customer.company = (company || '').trim();
     return publicCustomer(customer);
   });
@@ -323,8 +338,8 @@ export async function changeCustomerPassword(customerId, { current, next }) {
 /* ============================ Admin ============================ */
 
 /**
- * Stage 1: check the password and email the verification code.
- * The code itself is sent by the email provider once the backend is connected.
+ * Stage 1: check the password and "email" the verification code (here: printed in the console,
+ * see issueCode; the API version emails it).
  */
 export async function adminStartSignIn({ email, password }) {
   await latency(450, 800);
@@ -351,6 +366,7 @@ export async function adminStartSignIn({ email, password }) {
     id: makeToken('chl'),
     adminId: admin.id,
     email: address,
+    code: issueCode('Admin sign-in code', admin.email),
     expiresAt: Date.now() + RULES.codeValidMinutes * 60000,
     resendAt: Date.now() + RULES.codeResendSeconds * 1000,
     attempts: 0
@@ -373,12 +389,13 @@ const readChallenge = (challengeId) => {
   }
 };
 
-/** Send a new code (only after the resend cooldown): restarts the expiry and resend timers. */
+/** Send a new code (only after the resend cooldown): the old code stops working, and the expiry and resend timers restart. */
 export async function adminResendCode(challengeId) {
   await latency(400, 700);
   const challenge = readChallenge(challengeId);
   if (!challenge) throw new ApiError('CHALLENGE_EXPIRED', 'Your sign-in session expired. Please start again.');
   if (challenge.resendAt > Date.now()) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
+  challenge.code = issueCode('Admin sign-in code', challenge.email);
   challenge.expiresAt = Date.now() + RULES.codeValidMinutes * 60000;
   challenge.resendAt = Date.now() + RULES.codeResendSeconds * 1000;
   try {
@@ -400,7 +417,7 @@ export async function adminVerifyCode({ challengeId, code }) {
   }
 
   // Wrong code: count it separately from password failures (shorter lockout)
-  if (code !== verificationCodeFor(challenge)) {
+  if (code !== challenge.code) {
     countFailedSignIn(challenge.adminId);
     const result = registerFailure('admin-code', challenge.email, RULES.maxCodeAttempts, RULES.codeLockMinutes);
     if (result.locked) {
@@ -414,7 +431,7 @@ export async function adminVerifyCode({ challengeId, code }) {
   clearFailures('admin-code', challenge.email);
   sessionStorage.removeItem(CHALLENGE_KEY);
   const now = Date.now();
-  const device = describeDevice();
+  const device = describeDevice(typeof navigator === 'undefined' ? '' : navigator.userAgent);
   return write((data) => {
     const admin = data.admins.find((a) => a.id === challenge.adminId);
     if (!admin) throw new ApiError('CHALLENGE_EXPIRED', 'Your sign-in session expired. Please start again.');
@@ -427,28 +444,12 @@ export async function adminVerifyCode({ challengeId, code }) {
   });
 }
 
-/**
- * Until email sending is connected the admin code is the one configured for
- * the environment (see README, "Admin verification code").
- */
-function verificationCodeFor() {
-  return import.meta.env?.VITE_ADMIN_VERIFICATION_CODE || '482913';
-}
-
 /** Add one failed sign-in (wrong password or wrong code) to the admin's record. */
 function countFailedSignIn(adminId) {
   write((data) => {
     const admin = data.admins.find((a) => a.id === adminId);
     if (admin) admin.failedAttempts = (admin.failedAttempts || 0) + 1;
   });
-}
-
-/** Browser and system from the user agent, e.g. "Chrome · Windows". The backend will read this from request headers. */
-function describeDevice() {
-  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  const system = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Unknown system';
-  return `${browser} · ${system}`;
 }
 
 /* ============================ Admin account (My account) ============================ */
@@ -476,10 +477,9 @@ export async function getAdminProfile(adminId) {
 /** Save the admin's display name (first and last name, up to 80 characters). */
 export async function updateAdminProfile(adminId, { name }) {
   await latency(350, 650);
-  const clean = String(name || '').trim().replace(/\s+/g, ' ');
-  if (!clean) throw new ApiError('INVALID', 'Full name is required.', { field: 'name' });
-  if (clean.split(' ').length < 2) throw new ApiError('INVALID', 'Enter your first and last name.', { field: 'name' });
-  if (clean.length > 80) throw new ApiError('INVALID', 'Use 80 characters or fewer.', { field: 'name' });
+  const clean = cleanName(name);
+  const problem = fullNameProblem(clean, 80);
+  if (problem) throw new ApiError('INVALID', problem, { field: 'name' });
   return write((data) => {
     const admin = data.admins.find((a) => a.id === adminId);
     if (!admin) throw new ApiError('NOT_FOUND', 'Account not found.');
@@ -524,9 +524,9 @@ export async function changeAdminPassword(adminId, { current, next }) {
 }
 
 /**
- * Email / mobile change, step 1: check the new value and the current password, then email a code.
- * A new email gets the code itself (proves the admin owns it); a mobile change gets it on the
- * email already on file, since codes are never sent by SMS.
+ * Email / mobile change, step 1: check the new value and the current password, then email a code
+ * (here: printed in the console, see issueCode). A new email gets the code itself (proves the admin
+ * owns it); a mobile change gets it on the email already on file, since codes are never sent by SMS.
  */
 export async function adminStartContactChange(adminId, { field, value, password }) {
   await latency(450, 800);
@@ -534,7 +534,7 @@ export async function adminStartContactChange(adminId, { field, value, password 
   const admin = read().admins.find((a) => a.id === adminId);
   if (!admin) throw new ApiError('NOT_FOUND', 'Account not found.');
 
-  const clean = field === 'email' ? normalise(value) : String(value || '').replace(/[\s-]/g, '');
+  const clean = field === 'email' ? normalise(value) : cleanMobile(value);
   const problem = field === 'email' ? validateEmail(clean) : validateMobile(clean);
   if (problem) throw new ApiError('INVALID', problem, { field: 'value' });
   if (clean === (field === 'email' ? normalise(admin.email) : admin.mobile)) {
@@ -545,11 +545,14 @@ export async function adminStartContactChange(adminId, { field, value, password 
   }
   assertCurrentPassword('admin-reauth', admin, password);
 
+  const sendTo = field === 'email' ? clean : admin.email;
   const challenge = {
     id: makeToken('chc'),
     adminId,
     field,
     value: clean,
+    sendTo,
+    code: issueCode(field === 'email' ? 'New email confirmation code' : 'New mobile confirmation code', sendTo),
     expiresAt: Date.now() + RULES.codeValidMinutes * 60000,
     resendAt: Date.now() + RULES.codeResendSeconds * 1000
   };
@@ -558,8 +561,7 @@ export async function adminStartContactChange(adminId, { field, value, password 
   } catch (e) {
     /* ignore */
   }
-  const sentTo = maskEmail(field === 'email' ? clean : admin.email);
-  return { challengeId: challenge.id, sentTo, expiresAt: challenge.expiresAt, resendAt: challenge.resendAt };
+  return { challengeId: challenge.id, sentTo: maskEmail(sendTo), expiresAt: challenge.expiresAt, resendAt: challenge.resendAt };
 }
 
 // Load the saved contact-change code request, only if its ID matches
@@ -572,12 +574,13 @@ const readContactChallenge = (challengeId) => {
   }
 };
 
-/** Email / mobile change: send a new code (restarts the expiry and resend timers). */
+/** Email / mobile change: send a new code (the old one stops working; the expiry and resend timers restart). */
 export async function adminResendContactCode(challengeId) {
   await latency(400, 700);
   const challenge = readContactChallenge(challengeId);
   if (!challenge) throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
   if (challenge.resendAt > Date.now()) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
+  challenge.code = issueCode(challenge.field === 'email' ? 'New email confirmation code' : 'New mobile confirmation code', challenge.sendTo);
   challenge.expiresAt = Date.now() + RULES.codeValidMinutes * 60000;
   challenge.resendAt = Date.now() + RULES.codeResendSeconds * 1000;
   sessionStorage.setItem(CONTACT_CHALLENGE_KEY, JSON.stringify(challenge));
@@ -592,7 +595,7 @@ export async function adminConfirmContactChange({ challengeId, code }) {
   assertNotLocked('admin-contact', challenge.adminId);
   if (challenge.expiresAt < Date.now()) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
 
-  if (code !== verificationCodeFor(challenge)) {
+  if (code !== challenge.code) {
     const result = registerFailure('admin-contact', challenge.adminId, RULES.maxCodeAttempts, RULES.codeLockMinutes);
     if (result.locked) {
       sessionStorage.removeItem(CONTACT_CHALLENGE_KEY);

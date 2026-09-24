@@ -67,8 +67,9 @@ export const config = {
     database: text('DB_NAME', 'tres_marias')
   },
 
-  // Signs the session tokens (Phase 3). Checked below.
+  // Signs the session tokens (src/lib/tokens.js). Checked below.
   jwtSecret: text('JWT_SECRET'),
+  // How long a session token lasts: admin, customer, and customer with "Remember me" (§7.3). Checked below.
   jwt: {
     adminTtl: text('JWT_ADMIN_TTL', '8h'),
     customerTtl: text('JWT_CUSTOMER_TTL', '12h'),
@@ -110,6 +111,13 @@ export const config = {
 
 // Settings that must be right before real customers use the system
 if (config.corsOrigins.length === 0) problems.push('CORS_ORIGINS must list at least one origin.');
+// Every sign-in signs a token with it, so the API cannot run without one (.env.example has a placeholder for development)
+if (!config.jwtSecret) problems.push('JWT_SECRET must be set (at least 32 random characters in production).');
+// A duration jsonwebtoken understands: a number of seconds, or a number with ms, s, m, h, d, w or y (e.g. 8h, 7d).
+// Checked here so a typo stops the start-up instead of failing every sign-in.
+Object.entries({ JWT_ADMIN_TTL: config.jwt.adminTtl, JWT_CUSTOMER_TTL: config.jwt.customerTtl, JWT_CUSTOMER_REMEMBER_TTL: config.jwt.customerRememberTtl })
+  .filter(([, value]) => !/^\d+(ms|s|m|h|d|w|y)?$/.test(value))
+  .forEach(([name, value]) => problems.push(`${name} must be a duration such as 8h or 7d (got "${value}").`));
 if (!['log', 'smtp'].includes(config.mail.driver)) problems.push(`MAIL_DRIVER must be "log" or "smtp" (got "${config.mail.driver}").`);
 // Caught here rather than as a 500 on the first email (e.g. an admin sign-in code)
 if (config.mail.driver === 'smtp' && (!config.mail.smtp.host || !config.mail.smtp.user)) {
@@ -118,7 +126,8 @@ if (config.mail.driver === 'smtp' && (!config.mail.smtp.host || !config.mail.smt
 if (!['log'].includes(config.sms.driver)) problems.push(`SMS_DRIVER must be "log" (got "${config.sms.driver}").`);
 if (!['local'].includes(config.storage.driver)) problems.push(`STORAGE_DRIVER must be "local" (got "${config.storage.driver}").`);
 if (isProduction) {
-  if (config.jwtSecret.length < 32 || config.jwtSecret.startsWith('change-me')) {
+  // A missing secret is already reported above; here a short one or the .env.example placeholder
+  if (config.jwtSecret && (config.jwtSecret.length < 32 || config.jwtSecret.startsWith('change-me'))) {
     problems.push('JWT_SECRET must be at least 32 random characters in production.');
   }
   if (!config.db.password) problems.push('DB_PASSWORD must be set in production.');

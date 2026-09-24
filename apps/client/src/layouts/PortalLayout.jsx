@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
@@ -10,13 +10,31 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
-import { PortalShell, formatDate, messageApi, reservationApi, useResource } from '@tm/shared';
+import { PortalShell, authApi, formatDate, messageApi, reservationApi, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
 /** The customer account frame (1g–1l, 1p): sidebar on desktop, bottom tabs on phones. */
 export default function PortalLayout() {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateUser } = useAuth();
+
+  // The session keeps a copy of the customer's details from log-in. Compare it with the account record
+  // (re-checked whenever data changes) so the portal never shows an old name, mobile or company. With the
+  // API this is also the first call a portal page makes, so a token the server no longer accepts
+  // (expired, edited, or older than a password change) signs the customer out right away (a 401 does that).
+  const account = useResource(() => authApi.getCustomerProfile(user.id), [user.id]);
+  useEffect(() => {
+    // The account no longer exists (e.g. the browser data was reset): end this session
+    if (account.error && account.error.code === 'NOT_FOUND') {
+      navigate('/login', { replace: true });
+      signOut();
+      return;
+    }
+    const fresh = account.data;
+    if (fresh && (fresh.name !== user.name || fresh.mobile !== user.mobile || fresh.company !== (user.company || ''))) {
+      updateUser(fresh);
+    }
+  }, [account.data, account.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load this customer's reservations and chat threads for the notification bell and badges
   const { data } = useResource(async () => {

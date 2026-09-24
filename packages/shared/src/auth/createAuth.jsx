@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { RULES } from '../services/config.js';
+import { onSignedOut, onTokenRenewed } from '../services/events.js';
 
 /**
  * Builds the session layer for one portal. Each portal gets its own storage key,
@@ -9,6 +10,9 @@ import { RULES } from '../services/config.js';
  * - "Remember me" keeps the session in localStorage; otherwise it lives in
  *   sessionStorage and ends when the browser tab closes.
  * - Sessions end after RULES.idleMinutes without activity.
+ * - With the API (VITE_API_SERVICES includes "auth"), the session also ends when the server rejects
+ *   its token (expired, edited, or older than a password change): the login page then says why
+ *   (?reason=expired). A token the server replaces (after a customer's password change) is saved here.
  * - <RequireAuth> sends signed-out visitors to the login page and brings them
  *   back to where they were going afterwards.
  * - `idlePath` (optional): where an idle timeout lands instead of the login page.
@@ -57,7 +61,7 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath }) {
       return { session: existing, endReason: null };
     });
     const [session, setSession] = useState(initial.session);
-    const [endReason, setEndReason] = useState(initial.endReason); // why the session ended ('idle', 'signed_out')
+    const [endReason, setEndReason] = useState(initial.endReason); // why the session ended ('idle', 'signed_out', 'expired')
     const lastWrite = useRef(0); // time activity was last saved
 
     // Save the session to localStorage (remember me) or sessionStorage (this tab only)
@@ -140,6 +144,23 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath }) {
       return () => window.removeEventListener('storage', onStorage);
     }, [signOut]);
 
+    // The API rejected this session's token (services/http.js): end the session and say why on the login page
+    useEffect(() => onSignedOut(() => signOut('expired')), [signOut]);
+
+    // The API replaced the token (a customer changed their password; older tokens stopped working).
+    // Saved to storage right away, not in a state updater that React may run later: the API client
+    // reads the token from storage, and the reloads that follow must already carry the new one.
+    useEffect(
+      () =>
+        onTokenRenewed((token) => {
+          const current = readSession();
+          if (!current) return;
+          persist({ token, user: current.user, lastActivity: current.lastActivity }, current.persistent);
+          setSession((s) => (s ? { ...s, token } : s));
+        }),
+      [persist]
+    );
+
     const value = useMemo(
       () => ({ session, user: session ? session.user : null, isAuthenticated: Boolean(session), signIn, signOut, updateUser, endReason }),
       [session, signIn, signOut, updateUser, endReason]
@@ -155,14 +176,17 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath }) {
     return ctx;
   };
 
-  /** Route guard: shows the page when signed in, otherwise redirects to login (or idlePath after a timeout) with ?next= (and ?reason=idle). */
+  /**
+   * Route guard: shows the page when signed in, otherwise redirects to login (or idlePath after a timeout)
+   * with ?next=, plus ?reason=idle (inactivity) or ?reason=expired (the server ended the session).
+   */
   function RequireAuth({ children }) {
     const { isAuthenticated, endReason } = useAuth();
     const location = useLocation();
     if (!isAuthenticated) {
       const params = new URLSearchParams();
       params.set('next', location.pathname + location.search);
-      if (endReason === 'idle') params.set('reason', 'idle');
+      if (endReason === 'idle' || endReason === 'expired') params.set('reason', endReason);
       const target = endReason === 'idle' ? idlePath : loginPath;
       return <Navigate to={`${target}?${params.toString()}`} replace />;
     }

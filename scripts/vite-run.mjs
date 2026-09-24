@@ -3,6 +3,9 @@
  *
  * Anything after the app name goes straight to Vite. `--host` (used by `npm run dev:client:phone`)
  * opens the dev server to other devices on the same Wi-Fi, so the site can be tried on a phone.
+ * On those runs VITE_API_URL is set to /api (unless the shell already sets it): the app's
+ * "http://localhost:4000/api" would mean the phone itself, so API calls go through the dev server's
+ * /api proxy (vite.config.js) to the API on this computer instead. Start the API too (npm run dev:api).
  *
  * Why this wrapper exists: Rollup (the bundler behind Vite) reads everything after
  * a "#" in a path as a URL fragment, so builds fail in a folder named
@@ -62,5 +65,10 @@ args.push(...viteOptions);
 // *real* working directory, while Vite compares them against the junction path. Running
 // dev / preview from a neutral directory keeps both sides identical. Builds run in place.
 const cwd = command === 'build' ? appDir : os.tmpdir();
-const child = spawn(process.execPath, args, { cwd, stdio: 'inherit', env: { ...process.env, TM_APP_DIR: appDir } });
+const env = { ...process.env, TM_APP_DIR: appDir };
+// Opened to other devices: reach the API through the dev server's proxy (a variable already in the
+// environment wins over the app's .env.local in Vite, so this overrides it for this run only)
+const forOtherDevices = command !== 'build' && viteOptions.some((option) => option === '--host' || option.startsWith('--host='));
+if (forOtherDevices && !process.env.VITE_API_URL) env.VITE_API_URL = '/api';
+const child = spawn(process.execPath, args, { cwd, stdio: 'inherit', env });
 child.on('exit', (code) => process.exit(code === null ? 1 : code));

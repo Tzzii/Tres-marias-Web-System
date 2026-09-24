@@ -18,6 +18,8 @@ export class ApiError extends Error {
  * HTTP status for each code (docs/backend-development-phases.md §7.4). A code missing here is sent as 400.
  * OVER_BALANCE, NO_QUOTATION and NO_MOBILE are not in §7.4 but the frontend services throw them;
  * like NO_CHANNEL they mean "not possible in the record's current state", so they use 409.
+ * DELIVERY_FAILED (server only, Phase 3): the email or SMS provider refused a sign-in or reset code,
+ * so the code never left; 502 like PAYMENT_PROVIDER, since another service failed, not the request.
  */
 export const STATUS = Object.freeze({
   INVALID: 400,
@@ -32,5 +34,5 @@ export const STATUS = Object.freeze({
   LOCKED: 423,
   RATE_LIMITED: 429,
   SERVER_ERROR: 500,
-  PAYMENT_PROVIDER: 502
+  PAYMENT_PROVIDER: 502, DELIVERY_FAILED: 502
 });

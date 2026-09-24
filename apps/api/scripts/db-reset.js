@@ -8,6 +8,8 @@ import { SESSION_SETUP, dbErrorHint } from '../src/db.js';
  * `npm run db:reset` — drop every table and create the schema again from apps/api/schema.sql.
  * All data in the database named by DB_NAME is lost, so it refuses to run when NODE_ENV is
  * production unless --force is given. Prints where it is connecting (never the password).
+ * Afterwards only the starter rows at the end of schema.sql remain: the catalog_settings and
+ * calendar_settings rows and the four counters at 0.
  *
  * schema.sql is many statements in one file, so this script opens its own single connection with
  * multipleStatements on. The app pool (src/db.js) never allows that: it would let one harmful
@@ -31,7 +33,7 @@ async function main() {
     for (const statement of SESSION_SETUP) await conn.query(statement);
     await conn.query(sql);
     const [[{ tables }]] = await conn.query('SELECT COUNT(*) AS tables FROM information_schema.tables WHERE table_schema = DATABASE()');
-    console.log(`Done: "${database}" now has ${tables} tables, empty except the calendar settings row and the counters.`);
+    console.log(`Done: "${database}" now has ${tables} tables, empty except the catalog and calendar settings rows and the counters.`);
     return 0;
   } catch (err) {
     console.error(`Reset failed: ${err.message}`);

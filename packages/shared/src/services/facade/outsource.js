@@ -15,5 +15,6 @@ export const saveContract = (...a) => impl.saveContract(...a);
 export const sendContract = (...a) => impl.sendContract(...a);
 export const setContractStatus = (...a) => impl.setContractStatus(...a);
 
-// Constants and pure helpers that take all their input as arguments: the same on both sides (they move to domain/ later)
-export { NO_EVENT, CONTRACT_STATUSES, channelsOf, composeContractText } from '../outsourceService.js';
+// Constants and pure helpers that take all their input as arguments: the same on both sides, so they come
+// straight from domain/outsource.js (the API server uses the same file)
+export { NO_EVENT, CONTRACT_STATUSES, channelsOf, composeContractText } from '../../domain/outsource.js';
