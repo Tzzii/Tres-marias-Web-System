@@ -88,8 +88,10 @@ the Customer Portal on http://localhost:5173 and the Admin Dashboard on http://l
 Each can also run alone: `npm run dev:api`, `npm run dev:client`, `npm run dev:admin`.
 
 **The API is needed to sign in.** Since backend Phase 3, sign-in, sign-up, password reset and
-the account pages run on the API (`VITE_API_SERVICES=auth` in each portal's `.env.local`); the
-other pages still use the browser store until their phase. The API needs MySQL 8. First time only:
+the account pages run on the API, and since Phase 4 so does the catalogue (packages, additional
+charges, buffet dishes, the buffet price per person and the rental price list):
+`VITE_API_SERVICES=auth,catalog` in each portal's `.env.local`. The other pages still use the
+browser store until their phase. The API needs MySQL 8. First time only:
 
 1. Copy `apps/api/.env.example` to `apps/api/.env` and set `DB_PASSWORD` and a long random `JWT_SECRET`.
 2. As the MySQL root user, run `apps/api/db-setup.sql` once (creates the `tres_marias` database and user).
@@ -161,7 +163,9 @@ console (F12 → Console) instead.
 for 2 minutes. The API keeps these in the database, so clearing the browser's data does not lift
 them; `npm run seed:api` does (it reloads the sample data).
 
-**Resetting the data:** `npm run seed:api` puts the database back to the sample data. Pages that
+**Resetting the data:** `npm run seed:api` puts the database back to the sample data. When
+`apps/api/schema.sql` has changed (e.g. Phase 4 gave packages, additional charges and dishes a
+`sort_order` column), run `npm run db:reset` first, then `npm run seed:api`. Pages that
 still use the browser store keep their records in each site's `localStorage` under `tm.data.v15`:
 clear site data in the browser (DevTools → Application → Storage → Clear site data) to start over.
 Sample event dates are placed relative to the day the data is created, so reset both on the same

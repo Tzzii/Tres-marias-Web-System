@@ -119,6 +119,8 @@ CREATE TABLE customers (
 -- charged per person) or as Catering only (the equipment on its own). Archived, never deleted.
 -- kind 'rental' is the Equipment Rental package: price 0, guests 0, no items; its customer picks
 -- rentable inventory items (inventory_items.rentable) and pays each one's rent_price per piece.
+-- sort_order is the order every list shows (ORDER BY sort_order, id): the seed's order, and each new
+-- package after the rest, like the browser store's array (Phase 4). The same goes for addons and dishes.
 CREATE TABLE packages (
   id          VARCHAR(40)  NOT NULL,                     -- pkg-…
   slug        VARCHAR(120) NOT NULL,                     -- URL name made from the name, e.g. package-1-with-waiters
@@ -133,6 +135,7 @@ CREATE TABLE packages (
   featured    BOOLEAN      NOT NULL DEFAULT 0,
   visible     BOOLEAN      NOT NULL DEFAULT 0,           -- new packages start hidden from customers
   archived    BOOLEAN      NOT NULL DEFAULT 0,           -- archiving also hides the package
+  sort_order  INT          NOT NULL DEFAULT 0,           -- list position (see above)
   PRIMARY KEY (id),
   UNIQUE KEY uq_packages_slug (slug),
   UNIQUE KEY uq_packages_name (name),
@@ -150,6 +153,7 @@ CREATE TABLE addons (
   -- On: the booking form asks how many (reservation_addons.qty) and the quotation prices ONE of them
   has_quantity BOOLEAN      NOT NULL DEFAULT 0,
   archived     BOOLEAN      NOT NULL DEFAULT 0,
+  sort_order   INT          NOT NULL DEFAULT 0,  -- list position, as for packages
   PRIMARY KEY (id),
   UNIQUE KEY uq_addons_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -162,6 +166,7 @@ CREATE TABLE dishes (
   category VARCHAR(20)  NOT NULL,                -- one of DISH_CATEGORIES in the shared config
   name     VARCHAR(120) NOT NULL,                -- unique inside its category, regardless of case
   archived BOOLEAN      NOT NULL DEFAULT 0,
+  sort_order INT          NOT NULL DEFAULT 0,      -- list position, as for packages
   PRIMARY KEY (id),
   UNIQUE KEY uq_dishes_category_name (category, name),
   KEY idx_dishes_category (category),

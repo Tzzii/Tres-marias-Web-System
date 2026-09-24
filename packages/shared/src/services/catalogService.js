@@ -1,4 +1,5 @@
-import { DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, INVENTORY_CATEGORIES, PRICE_PER_PLATE_RANGE } from './config.js';
+import { rentalPriceList, slugify } from '../domain/catalog.js';
+import { DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, PRICE_PER_PLATE_RANGE } from './config.js';
 import { ApiError, clone, latency, read, uid, write } from './store.js';
 
 /**
@@ -21,17 +22,8 @@ export function pricePerPlate() {
   return (saved && Number(saved.pricePerPlate)) || DEFAULT_PRICE_PER_PLATE;
 }
 
-/**
- * What customers can rent through the Equipment Rental package: inventory items marked rentable,
- * not archived, with a rental price. Only the public facts, never the stock counts:
- * [{ id, name, category, price, damageFee }], in inventory category order, then by name.
- */
-function rentalItems(data) {
-  return data.inventory
-    .filter((item) => item.rentable && !item.archived && item.rentPrice > 0)
-    .map((item) => ({ id: item.id, name: item.name, category: item.category, price: item.rentPrice, damageFee: item.damageFee }))
-    .sort((a, b) => INVENTORY_CATEGORIES.indexOf(a.category) - INVENTORY_CATEGORIES.indexOf(b.category) || a.name.localeCompare(b.name));
-}
+// What the Equipment Rental package can rent, from the inventory (domain/catalog.js: the same list the API gives)
+const rentalItems = (data) => rentalPriceList(data.inventory);
 
 /** The rental price list shown on the Equipment Rental package page. */
 export async function listRentalItems() {
@@ -83,15 +75,6 @@ export async function getCatalog() {
     rentals: rentalItems(data)
   });
 }
-
-// Turn a name into a URL-safe slug: "Package 1 with Waiters!" -> "package-1-with-waiters" (accents removed)
-const slugify = (value) =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
 
 /**
  * Admin: update a package if it has an id, otherwise create a new (hidden) one. Names must be unique.

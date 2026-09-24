@@ -77,7 +77,8 @@ function toRows(data, hashes, now) {
       created_at: c.createdAt,
       password_changed_at: c.passwordChangedAt ?? null
     })),
-    packages: data.packages.map((p) => ({
+    // sort_order keeps each catalogue list in the seed's order (the browser store's array order)
+    packages: data.packages.map((p, index) => ({
       id: p.id,
       slug: p.slug,
       name: p.name,
@@ -90,16 +91,18 @@ function toRows(data, hashes, now) {
       icon: p.icon,
       featured: p.featured,
       visible: p.visible,
-      archived: p.archived
+      archived: p.archived,
+      sort_order: index
     })),
-    addons: data.addons.map((a) => ({
+    addons: data.addons.map((a, index) => ({
       id: a.id,
       name: a.name,
       description: a.description,
       has_quantity: a.hasQuantity,
-      archived: a.archived
+      archived: a.archived,
+      sort_order: index
     })),
-    dishes: data.dishes.map((d) => ({ id: d.id, category: d.category, name: d.name, archived: d.archived })),
+    dishes: data.dishes.map((d, index) => ({ id: d.id, category: d.category, name: d.name, archived: d.archived, sort_order: index })),
     catalog_settings: [{ id: 1, price_per_plate: data.settings.pricePerPlate, updated_at: now }],
 
     // `venue` is flattened into four columns; fulfilment is NULL for everything but an equipment rental

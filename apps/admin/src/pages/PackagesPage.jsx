@@ -202,11 +202,13 @@ export default function PackagesPage() {
             </Box>
           </DashCard>
 
-          {/* `key` forces a fresh editor (and fresh form) each time a different package is selected.
+          {/* `key` forces a fresh editor (and fresh form) each time a different package is selected, and
+              once more when the selected package first arrives: a package just created is selected before
+              the list reload brings it in, and its form must be filled from it then, not left blank.
               The wrapper is what openEditor scrolls to; scrollMarginTop keeps it clear of the top bar. */}
           <Box ref={editorRef} sx={{ minWidth: 0, scrollMarginTop: `${tokens.headerHeight + 12}px` }}>
             <PackageEditor
-              key={editingId || 'none'}
+              key={`${editingId || 'none'}:${editing ? 'loaded' : 'waiting'}`}
               pkg={editing}
               isNew={editingId === 'new'}
               onCancelNew={() => setEditingId(packages[0] ? packages[0].id : null)}
@@ -332,6 +334,10 @@ export default function PackagesPage() {
   );
 }
 
+// The editor input that shows a save error's meta.field, or null for the banner. The API calls the
+// "What's included" list `items`; the form's input for it is `itemsText`.
+const editorField = (field) => (field === 'items' ? 'itemsText' : ['name', 'price', 'guests', 'description', 'itemsText'].includes(field) ? field : null);
+
 /**
  * Form for creating or editing a package: name, price, guests covered, description, what's included, setup styles, visibility.
  * The Equipment Rental package only has a name, description and visibility here: its prices are each
@@ -396,8 +402,9 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
       });
       onSaved(saved, isNew);
     } catch (err) {
-      if (err.meta && err.meta.field) setErrors({ [err.meta.field]: err.message });
-      else setErrors({ form: err.message });
+      // Under its input, or in the banner above the form when it has none (e.g. a network error)
+      const field = editorField(err.meta && err.meta.field);
+      setErrors(field ? { [field]: err.message } : { form: err.message });
     } finally {
       setBusy(false);
     }
