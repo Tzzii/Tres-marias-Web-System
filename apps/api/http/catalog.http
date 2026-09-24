@@ -1,0 +1,181 @@
+# Phase 4 checks for the catalogue: packages, additional charges (add-ons), buffet dishes, the buffet
+# price per person and the Equipment Rental price list (VS Code REST Client: click "Send Request" above
+# a block). Start the API first (npm run dev:api) and load the sample data (npm run seed:api).
+#
+# The admin requests need an admin token: sign in with the two requests below (the code is printed in
+# the API's terminal with MAIL_DRIVER=log, and saved in the outbox table); copy it into @code first.
+# Errors come back as { code, message, meta }; meta.field names the form input the message belongs to.
+
+@api = http://localhost:4000/api
+@code = 000000
+
+### ---------------------------------------------------------------- Sessions
+
+### Admin sign-in, step 1: emails the code
+# @name adminStart
+POST {{api}}/auth/admin/start
+Content-Type: application/json
+
+{ "email": "emmamariaobet@gmail.com", "password": "TresMarias@2026" }
+
+### Admin sign-in, step 2: { token, user }
+# @name adminVerify
+POST {{api}}/auth/admin/verify
+Content-Type: application/json
+
+{ "challengeId": "{{adminStart.response.body.challengeId}}", "code": "{{code}}" }
+
+### Customer log in (for the 403 checks)
+# @name customerLogin
+POST {{api}}/auth/customer/login
+Content-Type: application/json
+
+{ "email": "maria.santos@gmail.com", "password": "Celebrate2026" }
+
+### ---------------------------------------------------------------- Public reads (no token)
+
+### Packages customers see: visible and not archived, in the catalogue's order
+GET {{api}}/packages
+
+### The switches without an admin token are ignored: still only visible, non-archived packages
+GET {{api}}/packages?includeHidden=true&includeArchived=true
+
+### Admin view: hidden and archived packages too
+GET {{api}}/packages?includeHidden=true&includeArchived=true
+Authorization: Bearer {{adminVerify.response.body.token}}
+
+### A customer's token does not unlock the admin view either
+GET {{api}}/packages?includeHidden=true
+Authorization: Bearer {{customerLogin.response.body.token}}
+
+### One public package by its URL name: 200, or 404 NOT_FOUND when hidden, archived or unknown
+GET {{api}}/packages/by-slug/package-1
+
+### Additional charges not archived (?includeArchived=true for an admin)
+GET {{api}}/addons
+
+### Buffet dishes still offered (?includeArchived=true for an admin)
+GET {{api}}/dishes
+
+### The booking form's one call: { packages, addons, dishes, pricePerPlate, rentals }
+GET {{api}}/catalog
+
+### The buffet price per person alone: { pricePerPlate }
+GET {{api}}/catalog/price-per-plate
+
+### The rental price list: [{ id, name, category, price, damageFee }], never stock counts
+GET {{api}}/rental-items
+
+### ---------------------------------------------------------------- Admin: packages
+
+### New package: 201, hidden until shown ("visible": true shows it at once). kind, slug, id … in the body are ignored.
+# @name newPackage
+POST {{api}}/admin/packages
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Garden Party Package", "price": 18000, "guests": 120, "description": "Tables, chairs and tableware for a garden party.", "items": [{ "qty": 120, "name": "Chairs" }, { "qty": null, "name": "Buffet Table" }] }
+
+### Same name as another package ("Package 1!" makes the slug package-1): 409 NAME_TAKEN, meta.field "name"
+POST {{api}}/admin/packages
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Package 1!", "price": 18000, "guests": 120, "description": "Tables, chairs and tableware.", "items": [{ "qty": 1, "name": "Table" }] }
+
+### Form checks: 400 INVALID "Enter a price of at least ₱100." (meta.field "price")
+POST {{api}}/admin/packages
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Cheap Package", "price": 50, "guests": 120, "description": "Tables, chairs and tableware.", "items": [{ "qty": 1, "name": "Table" }] }
+
+### A customer's token: 403 FORBIDDEN (no token: 401 UNAUTHENTICATED)
+POST {{api}}/admin/packages
+Authorization: Bearer {{customerLogin.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Not Allowed", "price": 1000, "guests": 10, "description": "A customer cannot do this.", "items": [{ "qty": 1, "name": "Table" }] }
+
+### Edit a package: the name, price, guests, description, items and (when sent) visibility
+PUT {{api}}/admin/packages/{{newPackage.response.body.id}}
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Garden Party Deluxe", "price": 19000, "guests": 120, "description": "Tables, chairs, tableware and warmers for a garden party.", "items": [{ "qty": 120, "name": "Chairs" }, { "qty": 5, "name": "Food Warmers" }] }
+
+### The Equipment Rental package keeps price 0, guests 0 and no items whatever is sent
+PUT {{api}}/admin/packages/pkg-equipment-rental
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Equipment Rental", "description": "Rent only what you need, priced per piece.", "price": 5000, "guests": 100, "items": [{ "qty": 1, "name": "Chair" }] }
+
+### Show (or hide) a package on the website
+PATCH {{api}}/admin/packages/{{newPackage.response.body.id}}/visibility
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "visible": true }
+
+### Archive (also hides it); { "archived": false } restores it, still hidden
+PATCH {{api}}/admin/packages/{{newPackage.response.body.id}}/archived
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "archived": true }
+
+### ---------------------------------------------------------------- Admin: additional charges and dishes
+
+### New additional charge: 201 (the price is set in each quotation)
+# @name newAddon
+POST {{api}}/admin/addons
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Photo Booth", "description": "A photo booth with props and prints.", "hasQuantity": false }
+
+### Edit it; "TENT" instead would be 409 NAME_TAKEN (names are unique regardless of case)
+PUT {{api}}/admin/addons/{{newAddon.response.body.id}}
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Photo Booth", "description": "A photo booth with props, prints and an album.", "hasQuantity": true }
+
+### Archive or restore an additional charge
+PATCH {{api}}/admin/addons/{{newAddon.response.body.id}}/archived
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "archived": true }
+
+### New dish: 201. Category is pork, chicken, fish or vegetable; the same name twice in one category is 409 NAME_TAKEN
+# @name newDish
+POST {{api}}/admin/dishes
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Chicken Pastel", "category": "chicken" }
+
+### Rename a dish or move it to another category
+PUT {{api}}/admin/dishes/{{newDish.response.body.id}}
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Chicken Pastel with Mushrooms", "category": "chicken" }
+
+### Archive or restore a dish
+PATCH {{api}}/admin/dishes/{{newDish.response.body.id}}/archived
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "archived": true }
+
+### ---------------------------------------------------------------- Admin: buffet price per person
+
+### Set it (whole pesos, ₱100–₱5,000): { pricePerPlate }. 99 or 650.5: 400 INVALID, meta.field "pricePerPlate"
+PUT {{api}}/admin/catalog/price-per-plate
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "pricePerPlate": 650 }

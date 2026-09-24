@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { adminAccountRoutes, authRoutes, customerAccountRoutes } from './modules/auth/auth.routes.js';
+import { catalogAdminRoutes, catalogRoutes } from './modules/catalog/catalog.routes.js';
 
 /**
  * Build the Express app without listen(), so server.js starts it and a test can import it.
@@ -16,7 +17,8 @@ import { adminAccountRoutes, authRoutes, customerAccountRoutes } from './modules
  * 2. Security headers, the CORS list of allowed sites and JSON body reading.
  * 3. GET /api/health, then the general rate limit (100 a minute per IP) for everything else under /api.
  * 4. Routes, each behind its guard (docs §7.2): /api/auth (no token, strict limit on every route),
- *    /api/me (customers only), and /api/admin/* behind ONE router-level guard.
+ *    /api/me (customers only), the public catalogue reads (Phase 4), and /api/admin/* behind ONE
+ *    router-level guard.
  * 5. The 404 and error handlers last, so every failure leaves in the same { code, message, meta } shape.
  */
 export function createApp() {
@@ -52,12 +54,17 @@ export function createApp() {
   // The signed-in customer's own account. Later phases add the customer's other routes the same way.
   app.use('/api/me', requireAuth, requireRole('customer'), customerAccountRoutes);
 
+  // Public catalogue reads: /api/packages, /addons, /dishes, /catalog, /catalog/price-per-plate, /rental-items.
+  // No guard; the three list routes read an optional token themselves (an admin sees hidden and archived records).
+  app.use('/api', catalogRoutes);
+
   // Every admin route sits behind this one router-level guard, so a new admin endpoint cannot be left open:
   // no token (or a stale one) -> 401, a customer's token -> 403, even for an address that does not exist.
   const admin = express.Router();
   admin.use(requireAuth, requireRole('admin'));
   admin.use('/me', adminAccountRoutes);
-  // Phase 4 onward: one line per module, e.g. admin.use('/packages', catalogAdminRoutes);
+  // One line per module from here on. Catalogue manager: /packages, /addons, /dishes, /catalog/price-per-plate
+  admin.use(catalogAdminRoutes);
   app.use('/api/admin', admin);
 
   app.use(notFound);
