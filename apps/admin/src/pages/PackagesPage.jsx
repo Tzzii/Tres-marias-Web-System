@@ -494,7 +494,9 @@ function AddonDialog({ addon, onClose, onSaved }) {
       await catalogApi.saveAddon({ id: addon.id, ...values });
       onSaved(!addon.id);
     } catch (err) {
-      setErrors({ name: err.message });
+      // Under its input (name or description), or in the banner above the form when it has none (e.g. a network error)
+      const field = err.meta && ['name', 'description'].includes(err.meta.field) ? err.meta.field : null;
+      setErrors(field ? { [field]: err.message } : { form: err.message });
     } finally {
       setBusy(false);
     }
@@ -502,6 +504,7 @@ function AddonDialog({ addon, onClose, onSaved }) {
 
   return (
     <AppDialog open={Boolean(addon)} onClose={onClose} busy={busy} maxWidth="xs" title={addon && addon.id ? 'Edit additional charge' : 'New additional charge'} description="The price is not fixed: you set it in each reservation's quotation." actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save</BusyButton></>}>
+      {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <FormField id="addon-name" label="Name" required value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} error={errors.name} autoFocus />
         <FormField id="addon-desc" label="Description" required multiline minRows={2} value={values.description} onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))} error={errors.description} />
