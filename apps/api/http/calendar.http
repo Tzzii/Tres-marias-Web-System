@@ -1,0 +1,81 @@
+# Phase 5 checks for the calendar: the availability map, the booking bar's check, blocked dates and the
+# daily capacity (VS Code REST Client: click "Send Request" above a block). Start the API first
+# (npm run dev:api) and load the sample data (npm run seed:api).
+#
+# The admin requests need an admin token and the 403 checks a customer token: get them with the sign-in
+# requests at the top of catalog.http, and paste them into @adminToken and @customerToken below.
+# Dates are counted from today ({{$datetime "YYYY-MM-DD" 30 d}} is 30 days from now), so they stay in the future.
+# Errors come back as { code, message, meta }; meta.field names the input the message belongs to.
+
+@api = http://localhost:4000/api
+@adminToken = paste-an-admin-token
+@customerToken = paste-a-customer-token
+
+### ---------------------------------------------------------------- Public reads (no token)
+
+### The availability map every date picker reads: { capacity, blocked, booked, events }.
+### events are [{ date, startTime, hours }]: no booking refs, no customer details
+GET {{api}}/calendar
+
+### The home page booking bar: { date, startTime, available, reason, timeConflict }
+GET {{api}}/calendar/check?date={{$datetime "YYYY-MM-DD" 30 d}}&time=18:00
+
+### Without a time only the date is checked (startTime comes back as "")
+GET {{api}}/calendar/check?date={{$datetime "YYYY-MM-DD" 30 d}}
+
+### Too soon (less than 2 days' notice): available false, reason "Needs 2 days' notice"
+GET {{api}}/calendar/check?date={{$datetime "YYYY-MM-DD" 1 d}}&time=18:00
+
+### A time that is not on the hour or half hour: available false, timeConflict true
+GET {{api}}/calendar/check?date={{$datetime "YYYY-MM-DD" 30 d}}&time=18:15
+
+### No date, or a day that does not exist: 400 INVALID, meta.field "date"
+GET {{api}}/calendar/check?date=2026-02-30
+
+### A time not written HH:MM: 400 INVALID, meta.field "time"
+GET {{api}}/calendar/check?date={{$datetime "YYYY-MM-DD" 30 d}}&time=6pm
+
+### ---------------------------------------------------------------- Admin: blocked dates
+
+### Block a range (both ends included, at most 60 days): { added, total }. Blocking it again only changes the reason (added 0).
+### reason is one of "Fully booked", "Private event", "Maintenance"; anything else is 400 INVALID, meta.field "reason"
+POST {{api}}/admin/calendar/blocks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "from": "{{$datetime "YYYY-MM-DD" 40 d}}", "to": "{{$datetime "YYYY-MM-DD" 42 d}}", "reason": "Private event" }
+
+### 61 days: 400 INVALID "Block at most 60 days at a time."
+POST {{api}}/admin/calendar/blocks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "from": "{{$datetime "YYYY-MM-DD" 40 d}}", "to": "{{$datetime "YYYY-MM-DD" 100 d}}", "reason": "Maintenance" }
+
+### Open one date again: { ok: true } (also when it was not blocked)
+DELETE {{api}}/admin/calendar/blocks/{{$datetime "YYYY-MM-DD" 41 d}}
+Authorization: Bearer {{adminToken}}
+
+### ---------------------------------------------------------------- Admin: daily capacity
+
+### Events allowed per day, 1 to 10 (the admin page sends text, e.g. "3"): { capacity }. 0, 11 or 2.5: 400 INVALID
+PUT {{api}}/admin/calendar/capacity
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "value": "3" }
+
+### ---------------------------------------------------------------- Guards
+
+### No token: 401 UNAUTHENTICATED
+PUT {{api}}/admin/calendar/capacity
+Content-Type: application/json
+
+{ "value": 3 }
+
+### A customer's token: 403 FORBIDDEN
+POST {{api}}/admin/calendar/blocks
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "from": "{{$datetime "YYYY-MM-DD" 40 d}}", "to": "{{$datetime "YYYY-MM-DD" 40 d}}", "reason": "Maintenance" }

@@ -336,7 +336,7 @@ export default function ReservationDetailPage() {
   );
 }
 
-/** Dialog where the customer describes the change they want. */
+/** Dialog where the customer describes the change they want (10 to 2,000 characters, like a chat message). */
 function ChangeRequestDialog({ open, onClose, onSend }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -377,7 +377,7 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
         </>
       }
     >
-      <FormField id="change-message" label="Your request" multiline minRows={4} value={message} onChange={(e) => { setMessage(e.target.value); setError(''); }} error={error} placeholder="e.g. Please change the guest count from 150 to 170 and add Mango Float to the food." />
+      <FormField id="change-message" label="Your request" multiline minRows={4} value={message} onChange={(e) => { setMessage(e.target.value); setError(''); }} error={error} placeholder="e.g. Please change the guest count from 150 to 170 and add Mango Float to the food." inputProps={{ maxLength: 2000 }} />
     </AppDialog>
   );
 }

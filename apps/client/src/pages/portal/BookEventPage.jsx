@@ -80,6 +80,9 @@ const sectionForField = (field) => {
 // `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental.
 const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', guests: '', serviceType: 'Buffet and Catering', packageId: '', menu: {}, foodNotes: '', venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
 
+// Date error while the availability map is still on its way from the API (the date cannot be checked yet)
+const DATES_LOADING = 'The available dates are still loading. Please try again in a moment.';
+
 // Colour and label of a rental item's availability on the chosen date
 const AVAILABILITY = {
   available: { label: 'Available', color: '#047857' },
@@ -321,6 +324,7 @@ export default function BookEventPage() {
     if (!form.occasion) e.occasion = 'Choose the occasion.';
     if (rental) return { ...e, ...validateRental() };
     if (!form.date) e.date = 'Choose your event date.';
+    else if (calendarApi.availabilitySnapshot().loading) e.date = DATES_LOADING;
     else {
       // Re-check the date in case it was blocked or filled up since it was picked
       const reason = calendarApi.dateUnavailableReason(form.date, calendarApi.availabilitySnapshot());
@@ -360,6 +364,7 @@ export default function BookEventPage() {
   const validateRental = () => {
     const e = {};
     if (!form.date) e.date = 'Choose the date you need the items.';
+    else if (calendarApi.availabilitySnapshot().loading) e.date = DATES_LOADING;
     else {
       const reason = calendarApi.dateUnavailableReason(form.date, calendarApi.availabilitySnapshot(), { rental: true });
       if (reason) e.date = `This date is not available (${reason.toLowerCase()}).`;

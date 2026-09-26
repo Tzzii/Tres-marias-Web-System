@@ -1,5 +1,7 @@
-import { addDays, daysFromToday, formatDate, todayISO } from '../utils/format.js';
+import { addDays, daysFromToday, formatDate } from '../utils/format.js';
 import { CUSTOMER_EDITABLE, HOLDS_DATE, statusLabel } from '../utils/status.js';
+import { downpaymentDueFor, financials, statusForPayments } from '../domain/money.js';
+import { menuDishes, quotationStale, quotationStaleReason, rentalAvailability, rentalStock } from '../domain/reservation.js';
 import { availabilitySnapshot, dateUnavailableReason, timeUnavailableReason } from './calendarService.js';
 import { DISH_CATEGORIES, MENU_LINE_MAX, RENTAL, RENTAL_SERVICE, RULES, SERVICE_TYPES, includesFood, isRental } from './config.js';
 import { pricePerPlate } from './catalogService.js';
@@ -17,7 +19,14 @@ import { ApiError, clone, latency, read, uid, write } from './store.js';
  * ([{ itemId, name, qty, price, damageFee }], prices copied when booked), `fulfilment` ('pickup' or
  * 'delivery') and `damageCharges` (pieces charged after the return). It has no guests, no menu and no
  * additional charges, and it takes no event slot on the calendar.
+ *
+ * This is the browser-store version. The rules that need no stored data (the money figures, the
+ * status for what has been paid, the downpayment due date, an out-of-date quotation, rental stock and
+ * the menu list) live in domain/money.js and domain/reservation.js, shared with the API server
+ * (apps/api/src/modules/reservations); `financials` is re-exported here for the other services.
  */
+
+export { financials };
 
 // Name of the signed-in admin, for the activity log and chat messages
 const ADMIN_NAME = () => {
@@ -32,121 +41,15 @@ const ADMIN_NAME = () => {
 // Add an entry to the reservation's activity history
 const log = (reservation, actor, text) => reservation.activity.push({ at: Date.now(), actor, text });
 
-/** Money and payment status for one reservation, worked out from its verified payments. */
-export function financials(reservation, payments) {
-  // Use the sent quotation's total, or the estimate if no quotation yet
-  const total = reservation.quotation ? reservation.quotation.net : reservation.estimate.net;
-  const mine = payments.filter((p) => p.ref === reservation.ref);
-  // Only verified payments count as paid
-  const paid = mine.filter((p) => p.status === 'verified').reduce((sum, p) => sum + p.amount, 0);
-  const awaiting = mine.filter((p) => p.status === 'awaiting');
-  const balance = Math.max(0, total - paid);
-  const downpayment = Math.round(total * RULES.downpaymentRate);
-
-  // full = paid everything; overdue = approved, due date passed, downpayment not reached; partial = some paid
-  let balanceState = 'unpaid';
-  if (paid >= total && total > 0) balanceState = 'full';
-  else if (
-    reservation.status === 'approved' &&
-    reservation.downpaymentDue &&
-    daysFromToday(reservation.downpaymentDue) < 0 &&
-    paid < downpayment
-  )
-    balanceState = 'overdue';
-  else if (paid > 0) balanceState = 'partial';
-
-  return {
-    total,
-    paid,
-    balance,
-    downpayment,
-    downpaymentPaid: paid >= downpayment,
-    awaitingAmount: awaiting.reduce((sum, p) => sum + p.amount, 0),
-    awaitingCount: awaiting.length,
-    balanceState
-  };
-}
-
 /**
- * Keep an approved booking's status matching what has been paid:
- *   paid in full        -> Confirmed
- *   downpayment reached -> Downpayment paid
- *   below the downpayment again (a new, higher quotation) -> back to Approved
- * Statuses only move forward when something has been paid, and Confirmed or later never moves back.
- * Used when a payment is verified (paymentService.js) and when a quotation is re-sent. Returns true when the status changed.
+ * Keep an approved booking's status matching what has been paid (the rule is statusForPayments in
+ * domain/money.js). Used when a payment is verified (paymentService.js) and when a quotation is
+ * re-sent. Returns true when the status changed.
  */
 export function syncPaymentStatus(data, reservation) {
-  const money = financials(reservation, data.payments);
   const before = reservation.status;
-  if (['approved', 'downpayment_paid'].includes(before) && money.paid > 0 && money.paid >= money.total) reservation.status = 'confirmed';
-  else if (before === 'approved' && money.paid > 0 && money.downpaymentPaid) reservation.status = 'downpayment_paid';
-  else if (before === 'downpayment_paid' && !money.downpaymentPaid) reservation.status = 'approved';
+  reservation.status = statusForPayments(before, financials(reservation, data.payments));
   return reservation.status !== before;
-}
-
-/**
- * Downpayment due date for an event: `due` (by default RULES.downpaymentDueDays from today),
- * but no later than 3 days before the event and never before today.
- */
-function downpaymentDueFor(eventDate, due = addDays(todayISO(), RULES.downpaymentDueDays)) {
-  const latest = addDays(eventDate, -3);
-  const capped = due < latest ? due : latest;
-  return capped < todayISO() ? todayISO() : capped;
-}
-
-/**
- * True when the sent quotation no longer matches the booking it belongs to, because the
- * guest count or the service type changed after it was sent. A buffet is charged per person,
- * so those two are the only edits that can put the quotation out of date. The admin sees a
- * warning and has to re-send it; nothing about what the customer owes changes on its own.
- */
-function quotationStale(reservation) {
-  return Boolean(quotationStaleReason(reservation));
-}
-
-// Sum of qty x price over rental lines ([{ qty, price }]) or damage lines ([{ qty, fee }])
-const rentalTotal = (lines = []) => lines.reduce((sum, line) => sum + line.qty * line.price, 0);
-const damageTotal = (lines = []) => lines.reduce((sum, line) => sum + line.qty * line.fee, 0);
-
-/**
- * Why the sent quotation is out of date, in words the admin reads on the quotation card, or '' when
- * it is current. For a rental the items (or their count), pick-up versus delivery, and damage charges
- * recorded after the return are what can move the total, e.g. "Damage charges of ₱800 were recorded
- * after it was sent."
- */
-function quotationStaleReason(reservation) {
-  const quote = reservation.quotation;
-  if (!quote) return '';
-  if (isRental(reservation.serviceType)) {
-    if ((quote.rental || 0) !== rentalTotal(reservation.rentalItems)) return 'The rented items changed after it was sent.';
-    if ((quote.fulfilment || 'pickup') !== reservation.fulfilment) return `It was sent for ${quote.fulfilment === 'delivery' ? 'delivery' : 'pick up'}, but this rental is now ${reservation.fulfilment === 'delivery' ? 'delivered' : 'picked up'}.`;
-    const damage = damageTotal(reservation.damageCharges);
-    if ((quote.damage || 0) !== damage) return `Damage charges of ₱${(damage - (quote.damage || 0)).toLocaleString('en-PH')} were recorded after it was sent.`;
-    return '';
-  }
-  if (quote.serviceType !== reservation.serviceType) return `It was sent as ${quote.serviceType}, but this booking is now ${reservation.serviceType}.`;
-  const plates = includesFood(reservation.serviceType) ? reservation.guests : 0;
-  if (quote.plates !== plates) return `It was sent for ${quote.plates} guests, but this booking is now for ${reservation.guests}.`;
-  return '';
-}
-
-/**
- * Pieces of each item still free for a rental on `date`: the total, minus damaged pieces, minus what
- * other approved rentals on that date have booked, minus what is checked out for other events dated
- * that day. { itemId: pieces }. `excludeRef` leaves one booking out (the one being edited or approved).
- * Package bookings only take stock once the admin checks it out, so the admin still confirms on approval.
- */
-function rentalStock(data, date, excludeRef) {
-  const sameDay = data.reservations.filter((r) => r.date === date && r.ref !== excludeRef && HOLDS_DATE.includes(r.status));
-  const rentals = sameDay.filter((r) => isRental(r.serviceType));
-  const events = sameDay.filter((r) => !isRental(r.serviceType));
-  const stock = {};
-  data.inventory.forEach((item) => {
-    const booked = rentals.reduce((sum, r) => sum + ((r.rentalItems || []).find((line) => line.itemId === item.id) || { qty: 0 }).qty, 0);
-    const atEvents = events.reduce((sum, r) => sum + (item.allocations[r.ref] || 0), 0);
-    stock[item.id] = Math.max(0, item.total - item.damaged - booked - atEvents);
-  });
-  return stock;
 }
 
 /**
@@ -202,22 +105,15 @@ function rentalQuote(data, reservation, { rentalItems = reservation.rentalItems,
 
 /**
  * How many of each rentable item are free on a date, for the rental form and the admin's edit dialog:
- * { itemId: { left, status } }, status 'available', 'limited' (at or below the item's alert level) or 'out'.
- * `excludeRef` leaves out the booking being edited, so its own pieces count as free.
+ * { itemId: { left, status } }, status 'available', 'limited' (at or below the item's alert level) or 'out'
+ * (rentalAvailability in domain/reservation.js). `excludeRef` leaves out the booking being edited, so
+ * its own pieces count as free.
  */
 export async function getRentalAvailability(date, { excludeRef } = {}) {
   await latency(150, 350);
   const data = read();
   if (!date) return {};
-  const stock = rentalStock(data, date, excludeRef);
-  return Object.fromEntries(
-    data.inventory
-      .filter((item) => item.rentable && !item.archived)
-      .map((item) => {
-        const left = stock[item.id] || 0;
-        return [item.id, { left, status: left <= 0 ? 'out' : left <= item.lowStockAt ? 'limited' : 'available' }];
-      })
-  );
+  return rentalAvailability(data, date, excludeRef);
 }
 
 /** Reservation plus package name, customer contact and money figures, for lists. */
@@ -235,18 +131,6 @@ function summarize(reservation, data) {
     quotationStaleReason: quotationStaleReason(reservation),
     ...financials(reservation, data.payments)
   };
-}
-
-/**
- * The menu as a display list, e.g. [{ key: 'pork', label: 'Pork dish', name: 'Lechon Kawali and Crispy Pata' }].
- * Empty for a Catering only booking.
- *
- * The customer writes each line themselves rather than picking from a list, so a line can name
- * more than one dish. What they typed is what the kitchen reads, word for word.
- */
-function menuDishes(reservation) {
-  if (!includesFood(reservation.serviceType) || !reservation.menu) return [];
-  return DISH_CATEGORIES.map(({ key, label }) => ({ key, label, name: reservation.menu[key] || '—' }));
 }
 
 /** All reservations (admin) or one customer's, newest request first. */

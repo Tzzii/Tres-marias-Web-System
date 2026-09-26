@@ -13,6 +13,7 @@
     "seed:api": "npm run seed -w apps/api",
     "db:reset": "npm run db:reset -w apps/api",
     "db:ping": "npm run db:ping -w apps/api",
+    "db:roundtrip": "npm run db:roundtrip -w apps/api",
     "dev:client": "node scripts/vite-run.mjs dev client",
     "dev:client:phone": "node scripts/vite-run.mjs dev client --host",
     "dev:admin": "node scripts/vite-run.mjs dev admin",

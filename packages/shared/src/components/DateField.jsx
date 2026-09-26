@@ -57,6 +57,8 @@ const POPUP_MODIFIERS = [
  * `rental` is for an equipment rental: it takes no event slot, so only too-soon and blocked
  * dates are greyed out. The gold dots and the booked event times still show, the same as
  * every other customer calendar, but a rental has no start times to choose around them.
+ * When the calendar runs on the API, the availability map arrives a moment after the page opens:
+ * until then no booking day can be picked and the note under the calendar says "Loading available dates…".
  * The schedule slides open and closed, and its content fades in when the date changes
  * (both off when the device asks for reduced motion).
  */
@@ -67,9 +69,12 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   const buttonRef = useRef(null); // the input-looking button, so the focus can go back to it
   const paperRef = useRef(null); // the popup card, which takes the focus when it opens
   const version = useStoreVersion(); // changes whenever the data changes (browser store or API)
-  // Blocked/booked dates and event times; refreshed when data changes or the popup opens
-  const snapshot = useMemo(() => availabilitySnapshot(), [version, anchor]); // eslint-disable-line react-hooks/exhaustive-deps
   const booking = mode === 'booking';
+  // Blocked/booked dates and event times (booking mode only: the admin's 'any' mode never reads them);
+  // read again when data changes or the popup opens
+  const snapshot = useMemo(() => (booking ? availabilitySnapshot() : null), [version, anchor, booking]); // eslint-disable-line react-hooks/exhaustive-deps
+  // On the API, the map has not arrived yet: no day can be picked until it does (never true on the browser store)
+  const loadingDates = booking && Boolean(snapshot.loading);
 
   // Month shown in the calendar: the selected date's month, or this month
   const initial = parseISODate(value || todayISO());
@@ -106,20 +111,21 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
 
   // Decide if each day can be picked. Admin mode ('any') only blocks past dates.
   // Open booking days with events get a dot and say how many events are booked (rentals too, so every
-  // customer calendar marks the same days).
+  // customer calendar marks the same days). While the map is loading, no booking day can be picked.
   const getDay = (iso) => {
     if (!booking) {
       return iso < todayISO() ? { tone: 'disabled', label: 'Past date' } : { tone: 'open' };
     }
+    if (loadingDates) return { tone: 'disabled', label: 'Loading available dates…' };
     const reason = dateUnavailableReason(iso, snapshot, { rental });
     if (reason) return { tone: 'disabled', label: reason };
     const count = snapshot.booked[iso] || 0;
     return count ? { tone: 'open', label: `Available · ${count} ${count === 1 ? 'event' : 'events'} already booked`, dots: count } : { tone: 'open', label: 'Available' };
   };
 
-  // Date whose schedule is shown: the picked date inline, the tapped date in the popup
+  // Date whose schedule is shown: the picked date inline, the tapped date in the popup (none while the map is loading)
   const shown = inline ? value : preview;
-  const schedule = booking && shown && !dateUnavailableReason(shown, snapshot, { rental }) ? daySchedule(shown, snapshot) : null;
+  const schedule = booking && !loadingDates && shown && !dateUnavailableReason(shown, snapshot, { rental }) ? daySchedule(shown, snapshot) : null;
   // Popup only: booked times on the chosen date, repeated under the input once the popup closes
   const valueBooked = booking && !inline && value ? daySchedule(value, snapshot).booked : [];
 
@@ -196,12 +202,15 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
         )}
       </Collapse>
 
-      {/* A rental can still take a day that is full for events, so its greyed-out days are only blocked or too soon */}
+      {/* A rental can still take a day that is full for events, so its greyed-out days are only blocked or too soon.
+          While the map is loading (API only), this line says so instead. */}
       {booking && (
-        <Typography sx={{ mt: 1.5, fontSize: 11.5, lineHeight: 1.5, color: tokens.textMuted }}>
-          {rental
-            ? 'Tap a date to see the times already booked. A gold dot means that day has an event. Greyed-out dates are blocked or too soon to prepare for.'
-            : 'Tap a date to see the times already booked. A gold dot means that day has an event. Greyed-out dates are fully booked, blocked, or too soon to prepare for.'}
+        <Typography role={loadingDates ? 'status' : undefined} sx={{ mt: 1.5, fontSize: 11.5, lineHeight: 1.5, color: tokens.textMuted }}>
+          {loadingDates
+            ? 'Loading available dates…'
+            : rental
+              ? 'Tap a date to see the times already booked. A gold dot means that day has an event. Greyed-out dates are blocked or too soon to prepare for.'
+              : 'Tap a date to see the times already booked. A gold dot means that day has an event. Greyed-out dates are fully booked, blocked, or too soon to prepare for.'}
         </Typography>
       )}
     </>

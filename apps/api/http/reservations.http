@@ -1,0 +1,110 @@
+# Phase 6A checks for reservations: the lists and the detail, the booking form (an event and an equipment
+# rental), the customer's cancel and change request, and the rental stock on a date (VS Code REST Client:
+# click "Send Request" above a block). Start the API first (npm run dev:api) and load the sample data
+# (npm run seed:api). The bookings made here stay in the database: run npm run seed:api again afterwards.
+#
+# The customer requests need a customer token and the admin requests an admin token: get them with the
+# sign-in requests at the top of catalog.http, and paste them into @customerToken and @adminToken below.
+# Dates are counted from today ({{$datetime "YYYY-MM-DD" 45 d}} is 45 days from now), so they stay in the
+# future; pick another offset if that day is blocked or already has an event.
+# Errors come back as { code, message, meta }; meta.field names the form input the message belongs to.
+
+@api = http://localhost:4000/api
+@customerToken = paste-a-customer-token
+@adminToken = paste-an-admin-token
+@ref = RES-2026-1006-01
+
+### ---------------------------------------------------------------- Customer: reads
+
+### The signed-in customer's bookings, newest first. Never the admin's private notes.
+GET {{api}}/reservations
+Authorization: Bearer {{customerToken}}
+
+### One of the customer's own bookings in full (package, menu, add-ons, payments, review).
+### Another customer's booking is 404 NOT_FOUND, never 403.
+GET {{api}}/reservations/{{ref}}
+Authorization: Bearer {{customerToken}}
+
+### Rental stock on a date: { itemId: { left, status } }, status available / limited / out.
+### No date: {}. A day that does not exist: 400 INVALID, meta.field "date"
+GET {{api}}/rentals/availability?date={{$datetime "YYYY-MM-DD" 45 d}}
+Authorization: Bearer {{customerToken}}
+
+### ---------------------------------------------------------------- Customer: booking form
+
+### A buffet: 201 with the new booking's summary (status pending, estimate = package + guests x the price per person).
+### A blocked or full date: 409 DATE_UNAVAILABLE; an overlapping start time: 409 TIME_UNAVAILABLE
+POST {{api}}/reservations
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "packageId": "pkg-1",
+  "serviceType": "Buffet and Catering",
+  "eventName": "Santos Family Reunion",
+  "occasion": "Reunion",
+  "date": "{{$datetime "YYYY-MM-DD" 45 d}}",
+  "startTime": "17:00",
+  "guests": 120,
+  "menu": { "pork": "Lechon kawali", "chicken": "Chicken inasal", "fish": "Sweet and sour fish", "vegetable": "Chopsuey" },
+  "foodNotes": "One vegetarian table",
+  "addonIds": ["add-waiters"],
+  "addonQty": { "add-waiters": 3 },
+  "venueName": "Barangay Hall",
+  "venueAddress": "Poblacion",
+  "city": "Malvar, Batangas",
+  "accessNotes": ""
+}
+
+### An equipment rental picked up at our place: 201. More pieces than are free that day: 409 OUT_OF_STOCK, meta.field "rental.<itemId>"
+POST {{api}}/reservations
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "packageId": "pkg-equipment-rental",
+  "eventName": "Backyard birthday",
+  "occasion": "Birthday",
+  "date": "{{$datetime "YYYY-MM-DD" 46 d}}",
+  "startTime": "09:00",
+  "fulfilment": "pickup",
+  "rentalItems": [{ "itemId": "inv-001", "qty": 50 }]
+}
+
+### Guests out of range: 400 INVALID "Guests must be between 50 and 2000.", meta.field "guests"
+POST {{api}}/reservations
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "packageId": "pkg-1", "serviceType": "Catering only", "eventName": "Too small", "occasion": "Birthday", "date": "{{$datetime "YYYY-MM-DD" 45 d}}", "startTime": "12:00", "guests": 10, "venueName": "Hall", "venueAddress": "1 St", "city": "Lipa" }
+
+### ---------------------------------------------------------------- Customer: cancel and change request
+
+### Cancel (only while Pending or Approved): the summary with status "cancelled".
+### A payment still being verified: 409 PENDING_PAYMENT; a confirmed booking: 409 INVALID_STATE
+POST {{api}}/reservations/{{ref}}/cancel
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "reason": "We moved the celebration to next year." }
+
+### Ask for a change: "Change request: …" in the customer's chat, unread for the admin -> { threadId }
+POST {{api}}/reservations/{{ref}}/change-request
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "message": "Please change the guest count from 150 to 170." }
+
+### ---------------------------------------------------------------- Admin
+
+### Every booking, newest first (with the admin's notes). A customer's token here: 403 FORBIDDEN
+GET {{api}}/admin/reservations
+Authorization: Bearer {{adminToken}}
+
+### One booking in full
+GET {{api}}/admin/reservations/{{ref}}
+Authorization: Bearer {{adminToken}}
+
+### Rental stock with the booking being edited left out (excludeRef counts for an admin only)
+GET {{api}}/rentals/availability?date={{$datetime "YYYY-MM-DD" 45 d}}&excludeRef={{ref}}
+Authorization: Bearer {{adminToken}}
