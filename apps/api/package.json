@@ -9,7 +9,8 @@
     "start": "node src/server.js",
     "seed": "node src/seed.js",
     "db:reset": "node scripts/db-reset.js",
-    "db:ping": "node scripts/db-ping.js"
+    "db:ping": "node scripts/db-ping.js",
+    "db:roundtrip": "node scripts/db-roundtrip.js"
   },
   "dependencies": {
     "@tm/shared": "*",

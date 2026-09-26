@@ -8,6 +8,7 @@ import Paper from '@mui/material/Paper';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import { DateField, OCCASIONS, RULES, TimeField, calendarApi, formatDateLong, formatTime, validateGuests } from '@tm/shared';
 import { readIntent, saveIntent } from '../lib/booking.js';
@@ -28,7 +29,7 @@ export default function BookingBar({ onAvailable }) {
   const [guests, setGuests] = useState(saved.guests ? String(saved.guests) : '');
   const [errors, setErrors] = useState({});
   const [checking, setChecking] = useState(false); // true while checking the date
-  const [result, setResult] = useState(null); // availability answer shown under the bar
+  const [result, setResult] = useState(null); // availability answer shown under the bar, or { failed, message } when the check could not run
 
   // Guest count is typed only (no up/down arrows): digits only, and never above the largest count the business serves
   const updateGuests = (raw) => {
@@ -38,7 +39,8 @@ export default function BookingBar({ onAvailable }) {
     setErrors((er) => ({ ...er, guests: '' }));
   };
 
-  // Validate the four fields, then ask the calendar whether the date and start time are free
+  // Validate the four fields, then ask the calendar whether the date and start time are free.
+  // On the API the check itself can fail (no connection, too many requests): its message is shown instead.
   const submit = async (event) => {
     event.preventDefault();
     const next = {};
@@ -60,6 +62,8 @@ export default function BookingBar({ onAvailable }) {
         saveIntent({ date, startTime, occasion, guests: Number(guests) });
         if (onAvailable) onAvailable();
       }
+    } catch (e) {
+      setResult({ failed: true, message: e.message || 'Could not check this date. Please try again.' });
     } finally {
       setChecking(false);
     }
@@ -149,16 +153,18 @@ export default function BookingBar({ onAvailable }) {
       </Box>
 
       {/* Green "open" or red "not available" message that slides in after checking.
-          Red has two cases: the whole date is unavailable, or only the chosen time is taken. */}
+          Red has three cases: the whole date is unavailable, only the chosen time is taken, or the check itself failed. */}
       <Collapse in={Boolean(result)} unmountOnExit>
         {result && (
           <Box role="status" sx={{ mt: 2.5, px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderRadius: 1.5, backgroundColor: result.available ? '#ecfdf5' : '#fef2f2', border: `1px solid ${result.available ? '#a7f3d0' : '#fecaca'}` }}>
-            {result.available ? <CheckCircleOutlineRoundedIcon sx={{ color: '#059669' }} /> : <EventBusyOutlinedIcon sx={{ color: '#dc2626' }} />}
+            {result.available ? <CheckCircleOutlineRoundedIcon sx={{ color: '#059669' }} /> : result.failed ? <ErrorOutlineRoundedIcon sx={{ color: '#dc2626' }} /> : <EventBusyOutlinedIcon sx={{ color: '#dc2626' }} />}
             <Typography sx={{ fontSize: 13.5, color: result.available ? '#065f46' : '#991b1b' }}>
               {result.available ? (
                 <>
                   <b>{formatDateLong(result.date)}</b> at <b>{formatTime(result.startTime)}</b> is open. Pick a package below to reserve it.
                 </>
+              ) : result.failed ? (
+                result.message
               ) : result.timeConflict ? (
                 <>
                   <b>{formatTime(result.startTime)}</b> on <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}). Please try another time.

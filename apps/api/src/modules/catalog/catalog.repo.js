@@ -9,6 +9,9 @@ import { parseJson, toJson } from '../../lib/json.js';
  *
  * Lists are in sort_order (then id): the seed's order, and each new record after the rest, which is
  * the order of the browser store's arrays. MySQL has no order of its own without ORDER BY.
+ *
+ * The reads a booking needs (findPackageById, listAddons, getPricePerPlate) use the pool unless given
+ * a connection (`db`), so the reservations module can read them inside its own transaction (Phase 6).
  */
 
 // First row of a SELECT, or null
@@ -49,8 +52,8 @@ export async function listPackages({ includeHidden = false, includeArchived = fa
 }
 
 /** The package with this id (hidden and archived included), or null. */
-export const findPackageById = async (id) =>
-  toPackage(first(await pool.query(`SELECT ${PACKAGE_COLUMNS} FROM packages WHERE id = ?`, [id])));
+export const findPackageById = async (id, db = pool) =>
+  toPackage(first(await db.query(`SELECT ${PACKAGE_COLUMNS} FROM packages WHERE id = ?`, [id])));
 
 /** The visible, non-archived package with this slug, or null. */
 export const findPublicPackageBySlug = async (slug) =>
@@ -111,8 +114,8 @@ const toAddon = (row) =>
   };
 
 /** Add-ons in list order; without includeArchived, only the ones still offered. */
-export async function listAddons({ includeArchived = false } = {}) {
-  const [rows] = await pool.query(`SELECT ${ADDON_COLUMNS} FROM addons ${where(includeArchived ? [] : ['archived = 0'])} ORDER BY sort_order, id`);
+export async function listAddons({ includeArchived = false } = {}, db = pool) {
+  const [rows] = await db.query(`SELECT ${ADDON_COLUMNS} FROM addons ${where(includeArchived ? [] : ['archived = 0'])} ORDER BY sort_order, id`);
   return rows.map(toAddon);
 }
 
@@ -197,8 +200,8 @@ export async function setDishArchived(id, archived) {
 /* ============================ Buffet price per person ============================ */
 
 /** The saved buffet price per person, or null when the settings row is missing. */
-export async function getPricePerPlate() {
-  const row = first(await pool.query('SELECT price_per_plate FROM catalog_settings WHERE id = 1'));
+export async function getPricePerPlate(db = pool) {
+  const row = first(await db.query('SELECT price_per_plate FROM catalog_settings WHERE id = 1'));
   return row ? row.price_per_plate : null;
 }
 

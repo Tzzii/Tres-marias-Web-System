@@ -18,6 +18,7 @@ export class ApiError extends Error {
  * HTTP status for each code (docs/backend-development-phases.md §7.4). A code missing here is sent as 400.
  * OVER_BALANCE, NO_QUOTATION and NO_MOBILE are not in §7.4 but the frontend services throw them;
  * like NO_CHANNEL they mean "not possible in the record's current state", so they use 409.
+ * OUT_OF_STOCK (Phase 6A): not enough pieces of a rental item free on the date; 409 like CAPACITY.
  * DELIVERY_FAILED (server only, Phase 3): the email or SMS provider refused a sign-in or reset code,
  * so the code never left; 502 like PAYMENT_PROVIDER, since another service failed, not the request.
  */
@@ -28,7 +29,7 @@ export const STATUS = Object.freeze({
   NOT_FOUND: 404,
   INVALID_STATE: 409, NAME_TAKEN: 409, EMAIL_TAKEN: 409, IN_USE: 409,
   DATE_UNAVAILABLE: 409, TIME_UNAVAILABLE: 409, CAPACITY: 409, PENDING_PAYMENT: 409, NO_CHANNEL: 409,
-  OVER_BALANCE: 409, NO_QUOTATION: 409, NO_MOBILE: 409,
+  OVER_BALANCE: 409, NO_QUOTATION: 409, NO_MOBILE: 409, OUT_OF_STOCK: 409,
   CODE_EXPIRED: 410, CHALLENGE_EXPIRED: 410,
   TOO_SOON: 422,
   LOCKED: 423,

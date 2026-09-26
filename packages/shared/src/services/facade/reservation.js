@@ -1,10 +1,12 @@
 // Public face of the reservation service: pages import it through reservationApi (@tm/shared).
 // Each call goes to the browser-store version or the API version, chosen once at startup (backend.js).
 import * as local from '../reservationService.js';
+import * as remote from '../remote/reservation.js';
 import { pickImpl } from '../backend.js';
 
-// The API version arrives in Phase 6 (services/remote/reservation.js); until then the browser store answers
-const impl = pickImpl('reservations', local);
+// The API version since Phase 6A (services/remote/reservation.js), when VITE_API_SERVICES includes "reservations".
+// Its nine admin actions and edits reach the server in Phase 6B; until then they answer with an error.
+const impl = pickImpl('reservations', local, remote);
 
 export const listReservations = (...a) => impl.listReservations(...a);
 export const getReservation = (...a) => impl.getReservation(...a);
@@ -22,7 +24,7 @@ export const saveNotes = (...a) => impl.saveNotes(...a);
 export const getRentalAvailability = (...a) => impl.getRentalAvailability(...a);
 export const updateRentalItems = (...a) => impl.updateRentalItems(...a);
 
-// Pure money rule that takes the reservation and payments as arguments: the same on both sides (moves to domain/ later)
-export { financials } from '../reservationService.js';
+// Pure money rule that takes the reservation and payments as arguments: the same code on both sides and on the server
+export { financials } from '../../domain/money.js';
 
 // Not listed: syncPaymentStatus and postAdminMessage change the browser store's raw `data` inside a write(); other services use them, pages don't
