@@ -80,8 +80,10 @@ Content-Type: application/json
 
 ### ---------------------------------------------------------------- Customer: cancel and change request
 
-### Cancel (only while Pending or Approved): the summary with status "cancelled".
-### A payment still being verified: 409 PENDING_PAYMENT; a confirmed booking: 409 INVALID_STATE
+### Cancel online, when the summary's onlineCancel allows it: the summary with status "cancelled" and cancelledBy "customer".
+### Unpaid: any time before the event day. Paid: until cancelDeadline and before "Started preparing" (preparing_at),
+### else 409 INVALID_STATE with the reason. A payment still being verified: 409 PENDING_PAYMENT.
+### A rental with pieces still checked out (inventory_allocations): 409 INVALID_STATE "Some rented items are still out. Message us to cancel."
 POST {{api}}/reservations/{{ref}}/cancel
 Authorization: Bearer {{customerToken}}
 Content-Type: application/json

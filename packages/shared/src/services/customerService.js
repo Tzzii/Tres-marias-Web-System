@@ -5,12 +5,15 @@ import { ApiError, latency, read, write } from './store.js';
 
 /** The admin customer directory. Reviews live in feedbackService.js. */
 
-/** Build a customer's summary: contact info plus reservation counts, balance owed and total spent. */
+/**
+ * Build a customer's summary: contact info plus reservation counts, balance owed and total spent
+ * (what they paid on their active bookings, less anything returned to them).
+ */
 function stats(customer, data) {
   const reservations = data.reservations.filter((r) => r.customerId === customer.id);
   const active = reservations.filter((r) => !['declined', 'cancelled'].includes(r.status));
-  // Paid / balance figures for each active reservation
-  const money = active.map((r) => ({ r, ...financials(r, data.payments) }));
+  // Paid (net of refunds) / balance figures for each active reservation
+  const money = active.map((r) => ({ r, ...financials(r, data.payments, data.refunds) }));
   return {
     id: customer.id,
     name: customer.name,
@@ -52,7 +55,7 @@ export async function getCustomer(customerId) {
         status: r.status,
         guests: r.guests,
         packageName: (data.packages.find((p) => p.id === r.packageId) || {}).name,
-        ...financials(r, data.payments)
+        ...financials(r, data.payments, data.refunds)
       }))
       .sort((a, b) => b.date.localeCompare(a.date))
   };

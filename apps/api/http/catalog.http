@@ -57,11 +57,14 @@ GET {{api}}/addons
 ### Buffet dishes still offered (?includeArchived=true for an admin)
 GET {{api}}/dishes
 
-### The booking form's one call: { packages, addons, dishes, pricePerPlate, rentals }
+### The booking form's one call: { packages, addons, dishes, pricePerPlate, minDownpayment, rentals }
 GET {{api}}/catalog
 
 ### The buffet price per person alone: { pricePerPlate }
 GET {{api}}/catalog/price-per-plate
+
+### The minimum downpayment alone: { minDownpayment } (public)
+GET {{api}}/catalog/min-downpayment
 
 ### The rental price list: [{ id, name, category, price, damageFee }], never stock counts
 GET {{api}}/rental-items
@@ -179,3 +182,13 @@ Authorization: Bearer {{adminVerify.response.body.token}}
 Content-Type: application/json
 
 { "pricePerPlate": 650 }
+
+### ---------------------------------------------------------------- Admin: minimum downpayment
+
+### Set it (whole pesos, ₱1,000–₱100,000): { minDownpayment }. 999 or 3000.5: 400 INVALID, meta.field "minDownpayment".
+### No token: 401; a customer's token: 403. New bookings copy it; existing ones keep theirs.
+PUT {{api}}/admin/catalog/min-downpayment
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{ "minDownpayment": 3500 }

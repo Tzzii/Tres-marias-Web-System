@@ -13,6 +13,7 @@ import {
   AlertBanner,
   AppDialog,
   BUFFET_DRINKS,
+  BUSINESS,
   BusyButton,
   CUSTOMER_EDITABLE,
   CardTitle,
@@ -27,10 +28,12 @@ import {
   ListSkeleton,
   PageHeader,
   RENTAL,
+  REFUND_METHODS,
   StarRating,
   StatusChip,
   StatusPipeline,
   ThemeIcon,
+  daysFromToday,
   documentsFor,
   formatDate,
   formatDateLong,
@@ -42,6 +45,7 @@ import {
   peso,
   reservationApi,
   toISODate,
+  todayISO,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -49,7 +53,12 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-/** 1i · Reservation details. Read-only except Request a change, Cancel and Pay. */
+/**
+ * 1i · Reservation details. Read-only except Request a change, Cancel and Pay.
+ * Cancel shows only while the booking can be cancelled online (the summary's `onlineCancel`, worked out
+ * by domain/cancellation.js); the status card says until when, or why not and how to cancel instead.
+ * It also shows the "Started preparing" mark, who cancelled, and any refund owed or sent.
+ */
 export default function ReservationDetailPage() {
   const { ref } = useParams();
   const navigate = useNavigate();
@@ -87,8 +96,14 @@ export default function ReservationDetailPage() {
     );
   }
 
-  // Customer can request changes or cancel only in certain statuses
+  // Customer can request changes only in certain statuses (Pending, Approved)
   const editable = CUSTOMER_EDITABLE.includes(r.status);
+  // Online cancellation: allowed now, or the reason why not (checked again when cancelling)
+  const online = r.onlineCancel || { allowed: false, reason: '', deadline: r.cancelDeadline };
+  const closed = ['cancelled', 'declined', 'completed'].includes(r.status);
+  // What was returned so far on this booking, newest first (none on the API before Phase 8)
+  const refunds = r.refunds || [];
+  const refunded = r.refunded || 0;
   // Can pay when approved or later, money is owed, and no payment is already waiting for verification
   const canPay = ['approved', 'downpayment_paid', 'confirmed'].includes(r.status) && r.balance > 0 && !r.awaitingCount;
   // Quotation, contract and receipts for this reservation
@@ -111,7 +126,7 @@ export default function ReservationDetailPage() {
                 Request a change
               </Button>
             )}
-            {editable && (
+            {online.allowed && (
               <Button startIcon={<EventBusyOutlinedIcon />} onClick={() => setCancelOpen(true)} sx={{ color: tokens.dangerSoft }}>
                 Cancel
               </Button>
@@ -131,11 +146,57 @@ export default function ReservationDetailPage() {
           )}
           {r.status === 'approved' && !r.downpaymentPaid && (
             <AlertBanner tone={r.awaitingCount ? 'info' : r.balanceState === 'overdue' ? 'error' : 'locked'} sx={{ mt: 2 }} title={r.awaitingCount ? 'Payment being verified' : r.balanceState === 'overdue' ? 'Downpayment overdue' : 'Downpayment due'} action={canPay && <Button size="small" variant="contained" onClick={() => navigate(`/portal/payments?ref=${r.ref}`)}>Pay now</Button>}>
-              {r.awaitingCount ? 'Your payment is being verified, usually within a day.' : `Pay ${peso(r.downpayment - r.paid)} by ${formatDateLong(r.downpaymentDue)} to secure your date.`}
+              {r.awaitingCount
+                ? 'Your payment is being verified, usually within a day.'
+                : r.downpayment < r.total
+                  ? `Pay at least ${peso(r.downpayment - r.paid)} by ${formatDateLong(r.downpaymentDue)} to secure your date. You can pay more, up to ${peso(r.balance)}.`
+                  : `Pay the full ${peso(r.balance)} by ${formatDateLong(r.downpaymentDue)} to secure your date.`}
             </AlertBanner>
           )}
           {r.status === 'declined' && <AlertBanner tone="error" sx={{ mt: 2 }} title="Reason from our team">{r.declineReason}</AlertBanner>}
-          {r.status === 'cancelled' && <AlertBanner tone="error" sx={{ mt: 2 }} title="You cancelled this reservation">{r.cancelReason}</AlertBanner>}
+          {/* Records without cancelledBy are the customer's own cancellations */}
+          {r.status === 'cancelled' && (
+            <AlertBanner tone="error" sx={{ mt: 2 }} title={r.cancelledBy === 'admin' ? 'Cancelled by Tres Marias' : 'You cancelled this reservation'}>
+              {r.cancelReason}
+            </AlertBanner>
+          )}
+          {/* Money owed back after a cancellation (an overpayment shows under Payment summary) */}
+          {['cancelled', 'declined'].includes(r.status) && r.refundDue > 0 && (
+            <AlertBanner tone="info" sx={{ mt: 2 }} title={`Refund due: ${peso(r.refundDue)}`}>
+              We'll return it and tell you in your chat.
+            </AlertBanner>
+          )}
+          {/* Each refund recorded; a refund of ₱0 means everything paid was kept, with the reason */}
+          {refunds.map((f) =>
+            f.amount > 0 ? (
+              <AlertBanner key={f.id} tone="success" sx={{ mt: 2 }} title={`Refunded ${peso(f.amount)} on ${formatDateLong(f.sentOn)}`}>
+                Via {REFUND_METHODS[f.method]}
+                {f.referenceNo ? ` · Ref ${f.referenceNo}` : ''}.{f.reason ? ` We kept ${peso(f.due - f.amount)}: ${f.reason}` : ''}
+              </AlertBanner>
+            ) : (
+              <AlertBanner key={f.id} tone="info" sx={{ mt: 2 }} title="No refund">
+                We kept the {peso(f.due)} you paid: {f.reason}
+              </AlertBanner>
+            )
+          )}
+          {/* Preparation has started: the booking can no longer be cancelled online */}
+          {r.preparingAt && !closed && (
+            <Typography sx={{ mt: 2, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>Preparation started on {formatDateLong(toISODate(new Date(r.preparingAt)))}.</Typography>
+          )}
+          {/* Online cancellation: until when, or why not and how to cancel instead (nothing once the event day has come) */}
+          {!closed && daysFromToday(r.date) > 0 && (
+            <Typography sx={{ mt: r.preparingAt ? 0.5 : 2, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}>
+              {!online.allowed
+                ? `${online.reason} To cancel, message us in your chat or call ${BUSINESS.phone}.`
+                : r.paid > 0
+                  ? `You can cancel online until ${formatDateLong(online.deadline)}.`
+                  : `You can cancel online any time before the event day. ${
+                      online.deadline >= todayISO()
+                        ? `After you pay, you can cancel online until ${formatDateLong(online.deadline)}.`
+                        : `After you pay, message us in your chat or call ${BUSINESS.phone} to cancel: online cancellation for paid bookings ended on ${formatDateLong(online.deadline)}.`
+                    }`}
+            </Typography>
+          )}
         </DashCard>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
@@ -202,8 +263,10 @@ export default function ReservationDetailPage() {
             <DashCard>
               <CardTitle subtitle={r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'Package price only until your quotation prices the food and additional charges'}>Payment summary</CardTitle>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
-              <DetailRow label="Downpayment · 50%">{peso(r.downpayment)}</DetailRow>
-              <DetailRow label="Paid">{peso(r.paid)}</DetailRow>
+              <DetailRow label="Minimum downpayment">{peso(r.downpayment)}</DetailRow>
+              {/* Paid = what was received; money given back shows on its own row */}
+              <DetailRow label="Paid">{peso(r.paid + refunded)}</DetailRow>
+              {refunded > 0 && <DetailRow label="Refunded">− {peso(refunded)}</DetailRow>}
               {r.awaitingAmount > 0 && <DetailRow label="Being verified">{peso(r.awaitingAmount)}</DetailRow>}
               <Divider sx={{ my: 1 }} />
               <DetailRow label={<b>Balance</b>}>
@@ -211,6 +274,12 @@ export default function ReservationDetailPage() {
                   {peso(r.balance)}
                 </Box>
               </DetailRow>
+              {/* A lower revised quotation left more paid than the new total */}
+              {r.overpaid > 0 && (
+                <AlertBanner tone="info" sx={{ mt: 1.5 }} title={`Overpaid ${peso(r.overpaid)}, to be returned`}>
+                  We'll return it and tell you in your chat when it's sent.
+                </AlertBanner>
+              )}
               {canPay && (
                 <Button fullWidth variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => navigate(`/portal/payments?ref=${r.ref}`)} sx={{ mt: 1.5 }}>
                   {r.downpaymentPaid ? 'Pay balance' : 'Pay downpayment'}
@@ -317,7 +386,7 @@ export default function ReservationDetailPage() {
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
         title="Cancel this reservation?"
-        description={r.paid > 0 ? 'Refunds follow the cancellation terms in your contract. The admin will contact you in your chat.' : 'The date will be released for other bookings. This cannot be undone.'}
+        description={r.paid > 0 ? `You paid ${peso(r.paid)}. We'll return it and tell you in your chat when it's sent.` : 'The date will be released for other bookings. This cannot be undone.'}
         confirmLabel="Cancel reservation"
         cancelLabel="Keep reservation"
         tone="danger"

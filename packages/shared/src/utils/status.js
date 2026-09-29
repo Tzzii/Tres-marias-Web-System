@@ -3,7 +3,9 @@ import { tokens } from '../theme/tokens.js';
 /**
  * The reservation status pipeline, identical on both portals:
  * Pending → Approved → Downpayment paid → Confirmed → Completed
- * plus the two exits, Declined (by the admin) and Cancelled (by the customer).
+ * plus the two exits, Declined (by the admin) and Cancelled (by the customer online, or by the admin
+ * with a reason; the reservation's `cancelledBy` says which). "Started preparing" is a mark on the
+ * booking (`preparingAt`), not a status.
  */
 export const PIPELINE = ['pending', 'approved', 'downpayment_paid', 'confirmed', 'completed'];
 
@@ -27,7 +29,10 @@ export const pipelineIndex = (status) => PIPELINE.indexOf(status);
 /** Statuses that hold a date against the daily capacity. */
 export const HOLDS_DATE = ['approved', 'downpayment_paid', 'confirmed'];
 
-/** Statuses the customer may still cancel or change. */
+/**
+ * Statuses in which the customer may still ask for a change (the "Request a change" button). Cancelling
+ * online has its own rules, onlineCancellation in domain/cancellation.js.
+ */
 export const CUSTOMER_EDITABLE = ['pending', 'approved'];
 
 // Display name and chip colours for each payment status
@@ -44,8 +49,15 @@ export const PAYMENT_METHODS = {
   cash: 'Cash on site'
 };
 
-/** What a payment was for, as shown on receipts and payment lists: 'downpayment' -> 'Downpayment (50%)'. */
-export const paymentKindLabel = (kind) => (kind === 'downpayment' ? 'Downpayment (50%)' : kind === 'full' ? 'Full payment' : 'Balance');
+// Display name for each way a refund is sent back. Shorter than PAYMENT_METHODS: a refund is never "on site".
+export const REFUND_METHODS = {
+  gcash: 'GCash',
+  bank: 'Bank transfer',
+  cash: 'Cash'
+};
+
+/** What a payment was for, as shown on receipts and payment lists: 'downpayment' -> 'Downpayment'. */
+export const paymentKindLabel = (kind) => (kind === 'downpayment' ? 'Downpayment' : kind === 'full' ? 'Full payment' : 'Balance');
 
 /** Balance status used by the admin Payments filters. */
 export const BALANCE_STATE = {

@@ -46,13 +46,17 @@ catalogRoutes.get('/dishes', optionalAuth, validate({ query: schemas.archivedQue
   const { query } = req.valid;
   res.json(await catalog.listDishes(query, viewer(req, query.includeArchived)));
 });
-// The booking form's one call: { packages, addons, dishes, pricePerPlate, rentals }
+// The booking form's one call: { packages, addons, dishes, pricePerPlate, minDownpayment, rentals }
 catalogRoutes.get('/catalog', async (req, res) => {
   res.json(await catalog.getCatalog());
 });
 // { pricePerPlate }: keeps the portals' synchronous pricePerPlate() current (services/remote/catalog.js)
 catalogRoutes.get('/catalog/price-per-plate', async (req, res) => {
   res.json(await catalog.getPricePerPlate());
+});
+// { minDownpayment }: keeps the portals' synchronous minDownpayment() current, the same way
+catalogRoutes.get('/catalog/min-downpayment', async (req, res) => {
+  res.json(await catalog.getMinDownpayment());
 });
 // The Equipment Rental price list: [{ id, name, category, price, damageFee }], never stock counts
 catalogRoutes.get('/rental-items', async (req, res) => {
@@ -102,4 +106,9 @@ catalogAdminRoutes.patch('/dishes/:id/archived', validate({ params: schemas.idPa
 // Buffet price per person: { pricePerPlate } in, { pricePerPlate } out
 catalogAdminRoutes.put('/catalog/price-per-plate', validate({ body: schemas.pricePerPlateBody }), async (req, res) => {
   res.json(await catalog.setPricePerPlate(req.valid.body.pricePerPlate));
+});
+
+// Minimum downpayment: { minDownpayment } in, { minDownpayment } out
+catalogAdminRoutes.put('/catalog/min-downpayment', validate({ body: schemas.minDownpaymentBody }), async (req, res) => {
+  res.json(await catalog.setMinDownpayment(req.valid.body.minDownpayment));
 });

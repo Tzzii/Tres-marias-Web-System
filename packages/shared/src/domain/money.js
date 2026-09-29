@@ -1,25 +1,50 @@
-import { RULES } from '../services/config.js';
+import { DEFAULT_MIN_DOWNPAYMENT, RULES } from '../services/config.js';
 import { addDays, daysFromToday, todayISO } from '../utils/format.js';
 
 /**
- * Money rules for a reservation that need no stored data: what is owed and paid, where the booking
- * should stand for what has been paid, and when the downpayment falls due.
+ * Money rules for a reservation that need no stored data: what is owed, paid and returned, where the
+ * booking should stand for what has been paid, and when the downpayment falls due.
  *
  * Pure (no store.js, no localStorage, no React), so the browser service (reservationService.js), the
  * pages and the API server (apps/api/src/modules/reservations) work out the same figures
  * (docs/backend-development-phases.md §7.8).
  */
 
-/** Money and payment status for one reservation, worked out from its verified payments. */
-export function financials(reservation, payments) {
+// A cancelled or declined booking owes nothing more, and everything paid on it is returned
+const ENDED_EARLY = ['cancelled', 'declined'];
+
+/**
+ * Money and payment status for one reservation, from its payments and the refunds sent back on it:
+ *   total            the sent quotation's net, or the estimate's before any quotation
+ *   refunded         what was returned to the customer (this booking's refunds)
+ *   paid             verified payments less refunded (net); payments waiting for verification don't count
+ *   balance          total − paid, never below 0, and 0 for a cancelled or declined booking
+ *   downpayment      the least to pay first: the booking's own minimum (copied when it was made; bookings
+ *                    saved before there was one use DEFAULT_MIN_DOWNPAYMENT), or the whole total when that
+ *                    is lower, e.g. minimum ₱3,000 on a ₱2,400 total -> 2,400 (paid in full)
+ *   downpaymentPaid  paid has reached the downpayment
+ *   overpaid         paid above the total (after a lower revised quotation); 0 for cancelled or declined
+ *   refundDue        what still has to be returned: on a cancelled or declined booking everything paid,
+ *                    until its one cancellation refund is recorded (then 0); on any other, the overpayment
+ *   awaitingAmount / awaitingCount   payments waiting for verification
+ *   balanceState     'full', 'overdue' (approved, due date passed, downpayment not reached), 'partial' or 'unpaid'
+ * `refunds` are refund records ({ ref, kind, amount }); the API passes [] until refunds reach the server in Phase 8.
+ */
+export function financials(reservation, payments, refunds = []) {
   // Use the sent quotation's total, or the estimate if no quotation yet
   const total = reservation.quotation ? reservation.quotation.net : reservation.estimate.net;
   const mine = payments.filter((p) => p.ref === reservation.ref);
-  // Only verified payments count as paid
-  const paid = mine.filter((p) => p.status === 'verified').reduce((sum, p) => sum + p.amount, 0);
+  const returned = refunds.filter((r) => r.ref === reservation.ref);
+  const refunded = returned.reduce((sum, r) => sum + r.amount, 0);
+  // Only verified payments count as paid, less what was given back
+  const paid = mine.filter((p) => p.status === 'verified').reduce((sum, p) => sum + p.amount, 0) - refunded;
   const awaiting = mine.filter((p) => p.status === 'awaiting');
-  const balance = Math.max(0, total - paid);
-  const downpayment = Math.round(total * RULES.downpaymentRate);
+  const endedEarly = ENDED_EARLY.includes(reservation.status);
+  const balance = endedEarly ? 0 : Math.max(0, total - paid);
+  const downpayment = Math.min(reservation.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT, total);
+  const overpaid = endedEarly ? 0 : Math.max(0, paid - total);
+  // A cancelled booking gets one cancellation refund, which settles it even when part was kept
+  const refundDue = endedEarly ? (returned.some((r) => r.kind === 'cancellation') ? 0 : paid) : overpaid;
 
   // full = paid everything; overdue = approved, due date passed, downpayment not reached; partial = some paid
   let balanceState = 'unpaid';
@@ -36,9 +61,12 @@ export function financials(reservation, payments) {
   return {
     total,
     paid,
+    refunded,
     balance,
     downpayment,
     downpaymentPaid: paid >= downpayment,
+    overpaid,
+    refundDue,
     awaitingAmount: awaiting.reduce((sum, p) => sum + p.amount, 0),
     awaitingCount: awaiting.length,
     balanceState
@@ -46,10 +74,12 @@ export function financials(reservation, payments) {
 }
 
 /**
- * The status an approved booking should have for what has been paid (`money` is financials()):
+ * The status an approved booking should have for what has been paid (`money` is financials(), so
+ * `paid` is net of refunds):
  *   paid in full        -> Confirmed
  *   downpayment reached -> Downpayment paid
- *   below the downpayment again (a new, higher quotation) -> back to Approved
+ *   below the downpayment again -> back to Approved (a safeguard: the downpayment is now the booking's
+ *                          fixed minimum, so a higher quotation no longer raises it)
  * Statuses only move forward when something has been paid, and Confirmed or later never moves back.
  * Returns the status unchanged when nothing moves (any status other than Approved or Downpayment paid).
  */

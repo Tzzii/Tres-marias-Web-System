@@ -49,8 +49,10 @@ export * from './utils/format.js';
 export * from './utils/status.js';
 export * from './utils/validation.js';
 
-export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, BLOCK_REASONS, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
+export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, BLOCK_REASONS, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
 export { computeQuote, extraGuests, isRentalPackage } from './services/pricing.js';
+// When a customer may cancel online (pages read the answer from each reservation's summary; the window in words is for texts)
+export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
 export { ApiError } from './services/errors.js';
 export * as authApi from './services/facade/auth.js';
 export * as catalogApi from './services/facade/catalog.js';

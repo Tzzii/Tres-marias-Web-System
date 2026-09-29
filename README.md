@@ -188,7 +188,10 @@ day to keep the reservation references matching; after a few days "events today"
   reservation submitted in the Customer Portal does not appear in the Admin Dashboard
   until the shared backend is connected. Each side can be exercised end to end on its own.
 - **Status pipeline.** Pending → Approved → Downpayment paid → Confirmed → Completed, plus
-  Declined (admin) and Cancelled (customer). Rules are enforced in the services, not the UI.
+  Declined (admin) and Cancelled (by the customer online, or by the admin with a reason). The
+  customer pays at least the minimum downpayment first (a setting on the admin Payments tab), and
+  money owed back after a cancellation or a lower revised quotation is recorded as a refund. Rules
+  are enforced in the services, not the UI.
 - **Feedback.** Once an event is completed the customer rates it in the portal (overall stars,
   a rating for each part of the service and a short review). The same record is what the admin
   opens under **Feedbacks**: they publish it on the website, feature it on the homepage, flag it

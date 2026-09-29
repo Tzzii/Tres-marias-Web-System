@@ -1,4 +1,4 @@
-import { DEFAULT_PRICE_PER_PLATE, RULES, includesFood } from './config.js';
+import { DEFAULT_PRICE_PER_PLATE, includesFood } from './config.js';
 
 /** True for the Equipment Rental package: no fixed items or price, the customer picks what to rent. */
 export const isRentalPackage = (pkg) => Boolean(pkg && pkg.kind === 'rental');
@@ -20,6 +20,9 @@ export const isRentalPackage = (pkg) => Boolean(pkg && pkg.kind === 'rental');
  * price while filling the form. `pricePerPlate` is passed in by the caller and stored on the
  * reservation, so a later price rise never changes a quotation that was already sent. The same
  * goes for rental prices: `rentalItems` carries the price each piece was booked at.
+ *
+ * The downpayment is not part of a quote: it is the booking's own minimum (financials in
+ * domain/money.js). Older saved quotes may still hold a `downpayment` field; nothing reads it.
  *
  *   rentalItems   [{ itemId, name, qty, price }]  what the customer rents, e.g. 80 Monobloc chair at ₱15
  *   deliveryFee   amount for delivering a rental (0 when the customer picks it up)
@@ -94,8 +97,7 @@ export function computeQuote({
     addons: addonsTotal,
     otherCharges: other,
     discount: cleanDiscount,
-    net,
-    downpayment: Math.round(net * RULES.downpaymentRate)
+    net
   };
 }
 

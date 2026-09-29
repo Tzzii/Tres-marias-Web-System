@@ -33,10 +33,17 @@ export const RULES = {
   /** Guest counts the venue accepts; forms keep the number inside this range. */
   minGuests: 50,
   maxGuests: 2000,
-  /** Share of the total due as downpayment (0.5 = 50%). */
-  downpaymentRate: 0.5,
-  /** Days after approval the downpayment falls due. */
+  /** Days after approval the downpayment (at least the booking's minimum, see DEFAULT_MIN_DOWNPAYMENT) falls due. */
   downpaymentDueDays: 7,
+  /**
+   * Online cancellation of a PAID booking (domain/cancellation.js): open for this share of the days from
+   * the day the request was sent to the event day (0.25 = the first quarter), or `cancelWindowShareLong`
+   * (the first half) when the event is `cancelWindowLongMonths` or more calendar months after the request.
+   * An unpaid booking can be cancelled online any time before the event day.
+   */
+  cancelWindowShare: 0.25,
+  cancelWindowShareLong: 0.5,
+  cancelWindowLongMonths: 6,
   /** Failed password attempts before a lockout, and its length. */
   maxLoginAttempts: 5,
   loginLockMinutes: 5,
@@ -131,6 +138,17 @@ export const DEFAULT_PRICE_PER_PLATE = 600;
 
 /** The range the admin's buffet price per person has to stay inside. */
 export const PRICE_PER_PLATE_RANGE = { min: 100, max: 5000 };
+
+/**
+ * Starting minimum downpayment: the least a customer pays first to secure a date. The customer chooses
+ * how much to pay first, from this up to the full amount, and a booking whose total is below it is paid
+ * in full. The admin changes it on the Payments tab; every booking keeps the amount in force when it was
+ * made (its own `minDownpayment`), so a change never moves an existing booking.
+ */
+export const DEFAULT_MIN_DOWNPAYMENT = 3000;
+
+/** The range the admin's minimum downpayment has to stay inside (whole pesos). */
+export const MIN_DOWNPAYMENT_RANGE = { min: 1000, max: 100000 };
 
 // Reasons an admin can pick when blocking dates. "Holiday" is not one: catering is allowed on holidays.
 export const BLOCK_REASONS = ['Fully booked', 'Private event', 'Maintenance'];

@@ -1,5 +1,5 @@
 import { addDays, formatDate, todayISO } from '../utils/format.js';
-import { DEFAULT_PRICE_PER_PLATE, RENTAL_SERVICE } from './config.js';
+import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, RENTAL_SERVICE } from './config.js';
 import { buildInventorySeed } from './inventorySeed.js';
 import { buildOutsourceSeed } from './outsourceSeed.js';
 import { computeQuote } from './pricing.js';
@@ -616,6 +616,8 @@ export function buildSeed() {
         foodNotes: serviceType === 'Buffet and Catering' ? foodNotes : SERVICE_ONLY_NOTE,
         // The rate this booking was made at, so re-quoting it never picks up a newer price
         pricePerPlate: DEFAULT_PRICE_PER_PLATE,
+        // The minimum downpayment in force when it was made (the least to pay first); a later change leaves it alone
+        minDownpayment: DEFAULT_MIN_DOWNPAYMENT,
         venue: { name: venue[0], address: venue[1], city: venue[2], accessNotes: extra.accessNotes ? 'Service entrance at the side gate. Parking for the catering van is available.' : '' },
         addonIds,
         addonQty,
@@ -623,10 +625,14 @@ export function buildSeed() {
         estimate,
         quotation,
         downpaymentDue,
+        // When the admin marked "Started preparing" (none in the seed)
+        preparingAt: null,
         // Admin's private notes: from the row, or the sample note on the Santos wedding
         notes: extra.notes || (status === 'pending' && key === 'santos-wedding' ? 'Couple asked for a vegetarian option for 12 guests. 10 guests above what Wedding Package 2 covers: added as other charges.' : ''),
         declineReason: extra.declineReason || '',
         cancelReason: extra.cancelReason || '',
+        // Who cancelled: the seeded cancellation is the customer's own
+        cancelledBy: status === 'cancelled' ? 'customer' : null,
         activity,
         createdAt: at(createdOffset, 20, 15)
       };
@@ -637,7 +643,8 @@ export function buildSeed() {
   const tabraRejected = payments.find((p) => p.ref === REF['tabra-teambuilding'] && p.status === 'rejected');
   const tabraGradBalance = payments.find((p) => p.ref === REF['tabra-graduation'] && p.kind === 'balance');
   const tabraReunion = reservations.find((r) => r.ref === REF['tabra-reunion']);
-  const tabraReunionDown = Math.round(tabraReunion.quotation.net / 2);
+  // Its minimum downpayment (nothing paid yet), for the reminder below
+  const tabraReunionDown = Math.min(tabraReunion.minDownpayment, tabraReunion.quotation.net);
 
   // Build one chat message; the sender has always read their own message.
   // `extra.ref` tags it with the reservation it is about (otherwise its topic's reservation is used).
@@ -724,7 +731,7 @@ export function buildSeed() {
           attachment: { name: `Receipt-${tabraGradBalance.receiptNo}.pdf`, kind: 'receipt', ref: REF['tabra-graduation'], paymentId: tabraGradBalance.id }
         }),
         msg('customer', 'Jherson Gabrial Tabra', 'Uploaded the new BDO receipt with the correct reference number. Thank you!', -1, 14, 25, { readByAdmin: false, ref: REF['tabra-teambuilding'] }),
-        msg('admin', 'Teresa Marquez', `A friendly reminder for Tabra Family Reunion: the downpayment of ₱${tabraReunionDown.toLocaleString('en-PH')} was due on ${formatDate(day(-2))}. Please pay from Payments so we can keep your date reserved.`, 0, 8, 30, { readByCustomer: false, ref: REF['tabra-reunion'] })
+        msg('admin', 'Teresa Marquez', `A friendly reminder for Tabra Family Reunion: a downpayment of at least ₱${tabraReunionDown.toLocaleString('en-PH')} was due on ${formatDate(day(-2))}. Please pay from Payments so we can keep your date reserved.`, 0, 8, 30, { readByCustomer: false, ref: REF['tabra-reunion'] })
       ]
     },
     {
@@ -850,6 +857,7 @@ export function buildSeed() {
     menu: null,
     foodNotes: '',
     pricePerPlate: 0,
+    minDownpayment: DEFAULT_MIN_DOWNPAYMENT,
     rentalItems,
     fulfilment: 'delivery',
     damageCharges: [],
@@ -860,9 +868,11 @@ export function buildSeed() {
     estimate: computeQuote({ pkg: pkgById['pkg-equipment-rental'], serviceType: RENTAL_SERVICE, rentalItems, deliveryFee: 100 }),
     quotation: null,
     downpaymentDue: null,
+    preparingAt: null,
     notes: '',
     declineReason: '',
     cancelReason: '',
+    cancelledBy: null,
     activity: [{ at: at(0, 8, 30), actor: 'Jherson Gabrial Tabra', text: 'Submitted the equipment rental request.' }],
     createdAt: at(0, 8, 30)
   });
@@ -877,8 +887,8 @@ export function buildSeed() {
   return {
     version: 15,
     seededOn: T,
-    // Settings the admin edits in the app (the buffet price per person is one of them)
-    settings: { pricePerPlate: DEFAULT_PRICE_PER_PLATE },
+    // Settings the admin edits in the app: the buffet price per person and the minimum downpayment
+    settings: { pricePerPlate: DEFAULT_PRICE_PER_PLATE, minDownpayment: DEFAULT_MIN_DOWNPAYMENT },
     admins,
     customers,
     packages: PACKAGES,
@@ -886,6 +896,8 @@ export function buildSeed() {
     dishes: DISHES,
     reservations,
     payments,
+    // Money returned to customers (cancellations and overpayments); none yet
+    refunds: [],
     threads,
     testimonials,
     calendar: {
@@ -898,7 +910,7 @@ export function buildSeed() {
     inventory: inventory.items,
     outsourcing: { partners: outsourcing.partners, contracts: outsourcing.contracts },
     // Counters: `receipt` is the NEXT receipt number (used, then increased); the others are the LAST number
-    // used (increased, then used), so the next payment after pay-0032 is pay-0033
-    counters: { receipt: receiptSeq, payment: payments.length, inventory: inventory.counter, outsource: outsourcing.counter }
+    // used (increased, then used), so the next payment after pay-0032 is pay-0033 and the first refund is rf-0001
+    counters: { receipt: receiptSeq, payment: payments.length, inventory: inventory.counter, outsource: outsourcing.counter, refund: 0 }
   };
 }

@@ -2,16 +2,17 @@ import { pool } from '../../db.js';
 import { parseJson, toJson } from '../../lib/json.js';
 
 /**
- * SQL for packages, add-ons, dishes, the buffet price per person and the rental price list
- * (docs §7.1: the repo holds SQL only; the rules are in catalog.service.js). Rows come back as
- * camelCase records shaped like the browser store's packages[] / addons[] / dishes[] entries, so a
- * page gets the same objects from either side.
+ * SQL for packages, add-ons, dishes, the buffet price per person, the minimum downpayment and the
+ * rental price list (docs §7.1: the repo holds SQL only; the rules are in catalog.service.js). Rows
+ * come back as camelCase records shaped like the browser store's packages[] / addons[] / dishes[]
+ * entries, so a page gets the same objects from either side.
  *
  * Lists are in sort_order (then id): the seed's order, and each new record after the rest, which is
  * the order of the browser store's arrays. MySQL has no order of its own without ORDER BY.
  *
- * The reads a booking needs (findPackageById, listAddons, getPricePerPlate) use the pool unless given
- * a connection (`db`), so the reservations module can read them inside its own transaction (Phase 6).
+ * The reads a booking needs (findPackageById, listAddons, getPricePerPlate, getMinDownpayment) use the
+ * pool unless given a connection (`db`), so the reservations module can read them inside its own
+ * transaction (Phase 6).
  */
 
 // First row of a SELECT, or null
@@ -211,6 +212,23 @@ export async function getPricePerPlate(db = pool) {
  */
 export async function setPricePerPlate(amount, at) {
   const [result] = await pool.query('UPDATE catalog_settings SET price_per_plate = ?, updated_at = ? WHERE id = 1', [amount, at]);
+  if (result.affectedRows === 0) throw new Error('The catalog_settings row is missing. Run npm run db:reset and npm run seed:api.');
+}
+
+/* ============================ Minimum downpayment ============================ */
+
+/** The saved minimum downpayment, or null when the settings row is missing. */
+export async function getMinDownpayment(db = pool) {
+  const row = first(await db.query('SELECT min_downpayment FROM catalog_settings WHERE id = 1'));
+  return row ? row.min_downpayment : null;
+}
+
+/**
+ * Save the minimum downpayment and when it changed. Throws when the settings row is missing
+ * (schema.sql and the seeder always create it), rather than reporting a save that did not happen.
+ */
+export async function setMinDownpayment(amount, at) {
+  const [result] = await pool.query('UPDATE catalog_settings SET min_downpayment = ?, updated_at = ? WHERE id = 1', [amount, at]);
   if (result.affectedRows === 0) throw new Error('The catalog_settings row is missing. Run npm run db:reset and npm run seed:api.');
 }
 

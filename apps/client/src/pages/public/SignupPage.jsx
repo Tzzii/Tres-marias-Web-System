@@ -15,11 +15,14 @@ import {
   FormField,
   PasswordField,
   authApi,
+  catalogApi,
   collectErrors,
+  peso,
   required,
   tokens,
   useDocumentTitle,
   useNotify,
+  useResource,
   validateEmail,
   validateMobile,
   validatePassword
@@ -62,6 +65,10 @@ export default function SignupPage() {
   // "Log in" flips the card over to the login page (keeps the booking the visitor started)
   const { flipping, flipTo } = useCardFlip();
   const loginPath = continuingBooking ? '/login?next=/portal/book' : '/login';
+  // The minimum downpayment named in the terms. Loading the catalogue brings it up to date on the API
+  // (remote/catalog.js); until it arrives (null) the terms leave the amount out.
+  const catalog = useResource(() => catalogApi.getCatalog(), []);
+  const minimum = catalog.data ? catalogApi.minDownpayment() : null;
 
   // Already signed in: skip this page
   if (isAuthenticated) return <Navigate to={destination} replace />;
@@ -176,7 +183,10 @@ export default function SignupPage() {
           <h3>Your account</h3>
           <p>Your account lets you request reservations, receive quotations, make payments and message our team. Keep your password private; you are responsible for activity on your account.</p>
           <h3>Reservations and payments</h3>
-          <p>A submitted reservation is a request, not a confirmed booking. Your date is secured once the reservation is approved and the 50% downpayment is verified. Cancellation terms are stated in your contract.</p>
+          <p>
+            A submitted reservation is a request, not a confirmed booking. Your date is secured once the reservation is approved and your downpayment{minimum ? ` of at least ${peso(minimum)}` : ''} is verified.
+            You can pay more, up to the full amount. Cancellation and refund terms are stated in your contract.
+          </p>
           <h3>Privacy</h3>
           <p>
             We collect your name, email and mobile number to manage your reservations and contact you about your events, in line with the Data Privacy Act of 2012 (RA 10173). We never sell your information. To access or delete your data, email {BUSINESS.email}.

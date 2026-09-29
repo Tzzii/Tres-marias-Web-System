@@ -12,11 +12,14 @@ import { toJson, parseJson } from '../../lib/json.js';
  *   browser version keeps the count it booked, and the quotation charges it);
  * - `rentalItems`, `fulfilment` and `damageCharges` on an equipment rental only (not even empty on
  *   other bookings); damage lines have no sort_order, so they come by item id;
+ * - `minDownpayment` (copied at booking), `preparingAt` (the "Started preparing" time or null) and
+ *   `cancelledBy` ('customer', 'admin' or null) on every booking;
  * - `activity` in the order it was written (id).
  *
  * Every function takes `db`: the pool, or a transaction's connection so reads and writes see and lock
  * the same rows. A list is one query per table (reservations with their package and customer names,
- * add-ons, activity, rental lines, damage lines, payments), joined up in JS: never one query per booking.
+ * add-ons, activity, rental lines, damage lines, payments, checked-out pieces), joined up in JS: never
+ * one query per booking.
  */
 
 // First row of a SELECT, or null
@@ -84,6 +87,7 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     menu: parseJson(row.menu),
     foodNotes: row.food_notes,
     pricePerPlate: row.price_per_plate,
+    minDownpayment: row.min_downpayment,
     venue: { name: row.venue_name, address: row.venue_address, city: row.city, accessNotes: row.access_notes },
     addonIds: addonLinks.map((link) => link.addon_id),
     addonQty: Object.fromEntries(addonLinks.filter((link) => link.has_quantity || link.qty !== 1).map((link) => [link.addon_id, link.qty])),
@@ -91,9 +95,11 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     estimate: parseJson(row.estimate),
     quotation: parseJson(row.quotation),
     downpaymentDue: row.downpayment_due,
+    preparingAt: row.preparing_at,
     notes: row.notes,
     declineReason: row.decline_reason,
     cancelReason: row.cancel_reason,
+    cancelledBy: row.cancelled_by,
     activity: activity.map((entry) => ({ at: entry.at, actor: entry.actor, text: entry.text })),
     createdAt: row.created_at
   };
@@ -110,15 +116,17 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
 /**
  * Reservations with what a summary needs, newest request first (created_at; ties by ref, the seed's
  * order): [{ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile,
- * payments }]. The names are null when the package or customer row is missing; `payments` are the
- * booking's payment records, newest first. `filter` is { customerId?, ref? } (see scope()).
+ * payments, piecesOut }]. The names are null when the package or customer row is missing; `payments`
+ * are the booking's payment records, newest first; `piecesOut` is how many inventory pieces are
+ * checked out for it (inventory_allocations), 0 when none. `filter` is { customerId?, ref? } (see scope()).
  */
 export async function findReservations(db, filter = {}) {
   const { where, params } = scope(filter);
   const [rows] = await db.query(
     `SELECT r.ref, r.customer_id, r.event_name, r.occasion, r.date, r.start_time, r.guests, r.package_id, r.service_type,
-            r.fulfilment, r.menu, r.food_notes, r.price_per_plate, r.venue_name, r.venue_address, r.city, r.access_notes,
-            r.status, r.estimate, r.quotation, r.downpayment_due, r.notes, r.decline_reason, r.cancel_reason, r.created_at,
+            r.fulfilment, r.menu, r.food_notes, r.price_per_plate, r.min_downpayment, r.venue_name, r.venue_address, r.city, r.access_notes,
+            r.status, r.estimate, r.quotation, r.downpayment_due, r.preparing_at, r.notes, r.decline_reason, r.cancel_reason,
+            r.cancelled_by, r.created_at,
             p.name AS package_name, p.slug AS package_slug, c.name AS customer_name, c.email AS customer_email, c.mobile AS customer_mobile
        FROM reservations r
        LEFT JOIN packages p ON p.id = r.package_id
@@ -129,7 +137,7 @@ export async function findReservations(db, filter = {}) {
   );
   if (!rows.length) return [];
 
-  const [[addonLinks], [activity], [rentalLines], [damageLines], [payments]] = await Promise.all([
+  const [[addonLinks], [activity], [rentalLines], [damageLines], [payments], [pieces]] = await Promise.all([
     db.query(
       `SELECT ra.reservation_ref, ra.addon_id, ra.qty, a.has_quantity
          FROM reservation_addons ra JOIN reservations r ON r.ref = ra.reservation_ref JOIN addons a ON a.id = ra.addon_id
@@ -160,6 +168,12 @@ export async function findReservations(db, filter = {}) {
          FROM payments pay JOIN reservations r ON r.ref = pay.ref
          ${where} ORDER BY pay.submitted_at DESC, pay.id`,
       params
+    ),
+    db.query(
+      `SELECT a.reservation_ref, SUM(a.qty) AS pieces
+         FROM inventory_allocations a JOIN reservations r ON r.ref = a.reservation_ref
+         ${where} GROUP BY a.reservation_ref`,
+      params
     )
   ]);
 
@@ -168,7 +182,8 @@ export async function findReservations(db, filter = {}) {
     activity: groupBy(activity, 'reservation_ref'),
     rentalLines: groupBy(rentalLines, 'reservation_ref'),
     damageLines: groupBy(damageLines, 'reservation_ref'),
-    payments: groupBy(payments, 'ref')
+    payments: groupBy(payments, 'ref'),
+    pieces: new Map(pieces.map((row) => [row.reservation_ref, Number(row.pieces)])) // SUM comes back as a DECIMAL string
   };
   return rows.map((row) => ({
     reservation: toReservation(row, {
@@ -182,7 +197,8 @@ export async function findReservations(db, filter = {}) {
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     customerMobile: row.customer_mobile,
-    payments: (byRef.payments.get(row.ref) || []).map(toPayment)
+    payments: (byRef.payments.get(row.ref) || []).map(toPayment),
+    piecesOut: byRef.pieces.get(row.ref) || 0
   }));
 }
 
@@ -292,18 +308,21 @@ export async function rentalStockInputs(db, date) {
 
 /**
  * Save a new booking from its record. `venue` is flattened into four columns; fulfilment is NULL for
- * everything but an equipment rental. A ref already in use fails with ER_DUP_ENTRY on the primary key.
+ * everything but an equipment rental; `minDownpayment` is the setting copied at booking, and
+ * `preparingAt` / `cancelledBy` start empty (NULL). A ref already in use fails with ER_DUP_ENTRY on
+ * the primary key.
  */
 export async function insertReservation(conn, r) {
   await conn.query(
     `INSERT INTO reservations (ref, customer_id, event_name, occasion, date, start_time, guests, package_id, service_type, fulfilment,
-                               menu, food_notes, price_per_plate, venue_name, venue_address, city, access_notes, status, estimate,
-                               quotation, downpayment_due, notes, decline_reason, cancel_reason, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                               menu, food_notes, price_per_plate, min_downpayment, venue_name, venue_address, city, access_notes, status,
+                               estimate, quotation, downpayment_due, preparing_at, notes, decline_reason, cancel_reason, cancelled_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       r.ref, r.customerId, r.eventName, r.occasion, r.date, r.startTime, r.guests, r.packageId, r.serviceType, r.fulfilment || null,
-      toJson(r.menu), r.foodNotes, r.pricePerPlate, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes, r.status, toJson(r.estimate),
-      toJson(r.quotation), r.downpaymentDue, r.notes, r.declineReason, r.cancelReason, r.createdAt
+      toJson(r.menu), r.foodNotes, r.pricePerPlate, r.minDownpayment, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes, r.status,
+      toJson(r.estimate), toJson(r.quotation), r.downpaymentDue, r.preparingAt ?? null, r.notes, r.declineReason, r.cancelReason, r.cancelledBy ?? null,
+      r.createdAt
     ]
   );
 }
@@ -329,7 +348,7 @@ export async function insertActivity(conn, ref, { at, actor, text }) {
   await conn.query('INSERT INTO reservation_activity (reservation_ref, at, actor, text) VALUES (?, ?, ?, ?)', [ref, at, actor, text]);
 }
 
-/** Mark a booking cancelled, with the customer's reason. */
-export async function setCancelled(conn, ref, reason) {
-  await conn.query("UPDATE reservations SET status = 'cancelled', cancel_reason = ? WHERE ref = ?", [reason, ref]);
+/** Mark a booking cancelled, with the reason and who cancelled it (`by`: 'customer' or 'admin'). */
+export async function setCancelled(conn, ref, reason, by) {
+  await conn.query("UPDATE reservations SET status = 'cancelled', cancel_reason = ?, cancelled_by = ? WHERE ref = ?", [reason, by, ref]);
 }

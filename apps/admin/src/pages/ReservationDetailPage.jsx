@@ -10,6 +10,7 @@ import {
   AlertBanner,
   AppDialog,
   BUFFET_DRINKS,
+  BUSINESS,
   BusyButton,
   CardTitle,
   DISH_CATEGORIES,
@@ -27,6 +28,7 @@ import {
   MENU_LINE_MAX,
   PageHeader,
   PaymentStatusChip,
+  REFUND_METHODS,
   RENTAL,
   RENTAL_FULFILMENT,
   RULES,
@@ -59,13 +61,21 @@ import {
   useResource
 } from '@tm/shared';
 import { useMessenger } from '../components/MessagesWidget.jsx';
+import RefundDialog, { refundRecordedText } from '../components/RefundDialog.jsx';
 
 // Statuses where the booking is finished and can no longer be edited
 const CLOSED = ['completed', 'declined', 'cancelled'];
-// Statuses whose equipment can be checked out (approved to confirmed)
+// Statuses whose equipment can be checked out (approved to confirmed); the admin can cancel these too
 const HOLDS = ['approved', 'downpayment_paid', 'confirmed'];
+// Statuses in which preparation can start: the downpayment is paid
+const PREPARABLE = ['downpayment_paid', 'confirmed'];
 
-/** 1t · Reservation details. The one screen where the admin edits a booking. */
+/**
+ * 1t · Reservation details. The one screen where the admin edits a booking.
+ * Besides the status actions, the admin can cancel an approved, downpayment-paid or confirmed booking
+ * (with a reason the customer sees), mark "Started preparing" (after which the customer can't cancel
+ * online) or undo it, and record the refund owed on a cancelled or overpaid booking.
+ */
 export default function ReservationDetailPage() {
   // The reservation reference from the URL, e.g. /reservations/RES-2026-1020-01
   const { ref } = useParams();
@@ -76,7 +86,7 @@ export default function ReservationDetailPage() {
   const { data: r, loading, error, reload } = useResource(() => reservationApi.getReservation(ref), [ref]);
   useDocumentTitle(r ? `${r.ref} · ${r.eventName}` : 'Reservation', 'Tres Marias Admin');
 
-  const [dialog, setDialog] = useState(null); // which dialog is open: approve, decline, confirm, complete, cash, food, rentalItems, checkout, return
+  const [dialog, setDialog] = useState(null); // which dialog is open: approve, decline, confirm, complete, cancel, prepare, unprepare, refund, cash, food, rentalItems, checkout, return
   const [doc, setDoc] = useState(null); // document open in the preview dialog
   // Breadcrumb links shown above the title
   const crumbs = [{ label: 'Reservation & Calendar', to: '/reservations?tab=all' }, { label: ref }];
@@ -124,7 +134,8 @@ export default function ReservationDetailPage() {
   };
 
   // Buttons in the page header change with the status:
-  // pending -> Approve / Send quotation / Decline, downpayment paid -> Confirm, confirmed and event day reached -> Mark completed
+  // pending -> Approve / Send quotation / Decline, downpayment paid -> Confirm, confirmed and event day reached -> Mark completed,
+  // and approved to confirmed -> Cancel reservation (a pending request is declined instead)
   const headerActions = (
     <>
       {r.status === 'pending' && (
@@ -138,20 +149,44 @@ export default function ReservationDetailPage() {
       )}
       {r.status === 'downpayment_paid' && <Button variant="contained" onClick={() => setDialog('confirm')}>Confirm booking</Button>}
       {r.status === 'confirmed' && daysFromToday(r.date) <= 0 && <Button variant="contained" onClick={() => setDialog('complete')}>Mark completed</Button>}
+      {HOLDS.includes(r.status) && <Button onClick={() => setDialog('cancel')} sx={{ color: tokens.dangerSoft }}>Cancel reservation</Button>}
     </>
   );
+  // What was returned on this booking, newest first (none on the API before Phase 8)
+  const refunds = r.refunds || [];
+  const refunded = r.refunded || 0;
 
   return (
     <>
       <PageHeader crumbs={crumbs} title={r.eventName} chip={<StatusChip status={r.status} />} subtitle={`Reservation · ${r.ref} · received ${formatDateTime(r.createdAt)}`} actions={headerActions} />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        {/* Progress bar of the booking status, plus decline/cancel/overdue notices */}
+        {/* Progress bar of the booking status, plus decline/cancel/overdue notices and the "Started preparing" mark */}
         <DashCard>
           <StatusPipeline status={r.status} />
           {r.status === 'declined' && <AlertBanner tone="error" sx={{ mt: 2 }} title="Decline reason sent to the customer">{r.declineReason}</AlertBanner>}
-          {r.status === 'cancelled' && <AlertBanner tone="error" sx={{ mt: 2 }} title="Cancelled by the customer">{r.cancelReason}</AlertBanner>}
+          {/* Records without cancelledBy are the customer's own cancellations */}
+          {r.status === 'cancelled' && <AlertBanner tone="error" sx={{ mt: 2 }} title={r.cancelledBy === 'admin' ? 'Cancelled by the admin' : 'Cancelled by the customer'}>{r.cancelReason}</AlertBanner>}
           {r.status === 'approved' && r.balanceState === 'overdue' && <AlertBanner tone="error" sx={{ mt: 2 }} title="Downpayment overdue">Due {formatDate(r.downpaymentDue)}. Send a reminder from Payments or message the customer.</AlertBanner>}
+          {/* A mark, not a status: once set, the customer can only cancel by chat or phone */}
+          {!closed && (PREPARABLE.includes(r.status) || r.preparingAt) && (
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
+              <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary, minWidth: 0 }}>
+                {r.preparingAt ? (
+                  <>
+                    <b>Started preparing</b> on {formatDateTime(r.preparingAt)}. The customer can no longer cancel online.
+                  </>
+                ) : (
+                  'Preparation not started. Mark it when you start: from then on the customer cancels by chat or phone only.'
+                )}
+              </Typography>
+              {r.preparingAt ? (
+                <Button size="small" onClick={() => setDialog('unprepare')}>Undo</Button>
+              ) : (
+                <Button size="small" variant="outlined" onClick={() => setDialog('prepare')}>Start preparing</Button>
+              )}
+            </Box>
+          )}
         </DashCard>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.5fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
@@ -216,12 +251,20 @@ export default function ReservationDetailPage() {
 
             <DashCard>
               <CardTitle>Payments</CardTitle>
-              <DetailRow label="Downpayment 50%">
+              {/* This booking's own minimum (copied when it was made), or the whole total when that is lower */}
+              <DetailRow label={`Minimum downpayment · ${peso(r.downpayment)}`}>
                 {['pending', 'declined', 'cancelled'].includes(r.status) ? '—' : r.downpaymentPaid ? 'Paid' : `Unpaid${r.downpaymentDue ? ` · due ${formatDate(r.downpaymentDue)}` : ''}`}
               </DetailRow>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
-              <DetailRow label="Paid">{peso(r.paid)}</DetailRow>
+              {/* Paid = what was received; money given back shows on its own row */}
+              <DetailRow label="Paid">{peso(r.paid + refunded)}</DetailRow>
+              {refunded > 0 && <DetailRow label="Refunded">− {peso(refunded)}</DetailRow>}
               <DetailRow label="Balance">{peso(r.balance)}</DetailRow>
+              {r.overpaid > 0 && (
+                <AlertBanner tone="warning" sx={{ mt: 1.5 }} title={`Overpaid ${peso(r.overpaid)}, to be returned`}>
+                  The revised quotation is below what was paid. Record the refund under Refund once it is sent.
+                </AlertBanner>
+              )}
               {r.payments.length > 0 && (
                 <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {r.payments.map((p) => (
@@ -252,6 +295,39 @@ export default function ReservationDetailPage() {
                 </Button>
               )}
             </DashCard>
+
+            {/* Money to return (a cancellation or an overpayment) and the refunds already recorded (a refund of
+                ₱0 records that everything paid was kept, and why) */}
+            {(r.refundDue > 0 || refunds.length > 0) && (
+              <DashCard>
+                <CardTitle subtitle={r.refundDue > 0 ? (r.overpaid > 0 ? 'Paid above the revised quotation' : `Everything paid on this ${r.status} booking`) : refunds.some((f) => f.amount > 0) ? 'Returned to the customer' : 'Nothing returned'}>Refund</CardTitle>
+                {r.refundDue > 0 && (
+                  <>
+                    <DetailRow label="To return">
+                      <Box component="span" sx={{ fontSize: 16, fontWeight: 800 }}>{peso(r.refundDue)}</Box>
+                    </DetailRow>
+                    <Button fullWidth variant="contained" sx={{ mt: 1.5 }} onClick={() => setDialog('refund')}>
+                      Record refund
+                    </Button>
+                  </>
+                )}
+                {refunds.length > 0 && (
+                  <Box sx={{ mt: r.refundDue > 0 ? 1.5 : 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {refunds.map((f) => (
+                      <Box key={f.id} sx={{ p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
+                        <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>
+                          {f.amount > 0 ? `${peso(f.amount)} · ${f.kind === 'overpayment' ? 'Overpayment' : 'Cancellation'} refund` : 'No refund · everything paid was kept'}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+                          {f.amount > 0 ? `${REFUND_METHODS[f.method]}${f.referenceNo ? ` · Ref ${f.referenceNo}` : ''} · sent ${formatDate(f.sentOn)}` : `Recorded ${formatDate(f.sentOn)}`} · {f.id} · recorded by {f.recordedBy}
+                        </Typography>
+                        {f.reason && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>Kept {peso(f.due - f.amount)}: {f.reason}</Typography>}
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </DashCard>
+            )}
 
             {/* The review the customer wrote for this event. It is moderated on the Feedbacks page. */}
             {r.testimonial && (
@@ -316,10 +392,25 @@ export default function ReservationDetailPage() {
       </Box>
 
       {/* Dialogs for each status change; each calls the API, closes, and shows a toast */}
-      <ConfirmDialog open={dialog === 'approve'} onClose={() => setDialog(null)} title="Approve this reservation?" description={r.quotation ? `The quotation of ${peso(r.quotation.net)} is attached. The customer gets a 50% downpayment due date.` : 'Send the quotation first: the food and additional charges need prices before the reservation can be approved.'} confirmLabel="Approve" onConfirm={async () => { await reservationApi.approveReservation(r.ref); setDialog(null); notify('Reservation approved.'); }} />
+      <ConfirmDialog open={dialog === 'approve'} onClose={() => setDialog(null)} title="Approve this reservation?" description={r.quotation ? `The quotation of ${peso(r.quotation.net)} is attached. The customer is asked for the minimum downpayment of ${peso(Math.min(r.downpayment, r.quotation.net))} (or more, up to the full amount) by a due date.` : 'Send the quotation first: the food and additional charges need prices before the reservation can be approved.'} confirmLabel="Approve" onConfirm={async () => { await reservationApi.approveReservation(r.ref); setDialog(null); notify('Reservation approved.'); }} />
       <ConfirmDialog open={dialog === 'decline'} onClose={() => setDialog(null)} title="Decline this reservation?" description="The reason is shown to the customer. The date stays open for other bookings." confirmLabel="Decline" tone="danger" reasonLabel="Reason shown to the customer" onConfirm={async (reason) => { await reservationApi.declineReservation(r.ref, reason); setDialog(null); notify('Reservation declined.', 'info'); }} />
       <ConfirmDialog open={dialog === 'confirm'} onClose={() => setDialog(null)} title="Confirm this booking?" description="The customer's contract becomes available in their Documents." confirmLabel="Confirm booking" onConfirm={async () => { await reservationApi.confirmReservation(r.ref); setDialog(null); notify('Booking confirmed.'); }} />
       <ConfirmDialog open={dialog === 'complete'} onClose={() => setDialog(null)} title="Mark as completed?" description={r.balance > 0 ? `There is still a balance of ${peso(r.balance)}. Record the payment first if it was collected.` : 'The customer will be invited to leave a testimonial.'} confirmLabel="Mark completed" onConfirm={async () => { await reservationApi.completeReservation(r.ref); setDialog(null); notify('Event marked as completed.'); }} />
+      <ConfirmDialog
+        open={dialog === 'cancel'}
+        onClose={() => setDialog(null)}
+        title="Cancel this reservation?"
+        description={`The customer is told in their chat with your reason, and the date is released for other bookings.${r.paid > 0 ? ` ${peso(r.paid)} was paid: it shows under Refund to be returned.` : ''}`}
+        confirmLabel="Cancel reservation"
+        cancelLabel="Keep reservation"
+        tone="danger"
+        reasonLabel="Reason shown to the customer"
+        reasonPlaceholder="e.g. Our kitchen cannot take this date after all."
+        onConfirm={async (reason) => { await reservationApi.cancelReservationByAdmin(r.ref, reason); setDialog(null); notify('Reservation cancelled. The customer was told in their chat.', 'info'); }}
+      />
+      <ConfirmDialog open={dialog === 'prepare'} onClose={() => setDialog(null)} title="Mark as started preparing?" description={`From now on the customer can no longer cancel online: their chat tells them to message you or call ${BUSINESS.phone} instead. You can undo this if it was a mistake.`} confirmLabel="Start preparing" onConfirm={async () => { await reservationApi.startPreparing(r.ref); setDialog(null); notify('Marked as started preparing.'); }} />
+      <ConfirmDialog open={dialog === 'unprepare'} onClose={() => setDialog(null)} title="Undo “Started preparing”?" description="The customer is told in their chat that it was marked by mistake, with the date online cancellation is open until (when it hasn't passed)." confirmLabel="Undo" onConfirm={async () => { await reservationApi.undoPreparing(r.ref); setDialog(null); notify('The “Started preparing” mark was removed.', 'info'); }} />
+      <RefundDialog open={dialog === 'refund'} onClose={() => setDialog(null)} booking={r} onRecorded={(refund) => { setDialog(null); notify(refundRecordedText(refund)); }} />
       <CashDialog open={dialog === 'cash'} onClose={() => setDialog(null)} r={r} onSubmit={async (amount) => { await paymentApi.recordCashPayment(r.ref, amount); setDialog(null); notify('Payment recorded and receipt issued.'); }} />
       <MenuDialog open={dialog === 'food'} onClose={() => setDialog(null)} r={r} onSubmit={async (patch) => { await reservationApi.updateMenu(r.ref, patch); setDialog(null); notify('Menu updated. Re-send the quotation if the total changed.'); }} />
       {isRental(r.serviceType) && (
@@ -467,6 +558,9 @@ function LogisticsCard({ r, closed, onSave }) {
  *
  * An equipment rental lists its items at the prices they were booked at and any damage charges;
  * the admin only sets the delivery fee (standard RENTAL.deliveryFee, more for a large order).
+ *
+ * The new total may be lower than what the customer has paid: the card says how much would be paid
+ * above it, and once sent that amount shows under Refund to be returned (the customer is told in the chat).
  */
 function QuotationCard({ r, closed, onSend }) {
   const rental = isRental(r.serviceType);
@@ -516,9 +610,11 @@ function QuotationCard({ r, closed, onSend }) {
   const invalid = (value) => value !== '' && (Number.isNaN(Number(value)) || Number(value) < 0);
   const amountError = (value) => (invalid(value) ? 'Enter a valid amount.' : '');
   const anyInvalid = [values.otherCharges, values.discount, ...(delivered ? [values.deliveryFee] : []), ...Object.values(values.addonPrices)].some(invalid);
-  // Discount must not be more than the total, and the total must not drop below what was already paid
+  // Discount must not be more than the total
   const gross = preview.packageTotal + preview.food + preview.rental + preview.deliveryFee + preview.damage + preview.addons + preview.otherCharges;
-  const discountError = amountError(values.discount) || (preview.discount > gross ? 'Discount is larger than the total.' : preview.net < r.paid ? 'Net total is below what the customer already paid.' : '');
+  const discountError = amountError(values.discount) || (preview.discount > gross ? 'Discount is larger than the total.' : '');
+  // A total below what was already paid is allowed: the difference is returned to the customer
+  const paidAbove = Math.max(0, r.paid - preview.net);
   // Every additional charge needs a price before the quotation can be sent. The food does not:
   // it is already known from the service type and the guest count.
   const missingPrice = r.addonIds.some((id) => !Number(values.addonPrices[id]));
@@ -602,6 +698,11 @@ function QuotationCard({ r, closed, onSend }) {
       </DetailRow>
       {!closed && (
         <>
+          {changed && paidAbove > 0 && (
+            <AlertBanner tone="info" sx={{ mt: 1 }} title={`${peso(paidAbove)} was paid above this total`}>
+              The customer has paid {peso(r.paid)}. Once sent, the difference shows under Refund to be returned, and the customer is told in their chat.
+            </AlertBanner>
+          )}
           <FormField id="q-note" label="Note to the customer" optional multiline minRows={2} value={values.note} onChange={set('note')} inputProps={{ maxLength: 300 }} sx={{ mt: 1 }} />
           {missingPrice && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Enter a price for each additional charge to send the quotation.</Typography>}
           <BusyButton
@@ -648,7 +749,10 @@ function NotesCard({ r, onSave }) {
   );
 }
 
-/** Dialog to record a cash payment collected by the admin. */
+/**
+ * Dialog to record a cash payment collected by the admin: any amount from ₱1 to the balance, even
+ * below the minimum downpayment (the booking moves to Downpayment paid once what was paid reaches it).
+ */
 function CashDialog({ open, onClose, r, onSubmit }) {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
@@ -679,7 +783,7 @@ function CashDialog({ open, onClose, r, onSubmit }) {
 
   return (
     <AppDialog open={open} onClose={onClose} busy={busy} maxWidth="xs" title="Mark payment received" description="Record a cash payment collected on site. A receipt is generated and the customer is notified." actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={submit}>Record payment</BusyButton></>}>
-      <FormField id="cash-amount" label="Amount received" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setError(''); }} error={error} hint={`Balance ${peso(r.balance)} · downpayment ${peso(r.downpayment)}`} InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} autoFocus />
+      <FormField id="cash-amount" label="Amount received" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setError(''); }} error={error} hint={`Balance ${peso(r.balance)} · minimum downpayment ${peso(r.downpayment)}${r.downpaymentPaid ? ' (reached)' : ''}`} InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} autoFocus />
     </AppDialog>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import InputAdornment from '@mui/material/InputAdornment';
 import Typography from '@mui/material/Typography';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
@@ -21,8 +22,13 @@ import {
   ErrorState,
   Field,
   FilterTabs,
+  FormField,
+  ListSkeleton,
+  MIN_DOWNPAYMENT_RANGE,
   SearchField,
   StatCard,
+  StatusChip,
+  catalogApi,
   formatDate,
   formatDateTime,
   paymentApi,
@@ -33,31 +39,42 @@ import {
   useNotify,
   useResource
 } from '@tm/shared';
+import RefundDialog, { refundRecordedText } from '../../components/RefundDialog.jsx';
 import { SectionBar } from '../../components/SectionTabs.jsx';
 
-// Filter tabs as [key, label]
+// Filter tabs as [key, label]. "Refunds to send" lists its own rows (listRefundsDue): cancelled bookings are not in the balances.
 const FILTERS = [
   ['all', 'All'],
   ['awaiting', 'Awaiting verification'],
   ['partial', 'Partially paid'],
   ['full', 'Fully paid'],
   ['overdue', 'Overdue'],
-  ['unpaid', 'Unpaid']
+  ['unpaid', 'Unpaid'],
+  ['refunds', 'Refunds to send']
 ];
 
 /** Does a reservation belong in a filter tab? "awaiting" = has a proof to verify; the rest match the balance status. */
 const inFilter = (key, r) => (key === 'all' ? true : key === 'awaiting' ? r.awaitingCount > 0 : r.balanceState === key);
 
+// Why money is owed back, for the "Refunds to send" rows (listRefundsDue's `why`)
+const REFUND_WHY = { customer: 'Cancelled by the customer', admin: 'Cancelled by the admin', declined: 'Declined', overpaid: 'Overpaid' };
+
 /**
- * 1w · Payments tab of Reports: verify proofs, record receipts, chase balances.
+ * 1w · Payments tab of Reports: set the minimum downpayment, verify proofs, record receipts, chase
+ * balances, and record the refunds owed on cancelled or overpaid bookings ("Refunds to send").
  * Opens straight to a proof with ?verify=ID, or to a filter with ?filter=KEY. The page title and tabs come from ReportsPage.
  */
 export default function PaymentsSection() {
   const navigate = useNavigate();
   const notify = useNotify();
   const [params, setParams] = useSearchParams();
-  // Load every reservation with its total, amount paid, balance and payments
-  const { data, loading, error, reload } = useResource(() => paymentApi.listBalances(), []);
+  // Load every reservation with its total, amount paid, balance and payments, and the bookings with money to return
+  const { data, loading, error, reload } = useResource(async () => {
+    const [balances, refundsDue] = await Promise.all([paymentApi.listBalances(), paymentApi.listRefundsDue()]);
+    return { balances, refundsDue };
+  }, []);
+  // The minimum downpayment setting, read from the catalogue (on the API this also refreshes catalogApi.minDownpayment())
+  const setting = useResource(() => catalogApi.getCatalog(), []);
 
   // Can start from ?filter= (dashboard link); an unknown value falls back to "All"
   const [filter, setFilter] = useState(() => (FILTERS.some(([key]) => key === params.get('filter')) ? params.get('filter') : 'all'));
@@ -66,6 +83,7 @@ export default function PaymentsSection() {
   const [rejecting, setRejecting] = useState(false); // reject dialog open
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState(null); // receipt shown in the document dialog
+  const [refunding, setRefunding] = useState(null); // "Refunds to send" row whose refund is being recorded
 
   // Open the verify panel when a notification link adds ?verify=ID to the URL
   useEffect(() => {
@@ -80,7 +98,8 @@ export default function PaymentsSection() {
     return () => clearTimeout(timer);
   }, [verifyId, Boolean(data)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rows = data || [];
+  const rows = data ? data.balances : [];
+  const refundsDue = data ? data.refundsDue : [];
   // Every payment from every reservation in one flat list
   const allPayments = rows.flatMap((r) => r.payments);
   // The payment being verified and the reservation it belongs to
@@ -97,17 +116,24 @@ export default function PaymentsSection() {
   const awaitingCount = allPayments.filter((p) => p.status === 'awaiting').length;
   const overdueCount = rows.filter((r) => r.balanceState === 'overdue').length;
 
-  // Number of reservations in each filter tab
-  const counts = useMemo(() => Object.fromEntries(FILTERS.map(([key]) => [key, rows.filter((r) => inFilter(key, r)).length])), [rows]);
+  // Number of reservations in each filter tab ("Refunds to send" counts its own list)
+  const counts = useMemo(
+    () => Object.fromEntries(FILTERS.map(([key]) => [key, key === 'refunds' ? refundsDue.length : rows.filter((r) => inFilter(key, r)).length])),
+    [rows, refundsDue]
+  );
 
+  // The search box matches the REF, customer or event in either list
+  const matches = (r) => {
+    const q = query.trim().toLowerCase();
+    return !q || [r.ref, r.customerName, r.eventName].some((v) => v.toLowerCase().includes(q));
+  };
   // Rows to show. Sort order: proofs to verify first, then overdue, then by event date.
   const visible = rows
     .filter((r) => inFilter(filter, r))
-    .filter((r) => {
-      const q = query.trim().toLowerCase();
-      return !q || [r.ref, r.customerName, r.eventName].some((v) => v.toLowerCase().includes(q));
-    })
+    .filter(matches)
     .sort((a, b) => b.awaitingCount - a.awaitingCount || (a.balanceState === 'overdue' ? -1 : 0) - (b.balanceState === 'overdue' ? -1 : 0) || a.date.localeCompare(b.date));
+  // "Refunds to send" rows, oldest event date first (the order listRefundsDue gives)
+  const visibleRefunds = refundsDue.filter(matches);
 
   // Close the verify panel and remove ?verify= from the URL
   const closeVerify = () => {
@@ -182,11 +208,27 @@ export default function PaymentsSection() {
     }
   ];
 
+  // "Refunds to send": one row per booking with money to return. On a phone card the customer and event
+  // are the heading, the status chip sits top right, the amount to return is a field, and the button is at the bottom.
+  const refundColumns = [
+    { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
+    { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
+    { key: 'status', label: 'Status', card: 'aside', render: (r) => <StatusChip status={r.status} size="sm" /> },
+    { key: 'date', label: 'Event date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
+    { key: 'why', label: 'Why', render: (r) => REFUND_WHY[r.why] || r.why },
+    { key: 'refundDue', label: 'To return', align: 'right', render: (r) => <b>{peso(r.refundDue)}</b> },
+    { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
+    { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
+    { key: 'action', label: 'Action', align: 'right', card: 'footer', render: (r) => <Button size="small" variant="contained" onClick={() => setRefunding(r)}>Record refund</Button> }
+  ];
+
   if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
 
   return (
     <>
-      <SectionBar text="Verify uploaded proofs, record cash payments and follow up on balances." />
+      <SectionBar text="Set the minimum downpayment, verify uploaded proofs, record cash payments, follow up on balances and send refunds." />
+
+      <MinDownpaymentCard setting={setting} onSaved={() => { notify('Minimum downpayment saved.'); setting.reload(); }} />
 
       {/* Summary cards, two per row on phones and tablets */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
@@ -202,7 +244,11 @@ export default function PaymentsSection() {
             <FilterTabs value={filter} onChange={setFilter} options={FILTERS.map(([value, label]) => ({ value, label, count: loading ? undefined : counts[value] }))} />
             <SearchField id="payments-search" value={query} onChange={setQuery} placeholder="Search by customer or REF" />
           </Box>
-          <DataTable loading={loading} columns={columns} rows={visible} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={960} empty={<EmptyState compact title="Nothing here" description="No reservations match this filter." />} />
+          {filter === 'refunds' ? (
+            <DataTable loading={loading} columns={refundColumns} rows={visibleRefunds} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={960} empty={<EmptyState compact title="No refunds to send" description="Cancelled and overpaid bookings with money to return show here." />} />
+          ) : (
+            <DataTable loading={loading} columns={columns} rows={visible} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={960} empty={<EmptyState compact title="Nothing here" description="No reservations match this filter." />} />
+          )}
         </DashCard>
 
         {/* Verify panel: proof image, payment details, and Mark received / Reject buttons */}
@@ -236,7 +282,7 @@ export default function PaymentsSection() {
                 <Box sx={{ mt: 2.5, p: 1.75, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                   <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>What marking received does</Typography>
                   <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
-                    Generates the receipt, moves a 50% payment to Downpayment paid, a full payment straight to Confirmed, and posts the update to the customer's Payments page and chat thread.
+                    Generates the receipt, moves the booking to Downpayment paid once the minimum downpayment is reached (straight to Confirmed when it is paid in full), and posts the update to the customer's Payments page and chat thread.
                   </Typography>
                 </Box>
               </>
@@ -271,6 +317,78 @@ export default function PaymentsSection() {
         }}
       />
       {receipt && <DocumentDialog open onClose={() => setReceipt(null)} detail={receipt.detail} doc={receipt.doc} />}
+      <RefundDialog
+        open={Boolean(refunding)}
+        onClose={() => setRefunding(null)}
+        booking={refunding}
+        onRecorded={(refund) => {
+          setRefunding(null);
+          notify(refundRecordedText(refund));
+        }}
+      />
     </>
+  );
+}
+
+/**
+ * The minimum downpayment: the least a customer pays first to secure a date (they can pay more, up to
+ * the full amount; a booking whose total is below it is paid in full). Built like the buffet price per
+ * person on the Packages page: every booking copies the amount in force when it was made, so changing it
+ * never changes an existing booking. `setting` is the page's catalogue resource (getCatalog), whose
+ * answer carries the current amount.
+ */
+function MinDownpaymentCard({ setting, onSaved }) {
+  const current = setting.data ? setting.data.minDownpayment : null;
+  const [value, setValue] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  // Follow the saved amount when it arrives or changes elsewhere
+  useEffect(() => {
+    if (current !== null) setValue(String(current));
+  }, [current]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await catalogApi.setMinDownpayment(Number(value));
+      setError('');
+      onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DashCard sx={{ mb: 2.5 }}>
+      <CardTitle subtitle="The least a customer pays first to secure a date. They can pay more, up to the full amount.">Minimum downpayment</CardTitle>
+      {setting.error ? (
+        <ErrorState error={setting.error} onRetry={setting.reload} />
+      ) : current === null ? (
+        <ListSkeleton rows={1} height={40} />
+      ) : (
+        <>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+            <FormField
+              id="min-downpayment"
+              type="number"
+              value={value}
+              onChange={(e) => { setValue(e.target.value); setError(''); }}
+              error={error}
+              InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
+              inputProps={{ min: MIN_DOWNPAYMENT_RANGE.min, max: MIN_DOWNPAYMENT_RANGE.max, step: 500, 'aria-label': 'Minimum downpayment' }}
+              sx={{ width: 170 }}
+            />
+            <BusyButton busy={busy} disabled={String(current) === value} onClick={save} sx={{ height: 40 }}>
+              Save
+            </BusyButton>
+          </Box>
+          <Typography sx={{ mt: 1.5, fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
+            A booking whose total is below it is paid in full. Bookings keep the amount in force when they were made, so changing this never changes what an existing customer has to pay first.
+          </Typography>
+        </>
+      )}
+    </DashCard>
   );
 }

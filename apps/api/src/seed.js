@@ -1,6 +1,7 @@
 // First import on purpose: config.js sets the process time zone (Asia/Manila) before the other modules run
 import { config } from './config.js';
 import { NO_EVENT } from '@tm/shared/src/domain/outsource.js';
+import { DEFAULT_MIN_DOWNPAYMENT } from '@tm/shared/src/services/config.js';
 import { buildSeed } from '@tm/shared/src/services/seed.js';
 import { closePool, dbErrorHint, pool, tx } from './db.js';
 import { toJson } from './lib/json.js';
@@ -103,7 +104,7 @@ function toRows(data, hashes, now) {
       sort_order: index
     })),
     dishes: data.dishes.map((d, index) => ({ id: d.id, category: d.category, name: d.name, archived: d.archived, sort_order: index })),
-    catalog_settings: [{ id: 1, price_per_plate: data.settings.pricePerPlate, updated_at: now }],
+    catalog_settings: [{ id: 1, price_per_plate: data.settings.pricePerPlate, min_downpayment: data.settings.minDownpayment, updated_at: now }],
 
     // `venue` is flattened into four columns; fulfilment is NULL for everything but an equipment rental
     reservations: reservations.map((r) => ({
@@ -120,6 +121,7 @@ function toRows(data, hashes, now) {
       menu: toJson(r.menu),
       food_notes: r.foodNotes || '',
       price_per_plate: r.pricePerPlate ?? 0,
+      min_downpayment: r.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT,
       venue_name: r.venue.name,
       venue_address: r.venue.address,
       city: r.venue.city,
@@ -128,9 +130,11 @@ function toRows(data, hashes, now) {
       estimate: toJson(r.estimate),
       quotation: toJson(r.quotation),
       downpayment_due: r.downpaymentDue || null,
+      preparing_at: r.preparingAt ?? null,
       notes: r.notes || '',
       decline_reason: r.declineReason || '',
       cancel_reason: r.cancelReason || '',
+      cancelled_by: r.cancelledBy ?? null,
       created_at: r.createdAt
     })),
     // sort_order keeps addonIds in order; qty comes from addonQty (1 when not asked)
@@ -281,12 +285,14 @@ function toRows(data, hashes, now) {
       c.history.map((entry) => ({ contract_id: c.id, at: entry.at, actor: entry.actor, text: entry.text }))
     ),
 
-    // The seed's `receipt` is the NEXT number and the table keeps the LAST one used (§7.6)
+    // The seed's `receipt` is the NEXT number and the table keeps the LAST one used (§7.6). The refund
+    // counter is here already; the refunds it numbers (rf-####) reach the server in Phase 8.
     counters: [
       { name: 'receipt', value: data.counters.receipt - 1 },
       { name: 'payment', value: data.counters.payment },
       { name: 'inventory', value: data.counters.inventory },
-      { name: 'outsource', value: data.counters.outsource }
+      { name: 'outsource', value: data.counters.outsource },
+      { name: 'refund', value: data.counters.refund ?? 0 }
     ]
   };
 }
@@ -366,7 +372,7 @@ async function main() {
     const width = Math.max(...TABLES.map((table) => table.length));
     console.log('Done. Rows per table:');
     counts.forEach(([table, total]) => console.log(`  ${table.padEnd(width)}  ${total}`));
-    console.log(`Counters (last number used): receipt ${counter.receipt} (next OR-${counter.receipt + 1}) · payment ${counter.payment} · inventory ${counter.inventory} · outsource ${counter.outsource}`);
+    console.log(`Counters (last number used): receipt ${counter.receipt} (next OR-${counter.receipt + 1}) · payment ${counter.payment} · inventory ${counter.inventory} · outsource ${counter.outsource} · refund ${counter.refund}`);
     console.log(`Sample dates count from ${data.seededOn}. Clear the browser's site data on the same day so both sides show the same reservation refs.`);
     return 0;
   } catch (err) {

@@ -13,13 +13,16 @@ import { getCalendar } from './calendar.js';
  * - The customer id the pages pass is only used to pick the address (/reservations for a customer,
  *   /admin/reservations for the admin); the server always takes the customer from the token.
  * - One difference on purpose: answers to a customer never carry the admin's private `notes`.
+ * - Until refunds reach the server (Phase 8), a detail's `refunds` is [] and the money figures leave
+ *   refunds out (the server passes [] to financials).
  * - A cancellation can free the event's slot, so it is saved quietly, the availability map is
  *   reloaded (when the calendar is on the API too), and then one change event goes out, so every
  *   page that reloads already reads the new map. Creating a booking takes no slot (a pending request
  *   holds none), so it only sends the usual change event.
- * - Phase 6A: the nine admin actions and edits (quotation, approve, decline, confirm, complete,
- *   logistics, menu, notes, rented items) reach the server in Phase 6B. Until then they answer with
- *   an INVALID_STATE error, so the whole service can already be switched on to try the customer side.
+ * - Phase 6A: the twelve admin actions and edits (quotation, approve, decline, confirm, complete,
+ *   admin cancel, start preparing and its undo, logistics, menu, notes, rented items) reach the server
+ *   in Phase 6B. Until then they answer with an INVALID_STATE error, so the whole service can already
+ *   be switched on to try the customer side.
  */
 
 // A reservation ref in a URL path (never trust a path segment)
@@ -67,7 +70,10 @@ export function createReservation(customerId, form = {}) {
   return http.post('/reservations', body);
 }
 
-/** Cancel the customer's own reservation (while Pending or Approved), with a reason. Returns its summary. */
+/**
+ * Cancel the customer's own reservation online, with a reason, when the rules allow it (the summary's
+ * `onlineCancel`; the server checks them again). Returns its summary.
+ */
 export async function cancelReservation(ref, customerId, reason) {
   const result = await http.post(`/reservations/${segment(ref)}/cancel`, { reason }, { quiet: true });
   await refreshAvailability(); // a cancelled approved booking frees its slot
@@ -90,6 +96,9 @@ export const approveReservation = notOnServerYet;
 export const declineReservation = notOnServerYet;
 export const confirmReservation = notOnServerYet;
 export const completeReservation = notOnServerYet;
+export const cancelReservationByAdmin = notOnServerYet;
+export const startPreparing = notOnServerYet;
+export const undoPreparing = notOnServerYet;
 export const updateLogistics = notOnServerYet;
 export const updateMenu = notOnServerYet;
 export const saveNotes = notOnServerYet;

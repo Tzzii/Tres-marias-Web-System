@@ -17,7 +17,7 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import LocalBarOutlinedIcon from '@mui/icons-material/LocalBarOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
-import { BUSINESS, RULES, catalogApi, feedbackApi, isRentalPackage, tokens, useDocumentTitle, useResource } from '@tm/shared';
+import { BUSINESS, RULES, cancelWindowText, catalogApi, feedbackApi, isRentalPackage, peso, tokens, useDocumentTitle, useResource } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import BookingBar from '../../components/BookingBar.jsx';
 import { PackageCard, SectionHead } from '../../components/Marketing.jsx';
@@ -43,21 +43,30 @@ const reviewRoll = keyframes`
   to { transform: translateX(-50%); }
 `;
 
-// Services section cards as [icon, title, description]
-const SERVICES = [
+// Services section cards as [icon, title, description]. The payment card names the minimum downpayment the
+// admin has set (`minimum`, in pesos); while it is still loading (null) the amount is left out rather than
+// showing a starting value that may be out of date.
+const servicesList = (minimum) => [
   [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick one pork, chicken, fish and vegetable dish from our menu, with water and juice for every guest. Served plated by our team, at one price per person.'],
   [AutoAwesomeOutlinedIcon, 'Event styling', 'Themed table setups, floral centrepieces, backdrops and mood lighting designed around your motif.'],
   [EventAvailableOutlinedIcon, 'Online reservations', 'Check open dates, reserve online and follow every step, from approval to the final headcount.'],
-  [CreditCardOutlinedIcon, 'Flexible payments', 'Secure your date with a 50% downpayment through cash, GCash or bank transfer and settle the rest on the day.'],
+  [CreditCardOutlinedIcon, 'Flexible payments', `Secure your date with a downpayment${minimum ? ` of at least ${peso(minimum)}` : ''} through cash, GCash or bank transfer, then pay the rest in parts or on the day.`],
   [LocalBarOutlinedIcon, 'Food tasting', 'Wedding package bookings include a complimentary tasting for four so you can finalise the menu with confidence.']
 ];
 
-// FAQ section as [question, answer]. Numbers come from BUSINESS and RULES in config.js,
-// so the answers stay correct if those settings change.
-const FAQS = [
+// FAQ section as [question, answer]. Numbers come from BUSINESS and RULES in config.js and from the
+// admin's minimum downpayment (`minimum`, null while loading), so the answers stay correct if those change.
+const faqList = (minimum) => [
   ['How far in advance should I book?', `Reserve at least ${RULES.leadDays} days before your event. Popular dates, especially weekends in wedding season, fill up early, so we recommend booking as soon as your date is set.`],
-  ['How much is the downpayment?', `A ${RULES.downpaymentRate * 100}% downpayment secures your date. It is due within ${RULES.downpaymentDueDays} days after we approve your reservation, and the balance is settled on the event day.`],
+  [
+    'How much is the downpayment?',
+    `${minimum ? `At least ${peso(minimum)}` : 'A downpayment'} secures your date, and you can pay more, up to the full amount. It is due within ${RULES.downpaymentDueDays} days after we approve your reservation. The rest can be paid in parts and is settled by the event day.${minimum ? ` If your total is below ${peso(minimum)}, you pay it in full.` : ''}`
+  ],
   ['How can I pay?', 'Through GCash or bank transfer. Upload your proof of payment in your account and our team will verify it.'],
+  [
+    'Can I cancel and get my money back?',
+    `Yes. Before you pay, you can cancel online any time before the event day. After you pay, you can cancel online during ${cancelWindowText()}, as long as we haven't started preparing; your reservation page shows the exact date. After that, message us in your chat or call ${BUSINESS.phone}. We return everything you paid, and if we ever return less, we tell you the amount and the reason in your chat.`
+  ],
   ['Where do you cater?', `We serve ${BUSINESS.serviceArea}. For venues farther away, send us a message and we will let you know if we can accommodate your event.`],
   ['Is food included in a package?', 'A package covers the equipment: buffet setup, tableware, tables and chairs, and some include waiters. When you reserve, you choose a buffet, where we cook for you and charge per person on top of the package, or catering only, where you get the equipment alone and cook the food yourself.'],
   ['What is on the buffet?', `One pork dish, one chicken dish, one fish dish and one vegetable dish, all picked by you from our menu, with water and juice for every guest. It is served plated by our team and charged per person, so you know your food cost the moment you enter your guest count.`],
@@ -93,6 +102,12 @@ export default function HomePage() {
   const testimonials = useResource(() => feedbackApi.listPublished({ limit: 3 }), []);
   // Whether the hero text is on screen (drives its fade-up)
   const [heroRef, heroShown] = useInView();
+  // The minimum downpayment the admin has set. A catalogue read brings it up to date on the API
+  // (remote/catalog.js), so it is only read once the packages have loaded; until then (null) the
+  // payment texts leave the amount out.
+  const minimum = packages.data ? catalogApi.minDownpayment() : null;
+  const services = servicesList(minimum);
+  const faqs = faqList(minimum);
 
   // Arriving with /#section (from another page) scrolls to that section
   useEffect(() => {
@@ -183,7 +198,7 @@ export default function HomePage() {
           <SectionHead eyebrow="What we handle" title="Everything under one roof" description="You plan the guest list. We take care of the rest, from the first tasting to the last cleared plate." />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
             {/* White cards fade up as they come into view (cards in a row follow one another); on hover the card lifts and the icon tile fills gold */}
-            {SERVICES.map(([Icon, name, text], i) => (
+            {services.map(([Icon, name, text], i) => (
               <Reveal key={name} delay={(i % 3) * 110} sx={{ height: '100%' }}>
                 <Paper elevation={0} sx={{ height: '100%', p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard, transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease', '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover }, '&:hover .tm-service-icon': { color: '#fff', backgroundColor: site.gold, borderColor: site.gold } }}>
                   <Box className="tm-service-icon" sx={{ width: 52, height: 52, mb: 2.25, borderRadius: '50%', display: 'grid', placeItems: 'center', color: site.goldText, backgroundColor: site.goldTint, border: '1px solid rgba(197, 160, 89, 0.3)', transition: 'color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease' }}>
@@ -304,7 +319,7 @@ export default function HomePage() {
           <SectionHead eyebrow="FAQ" title="Questions we hear often" description="Everything you might want to know before reserving. Still unsure? Our team is happy to help." />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             {/* Questions fade up one after another as the list comes into view */}
-            {FAQS.map(([question, answer], i) => (
+            {faqs.map(([question, answer], i) => (
               <Reveal key={question} delay={i * 70} y={14}>
                 <Accordion
                   disableGutters

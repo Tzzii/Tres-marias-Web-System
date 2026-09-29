@@ -1,5 +1,5 @@
 import { rentalPriceList, slugify } from '@tm/shared/src/domain/catalog.js';
-import { DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, PRICE_PER_PLATE_RANGE, RULES } from '@tm/shared/src/services/config.js';
+import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, MIN_DOWNPAYMENT_RANGE, PRICE_PER_PLATE_RANGE, RULES } from '@tm/shared/src/services/config.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { newId } from '../../lib/ids.js';
 import { now } from '../../lib/time.js';
@@ -7,8 +7,9 @@ import * as repo from './catalog.repo.js';
 
 /**
  * The catalogue rules on the server (docs/backend-development-phases.md Phase 4, §9.2): packages,
- * additional charges (add-ons), buffet dishes, the buffet price per person and the Equipment Rental
- * price list. Same return shapes, error codes and messages as the browser version (catalogService.js)
+ * additional charges (add-ons), buffet dishes, the buffet price per person, the minimum downpayment
+ * (added 2026-09-26, next to the price per person) and the Equipment Rental price list. Same return
+ * shapes, error codes and messages as the browser version (catalogService.js)
  * and as the admin forms on the Packages page (PackagesPage.jsx), whose checks are repeated here
  * because the server never trusts the page (§3 rule 3).
  *
@@ -79,6 +80,16 @@ export async function getPricePerPlate() {
   return { pricePerPlate: await currentPricePerPlate() };
 }
 
+/** The minimum downpayment the admin has set, falling back to the starting amount (like the browser version). */
+async function currentMinDownpayment() {
+  return Number(await repo.getMinDownpayment()) || DEFAULT_MIN_DOWNPAYMENT;
+}
+
+/** The minimum downpayment alone, for the portals' synchronous minDownpayment(): { minDownpayment }. */
+export async function getMinDownpayment() {
+  return { minDownpayment: await currentMinDownpayment() };
+}
+
 /** The rental price list shown on the Equipment Rental package page: [{ id, name, category, price, damageFee }], no stock counts. */
 export async function listRentalItems() {
   return rentalPriceList(await repo.listRentableItems());
@@ -86,18 +97,19 @@ export async function listRentalItems() {
 
 /**
  * Everything the reservation form needs in one call: visible packages, active add-ons, the dishes a
- * buffet menu is picked from, the buffet price per person and the rental price list. Five queries
- * in parallel, one per list (never one per record).
+ * buffet menu is picked from, the buffet price per person, the minimum downpayment and the rental
+ * price list. Six queries in parallel, one per list or setting (never one per record).
  */
 export async function getCatalog() {
-  const [packages, addons, dishes, pricePerPlate, rentals] = await Promise.all([
+  const [packages, addons, dishes, pricePerPlate, minDownpayment, rentals] = await Promise.all([
     repo.listPackages(),
     repo.listAddons(),
     repo.listDishes(),
     currentPricePerPlate(),
+    currentMinDownpayment(),
     listRentalItems()
   ]);
-  return { packages, addons, dishes, pricePerPlate, rentals };
+  return { packages, addons, dishes, pricePerPlate, minDownpayment, rentals };
 }
 
 /* ============================ Packages (admin) ============================ */
@@ -296,4 +308,22 @@ export async function setPricePerPlate(value) {
   }
   await repo.setPricePerPlate(amount, now());
   return { pricePerPlate: amount };
+}
+
+/* ============================ Minimum downpayment (admin) ============================ */
+
+/**
+ * Admin: set the minimum downpayment, the least a customer pays first to secure a date: a whole number
+ * of pesos in MIN_DOWNPAYMENT_RANGE (same message and meta.field as the browser version). It applies to
+ * bookings made from now on: each reservation stores the amount it was made with (reservations.
+ * min_downpayment), so a change never moves an existing booking. Returns { minDownpayment }.
+ */
+export async function setMinDownpayment(value) {
+  const amount = toNumber(value);
+  const { min, max } = MIN_DOWNPAYMENT_RANGE;
+  if (!Number.isInteger(amount) || amount < min || amount > max) {
+    throw invalid(`The minimum downpayment must be between ₱${min.toLocaleString('en-PH')} and ₱${max.toLocaleString('en-PH')}.`, 'minDownpayment');
+  }
+  await repo.setMinDownpayment(amount, now());
+  return { minDownpayment: amount };
 }
