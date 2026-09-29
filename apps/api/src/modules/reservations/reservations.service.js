@@ -55,8 +55,8 @@ import * as repo from './reservations.repo.js';
  * - Refunds reach the server in Phase 8: until then the money figures are worked out with no refunds
  *   (financials(…, [])) and a detail's `refunds` is [].
  * The automatic chat messages (thank-you, change request, refund notice, quotation, approval …) are
- * saved in the same transaction as the change they are about; the chat endpoints that show them
- * arrive in Phase 7.
+ * saved in the same transaction as the change they are about; the chat (modules/messages, Phase 7)
+ * shows them.
  * Lock order for every write, so two of them never deadlock: the availability lock (only when the
  * write takes or moves a slot or rental stock), then the booking's row (lockOwner), then the chat thread.
  */

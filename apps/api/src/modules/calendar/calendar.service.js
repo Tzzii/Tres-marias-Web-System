@@ -17,8 +17,8 @@ import * as repo from './calendar.repo.js';
  * - The public map has no events[].ref: anyone can read it, and it must not show which booking holds a time.
  * - Every date must be a real "YYYY-MM-DD" day, a start time must be "HH:MM", and a block's reason
  *   must be one of BLOCK_REASONS (the admin page only offers those).
- * Every write (block, unblock, capacity) also moves calendar_settings.updated_at, in the same
- * transaction (the change stamp of Phase 7). The calendar keeps no audit trail, in the browser
+ * Every write (block, unblock, capacity) also moves calendar_settings.updated_at (when the calendar
+ * last changed), in the same transaction. The calendar keeps no audit trail, in the browser
  * version or in the schema, so none is written here.
  */
 

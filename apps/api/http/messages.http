@@ -1,0 +1,77 @@
+# Phase 7 checks for the chat and the change stamp (VS Code REST Client: click "Send Request" above a block).
+# Start the API first (npm run dev:api) and load the sample data (npm run seed:api). The messages sent here
+# stay in the database: run npm run seed:api again afterwards.
+#
+# The customer requests need a customer token and the admin requests an admin token: get them with the
+# sign-in requests at the top of catalog.http, and paste them into @customerToken and @adminToken below.
+# @thread is a conversation of that customer (GET /threads shows its id; the sample data uses th-0001 … th-0005).
+# Errors come back as { code, message, meta }.
+
+@api = http://localhost:4000/api
+@customerToken = paste-a-customer-token
+@adminToken = paste-an-admin-token
+@thread = th-0001
+
+### ---------------------------------------------------------------- Customer
+
+### The customer's conversation (none or one): last message, unread count for the customer, updatedAt
+GET {{api}}/threads
+Authorization: Bearer {{customerToken}}
+
+### Start the customer's conversation (the portal asks only when the list above is empty) -> { id }
+POST {{api}}/threads
+Authorization: Bearer {{customerToken}}
+
+### The conversation with every message, oldest first, each with eventName. Another customer's: 404 NOT_FOUND
+GET {{api}}/threads/{{thread}}
+Authorization: Bearer {{customerToken}}
+
+### Mark the admin's messages as read -> { ok: true } ({ ok: false } for a conversation that is not theirs)
+POST {{api}}/threads/{{thread}}/read
+Authorization: Bearer {{customerToken}}
+
+### Send a message -> 201 with the message. The sender's name is the account's (a senderName sent here is ignored).
+### Empty: 400 "Write a message first."; over 2,000 characters: 400; a ref that is not one of their reservations: 404
+POST {{api}}/threads/{{thread}}/messages
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "body": "Hello po, can we add a cake table?", "ref": null }
+
+### ---------------------------------------------------------------- Admin
+
+### Every conversation, most recently active first (unread = the customer's messages the admin has not read)
+GET {{api}}/admin/threads
+Authorization: Bearer {{adminToken}}
+
+### One customer's conversation (the chat buttons on the reservation and customer pages look it up first)
+GET {{api}}/admin/threads?customerId=cus-009
+Authorization: Bearer {{adminToken}}
+
+### Start a customer's conversation -> { id }. An unknown customer: 404 "Customer not found."
+POST {{api}}/admin/threads
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "customerId": "cus-004" }
+
+### One conversation in full
+GET {{api}}/admin/threads/{{thread}}
+Authorization: Bearer {{adminToken}}
+
+### Mark the customer's messages as read -> { ok: true }
+POST {{api}}/admin/threads/{{thread}}/read
+Authorization: Bearer {{adminToken}}
+
+### Reply as the signed-in admin -> 201 with the message
+POST {{api}}/admin/threads/{{thread}}/messages
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "body": "Yes, we can add one cake table." }
+
+### ---------------------------------------------------------------- Change stamp
+
+### { stamp }: moves by one after every write that succeeds; both portals ask every 15 seconds while visible
+GET {{api}}/changes
+Authorization: Bearer {{customerToken}}

@@ -1,18 +1,125 @@
 import { newId } from '../../lib/ids.js';
-import { toJson } from '../../lib/json.js';
+import { parseJson, toJson } from '../../lib/json.js';
 import { now } from '../../lib/time.js';
 
 /**
- * Automatic chat messages written by other modules (docs/backend-development-phases.md Phase 6A,
- * task 2): the thank-you after a booking, a change request, a refund notice, and later quotations,
- * receipts and reminders. Each customer has one conversation with the admin (threads, UNIQUE
- * customer_id), created on first use. The chat endpoints themselves arrive in Phase 7.
+ * SQL for the chat (docs §7.1: the repo holds SQL only; the rules are in messages.service.js). Each
+ * customer has one conversation with the admin (threads, UNIQUE customer_id), created on first use.
+ * Records come back in the browser store's shape (messageService.js): a message is { id, from,
+ * senderName, body, ref, at, readByCustomer, readByAdmin, attachment }.
  *
- * Every function here takes the transaction's connection, so a message is saved together with the
- * change it is about, or not at all. Lock order: a write that changes a booking and posts a message
- * locks the booking's row first (lockOwner in reservations.repo.js) and the thread after it (here);
- * the message's reservation tag also needs the booking's row, so the other order could deadlock.
+ * The messages of a thread are in time order (at, then id): the table keeps no other order. Automatic
+ * messages written by other modules (the thank-you after a booking, a change request, a refund notice,
+ * quotations, receipts, reminders) go through postAdminMessage / postCustomerMessage below.
+ *
+ * The write helpers take the transaction's connection, so a message is saved together with the change
+ * it is about, or not at all. Lock order: a write that changes a booking and posts a message locks the
+ * booking's row first (lockOwner in reservations.repo.js) and the thread after it (here); the message's
+ * reservation tag also needs the booking's row, so the other order could deadlock. The reads take `db`:
+ * the pool, or a transaction's connection.
  */
+
+// First row of a SELECT, or null
+const first = ([rows]) => rows[0] || null;
+
+// The column that says whether `side` ('customer' or 'admin') has read a message. Never built from
+// request text: `side` comes from the signed-in account's role.
+const readColumn = (side) => (side === 'customer' ? 'read_by_customer' : 'read_by_admin');
+
+// messages row -> message record
+const toMessage = (row) => ({
+  id: row.id,
+  from: row.from_side,
+  senderName: row.sender_name,
+  body: row.body,
+  ref: row.ref,
+  at: row.at,
+  readByCustomer: Boolean(row.read_by_customer),
+  readByAdmin: Boolean(row.read_by_admin),
+  attachment: parseJson(row.attachment)
+});
+
+/* ============================ Reads ============================ */
+
+/** A thread's owner, { id, customerId } as stored, or null. The lookup ignores case (the column's collation), so callers compare the id. */
+export async function findThread(db, threadId) {
+  const row = first(await db.query('SELECT id, customer_id FROM threads WHERE id = ?', [threadId]));
+  return row && { id: row.id, customerId: row.customer_id };
+}
+
+/** A customer's id as stored, or null when there is no such customer. The lookup ignores case, so callers compare it. */
+export async function findCustomerId(db, customerId) {
+  const row = first(await db.query('SELECT id FROM customers WHERE id = ?', [customerId]));
+  return row ? row.id : null;
+}
+
+/**
+ * Conversations with what the list needs: [{ id, customerId, customerName, customerEmail, lastMessage,
+ * unread }], by thread id. `lastMessage` is the newest message (or null) and `unread` counts the messages
+ * `side` has not read. Every thread, or one customer's (`customerId`), or one thread (`threadId`).
+ * Three queries in all: threads, the newest message of each, and the unread counts.
+ */
+export async function findThreads(db, { customerId, threadId } = {}, side) {
+  const conditions = [];
+  const params = [];
+  if (customerId != null) {
+    conditions.push('t.customer_id = ?');
+    params.push(customerId);
+  }
+  if (threadId != null) {
+    conditions.push('t.id = ?');
+    params.push(threadId);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const [[threads], [latest], [counts]] = await Promise.all([
+    db.query(
+      `SELECT t.id, t.customer_id, c.name AS customer_name, c.email AS customer_email
+         FROM threads t LEFT JOIN customers c ON c.id = t.customer_id ${where} ORDER BY t.id`,
+      params
+    ),
+    db.query(
+      `SELECT x.* FROM (
+         SELECT m.*, ROW_NUMBER() OVER (PARTITION BY m.thread_id ORDER BY m.at DESC, m.id DESC) AS place
+           FROM messages m JOIN threads t ON t.id = m.thread_id ${where}
+       ) x WHERE x.place = 1`,
+      params
+    ),
+    db.query(
+      `SELECT m.thread_id, COUNT(*) AS unread FROM messages m JOIN threads t ON t.id = m.thread_id
+        ${where ? `${where} AND` : 'WHERE'} m.${readColumn(side)} = 0 GROUP BY m.thread_id`,
+      params
+    )
+  ]);
+  const lastByThread = new Map(latest.map((row) => [row.thread_id, toMessage(row)]));
+  const unreadByThread = new Map(counts.map((row) => [row.thread_id, Number(row.unread)]));
+  return threads.map((t) => ({
+    id: t.id,
+    customerId: t.customer_id,
+    customerName: t.customer_name ?? '',
+    customerEmail: t.customer_email ?? '',
+    lastMessage: lastByThread.get(t.id) || null,
+    unread: unreadByThread.get(t.id) || 0
+  }));
+}
+
+/** Every message of a thread, oldest first, each with the name of the event it is about (`eventName`, '' when untagged). */
+export async function findMessages(db, threadId) {
+  const [rows] = await db.query(
+    `SELECT m.*, r.event_name FROM messages m LEFT JOIN reservations r ON r.ref = m.ref
+      WHERE m.thread_id = ? ORDER BY m.at, m.id`,
+    [threadId]
+  );
+  return rows.map((row) => ({ ...toMessage(row), eventName: row.event_name ?? '' }));
+}
+
+/* ============================ Writes ============================ */
+
+/** Mark every message in a thread as read for one side. Returns how many were unread. */
+export async function markRead(db, threadId, side) {
+  const column = readColumn(side);
+  const [result] = await db.query(`UPDATE messages SET ${column} = 1 WHERE thread_id = ? AND ${column} = 0`, [threadId]);
+  return result.affectedRows;
+}
 
 /**
  * The id of the customer's conversation, creating it on first use. The insert and the read both lock
@@ -27,18 +134,28 @@ export async function customerThreadId(conn, customerId) {
 }
 
 /**
- * Add a message to the customer's conversation, tagged with the reservation it is about. It starts
- * read for the side that wrote it and unread for the other. Returns { threadId, id }.
+ * Add a message to the customer's conversation, tagged with the reservation it is about (`ref`, or
+ * null). It starts read for the side that wrote it and unread for the other. Returns { threadId, message }.
  */
-async function postMessage(conn, { customerId, ref, from, senderName, body, attachment = null }) {
+export async function postMessage(conn, { customerId, ref = null, from, senderName, body, attachment = null }) {
   const threadId = await customerThreadId(conn, customerId);
-  const id = newId('m');
+  const message = {
+    id: newId('m'),
+    from,
+    senderName,
+    body,
+    ref,
+    at: now(),
+    readByCustomer: from === 'customer',
+    readByAdmin: from === 'admin',
+    attachment
+  };
   await conn.query(
     `INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, threadId, from, senderName, body, ref, now(), from === 'customer', from === 'admin', toJson(attachment)]
+    [message.id, threadId, from, senderName, body, ref, message.at, message.readByCustomer, message.readByAdmin, toJson(attachment)]
   );
-  return { threadId, id };
+  return { threadId, message };
 }
 
 /**

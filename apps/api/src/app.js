@@ -4,11 +4,14 @@ import cors from 'cors';
 import morgan from 'morgan';
 import { config } from './config.js';
 import { requireAuth, requireRole } from './middleware/auth.js';
+import { stampWrites } from './middleware/changes.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { adminAccountRoutes, authRoutes, customerAccountRoutes } from './modules/auth/auth.routes.js';
 import { calendarAdminRoutes, calendarRoutes } from './modules/calendar/calendar.routes.js';
 import { catalogAdminRoutes, catalogRoutes } from './modules/catalog/catalog.routes.js';
+import { changesRoutes } from './modules/changes/changes.routes.js';
+import { threadAdminRoutes, threadRoutes } from './modules/messages/messages.routes.js';
 import { rentalRoutes, reservationAdminRoutes, reservationRoutes } from './modules/reservations/reservations.routes.js';
 
 /**
@@ -17,10 +20,12 @@ import { rentalRoutes, reservationAdminRoutes, reservationRoutes } from './modul
  * Order matters:
  * 1. Request log first, so requests refused further down (bad JSON, too large, CORS preflight) still get a log line.
  * 2. Security headers, the CORS list of allowed sites and JSON body reading.
- * 3. GET /api/health, then the general rate limit (100 a minute per IP) for everything else under /api.
+ * 3. GET /api/health, then the general rate limit (100 a minute per account, or per IP without a token)
+ *    for everything else under /api, then the change stamp, moved after every write that succeeds (Phase 7).
  * 4. Routes, each behind its guard (docs §7.2): /api/auth (no token, strict limit on every route),
- *    /api/me and /api/reservations (customers only), /api/rentals (any signed-in user), the public
- *    catalogue reads (Phase 4) and calendar reads (Phase 5), and /api/admin/* behind ONE router-level guard.
+ *    /api/me, /api/reservations and /api/threads (customers only), /api/rentals and /api/changes (any
+ *    signed-in user), the public catalogue reads (Phase 4) and calendar reads (Phase 5), and /api/admin/*
+ *    behind ONE router-level guard.
  * 5. The 404 and error handlers last, so every failure leaves in the same { code, message, meta } shape.
  */
 export function createApp() {
@@ -50,6 +55,9 @@ export function createApp() {
 
   app.use('/api', apiLimiter);
 
+  // Every write that succeeds moves the change stamp the portals poll (GET /api/changes)
+  app.use('/api', stampWrites);
+
   // Sign-in, sign-up and password reset (public; each route also has the strict per-IP limit)
   app.use('/api/auth', authRoutes);
 
@@ -59,9 +67,15 @@ export function createApp() {
   // The signed-in customer's own bookings: list, detail, book, cancel, change request (Phase 6A)
   app.use('/api/reservations', requireAuth, requireRole('customer'), reservationRoutes);
 
+  // The signed-in customer's own conversation with the admin (Phase 7)
+  app.use('/api/threads', requireAuth, requireRole('customer'), threadRoutes);
+
   // Rental stock on a date: the customer's rental form and the admin's rental edit dialog both read it,
   // so any signed-in user (the route honours excludeRef for an admin only)
   app.use('/api/rentals', requireAuth, rentalRoutes);
+
+  // The change stamp both portals poll every 15 seconds (Phase 7), for any signed-in user
+  app.use('/api/changes', requireAuth, changesRoutes);
 
   // Public catalogue reads: /api/packages, /addons, /dishes, /catalog, /catalog/price-per-plate, /rental-items.
   // No guard; the three list routes read an optional token themselves (an admin sees hidden and archived records).
@@ -81,6 +95,8 @@ export function createApp() {
   admin.use('/calendar', calendarAdminRoutes);
   // Reservations: every booking, one in full (Phase 6A), and the admin's actions and edits (Phase 6B)
   admin.use('/reservations', reservationAdminRoutes);
+  // Chat: every customer's conversation (Phase 7)
+  admin.use('/threads', threadAdminRoutes);
   app.use('/api/admin', admin);
 
   app.use(notFound);

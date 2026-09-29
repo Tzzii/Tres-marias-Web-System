@@ -279,7 +279,7 @@ CREATE TABLE reservation_activity (
   text            TEXT            NOT NULL,
   PRIMARY KEY (id),
   KEY idx_reservation_activity_ref_at (reservation_ref, at),
-  KEY idx_reservation_activity_at (at),                 -- newest change for the change stamp (Phase 7)
+  KEY idx_reservation_activity_at (at),                 -- by time (the change stamp itself is the 'change' counter, Phase 7)
   CONSTRAINT fk_reservation_activity_reservation FOREIGN KEY (reservation_ref) REFERENCES reservations (ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -392,7 +392,7 @@ CREATE TABLE messages (
   PRIMARY KEY (id),
   KEY idx_messages_thread_at (thread_id, at),
   KEY idx_messages_ref (ref),
-  KEY idx_messages_at (at),                                 -- newest change for the change stamp (Phase 7)
+  KEY idx_messages_at (at),                                 -- by time (the change stamp itself is the 'change' counter, Phase 7)
   CONSTRAINT fk_messages_thread FOREIGN KEY (thread_id) REFERENCES threads (id),
   CONSTRAINT fk_messages_reservation FOREIGN KEY (ref) REFERENCES reservations (ref),
   CONSTRAINT chk_messages_from_side CHECK (from_side IN ('customer', 'admin'))
@@ -451,8 +451,8 @@ CREATE TABLE calendar_blocks (
 CREATE TABLE calendar_settings (
   id             TINYINT UNSIGNED NOT NULL,
   daily_capacity TINYINT UNSIGNED NOT NULL,                 -- events allowed per date (1-10)
-  updated_at     BIGINT UNSIGNED  NOT NULL,                 -- bumped by every calendar write (block, unblock, capacity), so the
-                                                            -- change stamp (Phase 7) also sees an unblock, which leaves no row behind
+  updated_at     BIGINT UNSIGNED  NOT NULL,                 -- bumped by every calendar write (block, unblock, capacity): when the
+                                                            -- calendar last changed, an unblock included (it leaves no row behind)
   PRIMARY KEY (id),
   CONSTRAINT chk_calendar_settings_single_row CHECK (id = 1),
   CONSTRAINT chk_calendar_settings_capacity CHECK (daily_capacity BETWEEN 1 AND 10)
@@ -672,6 +672,9 @@ CREATE TABLE outsource_contract_history (
 -- `value` is always the LAST number used; nextCounter() adds 1 under SELECT … FOR UPDATE inside
 -- the caller's transaction. (The seed's `receipt` is the NEXT number instead, so the seeder
 -- stores it minus 1: §7.6.)
+-- One more row, 'change', is the change stamp the portals poll (Phase 7, src/modules/changes): it
+-- counts the writes since the counters were last reset and is created by the first write, so a
+-- fresh database and a fresh seed have none (read as 0).
 CREATE TABLE counters (
   name  VARCHAR(40)  NOT NULL,
   value INT UNSIGNED NOT NULL DEFAULT 0,
