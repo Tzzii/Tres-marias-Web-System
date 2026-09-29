@@ -4,15 +4,17 @@ import * as schemas from './reservations.schemas.js';
 import * as reservations from './reservations.service.js';
 
 /**
- * The reservation endpoints of Phase 6A (docs/backend-development-phases.md §9.4): URL, guard and
+ * The reservation endpoints of Phase 6 (docs/backend-development-phases.md §9.4): URL, guard and
  * request shape only; the rules are in reservations.service.js. Three routers, mounted by app.js:
  *   reservationRoutes       /api/reservations...        behind requireAuth + requireRole('customer'):
  *                                                        the signed-in customer's own bookings
  *   rentalRoutes            /api/rentals...             behind requireAuth only (any role): the rental
  *                                                        form (customer) and the admin's rental edit
  *                                                        dialog both read the stock on a date
- *   reservationAdminRoutes  /api/admin/reservations...  behind the admin router's guard
- * The customer is always req.user (from the token), never an id sent by the page.
+ *   reservationAdminRoutes  /api/admin/reservations...  behind the admin router's guard: every booking,
+ *                                                        and the admin's actions and edits (Phase 6B)
+ * The customer is always req.user (from the token), never an id sent by the page; so is the admin whose
+ * name goes into the audit trail and the chat messages.
  */
 
 /* ============================ /api/reservations (customer) ============================ */
@@ -32,7 +34,7 @@ reservationRoutes.get('/:ref', validate({ params: schemas.refParams }), async (r
   res.json(await reservations.getReservation(req.valid.params.ref, { customerId: req.user.id }));
 });
 // Cancel online (when the summary's onlineCancel allows it; the service checks again): { reason } -> the summary
-reservationRoutes.post('/:ref/cancel', validate({ params: schemas.refParams, body: schemas.cancelBody }), async (req, res) => {
+reservationRoutes.post('/:ref/cancel', validate({ params: schemas.refParams, body: schemas.reasonBody }), async (req, res) => {
   res.json(await reservations.cancelReservation(req.valid.params.ref, req.user, req.valid.body.reason));
 });
 // Ask for a change in the chat: { message } -> { threadId }
@@ -61,4 +63,52 @@ reservationAdminRoutes.get('/', async (req, res) => {
 // One booking in full
 reservationAdminRoutes.get('/:ref', validate({ params: schemas.refParams }), async (req, res) => {
   res.json(await reservations.getReservation(req.valid.params.ref));
+});
+
+// The admin's actions: each answers with the booking's summary
+// Price and send the quotation: { addonPrices, otherCharges, otherLabel, discount, deliveryFee, note }
+reservationAdminRoutes.post('/:ref/quotation', validate({ params: schemas.refParams, body: schemas.quotationBody }), async (req, res) => {
+  res.json(await reservations.sendQuotation(req.valid.params.ref, req.valid.body, req.user));
+});
+reservationAdminRoutes.post('/:ref/approve', validate({ params: schemas.refParams }), async (req, res) => {
+  res.json(await reservations.approveReservation(req.valid.params.ref, req.user));
+});
+// { reason } shown to the customer
+reservationAdminRoutes.post('/:ref/decline', validate({ params: schemas.refParams, body: schemas.reasonBody }), async (req, res) => {
+  res.json(await reservations.declineReservation(req.valid.params.ref, req.valid.body.reason, req.user));
+});
+reservationAdminRoutes.post('/:ref/confirm', validate({ params: schemas.refParams }), async (req, res) => {
+  res.json(await reservations.confirmReservation(req.valid.params.ref, req.user));
+});
+reservationAdminRoutes.post('/:ref/complete', validate({ params: schemas.refParams }), async (req, res) => {
+  res.json(await reservations.completeReservation(req.valid.params.ref, req.user));
+});
+// { reason } shown to the customer
+reservationAdminRoutes.post('/:ref/cancel', validate({ params: schemas.refParams, body: schemas.reasonBody }), async (req, res) => {
+  res.json(await reservations.cancelReservationByAdmin(req.valid.params.ref, req.valid.body.reason, req.user));
+});
+// "Started preparing": POST marks it, DELETE takes it back
+reservationAdminRoutes.post('/:ref/preparing', validate({ params: schemas.refParams }), async (req, res) => {
+  res.json(await reservations.startPreparing(req.valid.params.ref, req.user));
+});
+reservationAdminRoutes.delete('/:ref/preparing', validate({ params: schemas.refParams }), async (req, res) => {
+  res.json(await reservations.undoPreparing(req.valid.params.ref, req.user));
+});
+
+// The admin's edits
+// Date, time, guests, venue (and pick up or delivery for a rental) -> { changed }
+reservationAdminRoutes.patch('/:ref/logistics', validate({ params: schemas.refParams, body: schemas.logisticsBody }), async (req, res) => {
+  res.json(await reservations.updateLogistics(req.valid.params.ref, req.valid.body, req.user));
+});
+// { serviceType, menu, foodNotes } -> { ok: true }
+reservationAdminRoutes.put('/:ref/menu', validate({ params: schemas.refParams, body: schemas.menuBody }), async (req, res) => {
+  res.json(await reservations.updateMenu(req.valid.params.ref, req.valid.body, req.user));
+});
+// { notes } (private to the admin) -> { ok: true }
+reservationAdminRoutes.put('/:ref/notes', validate({ params: schemas.refParams, body: schemas.notesBody }), async (req, res) => {
+  res.json(await reservations.saveNotes(req.valid.params.ref, req.valid.body.notes));
+});
+// A rental's whole new list { items: [{ itemId, qty }] } -> { changed }
+reservationAdminRoutes.put('/:ref/rental-items', validate({ params: schemas.refParams, body: schemas.rentalItemsBody }), async (req, res) => {
+  res.json(await reservations.updateRentalItems(req.valid.params.ref, req.valid.body, req.user));
 });

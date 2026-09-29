@@ -47,11 +47,45 @@ export const createBody = z.object({
   rentalItems: passThrough
 });
 
-// POST /api/reservations/:ref/cancel { reason }, kept to 2,000 characters like a chat message
-export const cancelBody = z.object({ reason: text(2000) });
+// { reason } for the customer's cancel and the admin's decline and cancel, kept to 2,000 characters like a chat message
+export const reasonBody = z.object({ reason: text(2000) });
 
 // POST /api/reservations/:ref/change-request { message }, 2,000 characters like a chat message
 export const changeBody = z.object({ message: text(2000) });
 
 // GET /api/rentals/availability?date=YYYY-MM-DD&excludeRef=RES-… (excludeRef: the admin's edit dialog only)
 export const availabilityQuery = z.object({ date: passThrough, excludeRef: passThrough });
+
+/**
+ * POST /api/admin/reservations/:ref/quotation. The amounts (whole pesos) are checked by the service;
+ * the two texts are kept to what the quotation card allows (otherLabel 60, note 300 characters).
+ */
+export const quotationBody = z.object({
+  addonPrices: passThrough,
+  otherCharges: passThrough,
+  otherLabel: text(60),
+  discount: passThrough,
+  deliveryFee: passThrough,
+  note: text(300)
+});
+
+// PATCH /api/admin/reservations/:ref/logistics: the logistics card's fields; lengths follow the columns, as for a booking
+export const logisticsBody = z.object({
+  date: passThrough,
+  startTime: passThrough,
+  guests: passThrough,
+  fulfilment: passThrough,
+  venueName: text(160),
+  venueAddress: text(255),
+  city: text(120),
+  accessNotes: text(2000)
+});
+
+// PUT /api/admin/reservations/:ref/menu { serviceType, menu, foodNotes }; each menu line is cut to MENU_LINE_MAX by the service
+export const menuBody = z.object({ serviceType: passThrough, menu: passThrough, foodNotes: text(2000) });
+
+// PUT /api/admin/reservations/:ref/notes { notes }: the admin's private notes (the card allows 1,000 characters)
+export const notesBody = z.object({ notes: text(2000) });
+
+// PUT /api/admin/reservations/:ref/rental-items { items: [{ itemId, qty }] }, checked line by line by the service
+export const rentalItemsBody = z.object({ items: passThrough });

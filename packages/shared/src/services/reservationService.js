@@ -686,17 +686,18 @@ function approvalMessage(reservation, money) {
   return `Good news! ${reservation.eventName} is approved. ${pay} ${cancel}`;
 }
 
-/** Admin: decline a pending request with a reason shown to the customer. */
+/** Admin: decline a pending request with a reason shown to the customer (at least 5 characters, like every reason box in the admin). */
 export async function declineReservation(ref, reason) {
   await latency(450, 800);
-  if (!reason || !reason.trim()) throw new ApiError('INVALID', 'A reason is required.', { field: 'reason' });
+  const text = String(reason || '').trim();
+  if (text.length < 5) throw new ApiError('INVALID', 'Please give a short reason (at least 5 characters).', { field: 'reason' });
   return write((data) => {
     const reservation = findOrThrow(data, ref);
     if (reservation.status !== 'pending') throw new ApiError('INVALID_STATE', 'Only pending reservations can be declined.');
     reservation.status = 'declined';
-    reservation.declineReason = reason.trim();
-    log(reservation, ADMIN_NAME(), `Declined the reservation. Reason: ${reason.trim()}`);
-    postAdminMessage(data, reservation, `We are sorry, we are unable to accept ${reservation.eventName}. ${reason.trim()}`);
+    reservation.declineReason = text;
+    log(reservation, ADMIN_NAME(), `Declined the reservation. Reason: ${text}`);
+    postAdminMessage(data, reservation, `We are sorry, we are unable to accept ${reservation.eventName}. ${text}`);
     return summarize(reservation, data);
   });
 }
