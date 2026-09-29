@@ -6,6 +6,7 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import CurrencyExchangeOutlinedIcon from '@mui/icons-material/CurrencyExchangeOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
@@ -52,16 +53,17 @@ const RANGES = [
 
 // Saved reports as [key, name, description]
 const SAVED = [
-  ['monthly_sales', 'Monthly sales summary', 'Verified payments per month, split by method'],
+  ['monthly_sales', 'Monthly sales summary', 'Verified payments per month, split by method, less refunds'],
   ['outstanding', 'Outstanding balances', 'Every approved booking with money still due']
 ];
 
-// Short money labels for chart axes: ₱1.2M, ₱350k, or the full amount under ₱1,000
-const shortPeso = (v) => (v >= 1000000 ? `₱${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `₱${Math.round(v / 1000)}k` : peso(v));
+// Short money labels for chart axes: ₱1.2M, ₱350k, or the full amount under ₱1,000; below 0 (more refunds than payments) with a minus sign
+const shortPeso = (v) => (v < 0 ? `−${shortPeso(-v)}` : v >= 1000000 ? `₱${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `₱${Math.round(v / 1000)}k` : peso(v));
 
 /**
- * 1y · Reports, with two tabs: Overview (figures computed from reservations and verified payments)
- * and Payments and balances. The open tab lives in the URL (?tab=overview|payments); a payment
+ * 1y · Reports, with two tabs: Overview (figures computed from reservations, verified payments and
+ * refunds: revenue is net of the refunds sent in the range, which also show as their own figure) and
+ * Payments and balances. The open tab lives in the URL (?tab=overview|payments); a payment
  * link with ?verify= or ?filter= opens the Payments tab even without ?tab=.
  */
 export default function ReportsPage() {
@@ -94,7 +96,7 @@ export default function ReportsPage() {
   const byYear = Boolean(data && data.revenueBy === 'year');
 
   // Export the summary numbers, revenue per month (or year) and package counts as one TXT file,
-  // with a heading and a lined-up table for each section
+  // with a heading and a lined-up table for each section. Revenue is net of refunds; the refunds are listed too.
   const exportSummary = () => {
     if (!data) return;
     const text = [
@@ -105,12 +107,13 @@ export default function ReportsPage() {
       'SUMMARY',
       textTable([
         { Figure: 'Events served', Value: String(data.eventsServed) },
-        { Figure: 'Revenue', Value: peso(data.revenue) },
+        { Figure: 'Revenue (payments less refunds)', Value: peso(data.revenue) },
+        { Figure: 'Refunds', Value: peso(data.refunds) },
         { Figure: 'Average per event', Value: peso(data.averagePerEvent) },
         { Figure: 'Decline rate', Value: `${data.declineRate}%` }
       ]),
       '',
-      byYear ? 'REVENUE BY YEAR' : 'REVENUE BY MONTH',
+      byYear ? 'REVENUE BY YEAR (PAYMENTS LESS REFUNDS)' : 'REVENUE BY MONTH (PAYMENTS LESS REFUNDS)',
       textTable(data.revenueChart.map((m) => ({ [byYear ? 'Year' : 'Month']: m.label, Revenue: m.value })), ['Revenue']),
       '',
       'BOOKINGS BY PACKAGE',
@@ -154,20 +157,21 @@ export default function ReportsPage() {
 
       {tab === 'overview' && !error && (
         <>
-          {/* Summary numbers for the selected range, two per row on phones and tablets */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
+          {/* Summary numbers for the selected range, two per row on phones and tablets, five in a row on wide screens */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(5, minmax(0, 1fr))' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
             <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events served" value={data ? data.eventsServed : 0} loading={loading} />
-            <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue" value={data ? peso(data.revenue) : '₱0'} meta="Verified payments" loading={loading} />
+            <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue" value={data ? peso(data.revenue) : '₱0'} meta="Verified payments less refunds" loading={loading} />
+            <StatCard icon={CurrencyExchangeOutlinedIcon} tone="violet" label="Refunds" value={data ? peso(data.refunds) : '₱0'} meta="Returned to customers" loading={loading} />
             <StatCard icon={AssessmentOutlinedIcon} tone="blue" label="Average per event" value={data ? peso(data.averagePerEvent) : '₱0'} loading={loading} />
             <StatCard icon={PercentRoundedIcon} tone="red" label="Decline rate" value={data ? `${data.declineRate}%` : '0%'} loading={loading} />
           </Box>
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.7fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
             <DashCard>
-              <CardTitle subtitle="Updates automatically when payments are verified.">{byYear ? 'Revenue by year' : 'Revenue by month'}</CardTitle>
+              <CardTitle subtitle="Verified payments less refunds sent. Updates automatically when payments are verified or refunds recorded.">{byYear ? 'Revenue by year' : 'Revenue by month'}</CardTitle>
               {loading ? (
                 <ListSkeleton rows={1} height={240} />
-              ) : data.revenue === 0 ? (
+              ) : data.revenue === 0 && !data.refunds ? (
                 <EmptyState compact title="No revenue in this range" description="Verified payments will appear here." />
               ) : (
                 <BarChart data={data.revenueChart} height={240} format={shortPeso} ariaLabel={byYear ? 'Revenue by year' : 'Revenue by month'} />

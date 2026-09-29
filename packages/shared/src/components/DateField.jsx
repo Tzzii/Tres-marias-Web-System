@@ -54,6 +54,7 @@ const POPUP_MODIFIERS = [
  *            date picks it straight away and shows its schedule underneath. Light surfaces only.
  * `mode="any"` lets the admin pick any date from today on (blocking dates,
  * rescheduling); the popup closes on the first tap and no schedule is shown.
+ * `mode="past"` works the same way but for today and earlier (e.g. the day a refund was sent).
  * `rental` is for an equipment rental: it takes no event slot, so only too-soon and blocked
  * dates are greyed out. The gold dots and the booked event times still show, the same as
  * every other customer calendar, but a rental has no start times to choose around them.
@@ -109,10 +110,11 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
     else choose(iso);
   };
 
-  // Decide if each day can be picked. Admin mode ('any') only blocks past dates.
+  // Decide if each day can be picked. Admin mode 'any' only blocks past dates, and 'past' only future ones.
   // Open booking days with events get a dot and say how many events are booked (rentals too, so every
   // customer calendar marks the same days). While the map is loading, no booking day can be picked.
   const getDay = (iso) => {
+    if (mode === 'past') return iso > todayISO() ? { tone: 'disabled', label: 'Future date' } : { tone: 'open' };
     if (!booking) {
       return iso < todayISO() ? { tone: 'disabled', label: 'Past date' } : { tone: 'open' };
     }

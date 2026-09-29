@@ -179,7 +179,7 @@ export default function RequestsSection() {
         <DashCard>
           <CardTitle>Approve — what happens</CardTitle>
           <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>
-            Open the reservation first to price the food and additional charges and send the quotation. Once it is sent, approving moves the status to Approved and the customer gets a payment instruction with a 50% downpayment due date.
+            Open the reservation first to price the food and additional charges and send the quotation. Once it is sent, approving moves the status to Approved and the customer gets a payment instruction: at least the minimum downpayment (or more, up to the full amount) by a due date.
           </Typography>
         </DashCard>
         <DashCard>
@@ -193,7 +193,7 @@ export default function RequestsSection() {
         open={confirm?.type === 'approve'}
         onClose={() => setConfirm(null)}
         title={confirm && confirm.refs.length > 1 ? `Approve ${confirm.refs.length} reservations?` : 'Approve this reservation?'}
-        description="The customer receives the quotation already sent and a 50% downpayment due date. Reservations without a sent quotation stay pending."
+        description="The customer receives the quotation already sent and the due date for the minimum downpayment. Reservations without a sent quotation stay pending."
         confirmLabel="Approve"
         onConfirm={async () => {
           const refs = confirm.refs;

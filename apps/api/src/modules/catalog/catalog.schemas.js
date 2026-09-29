@@ -61,3 +61,6 @@ export const addonBody = z.object({
 export const dishBody = z.object({ name: text(120), category: passThrough });
 
 export const pricePerPlateBody = z.object({ pricePerPlate: passThrough });
+
+// The number is checked by the service (whole pesos in MIN_DOWNPAYMENT_RANGE, with the browser version's message)
+export const minDownpaymentBody = z.object({ minDownpayment: passThrough });

@@ -152,13 +152,14 @@ async function check() {
     const out = {
       ref: r.ref, customerId: r.customer_id, eventName: r.event_name, occasion: r.occasion, date: r.date, startTime: r.start_time,
       guests: r.guests, packageId: r.package_id, serviceType: r.service_type, menu: parseJson(r.menu), foodNotes: r.food_notes,
-      pricePerPlate: r.price_per_plate,
+      pricePerPlate: r.price_per_plate, minDownpayment: r.min_downpayment,
       venue: { name: r.venue_name, address: r.venue_address, city: r.city, accessNotes: r.access_notes },
       addonIds: links.map((l) => l.addon_id),
       // Only add-ons counted by the piece carry a quantity in the record; the others are stored as 1
       addonQty: Object.fromEntries(links.filter((l) => hasQty.has(l.addon_id)).map((l) => [l.addon_id, l.qty])),
       status: r.status, estimate: parseJson(r.estimate), quotation: parseJson(r.quotation), downpaymentDue: r.downpayment_due,
-      notes: r.notes, declineReason: r.decline_reason, cancelReason: r.cancel_reason,
+      preparingAt: r.preparing_at,
+      notes: r.notes, declineReason: r.decline_reason, cancelReason: r.cancel_reason, cancelledBy: r.cancelled_by,
       activity: acts.map((a) => ({ at: a.at, actor: a.actor, text: a.text })), createdAt: r.created_at
     };
     links.filter((l) => !hasQty.has(l.addon_id)).forEach((l) => l.qty !== 1 && fail(`${r.ref}: qty ${l.qty} on an add-on without hasQuantity`));
@@ -219,7 +220,7 @@ async function check() {
   if (settingsRows.join() !== '1,1' || calSettings.id !== 1 || catSettings.id !== 1) fail(`settings rows: ${settingsRows}`);
   const ageMin = (ms) => ((Date.now() - ms) / 60000).toFixed(1);
   compare('calendar', { dailyCapacity: calSettings.daily_capacity, blocked: (await q('SELECT * FROM calendar_blocks ORDER BY date')).map((b) => ({ date: b.date, reason: b.reason })) }, seed.calendar);
-  compare('settings', { pricePerPlate: catSettings.price_per_plate }, seed.settings);
+  compare('settings', { pricePerPlate: catSettings.price_per_plate, minDownpayment: catSettings.min_downpayment }, seed.settings);
 
   // ---- inventory ----
   const allocs = group(await q('SELECT * FROM inventory_allocations'), 'item_id');

@@ -314,7 +314,7 @@ function chargeRentalDamage(data, reservation, lost) {
   if (!added) return;
 
   // The total as the customer holds it now, and what it becomes once the revised quotation is sent
-  const before = financials(reservation, data.payments).total;
+  const before = financials(reservation, data.payments, data.refunds).total;
   const after = before + added;
   const detail = lost.map(({ item, qty }) => `${qty} × ${item.name}`).join(', ');
   reservation.activity.push({

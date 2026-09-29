@@ -7,12 +7,31 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import { BUFFET_DRINKS, BUSINESS, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
+import { cancelDeadline, cancelWindowText } from '../domain/cancellation.js';
+import { BUFFET_DRINKS, BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
 import { tokens } from '../theme/tokens.js';
 import { formatDate, formatDateLong, formatDateTime, formatMobile, formatPackageItem, formatTime, peso, toISODate } from '../utils/format.js';
 import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
 import { LightSurface } from './Surface.jsx';
+
+// The booking's own minimum downpayment (copied when it was made; older bookings use the starting amount)
+const minimumOf = (detail) => detail.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT;
+
+/**
+ * The contract's cancellation and refund term, the same for events and rentals: unpaid, any time before
+ * the day; paid, online until the booking's deadline (cancelDeadline) and before we start preparing;
+ * after that by chat or phone. Everything paid is returned, and anything kept is explained in the chat.
+ * `day` names the booking's day ("the event day", "the day you need the items").
+ */
+function CancellationTerm({ detail, day }) {
+  return (
+    <li>
+      Before you pay, you can cancel online any time before {day}. After you pay, you can cancel online until {formatDateLong(cancelDeadline(detail))}, which is {cancelWindowText()}, and only
+      before we start preparing. After that, message us in your chat or call {BUSINESS.phone}. We return everything you paid; if we return less, we tell you the amount and the reason in your chat.
+    </li>
+  );
+}
 
 /**
  * The documents a reservation produces. `detail` is the object returned by
@@ -65,6 +84,8 @@ function Line({ label, value, strong, muted }) {
  * An equipment rental prints its rented items (how many x the price per piece), the delivery fee and
  * any damage charges instead of a package, menu and guest count, and its contract carries the rental
  * terms: pick up or delivery, returning the items, and damage fees applying only through a revised quotation.
+ * Both contracts carry the downpayment and cancellation terms of this booking: its own minimum downpayment,
+ * the date until which it can be cancelled online, and the refund of anything paid above a lower quotation.
  * On phones the document fills the screen and its top bar (name, print, close) stays pinned while scrolling.
  */
 export function DocumentDialog({ open, onClose, detail, doc }) {
@@ -74,10 +95,16 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   const quote = detail.quotation || detail.estimate;
   const rental = isRental(detail.serviceType);
   const delivered = rental && detail.fulfilment === 'delivery';
+  // The least to pay first: the booking's minimum, or the whole total when that is lower
+  const minimum = minimumOf(detail);
   // For receipts: the payment the receipt is for
   const payment = doc.paymentId ? detail.payments.find((p) => p.id === doc.paymentId) : null;
   // For quotations: the verified payments, oldest first, listed in the payment record
   const verifiedPayments = detail.payments.filter((p) => p.status === 'verified').sort((a, b) => a.verifiedAt - b.verifiedAt);
+  // Money given back on this booking (0 when there were no refunds, or on an API answer before Phase 8)
+  const refunded = detail.refunded || 0;
+  // A cancelled or declined booking owes nothing more, so its quotation is never stamped "fully paid"
+  const ended = ['cancelled', 'declined'].includes(detail.status);
   // Admin's price for one add-on (0 on an estimate, where add-ons aren't priced yet)
   // What an add-on costs on this quotation: for one counted by the piece that is the unit price
   // times the quantity, which computeQuote has already worked out into `addonTotals`.
@@ -223,7 +250,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                 {quote.discount > 0 && <Line label="Discount" value={`− ${peso(quote.discount)}`} />}
                 <Divider sx={{ my: 1 }} />
                 <Line label="Net total" value={peso(quote.net)} strong />
-                <Line label={`Downpayment (${RULES.downpaymentRate * 100}%)`} value={peso(Math.round(quote.net * RULES.downpaymentRate))} muted />
+                {/* The least to pay first: this booking's minimum, or the whole total when that is lower */}
+                <Line label="Minimum downpayment" value={peso(Math.min(minimum, quote.net))} muted />
               </Box>
 
               {/* Contracts add the terms and signature lines */}
@@ -240,7 +268,12 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     <RentalTerms detail={detail} quote={quote} delivered={delivered} />
                   ) : (
                   <Box component="ol" sx={{ m: 0, pl: 2.5, fontSize: 12.5, lineHeight: 1.7, color: tokens.textSecondary }}>
-                    <li>The 50% downpayment secures the event date. The balance is due on or before the event day.</li>
+                    {/* The minimum is the one this booking was made with, not today's setting */}
+                    <li>
+                      {minimum < quote.net
+                        ? `A downpayment of at least ${peso(minimum)} secures the event date. You choose how much to pay, up to the full amount. The balance is due on or before the event day.`
+                        : `Paying the full amount of ${peso(quote.net)} secures the event date.`}
+                    </li>
                     {/* The per-person rate is read off this quotation, not today's price list, so an old
                         contract keeps printing the rate it was actually agreed at. */}
                     {includesFood(detail.serviceType) ? (
@@ -255,7 +288,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                       The final guest count may be adjusted up to 7 days before the event. <b>Any change to it changes the total, so we send you a revised quotation; the new amount applies only
                       from the quotation we send you, never before.</b> Increases made later than 7 days before the event are billed per guest on the day.
                     </li>
-                    <li>Cancellations more than 30 days before the event receive a refund of the downpayment less a ₱5,000 processing fee.</li>
+                    <li>If a revised quotation is lower than what you have paid, we return the difference.</li>
+                    <CancellationTerm detail={detail} day="the event day" />
                     {/* Same setup time the booking calendar keeps free before every event (RULES.eventBufferHours) */}
                     <li>The client provides safe access to the venue at least {RULES.eventBufferHours} hours before the start time for setup.</li>
                     <li>Service time is as agreed with our team. Extensions are billed at ₱3,500 per hour.</li>
@@ -278,7 +312,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                 <Box sx={{ mt: 4 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
                     <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Payment record</Typography>
-                    {verifiedPayments.length > 0 && detail.balance <= 0 && (
+                    {verifiedPayments.length > 0 && detail.balance <= 0 && !ended && (
                       <Typography sx={{ px: 1.25, py: 0.25, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', borderRadius: 1, border: '2px solid #047857', color: '#047857' }}>FULLY PAID</Typography>
                     )}
                   </Box>
@@ -308,9 +342,11 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                       </tbody>
                     </Box>
                   )}
+                  {/* "Paid so far" adds up the payments listed above; any money given back shows on its own line */}
                   <Box sx={{ mt: 1.5, ml: 'auto', maxWidth: 360 }}>
                     <Line label="Net total" value={peso(quote.net)} />
-                    <Line label="Paid so far" value={peso(detail.paid)} />
+                    <Line label="Paid so far" value={peso(detail.paid + refunded)} />
+                    {refunded > 0 && <Line label="Refunded" value={`− ${peso(refunded)}`} />}
                     <Line label="Balance" value={peso(detail.balance)} strong />
                   </Box>
                   {detail.awaitingCount > 0 && (
@@ -346,12 +382,19 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
 /**
  * The contract terms for an equipment rental. Like the catering contract, anything that changes the
  * total (other items, switching between pick up and delivery, damage charges after the return) only
- * applies from the revised quotation the customer receives, never before.
+ * applies from the revised quotation the customer receives, never before; a revised quotation lower
+ * than what was paid means the difference is returned. The first term names the booking's own minimum
+ * downpayment and the last one its cancellation and refund rules.
  */
 function RentalTerms({ detail, quote, delivered }) {
+  const minimum = minimumOf(detail);
   return (
     <Box component="ol" sx={{ m: 0, pl: 2.5, fontSize: 12.5, lineHeight: 1.7, color: tokens.textSecondary }}>
-      <li>The 50% downpayment reserves the items for your date. The balance is due on or before the day you receive them.</li>
+      <li>
+        {minimum < quote.net
+          ? `A downpayment of at least ${peso(minimum)} reserves the items for your date. You choose how much to pay, up to the full amount. The balance is due on or before the day you receive them.`
+          : `Paying the full amount of ${peso(quote.net)} reserves the items for your date.`}
+      </li>
       <li>Each item is charged per piece at the price shown above, for the whole rental.</li>
       <li>
         {delivered
@@ -363,9 +406,10 @@ function RentalTerms({ detail, quote, delivered }) {
         <b>Damage charges are added through a revised quotation we send you; the new amount applies only from that quotation, never before.</b>
       </li>
       <li>
-        <b>Any change to the items or to pick up or delivery changes the total, so we send you a revised quotation; the new amount applies only from the quotation we send you, never before.</b>
+        <b>Any change to the items or to pick up or delivery changes the total, so we send you a revised quotation; the new amount applies only from the quotation we send you, never before.</b>{' '}
+        If a revised quotation is lower than what you have paid, we return the difference.
       </li>
-      <li>If you cancel after paying, our team arranges the refund of what you paid with you in your chat.</li>
+      <CancellationTerm detail={detail} day="the day you need the items" />
     </Box>
   );
 }

@@ -174,15 +174,19 @@ CREATE TABLE dishes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Catalogue settings: always exactly one row, id = 1 (inserted at the end of this file).
--- `price_per_plate` is what one guest costs on a buffet booking. Changing it only affects new
--- bookings: every reservation stores the rate it was made at (reservations.price_per_plate).
+-- `price_per_plate` is what one guest costs on a buffet booking. `min_downpayment` is the least a
+-- customer pays first to secure a date (they may pay more, up to the full amount; a total below it
+-- is paid in full). Changing either only affects new bookings: every reservation stores the values
+-- it was made with (reservations.price_per_plate, reservations.min_downpayment).
 CREATE TABLE catalog_settings (
   id              TINYINT          NOT NULL,
   price_per_plate INT              NOT NULL DEFAULT 600,
+  min_downpayment INT              NOT NULL DEFAULT 3000,  -- whole pesos, MIN_DOWNPAYMENT_RANGE in the shared config
   updated_at      BIGINT UNSIGNED  NOT NULL,
   PRIMARY KEY (id),
   CONSTRAINT chk_catalog_settings_single_row CHECK (id = 1),
-  CONSTRAINT chk_catalog_settings_price CHECK (price_per_plate BETWEEN 100 AND 5000)
+  CONSTRAINT chk_catalog_settings_price CHECK (price_per_plate BETWEEN 100 AND 5000),
+  CONSTRAINT chk_catalog_settings_min_downpayment CHECK (min_downpayment BETWEEN 1000 AND 100000)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -216,6 +220,9 @@ CREATE TABLE reservations (
   -- The buffet price per person this booking was made at, copied from catalog_settings so a later
   -- price rise cannot move an existing reservation or a quotation already sent.
   price_per_plate INT             NOT NULL DEFAULT 0,
+  -- The minimum downpayment in force when this booking was made (copied from catalog_settings): the
+  -- least the customer pays first; a later change of the setting never moves it.
+  min_downpayment INT             NOT NULL DEFAULT 3000,
   venue_name      VARCHAR(160)    NOT NULL,             -- venue.name   } the record's `venue` object, flattened;
   venue_address   VARCHAR(255)    NOT NULL,             -- venue.address } column names follow the booking form
   city            VARCHAR(120)    NOT NULL,             -- venue.city    } fields (venueName, venueAddress, city,
@@ -224,9 +231,13 @@ CREATE TABLE reservations (
   estimate        JSON            NOT NULL,             -- computeQuote() at booking: package + food (a buffet is priced per person)
   quotation       JSON            NULL,                 -- the last quotation sent: computeQuote() + otherLabel, sentAt, note
   downpayment_due DATE            NULL,                 -- set on approval
+  -- When the admin marked "Started preparing" (the record's `preparingAt`), or NULL. A mark, not a
+  -- status: once set, the customer can no longer cancel online (domain/cancellation.js).
+  preparing_at    BIGINT UNSIGNED NULL,
   notes           TEXT            NOT NULL,             -- the admin's private notes, never shown to the customer
   decline_reason  TEXT            NOT NULL,
   cancel_reason   TEXT            NOT NULL,
+  cancelled_by    VARCHAR(10)     NULL,                 -- who cancelled: 'customer' or 'admin'; NULL unless cancelled
   created_at      BIGINT UNSIGNED NOT NULL,
   PRIMARY KEY (ref),
   KEY idx_reservations_date_status (date, status),       -- availability and calendar queries
@@ -237,7 +248,9 @@ CREATE TABLE reservations (
   CONSTRAINT chk_reservations_status CHECK (status IN ('pending', 'approved', 'downpayment_paid', 'confirmed', 'completed', 'declined', 'cancelled')),
   CONSTRAINT chk_reservations_service_type CHECK (service_type IN ('Buffet and Catering', 'Catering only', 'Equipment rental')),
   CONSTRAINT chk_reservations_fulfilment CHECK (fulfilment IS NULL OR fulfilment IN ('pickup', 'delivery')),
-  CONSTRAINT chk_reservations_guests CHECK (guests >= 0)            -- 0 only for an equipment rental
+  CONSTRAINT chk_reservations_guests CHECK (guests >= 0),           -- 0 only for an equipment rental
+  CONSTRAINT chk_reservations_min_downpayment CHECK (min_downpayment >= 0),
+  CONSTRAINT chk_reservations_cancelled_by CHECK (cancelled_by IS NULL OR cancelled_by IN ('customer', 'admin'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- The add-ons ticked on a reservation (the record's `addonIds` array).
@@ -654,10 +667,11 @@ CREATE TABLE outsource_contract_history (
 -- Counters (src/lib/ids.js nextCounter)
 -- ============================================================================
 
--- Sequential numbers: receipt (OR-####), payment (pay-####), inventory (EQ-####) and
--- outsource (OUT-YYYY-####). `value` is always the LAST number used; nextCounter() adds 1
--- under SELECT … FOR UPDATE inside the caller's transaction. (The seed's `receipt` is the NEXT
--- number instead, so the seeder stores it minus 1: §7.6.)
+-- Sequential numbers: receipt (OR-####), payment (pay-####), inventory (EQ-####),
+-- outsource (OUT-YYYY-####) and refund (rf-####; the refunds table itself comes in Phase 8).
+-- `value` is always the LAST number used; nextCounter() adds 1 under SELECT … FOR UPDATE inside
+-- the caller's transaction. (The seed's `receipt` is the NEXT number instead, so the seeder
+-- stores it minus 1: §7.6.)
 CREATE TABLE counters (
   name  VARCHAR(40)  NOT NULL,
   value INT UNSIGNED NOT NULL DEFAULT 0,
@@ -727,11 +741,11 @@ CREATE TABLE password_resets (
 -- and refills every table, these three included, with the seed's values.
 -- ============================================================================
 
--- The one catalogue settings row: the buffet price per person, as in the seed
-INSERT INTO catalog_settings (id, price_per_plate, updated_at) VALUES (1, 600, UNIX_TIMESTAMP() * 1000);
+-- The one catalogue settings row: the buffet price per person and the minimum downpayment, as in the seed
+INSERT INTO catalog_settings (id, price_per_plate, min_downpayment, updated_at) VALUES (1, 600, 3000, UNIX_TIMESTAMP() * 1000);
 
 -- The one calendar settings row: 2 events a day, as in the seed
 INSERT INTO calendar_settings (id, daily_capacity, updated_at) VALUES (1, 2, UNIX_TIMESTAMP() * 1000);
 
 -- Every counter at 0 (nothing used yet), so nextCounter() works on a fresh database
-INSERT INTO counters (name, value) VALUES ('receipt', 0), ('payment', 0), ('inventory', 0), ('outsource', 0);
+INSERT INTO counters (name, value) VALUES ('receipt', 0), ('payment', 0), ('inventory', 0), ('outsource', 0), ('refund', 0);

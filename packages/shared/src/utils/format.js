@@ -3,8 +3,14 @@
 // Adds thousands separators in Philippine format, no decimals
 const pesoFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 });
 
-/** Number -> "₱12,500". Invalid values show as ₱0. */
-export const peso = (amount) => `₱${pesoFormatter.format(Math.round(Number(amount) || 0))}`;
+/**
+ * Number -> "₱12,500"; a negative one -> "−₱3,000" (e.g. a month with more refunds than payments).
+ * Invalid values show as ₱0.
+ */
+export const peso = (amount) => {
+  const value = Math.round(Number(amount) || 0);
+  return `${value < 0 ? '−' : ''}₱${pesoFormatter.format(Math.abs(value))}`;
+};
 
 /** One item included in a package, as text: { qty: 100, name: 'Porcelain Plates' } -> "100 Porcelain Plates"; no qty -> just the name. */
 export const formatPackageItem = (item) => (item.qty ? `${item.qty} ${item.name}` : item.name);
@@ -39,6 +45,17 @@ export const addDays = (iso, days) => {
   const date = parseISODate(iso);
   date.setDate(date.getDate() + days);
   return toISODate(date);
+};
+
+/**
+ * Add calendar months to a "YYYY-MM-DD" date. The day number stays the same, but never runs past the end
+ * of the target month: ('2026-09-26', 6) -> "2027-03-26", ('2026-08-31', 6) -> "2027-02-28" (the 29th in a leap year).
+ */
+export const addMonths = (iso, months) => {
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+  const first = new Date(y, m - 1 + months, 1); // the 1st of the target month (Date rolls the year over)
+  const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate(); // day 0 of the next month = the last day of this one
+  return toISODate(new Date(first.getFullYear(), first.getMonth(), Math.min(d, lastDay)));
 };
 
 /** Whole days from today to the given date (negative when in the past). */

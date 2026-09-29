@@ -1,15 +1,16 @@
 import { rentalPriceList, slugify } from '../domain/catalog.js';
-import { DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, PRICE_PER_PLATE_RANGE } from './config.js';
+import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, MIN_DOWNPAYMENT_RANGE, PRICE_PER_PLATE_RANGE } from './config.js';
 import { ApiError, clone, latency, read, uid, write } from './store.js';
 
 /**
- * Packages, additional charges (add-ons), buffet dishes and the buffet price per person:
- * public browsing plus the admin catalogue manager.
+ * Packages, additional charges (add-ons), buffet dishes, the buffet price per person and the
+ * minimum downpayment: public browsing plus the admin catalogue manager.
  *
  * A package is a flat-priced set of equipment and service (never food). Add-ons have no fixed
  * price because the admin prices them in each quotation. Dishes are what a buffet menu is built
  * from, one per category. The buffet price per person is the one price set here rather than per
- * booking, because every buffet is charged the same way.
+ * booking, because every buffet is charged the same way. The minimum downpayment sits next to it:
+ * the other booking-wide amount the admin sets (on the Payments tab), which every new booking copies.
  *
  * One package is different: the Equipment Rental package (`kind: 'rental'`) has no items or price
  * of its own. Its customer picks inventory items marked rentable and pays each one's rental price
@@ -20,6 +21,12 @@ import { ApiError, clone, latency, read, uid, write } from './store.js';
 export function pricePerPlate() {
   const saved = read().settings;
   return (saved && Number(saved.pricePerPlate)) || DEFAULT_PRICE_PER_PLATE;
+}
+
+/** The minimum downpayment the admin has set (the least a customer pays first), falling back to the starting amount. */
+export function minDownpayment() {
+  const saved = read().settings;
+  return (saved && Number(saved.minDownpayment)) || DEFAULT_MIN_DOWNPAYMENT;
 }
 
 // What the Equipment Rental package can rent, from the inventory (domain/catalog.js: the same list the API gives)
@@ -61,8 +68,8 @@ export async function listDishes({ includeArchived = false } = {}) {
 
 /**
  * Everything the reservation form needs in one call: visible packages, active add-ons,
- * the dishes a buffet menu is picked from, the buffet price per person, and the items the
- * Equipment Rental package can rent (see rentalItems).
+ * the dishes a buffet menu is picked from, the buffet price per person, the minimum
+ * downpayment, and the items the Equipment Rental package can rent (see rentalItems).
  */
 export async function getCatalog() {
   await latency(180, 420);
@@ -72,6 +79,7 @@ export async function getCatalog() {
     addons: data.addons.filter((a) => !a.archived),
     dishes: data.dishes.filter((d) => !d.archived),
     pricePerPlate: pricePerPlate(),
+    minDownpayment: minDownpayment(),
     rentals: rentalItems(data)
   });
 }
@@ -235,5 +243,24 @@ export async function setPricePerPlate(value) {
   return write((data) => {
     data.settings = { ...data.settings, pricePerPlate: amount };
     return { pricePerPlate: amount };
+  });
+}
+
+/**
+ * Admin: set the minimum downpayment, the least a customer pays first to secure a date (whole pesos in
+ * MIN_DOWNPAYMENT_RANGE). It applies to bookings made from now on: each reservation keeps the amount in
+ * force when it was made (its `minDownpayment`), so a change never moves what an existing customer has
+ * to pay first. Returns { minDownpayment }.
+ */
+export async function setMinDownpayment(value) {
+  await latency(250, 450);
+  const amount = Number(value);
+  const { min, max } = MIN_DOWNPAYMENT_RANGE;
+  if (!Number.isInteger(amount) || amount < min || amount > max) {
+    throw new ApiError('INVALID', `The minimum downpayment must be between ₱${min.toLocaleString('en-PH')} and ₱${max.toLocaleString('en-PH')}.`, { field: 'minDownpayment' });
+  }
+  return write((data) => {
+    data.settings = { ...data.settings, minDownpayment: amount };
+    return { minDownpayment: amount };
   });
 }

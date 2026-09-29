@@ -5,17 +5,16 @@ import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import PhoneIphoneOutlinedIcon from '@mui/icons-material/PhoneIphoneOutlined';
-import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import {
@@ -32,6 +31,7 @@ import {
   ListSkeleton,
   PageHeader,
   PaymentStatusChip,
+  Pill,
   SelectField,
   formatDate,
   formatDateTime,
@@ -72,17 +72,27 @@ function copyWithTextArea(value) {
   if (!copied) throw new Error('Copy was refused');
 }
 
-/** 1k · Payments: downpayment, balance, proof upload, history and receipts. */
+/**
+ * 1k · Payments: downpayment, balance, proof upload, history and receipts.
+ * The customer types how much they are paying (whole pesos). Until the reservation's minimum downpayment
+ * is reached, it is at least the rest of that minimum (all of it when the total is below the minimum)
+ * and at most the balance; after that, any amount up to the balance, so the balance can be paid in parts.
+ * The history also lists money returned to them (refunds).
+ */
 export default function PaymentsPage() {
   useDocumentTitle('Payments');
   const navigate = useNavigate();
   const notify = useNotify();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  // Load the customer's reservations and payment history
+  // Load the customer's reservations, payment history and refunds
   const { data, loading, error, reload } = useResource(async () => {
-    const [reservations, payments] = await Promise.all([reservationApi.listReservations({ customerId: user.id }), paymentApi.listPayments({ customerId: user.id })]);
-    return { reservations, payments };
+    const [reservations, payments, refunds] = await Promise.all([
+      reservationApi.listReservations({ customerId: user.id }),
+      paymentApi.listPayments({ customerId: user.id }),
+      paymentApi.listRefunds({ customerId: user.id })
+    ]);
+    return { reservations, payments, refunds };
   }, [user.id]);
 
   // Reservations that can be paid right now (approved or later, with money owed), soonest event first
@@ -92,7 +102,7 @@ export default function PaymentsPage() {
   );
 
   const [ref, setRef] = useState(params.get('ref') || ''); // reservation being paid (can come from ?ref=)
-  const [plan, setPlan] = useState('half'); // 'half' = 50% downpayment, 'full' = everything
+  const [amountText, setAmountText] = useState(''); // whole pesos typed in the amount box (digits only)
   const [method, setMethod] = useState('gcash');
   const [referenceNo, setReferenceNo] = useState('');
   const [file, setFile] = useState(null); // uploaded proof of payment
@@ -114,10 +124,46 @@ export default function PaymentsPage() {
   useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
 
   const selected = payable.find((r) => r.ref === ref);
-  // No downpayment yet: customer can choose 50% or full
-  const firstPayment = selected && !selected.downpaymentPaid;
-  // Amount to pay now: the rest of the downpayment, or the whole balance
-  const amount = !selected ? 0 : firstPayment && plan === 'half' ? selected.downpayment - selected.paid : selected.balance;
+  // The minimum downpayment isn't reached yet: this payment has to reach it
+  const firstPayment = Boolean(selected) && !selected.downpaymentPaid;
+  // The least this payment can be: the rest of the minimum downpayment (never more than the balance), else ₱1
+  const least = !selected ? 0 : firstPayment ? Math.min(selected.downpayment - selected.paid, selected.balance) : 1;
+  // What the box starts with: the least while the downpayment is owed, the remaining balance after that
+  const suggested = !selected ? 0 : firstPayment ? least : selected.balance;
+  const selectedRef = selected ? selected.ref : '';
+  // Fill the box again whenever another reservation is chosen or its figures change (e.g. after a verified payment)
+  useEffect(() => {
+    setAmountText(suggested ? String(suggested) : '');
+    setErrors((e) => ({ ...e, amount: '' }));
+  }, [selectedRef, suggested]);
+  // Amount to pay now, and what is wrong with it (shown under the box as it is typed)
+  const amount = Number(amountText) || 0;
+  const amountProblem = !selected
+    ? ''
+    : !amountText
+      ? 'Enter how much you will pay.'
+      : amount > selected.balance
+        ? `The most you can pay is ${peso(selected.balance)}.`
+        : amount < least
+          ? firstPayment
+            ? selected.paid > 0
+              ? `Pay at least ${peso(least)} to complete your downpayment.`
+              : `Pay at least ${peso(least)} as your downpayment.`
+            : 'Enter at least ₱1.'
+          : '';
+  // Quick amounts under the box as [label, amount]: the minimum and the full amount (one button when they are the same), or the rest of the balance
+  const quickAmounts = !selected
+    ? []
+    : firstPayment
+      ? least < selected.balance
+        ? [[`Minimum ${peso(least)}`, least], [`Full amount ${peso(selected.balance)}`, selected.balance]]
+        : [[`Full amount ${peso(selected.balance)}`, selected.balance]]
+      : [[`Remaining balance ${peso(selected.balance)}`, selected.balance]];
+  // Put a quick amount (or what was typed, digits only) in the box
+  const setAmount = (value) => {
+    setAmountText(String(value).replace(/\D/g, '').slice(0, 9));
+    setErrors((e) => ({ ...e, amount: '' }));
+  };
 
   // Check the picked file's type and size, then keep it and make a preview if it's an image
   const chooseFile = (event) => {
@@ -145,9 +191,10 @@ export default function PaymentsPage() {
     setPreview('');
   };
 
-  // Validate the reference number and proof, then submit the payment for the admin to verify
+  // Validate the amount, reference number and proof, then submit the payment for the admin to verify
   const submit = async () => {
     const found = {};
+    if (amountProblem) found.amount = amountProblem;
     if (!referenceNo.trim()) found.referenceNo = 'Enter the reference number from your receipt.';
     else if (!/^[A-Za-z0-9 -]{6,30}$/.test(referenceNo.trim())) found.referenceNo = 'Use 6–30 letters, numbers or spaces.';
     if (!file) found.proof = 'Upload a screenshot or receipt of your payment.';
@@ -205,6 +252,11 @@ export default function PaymentsPage() {
   const payments = data ? data.payments : [];
   // Only verified payments have receipts
   const verified = payments.filter((p) => p.status === 'verified');
+  // Payments and refunds in one history, newest first (a refund is placed by when it was recorded)
+  const history = [
+    ...payments.map((p) => ({ key: p.id, at: p.submittedAt, payment: p })),
+    ...(data ? data.refunds : []).map((r) => ({ key: r.id, at: r.recordedAt, refund: r }))
+  ].sort((a, b) => b.at - a.at);
 
   return (
     <>
@@ -226,10 +278,9 @@ export default function PaymentsPage() {
                 id="pay-reservation"
                 label="Reservation"
                 value={ref}
-                // Switching reservation resets the plan and updates ?ref= in the URL
+                // Switching reservation refills the amount (see suggested) and updates ?ref= in the URL
                 onChange={(e) => {
                   setRef(e.target.value);
-                  setPlan('half');
                   setFormError('');
                   setParams({ ref: e.target.value }, { replace: true });
                 }}
@@ -240,7 +291,7 @@ export default function PaymentsPage() {
                 <>
                   <Box sx={{ p: 2, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
                     <DetailRow label="Total">{peso(selected.total)}</DetailRow>
-                    <DetailRow label={`Downpayment · 50%${selected.downpaymentDue ? ` · due ${formatDate(selected.downpaymentDue)}` : ''}`}>{peso(selected.downpayment)}</DetailRow>
+                    <DetailRow label={`Minimum downpayment${selected.downpaymentDue ? ` · due ${formatDate(selected.downpaymentDue)}` : ''}`}>{peso(selected.downpayment)}</DetailRow>
                     <DetailRow label="Paid so far">{peso(selected.paid)}</DetailRow>
                     <Divider sx={{ my: 0.5 }} />
                     <DetailRow label={`Balance · due on event day`}>{peso(selected.balance)}</DetailRow>
@@ -255,29 +306,30 @@ export default function PaymentsPage() {
                     </AlertBanner>
                   ) : (
                     <>
+                      {/* How much to pay: one whole-peso box, with quick amounts underneath. Errors show under the box as the amount is typed. */}
                       <Box>
-                        <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Choose how to pay</Typography>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: firstPayment ? { xs: '1fr', sm: '1fr 1fr' } : '1fr', gap: 1.25 }}>
-                          {/* First payment: 50% or full, side by side (stacked on phones so each reads on one or two lines).
-                              Later: only "Pay remaining balance". */}
-                          {(firstPayment
-                            ? [
-                                ['half', 'Pay 50% now', `${peso(selected.downpayment - selected.paid)} · balance on event day`],
-                                ['full', 'Pay in full', `${peso(selected.balance)} · one transaction`]
-                              ]
-                            : [['full', 'Pay remaining balance', `${peso(selected.balance)}`]]
-                          ).map(([value, title, sub]) => {
-                            const on = firstPayment ? plan === value : true;
-                            return (
-                              <ButtonBase key={value} onClick={() => setPlan(value)} aria-pressed={on} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, p: 1.75, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `2px solid ${on ? tokens.ink : tokens.cardLightBorder}` }}>
-                                {on ? <CheckCircleRoundedIcon sx={{ color: tokens.ink }} /> : <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput }} />}
-                                <Box>
-                                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>{title}</Typography>
-                                  <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{sub}</Typography>
-                                </Box>
-                              </ButtonBase>
-                            );
-                          })}
+                        <FormField
+                          id="pay-amount"
+                          label="How much are you paying?"
+                          value={amountText}
+                          onChange={(e) => setAmount(e.target.value)}
+                          error={errors.amount || amountProblem}
+                          hint={
+                            firstPayment
+                              ? least < selected.balance
+                                ? `At least ${peso(least)} secures your date. You can pay more, up to ${peso(selected.balance)}.`
+                                : `Pay the full ${peso(selected.balance)} to secure your date.`
+                              : `Any amount up to ${peso(selected.balance)}. You can pay the balance in parts.`
+                          }
+                          InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
+                          inputProps={{ inputMode: 'numeric', 'aria-label': 'Amount to pay in pesos' }}
+                        />
+                        <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {quickAmounts.map(([label, value]) => (
+                            <Button key={label} size="small" variant={amount === value ? 'contained' : 'outlined'} aria-pressed={amount === value} onClick={() => setAmount(value)}>
+                              {label}
+                            </Button>
+                          ))}
                         </Box>
                       </Box>
 
@@ -384,22 +436,42 @@ export default function PaymentsPage() {
             <CardTitle>Payment history</CardTitle>
             {loading ? (
               <ListSkeleton rows={3} />
-            ) : payments.length === 0 ? (
+            ) : history.length === 0 ? (
               <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>No payments yet.</Typography>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                {payments.map((p) => (
-                  <Box key={p.id} sx={{ py: 1.25, borderBottom: `1px solid ${tokens.cardLightBorder}`, '&:last-child': { borderBottom: 0 } }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
-                        {peso(p.amount)} · {p.methodLabel}
-                      </Typography>
-                      <PaymentStatusChip status={p.status} size="sm" />
-                    </Box>
-                    <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                      {p.eventName} · {formatDateTime(p.submittedAt)}
-                    </Typography>
-                    {p.status === 'rejected' && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.redPress }}>{p.rejectReason}</Typography>}
+                {/* A refund reads "Refund −₱X" with how and when it was sent, and what was kept (and why) when it was less than
+                    owed; a refund of ₱0 reads "No refund", with the reason everything paid was kept */}
+                {history.map(({ key, payment: p, refund: r }) => (
+                  <Box key={key} sx={{ py: 1.25, borderBottom: `1px solid ${tokens.cardLightBorder}`, '&:last-child': { borderBottom: 0 } }}>
+                    {r ? (
+                      <>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
+                          <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                            {r.amount > 0 ? `Refund −${peso(r.amount)} · ${r.methodLabel}` : 'No refund'}
+                          </Typography>
+                          <Pill label={r.amount > 0 ? 'Refunded' : 'Kept'} bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" size="sm" />
+                        </Box>
+                        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                          {r.eventName} · {r.amount > 0 ? 'sent' : 'recorded'} {formatDate(r.sentOn)}
+                          {r.referenceNo ? ` · Ref ${r.referenceNo}` : ''}
+                        </Typography>
+                        {r.reason && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>We kept {peso(r.due - r.amount)}: {r.reason}</Typography>}
+                      </>
+                    ) : (
+                      <>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
+                          <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                            {peso(p.amount)} · {p.methodLabel}
+                          </Typography>
+                          <PaymentStatusChip status={p.status} size="sm" />
+                        </Box>
+                        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                          {p.eventName} · {formatDateTime(p.submittedAt)}
+                        </Typography>
+                        {p.status === 'rejected' && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.redPress }}>{p.rejectReason}</Typography>}
+                      </>
+                    )}
                   </Box>
                 ))}
               </Box>

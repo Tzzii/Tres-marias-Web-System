@@ -5,8 +5,13 @@ import { ApiError, latency, read } from './store.js';
 
 /**
  * Dashboard counters and the Reports page. Every figure is computed from the
- * reservation and payment records, so charts move as bookings are completed.
+ * reservation, payment and refund records, so charts move as bookings are completed.
+ * Money in is verified payments, counted in the month they were verified, less refunds, counted in the
+ * month they were sent (`sentOn`), so a refund lowers the month it went out, not the month of the payment.
  */
+
+// Sum of the amounts of a list of payments or refunds
+const sum = (list) => list.reduce((total, item) => total + item.amount, 0);
 
 // Is a date inside the report range? (this_year, last_year, last_12 months, or all)
 const inRange = (iso, range) => {
@@ -58,7 +63,7 @@ export async function getDashboardSummary() {
     .map((r) => {
       const customer = data.customers.find((c) => c.id === r.customerId);
       const pkg = data.packages.find((p) => p.id === r.packageId);
-      return { ...r, customerName: customer ? customer.name : '', packageName: pkg ? pkg.name : '', ...financials(r, data.payments) };
+      return { ...r, customerName: customer ? customer.name : '', packageName: pkg ? pkg.name : '', ...financials(r, data.payments, data.refunds) };
     })
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
@@ -77,14 +82,10 @@ export async function getDashboardSummary() {
       packageName: (data.packages.find((p) => p.id === r.packageId) || {}).name
     }));
 
-  // Sum of payments verified in the current month
-  const revenueThisMonth = data.payments
-    .filter((p) => {
-      if (p.status !== 'verified') return false;
-      const d = new Date(p.verifiedAt);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    })
-    .reduce((sum, p) => sum + p.amount, 0);
+  // Payments verified in the current month, less refunds sent in it
+  const thisMonth = (d) => d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  const revenueThisMonth =
+    sum(data.payments.filter((p) => p.status === 'verified' && thisMonth(new Date(p.verifiedAt)))) - sum(data.refunds.filter((r) => thisMonth(parseISODate(r.sentOn))));
 
   // Next 5 approved events after today
   const upcoming = data.reservations
@@ -103,7 +104,10 @@ export async function getDashboardSummary() {
   };
 }
 
-/** Reports page figures for a date range. */
+/**
+ * Reports page figures for a date range. `revenue` and `revenueChart` are net: verified payments less the
+ * refunds sent in the same period; `refunds` is the total returned in the range, shown on its own.
+ */
 export async function getReport(range = 'this_year') {
   await latency(250, 550);
   const data = read();
@@ -113,18 +117,21 @@ export async function getReport(range = 'this_year') {
   const decided = data.reservations.filter((r) => ['approved', 'downpayment_paid', 'confirmed', 'completed', 'declined'].includes(r.status) && inRange(r.date, range));
   const declined = decided.filter((r) => r.status === 'declined');
 
-  // Revenue = verified payments in range; average per event uses completed events' totals
+  // Revenue = verified payments in range less refunds sent in range; average per event uses completed events' totals
   const verified = data.payments.filter((p) => p.status === 'verified' && inRange(toISODate(new Date(p.verifiedAt)), range));
-  const revenue = verified.reduce((sum, p) => sum + p.amount, 0);
-  const completedRevenue = completed.reduce((sum, r) => sum + financials(r, data.payments).total, 0);
+  const returned = data.refunds.filter((r) => inRange(r.sentOn, range));
+  const refunds = sum(returned);
+  const revenue = sum(verified) - refunds;
+  const completedRevenue = completed.reduce((total, r) => total + financials(r, data.payments, data.refunds).total, 0);
 
-  // Revenue chart: one bar per month, or one per year for "All time" (from the first verified payment to this year)
+  // Revenue chart: one bar per month, or one per year for "All time" (from the first payment or refund to this year)
   const revenueBy = range === 'all' ? 'year' : 'month';
-  const sumWhere = (test) => verified.filter((p) => test(new Date(p.verifiedAt))).reduce((sum, p) => sum + p.amount, 0);
+  const sumWhere = (test) => sum(verified.filter((p) => test(new Date(p.verifiedAt)))) - sum(returned.filter((r) => test(parseISODate(r.sentOn))));
   let revenueChart;
   if (revenueBy === 'year') {
     const thisYear = parseISODate(todayISO()).getFullYear();
-    const firstYear = verified.length ? Math.min(...verified.map((p) => new Date(p.verifiedAt).getFullYear())) : thisYear;
+    const years = [...verified.map((p) => new Date(p.verifiedAt).getFullYear()), ...returned.map((r) => parseISODate(r.sentOn).getFullYear())];
+    const firstYear = years.length ? Math.min(...years) : thisYear;
     revenueChart = Array.from({ length: thisYear - firstYear + 1 }, (_, i) => firstYear + i).map((year) => ({
       label: String(year),
       value: sumWhere((d) => d.getFullYear() === year)
@@ -148,6 +155,7 @@ export async function getReport(range = 'this_year') {
     range,
     eventsServed: completed.length,
     revenue,
+    refunds,
     averagePerEvent: completed.length ? Math.round(completedRevenue / completed.length) : 0,
     declineRate: decided.length ? Math.round((declined.length / decided.length) * 100) : 0,
     revenueBy,
@@ -162,33 +170,35 @@ export async function runSavedReport(kind, range = 'this_year') {
   const data = read();
   const customerName = (id) => (data.customers.find((c) => c.id === id) || {}).name || '';
 
-  // Monthly sales: one row per month with totals split by payment method
+  // Monthly sales: one row per month with the payments split by method, then the refunds sent that month and the net
   if (kind === 'monthly_sales') {
     const verified = data.payments.filter((p) => p.status === 'verified' && inRange(toISODate(new Date(p.verifiedAt)), range));
-    // "All time" lists every month from the first verified payment, so the rows add up to all the payments counted
-    const rows = monthBuckets(range, verified.map((p) => toISODate(new Date(p.verifiedAt)))).map(({ year, month }) => {
-      const inMonth = verified.filter((p) => {
-        const d = new Date(p.verifiedAt);
-        return d.getFullYear() === year && d.getMonth() === month;
-      });
-      const byMethod = (method) => inMonth.filter((p) => p.method === method).reduce((s, p) => s + p.amount, 0);
+    const returned = data.refunds.filter((r) => inRange(r.sentOn, range));
+    // "All time" lists every month from the first payment or refund, so the rows add up to everything counted
+    const rows = monthBuckets(range, [...verified.map((p) => toISODate(new Date(p.verifiedAt))), ...returned.map((r) => r.sentOn)]).map(({ year, month }) => {
+      const sameMonth = (d) => d.getFullYear() === year && d.getMonth() === month;
+      const inMonth = verified.filter((p) => sameMonth(new Date(p.verifiedAt)));
+      const refunded = sum(returned.filter((r) => sameMonth(parseISODate(r.sentOn))));
+      const byMethod = (method) => sum(inMonth.filter((p) => p.method === method));
       return {
         Month: `${MONTH_NAMES[month]} ${year}`,
         Payments: inMonth.length,
         [PAYMENT_METHODS.gcash]: byMethod('gcash'),
         [PAYMENT_METHODS.bank]: byMethod('bank'),
         [PAYMENT_METHODS.cash]: byMethod('cash'),
-        Total: inMonth.reduce((s, p) => s + p.amount, 0)
+        Total: sum(inMonth),
+        Refunds: refunded,
+        Net: sum(inMonth) - refunded
       };
     });
-    return { title: 'Monthly sales summary', money: [PAYMENT_METHODS.gcash, PAYMENT_METHODS.bank, PAYMENT_METHODS.cash, 'Total'], rows };
+    return { title: 'Monthly sales summary', money: [PAYMENT_METHODS.gcash, PAYMENT_METHODS.bank, PAYMENT_METHODS.cash, 'Total', 'Refunds', 'Net'], rows };
   }
 
   // Outstanding balances: approved bookings that still owe money, by event date
   if (kind === 'outstanding') {
     const rows = data.reservations
       .filter((r) => ['approved', 'downpayment_paid', 'confirmed', 'completed'].includes(r.status))
-      .map((r) => ({ r, ...financials(r, data.payments) }))
+      .map((r) => ({ r, ...financials(r, data.payments, data.refunds) }))
       .filter((m) => m.balance > 0)
       .sort((a, b) => a.r.date.localeCompare(b.r.date))
       .map((m) => ({

@@ -55,7 +55,7 @@ import { useAuth } from '../auth.js';
  * Newest bookings (bottom left) beside a small calendar with the next events (bottom right).
  * Phones: KPIs, chart, calendar, then the lists.
  * The chart card switches between Bookings (completed events per month this year, no pickers) and
- * Earnings (verified payments per month, per week or per day). Earnings has MM / DD / YYYY pickers:
+ * Earnings (verified payments less refunds, per month, per week or per day). Earnings has MM / DD / YYYY pickers:
  * the year and month choose the range, and a day highlights its bar (or its week's bar).
  */
 export default function DashboardPage() {
@@ -64,15 +64,15 @@ export default function DashboardPage() {
   const { user } = useAuth();
   // Load the dashboard summary: today's events, pending requests, payments, revenue and charts
   const { data, loading, error, reload } = useResource(() => reportApi.getDashboardSummary(), []);
-  // Load reservations, payments and blocked dates for the charts and the small calendar (separately, so the rest of the dashboard doesn't wait)
+  // Load reservations, payments, refunds and blocked dates for the charts and the small calendar (separately, so the rest of the dashboard doesn't wait)
   const calendar = useResource(async () => {
-    const [reservations, payments, availability] = await Promise.all([reservationApi.listReservations(), paymentApi.listPayments(), calendarApi.getCalendar()]);
-    return { reservations, payments, availability };
+    const [reservations, payments, refunds, availability] = await Promise.all([reservationApi.listReservations(), paymentApi.listPayments(), paymentApi.listRefunds(), calendarApi.getCalendar()]);
+    return { reservations, payments, refunds, availability };
   }, []);
 
   const today = parseISODate(todayISO());
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() }); // month shown in the small calendar
-  // Which chart is shown: 'bookings' (completed events per month) or 'earnings' (verified payments)
+  // Which chart is shown: 'bookings' (completed events per month) or 'earnings' (verified payments less refunds)
   const [chartMode, setChartMode] = useState('bookings');
   // Earnings grouping: 'month' (12 bars for the year), 'week' (weeks of the month) or 'day' (days of the month)
   const [period, setPeriod] = useState('month');
@@ -86,12 +86,14 @@ export default function DashboardPage() {
   // Completed events as "YYYY-MM-DD" dates; the bookings chart counts these
   const completedDates = useMemo(() => (calendar.data ? calendar.data.reservations.filter((r) => r.status === 'completed').map((r) => r.date) : []), [calendar.data]);
 
-  // Verified payments as { date: "YYYY-MM-DD", amount }, dated by when they were verified
-  // (same rule as the "Revenue this month" card); the earnings chart sums these
+  // Verified payments as { date: "YYYY-MM-DD", amount }, dated by when they were verified, and refunds the
+  // same way, dated by when they were sent (same rule as the "Revenue this month" card); the earnings
+  // chart sums the payments and takes off the refunds
   const verifiedPayments = useMemo(
     () => (calendar.data ? calendar.data.payments.filter((p) => p.status === 'verified').map((p) => ({ date: toISODate(new Date(p.verifiedAt)), amount: p.amount })) : []),
     [calendar.data]
   );
+  const refundsSent = useMemo(() => (calendar.data ? calendar.data.refunds.map((r) => ({ date: r.sentOn, amount: r.amount })) : []), [calendar.data]);
 
   // Bookings chart: completed events per month of the current year (no pickers), current month in gold
   const bookings = useMemo(() => {
@@ -110,12 +112,14 @@ export default function DashboardPage() {
   // Days in the chosen month, for the DD picker and the per-day / per-week bars
   const daysInMonth = new Date(chartYear, chartMonth + 1, 0).getDate();
 
-  // Earnings chart: bars for the chosen period, which bar is gold, and the subtitle.
+  // Earnings chart: bars for the chosen period, which bar is gold, and the subtitle. Each bar is the
+  // payments verified in it less the refunds sent in it (a period with more refunds than payments is below 0).
   // - per month: 12 bars for the year; the chosen month is gold
   // - per week: weeks of the month (days 1–7, 8–14, 15–21, 22–28, 29–end); the week holding the chosen day (or today) is gold
   // - per day: one bar per day of the month; the chosen day (or today) is gold
   const earnings = useMemo(() => {
-    const sumWhere = (test) => verifiedPayments.filter((p) => test(p.date)).reduce((sum, p) => sum + p.amount, 0);
+    const total = (list, test) => list.filter((item) => test(item.date)).reduce((sum, item) => sum + item.amount, 0);
+    const sumWhere = (test) => total(verifiedPayments, test) - total(refundsSent, test);
     const monthPrefix = `${chartYear}-${pad(chartMonth + 1)}`;
     const monthName = MONTH_NAMES[chartMonth];
     const isThisMonth = chartYear === today.getFullYear() && chartMonth === today.getMonth();
@@ -128,7 +132,7 @@ export default function DashboardPage() {
     if (period === 'month') {
       bars = MONTH_NAMES.map((name, m) => ({ label: name.slice(0, 3), title: `${name} ${chartYear}`, value: sumWhere((d) => d.startsWith(`${chartYear}-${pad(m + 1)}`)) }));
       highlight = chartMonth;
-      range = `Verified payments per month in ${chartYear}`;
+      range = `Verified payments less refunds per month in ${chartYear}`;
     } else if (period === 'week') {
       bars = Array.from({ length: Math.ceil(daysInMonth / 7) }, (_, w) => {
         const start = w * 7 + 1;
@@ -136,22 +140,22 @@ export default function DashboardPage() {
         return { label: `${start}–${end}`, title: `Week ${w + 1} · ${monthName.slice(0, 3)} ${start}–${end}, ${chartYear}`, value: sumWhere((d) => d.startsWith(monthPrefix) && Number(d.slice(8)) >= start && Number(d.slice(8)) <= end) };
       });
       highlight = focusDay ? Math.floor((focusDay - 1) / 7) : -1;
-      range = `Verified payments per week in ${monthName} ${chartYear}`;
+      range = `Verified payments less refunds per week in ${monthName} ${chartYear}`;
     } else {
       bars = Array.from({ length: daysInMonth }, (_, i) => {
         const iso = `${monthPrefix}-${pad(i + 1)}`;
         return { label: String(i + 1), title: formatDateLong(iso), value: sumWhere((d) => d === iso) };
       });
       highlight = focusDay ? focusDay - 1 : -1;
-      range = `Verified payments per day in ${monthName} ${chartYear}`;
+      range = `Verified payments less refunds per day in ${monthName} ${chartYear}`;
     }
 
     // Subtitle: the range and its total, plus the chosen month / week / day's amount when one is picked
-    const total = bars.reduce((sum, b) => sum + b.value, 0);
+    const rangeTotal = bars.reduce((sum, b) => sum + b.value, 0);
     const picked = period === 'month' || chartDay !== 'all' ? bars[highlight] : null;
-    const subtitle = `${range} · ${peso(total)} total${picked ? ` · ${picked.title}: ${peso(picked.value)}` : ''}`;
+    const subtitle = `${range} · ${peso(rangeTotal)} total${picked ? ` · ${picked.title}: ${peso(picked.value)}` : ''}`;
     return { bars, highlight, subtitle };
-  }, [verifiedPayments, period, chartYear, chartMonth, chartDay, daysInMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [verifiedPayments, refundsSent, period, chartYear, chartMonth, chartDay, daysInMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chart = chartMode === 'bookings' ? bookings : earnings;
 
@@ -209,8 +213,8 @@ export default function DashboardPage() {
           gridTemplateAreas: { xs: '"kpi" "chart" "calendar" "lists"', lg: '"chart kpi" "lists calendar"' }
         }}
       >
-        {/* Chart card: Bookings (completed events per month, no pickers) or Earnings (verified payments
-            per month / week / day, with the MM / DD / YYYY pickers) */}
+        {/* Chart card: Bookings (completed events per month, no pickers) or Earnings (verified payments less
+            refunds, per month / week / day, with the MM / DD / YYYY pickers) */}
         <DashCard sx={{ gridArea: 'chart', minWidth: 0 }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
             <Box sx={{ minWidth: 0 }}>
@@ -263,7 +267,7 @@ export default function DashboardPage() {
           <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events today" value={data ? data.eventsToday.length : 0} meta="Confirmed and in progress" loading={loading} onClick={() => navigate('/reservations?tab=calendar')} />
           <StatCard icon={MarkEmailUnreadOutlinedIcon} tone="amber" label="Pending requests" value={data ? data.pending.length : 0} meta={data && data.pending.length ? `Oldest ${data.pendingOldestDays === 0 ? 'from today' : `${pluralize(data.pendingOldestDays, 'day')} ago`}` : 'Queue is clear'} loading={loading} onClick={() => navigate('/reservations?tab=requests')} />
           <StatCard icon={PendingActionsOutlinedIcon} tone="blue" label="Unverified payments" value={data ? data.unverifiedPayments : 0} meta="Proofs waiting for review" loading={loading} onClick={() => navigate('/reports?tab=payments&filter=awaiting')} />
-          <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue this month" value={data ? peso(data.revenueThisMonth) : '₱0'} meta="Verified payments" loading={loading} onClick={() => navigate('/reports')} />
+          <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue this month" value={data ? peso(data.revenueThisMonth) : '₱0'} meta="Verified payments less refunds" loading={loading} onClick={() => navigate('/reports')} />
         </Box>
 
         {/* Events today and Newest bookings, side by side under the chart */}

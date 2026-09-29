@@ -31,7 +31,7 @@ reservationRoutes.post('/', validate({ body: schemas.createBody }), async (req, 
 reservationRoutes.get('/:ref', validate({ params: schemas.refParams }), async (req, res) => {
   res.json(await reservations.getReservation(req.valid.params.ref, { customerId: req.user.id }));
 });
-// Cancel (while Pending or Approved): { reason } -> the summary
+// Cancel online (when the summary's onlineCancel allows it; the service checks again): { reason } -> the summary
 reservationRoutes.post('/:ref/cancel', validate({ params: schemas.refParams, body: schemas.cancelBody }), async (req, res) => {
   res.json(await reservations.cancelReservation(req.valid.params.ref, req.user, req.valid.body.reason));
 });

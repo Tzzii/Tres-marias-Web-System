@@ -1,5 +1,5 @@
-// Public face of the catalog service (packages, add-ons, dishes, the buffet price per person and the
-// rental price list): pages import it through catalogApi (@tm/shared).
+// Public face of the catalog service (packages, add-ons, dishes, the buffet price per person, the
+// minimum downpayment and the rental price list): pages import it through catalogApi (@tm/shared).
 // Each call goes to the browser-store version or the API version, chosen once at startup (backend.js).
 import * as local from '../catalogService.js';
 import * as remote from '../remote/catalog.js';
@@ -22,6 +22,8 @@ export const setAddonArchived = (...a) => impl.setAddonArchived(...a);
 export const saveDish = (...a) => impl.saveDish(...a);
 export const setDishArchived = (...a) => impl.setDishArchived(...a);
 export const setPricePerPlate = (...a) => impl.setPricePerPlate(...a);
-// Returns right away (no waiting): pages read the current buffet price per person while rendering.
-// The API version answers from its copy of the server's price (see remote/catalog.js).
+export const setMinDownpayment = (...a) => impl.setMinDownpayment(...a);
+// Return right away (no waiting): pages read the current buffet price per person and minimum downpayment
+// while rendering. The API version answers from its copies of the server's values (see remote/catalog.js).
 export const pricePerPlate = (...a) => impl.pricePerPlate(...a);
+export const minDownpayment = (...a) => impl.minDownpayment(...a);

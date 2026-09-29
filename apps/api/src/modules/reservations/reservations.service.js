@@ -1,11 +1,22 @@
 import { dateUnavailableReason, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
+import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
 import { financials } from '@tm/shared/src/domain/money.js';
 import { menuDishes, quotationStale, quotationStaleReason, rentalAvailability, rentalStock } from '@tm/shared/src/domain/reservation.js';
-import { DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, MENU_LINE_MAX, OCCASIONS, RENTAL, RENTAL_SERVICE, RULES, SERVICE_TYPES, includesFood } from '@tm/shared/src/services/config.js';
+import {
+  DEFAULT_MIN_DOWNPAYMENT,
+  DEFAULT_PRICE_PER_PLATE,
+  DISH_CATEGORIES,
+  MENU_LINE_MAX,
+  OCCASIONS,
+  RENTAL,
+  RENTAL_SERVICE,
+  RULES,
+  SERVICE_TYPES,
+  includesFood
+} from '@tm/shared/src/services/config.js';
 import { computeQuote } from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
 import { formatDate } from '@tm/shared/src/utils/format.js';
-import { CUSTOMER_EDITABLE } from '@tm/shared/src/utils/status.js';
 import { tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { isClockTime, isISODate, now } from '../../lib/time.js';
@@ -29,12 +40,19 @@ import * as repo from './reservations.repo.js';
  *   out the admin's private `notes`.
  * - The date must be a real "YYYY-MM-DD" day, the start time "HH:MM", the occasion one of OCCASIONS,
  *   and required text is checked after trimming (spaces alone are not an event name).
- * - A booking reads the availability map, the price per person and the rental stock from the
- *   database inside its own transaction, after taking the availability lock (lockAvailability), so
- *   two bookings for the same date get different refs and every check sees the latest saved data.
+ * - A booking reads the availability map, the price per person, the minimum downpayment and the
+ *   rental stock from the database inside its own transaction, after taking the availability lock
+ *   (lockAvailability), so two bookings for the same date get different refs and every check sees
+ *   the latest saved data.
+ * - Refunds reach the server in Phase 8: until then the money figures are worked out with no refunds
+ *   (financials(…, [])) and a detail's `refunds` is [].
  * The automatic chat messages (thank-you, change request, refund notice) are saved in the same
- * transaction; the chat endpoints that show them arrive in Phase 7. The admin actions are Phase 6B.
+ * transaction; the chat endpoints that show them arrive in Phase 7. The admin actions (including the
+ * admin's cancellation and the "Started preparing" mark) are Phase 6B.
  */
+
+// Refunds are recorded in the browser store until Phase 8 (paymentService.js recordRefund), so the server has none yet
+const NO_REFUNDS = [];
 
 // Tries at a new ref when another booking took the same one first (see createReservation)
 const MAX_REF_ATTEMPTS = 3;
@@ -68,9 +86,12 @@ const viewFor = (customerId) => (customerId ? withoutNotes : (answer) => answer)
 
 /**
  * Reservation plus package name, customer contact and money figures, for lists: the browser
- * version's summarize(). `row` is one entry of repo.findReservations().
+ * version's summarize(), with the same `cancelDeadline` and `onlineCancel` (whether the customer can
+ * cancel online now, domain/cancellation.js, which also counts the pieces checked out for it).
+ * `row` is one entry of repo.findReservations().
  */
-function summarize({ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile, payments }) {
+function summarize({ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile, payments, piecesOut }) {
+  const money = financials(reservation, payments, NO_REFUNDS);
   return {
     ...reservation,
     packageName: packageName ?? 'Package',
@@ -80,7 +101,9 @@ function summarize({ reservation, packageName, packageSlug, customerName, custom
     customerMobile: customerMobile ?? '',
     quotationStale: quotationStale(reservation),
     quotationStaleReason: quotationStaleReason(reservation),
-    ...financials(reservation, payments)
+    ...money,
+    cancelDeadline: cancelDeadline(reservation),
+    onlineCancel: onlineCancellation(reservation, money, { piecesOut })
   };
 }
 
@@ -94,10 +117,10 @@ export async function listReservations({ customerId } = {}) {
 
 /**
  * Full detail: the summary plus the package, the menu as a list, the add-ons (in the add-on list's
- * order, archived ones included), the payments (newest first), the customer with their completed
- * events, and the review (without the admin's flag note). With `customerId`, only that customer's own
- * booking (another customer's is NOT_FOUND, never FORBIDDEN, so its existence is not given away) and
- * no notes. The ref must be spelled exactly as stored (see sameRef).
+ * order, archived ones included), the payments (newest first), the refunds ([] until Phase 8), the
+ * customer with their completed events, and the review (without the admin's flag note). With
+ * `customerId`, only that customer's own booking (another customer's is NOT_FOUND, never FORBIDDEN, so
+ * its existence is not given away) and no notes. The ref must be spelled exactly as stored (see sameRef).
  */
 export async function getReservation(ref, { customerId } = {}) {
   const detail = await tx(async (conn) => {
@@ -116,6 +139,7 @@ export async function getReservation(ref, { customerId } = {}) {
       menuDishes: menuDishes(reservation),
       addons: addons.filter((addon) => reservation.addonIds.includes(addon.id)),
       payments: row.payments,
+      refunds: NO_REFUNDS,
       customer:
         row.customerName === null
           ? null
@@ -155,6 +179,7 @@ function startTimeOf(form) {
  * createReservation checks, in the same order). Because a buffet is charged per person, the estimate
  * is a real figure: package + guests x the price per person today, which is copied onto the booking so
  * a later price rise never changes it. Only the add-on prices are still missing (set in the quotation).
+ * The minimum downpayment in force today is copied the same way.
  * Returns the booking's fields, its rental lines (none), and its activity and thank-you texts.
  */
 async function eventBooking(conn, pkg, form) {
@@ -214,7 +239,8 @@ async function eventBooking(conn, pkg, form) {
   const pricePerPlate = Number(await catalogRepo.getPricePerPlate(conn)) || DEFAULT_PRICE_PER_PLATE;
   return {
     fields: {
-      eventName, occasion, date, startTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), pricePerPlate, venue, addonIds, addonQty,
+      eventName, occasion, date, startTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), pricePerPlate,
+      minDownpayment: await currentMinDownpayment(conn), venue, addonIds, addonQty,
       estimate: computeQuote({ pkg, serviceType, guests, pricePerPlate, addonIds, addonQty })
     },
     lines: [],
@@ -260,7 +286,8 @@ function rentalLines(stockData, wanted, date) {
  * date only needs the usual notice and must not be blocked (a rental takes no event slot), and the
  * time is when the items are picked up or delivered, on the hour or half hour. Pick-up is at
  * RENTAL.pickupPlace and costs nothing; delivery adds the standard fee, which the admin may change in
- * the quotation. Every price is copied, so the estimate is the real rental total.
+ * the quotation. Every price is copied, so the estimate is the real rental total; so is today's
+ * minimum downpayment.
  */
 async function rentalBooking(conn, pkg, form) {
   const date = form.date;
@@ -287,7 +314,7 @@ async function rentalBooking(conn, pkg, form) {
   return {
     fields: {
       eventName, occasion, date, startTime, guests: 0, packageId: pkg.id, serviceType: RENTAL_SERVICE, menu: null, foodNotes: '', pricePerPlate: 0,
-      rentalItems: lines, fulfilment, damageCharges: [],
+      minDownpayment: await currentMinDownpayment(conn), rentalItems: lines, fulfilment, damageCharges: [],
       venue: fulfilment === 'delivery' ? { ...place, accessNotes: clean(form.accessNotes) } : { ...RENTAL.pickupPlace, accessNotes: '' },
       addonIds: [], addonQty: {},
       estimate: computeQuote({ pkg, serviceType: RENTAL_SERVICE, rentalItems: lines, deliveryFee: fulfilment === 'delivery' ? RENTAL.deliveryFee : 0 })
@@ -297,6 +324,10 @@ async function rentalBooking(conn, pkg, form) {
     thankYou: `Thank you for your equipment rental request for ${formatDate(date)}. We are checking the items and will send your quotation within 24 hours.`
   };
 }
+
+// The minimum downpayment as it stands now, read inside the booking's transaction and copied onto it
+// (the same fallback as catalog.service.js when the settings row is missing)
+const currentMinDownpayment = async (conn) => Number(await catalogRepo.getMinDownpayment(conn)) || DEFAULT_MIN_DOWNPAYMENT;
 
 // The part of a ref shared by every booking for an event date: "2026-10-20" -> "RES-2026-1020-"
 // (the first ref for the date without its number, so the format stays in reservationRef.js)
@@ -326,9 +357,11 @@ async function book(conn, customer, form) {
     status: 'pending',
     quotation: null,
     downpaymentDue: null,
+    preparingAt: null,
     notes: '',
     declineReason: '',
     cancelReason: '',
+    cancelledBy: null,
     createdAt: at
   };
   await repo.insertReservation(conn, reservation);
@@ -362,11 +395,15 @@ export async function createReservation(customer, form) {
 /* ============================ Customer actions ============================ */
 
 /**
- * The customer cancels their own reservation, only while Pending or Approved, and not while a payment
- * is still being verified (so that payment can't be verified after the cancellation). When money was
- * already paid, an unread message from the customer tells the team a refund has to be arranged. A
- * cancelled approved booking frees its slot (the portals then reload the availability map).
- * Returns the customer's view of its summary.
+ * The customer cancels their own reservation online, when onlineCancellation (domain/cancellation.js,
+ * the browser version's rule) allows it: an unpaid booking any time before the event day; a paid one
+ * only until its cancel deadline and before "Started preparing"; never while pieces are checked out
+ * for it (inventory_allocations: an event's equipment or a rental's items) or while a payment is being
+ * verified (so that payment can't be verified after the cancellation). A refusal carries that rule's
+ * code and reason, the same answer as the summary's `onlineCancel`. When money was paid, an unread
+ * message from the customer tells the team it has to be returned. A cancelled approved booking frees
+ * its slot (the portals then reload the availability map). Returns the customer's view of its summary.
+ * Lock order as every write (Phase 6A): the booking's row (lockOwner), then the chat thread.
  */
 export async function cancelReservation(ref, customer, reason) {
   const text = clean(reason);
@@ -375,21 +412,17 @@ export async function cancelReservation(ref, customer, reason) {
     // Locked until the end, so an admin action on the same booking waits and then sees the cancellation
     const owner = await repo.lockOwner(conn, ref);
     if (!owner || !sameRef(owner, ref) || owner.customerId !== customer.id) throw notFound();
-    if (!CUSTOMER_EDITABLE.includes(owner.status)) {
-      throw new ApiError('INVALID_STATE', 'This reservation can no longer be cancelled online. Please message our team.');
-    }
     const [row] = await repo.findReservations(conn, { ref });
-    const money = financials(row.reservation, row.payments);
-    if (money.awaitingCount > 0) {
-      throw new ApiError('PENDING_PAYMENT', 'A payment for this reservation is still being verified. Please wait until our team checks it, or message us to cancel.');
-    }
-    await repo.setCancelled(conn, ref, text);
+    const money = financials(row.reservation, row.payments, NO_REFUNDS);
+    const online = onlineCancellation(row.reservation, money, { piecesOut: row.piecesOut });
+    if (!online.allowed) throw new ApiError(online.code, online.reason);
+    await repo.setCancelled(conn, ref, text, 'customer');
     await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Cancelled the reservation. Reason: ${text}` });
     if (money.paid > 0) {
       await postCustomerMessage(
         conn,
         row.reservation,
-        `Cancellation: ${row.reservation.eventName}. Reason: ${text}. ₱${money.paid.toLocaleString('en-PH')} was already paid, so the refund needs to be arranged.`,
+        `Cancellation: ${row.reservation.eventName}. Reason: ${text}. ₱${money.paid.toLocaleString('en-PH')} was paid and needs to be returned.`,
         customer.name
       );
     }
