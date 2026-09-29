@@ -1,7 +1,8 @@
-# Phase 6A checks for reservations: the lists and the detail, the booking form (an event and an equipment
-# rental), the customer's cancel and change request, and the rental stock on a date (VS Code REST Client:
-# click "Send Request" above a block). Start the API first (npm run dev:api) and load the sample data
-# (npm run seed:api). The bookings made here stay in the database: run npm run seed:api again afterwards.
+# Phase 6 checks for reservations: the lists and the detail, the booking form (an event and an equipment
+# rental), the customer's cancel and change request, the rental stock on a date, and the admin's actions
+# and edits (VS Code REST Client: click "Send Request" above a block). Start the API first (npm run dev:api)
+# and load the sample data (npm run seed:api). The changes made here stay in the database: run
+# npm run seed:api again afterwards.
 #
 # The customer requests need a customer token and the admin requests an admin token: get them with the
 # sign-in requests at the top of catalog.http, and paste them into @customerToken and @adminToken below.
@@ -83,7 +84,8 @@ Content-Type: application/json
 ### Cancel online, when the summary's onlineCancel allows it: the summary with status "cancelled" and cancelledBy "customer".
 ### Unpaid: any time before the event day. Paid: until cancelDeadline and before "Started preparing" (preparing_at),
 ### else 409 INVALID_STATE with the reason. A payment still being verified: 409 PENDING_PAYMENT.
-### A rental with pieces still checked out (inventory_allocations): 409 INVALID_STATE "Some rented items are still out. Message us to cancel."
+### Equipment still checked out for it (inventory_allocations, an event's or a rental's): 409 INVALID_STATE
+### "Some of the equipment for this booking is already out, so it can no longer be cancelled online."
 POST {{api}}/reservations/{{ref}}/cancel
 Authorization: Bearer {{customerToken}}
 Content-Type: application/json
@@ -110,3 +112,83 @@ Authorization: Bearer {{adminToken}}
 ### Rental stock with the booking being edited left out (excludeRef counts for an admin only)
 GET {{api}}/rentals/availability?date={{$datetime "YYYY-MM-DD" 45 d}}&excludeRef={{ref}}
 Authorization: Bearer {{adminToken}}
+
+### ---------------------------------------------------------------- Admin: actions (Phase 6B)
+### Each answers with the booking's summary. A customer's token: 403 FORBIDDEN. An unknown ref: 404 NOT_FOUND.
+
+### Send (or re-send) the quotation. The food is worked out from the guests and the booking's price per person;
+### amounts are whole pesos from 0 to 10,000,000 (else 400 INVALID naming the box). deliveryFee counts for a
+### delivered rental only. A total below what was paid is sent anyway: the chat says the overpaid amount.
+### Declined, cancelled or completed: 409 INVALID_STATE
+POST {{api}}/admin/reservations/{{ref}}/quotation
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "addonPrices": { "add-waiters": 800 }, "otherCharges": 2000, "otherLabel": "20 extra guests", "discount": 500, "note": "Thank you for booking with us." }
+
+### Approve a pending request (needs a quotation: 409 NO_QUOTATION). A full date: 409 CAPACITY; a clashing start
+### time: 409 TIME_UNAVAILABLE; a rental with too few pieces free: 409 OUT_OF_STOCK; a blocked date: 409 DATE_UNAVAILABLE
+POST {{api}}/admin/reservations/{{ref}}/approve
+Authorization: Bearer {{adminToken}}
+
+### Decline a pending request; the reason (at least 5 characters, else 400 INVALID) goes to the customer's chat
+POST {{api}}/admin/reservations/{{ref}}/decline
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "We are fully booked on this date." }
+
+### Confirm a booking whose downpayment is verified (Downpayment paid only, else 409 INVALID_STATE)
+POST {{api}}/admin/reservations/{{ref}}/confirm
+Authorization: Bearer {{adminToken}}
+
+### Mark a confirmed event completed, on or after its date. A rental with pieces still out, or a stale quotation: 409
+POST {{api}}/admin/reservations/{{ref}}/complete
+Authorization: Bearer {{adminToken}}
+
+### Cancel an approved to confirmed booking (a pending one is declined instead); cancelled_by "admin".
+### A payment being verified: 409 PENDING_PAYMENT; equipment still checked out: 409 INVALID_STATE
+POST {{api}}/admin/reservations/{{ref}}/cancel
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Our kitchen cannot take this date after all." }
+
+### "Started preparing" (Downpayment paid or Confirmed): the customer can no longer cancel online
+POST {{api}}/admin/reservations/{{ref}}/preparing
+Authorization: Bearer {{adminToken}}
+
+### Take "Started preparing" back (marked by mistake)
+DELETE {{api}}/admin/reservations/{{ref}}/preparing
+Authorization: Bearer {{adminToken}}
+
+### ---------------------------------------------------------------- Admin: edits (Phase 6B)
+
+### Date, start time, guests and venue -> { changed }. A new guest count on a quoted buffet posts the old and new
+### food total in the customer's chat and leaves the quotation out of date until it is re-sent.
+PATCH {{api}}/admin/reservations/{{ref}}/logistics
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "date": "{{$datetime "YYYY-MM-DD" 50 d}}", "startTime": "18:00", "guests": 150, "venueName": "Barangay Hall", "venueAddress": "Poblacion", "city": "Malvar, Batangas", "accessNotes": "" }
+
+### Service type, the four menu lines and the food notes -> { ok: true }. An equipment rental: 400 INVALID
+PUT {{api}}/admin/reservations/{{ref}}/menu
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "serviceType": "Buffet and Catering", "menu": { "pork": "Lechon kawali", "chicken": "Chicken inasal", "fish": "Sweet and sour fish", "vegetable": "Chopsuey" }, "foodNotes": "" }
+
+### The admin's private notes -> { ok: true } (never in a customer's answer)
+PUT {{api}}/admin/reservations/{{ref}}/notes
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "notes": "Call the venue a day before for the gate pass." }
+
+### A rental's whole new list -> { changed }. Booked lines keep their prices; a line below what is checked out: 400 INVALID
+PUT {{api}}/admin/reservations/{{ref}}/rental-items
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "items": [{ "itemId": "inv-001", "qty": 60 }] }

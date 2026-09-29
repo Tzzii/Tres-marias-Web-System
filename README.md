@@ -92,8 +92,8 @@ the account pages run on the API, and since Phase 4 so does the catalogue (packa
 charges, buffet dishes, the buffet price per person and the rental price list):
 `VITE_API_SERVICES=auth,catalog` in each portal's `.env.local`. The other pages still use the
 browser store until their phase. The calendar (blocked dates, daily capacity, the date pickers) has
-its API version since Phase 5, and reservations since Phase 6A (lists, details, booking, and the
-customer's cancel and change request; the admin's actions follow in Phase 6B). Both are switched on
+its API version since Phase 5, and reservations since Phase 6 (lists, details, booking, the
+customer's cancel and change request, and the admin's actions and edits). Both are switched on
 together with messages and payments after Phase 8, since those four read each other's data; to try
 them earlier, add `calendar,reservations` in both portals. The API needs MySQL 8. First time only:
 

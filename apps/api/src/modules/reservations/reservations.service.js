@@ -1,8 +1,9 @@
 import { dateUnavailableReason, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
 import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
-import { financials } from '@tm/shared/src/domain/money.js';
+import { downpaymentDueFor, financials, statusForPayments } from '@tm/shared/src/domain/money.js';
 import { menuDishes, quotationStale, quotationStaleReason, rentalAvailability, rentalStock } from '@tm/shared/src/domain/reservation.js';
 import {
+  BUSINESS,
   DEFAULT_MIN_DOWNPAYMENT,
   DEFAULT_PRICE_PER_PLATE,
   DISH_CATEGORIES,
@@ -12,11 +13,13 @@ import {
   RENTAL_SERVICE,
   RULES,
   SERVICE_TYPES,
-  includesFood
+  includesFood,
+  isRental
 } from '@tm/shared/src/services/config.js';
 import { computeQuote } from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
-import { formatDate } from '@tm/shared/src/utils/format.js';
+import { addDays, daysFromToday, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
+import { HOLDS_DATE, statusLabel } from '@tm/shared/src/utils/status.js';
 import { tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { isClockTime, isISODate, now } from '../../lib/time.js';
@@ -27,28 +30,35 @@ import { postAdminMessage, postCustomerMessage } from '../messages/messages.repo
 import * as repo from './reservations.repo.js';
 
 /**
- * The reservation rules on the server (docs/backend-development-phases.md Phase 6A, §9.4): the lists
- * and the detail page, the booking form (an event or an equipment rental), and the customer's
- * cancellation and change request. Same return shapes, error codes, messages and meta.field as the
- * browser version (reservationService.js), whose checks are repeated here in the same order because
- * the server never trusts the page (§3 rule 3). The rules that need no stored data (money, an
- * out-of-date quotation, rental stock, availability) come from @tm/shared/src/domain, the same code
- * the portals run.
+ * The reservation rules on the server (docs/backend-development-phases.md Phase 6, §9.4): the lists
+ * and the detail page, the booking form (an event or an equipment rental), the customer's cancellation
+ * and change request (Phase 6A), and the admin's actions and edits: quotation, approve, decline,
+ * confirm, complete, cancel, "Started preparing" and its undo, logistics, menu, notes and rented items
+ * (Phase 6B). Same return shapes, error codes, messages and meta.field as the browser version
+ * (reservationService.js), whose checks are repeated here in the same order because the server never
+ * trusts the page (§3 rule 3). The rules that need no stored data (money, an out-of-date quotation,
+ * rental stock, availability, online cancellation) come from @tm/shared/src/domain, the same code the
+ * portals run.
  *
  * Differences from the browser version, on purpose:
  * - The customer is always the signed-in one (from the token), and every answer to a customer leaves
- *   out the admin's private `notes`.
+ *   out the admin's private `notes`. The admin's name in the activity log and in chat messages is the
+ *   signed-in admin's (req.user.name).
  * - The date must be a real "YYYY-MM-DD" day, the start time "HH:MM", the occasion one of OCCASIONS,
- *   and required text is checked after trimming (spaces alone are not an event name).
- * - A booking reads the availability map, the price per person, the minimum downpayment and the
- *   rental stock from the database inside its own transaction, after taking the availability lock
- *   (lockAvailability), so two bookings for the same date get different refs and every check sees
- *   the latest saved data.
+ *   and required text is checked after trimming (spaces alone are not an event name or a venue).
+ * - A quotation's amounts must be whole pesos from 0 to MAX_AMOUNT, and a logistics edit needs the
+ *   venue, city and address (the browser version takes the page's amounts as they are, and its
+ *   logistics card never saves without the venue).
+ * - A booking, an approval, a logistics edit and a rented-items edit read the availability map and
+ *   the rental stock from the database inside their own transaction, after taking the availability
+ *   lock (lockAvailability), so two of them never pass the same check at once.
  * - Refunds reach the server in Phase 8: until then the money figures are worked out with no refunds
  *   (financials(…, [])) and a detail's `refunds` is [].
- * The automatic chat messages (thank-you, change request, refund notice) are saved in the same
- * transaction; the chat endpoints that show them arrive in Phase 7. The admin actions (including the
- * admin's cancellation and the "Started preparing" mark) are Phase 6B.
+ * The automatic chat messages (thank-you, change request, refund notice, quotation, approval …) are
+ * saved in the same transaction as the change they are about; the chat endpoints that show them
+ * arrive in Phase 7.
+ * Lock order for every write, so two of them never deadlock: the availability lock (only when the
+ * write takes or moves a slot or rental stock), then the booking's row (lockOwner), then the chat thread.
  */
 
 // Refunds are recorded in the browser store until Phase 8 (paymentService.js recordRefund), so the server has none yet
@@ -251,12 +261,16 @@ async function eventBooking(conn, pkg, form) {
 
 /**
  * Check what a rental asks for and turn it into booking lines: [{ itemId, name, qty, price, damageFee }].
- * `wanted` is [{ itemId, qty }] (the same item twice is added together). Every item must be for rent
- * (rentable, not archived, with a price) and have enough pieces free on the date; each line copies the
- * item's price and damage fee today, so a later price change never moves the booking. Errors name the
- * line: { field: 'rental.<itemId>' }. `stockData` is repo.rentalStockInputs() for the date.
+ * `wanted` is [{ itemId, qty }] (the same item twice is added together). A line already on the booking
+ * (`current`, the admin's edit of the rented items) keeps the price and damage fee it was booked at,
+ * so editing a rental never reprices what the customer agreed to; a new line copies the item's price
+ * and damage fee today, so a later price change never moves the booking. Every item must be for rent
+ * (rentable, not archived, with a price, unless it is already on the booking) and have enough pieces
+ * free on the date; `excludeRef` leaves the booking being edited out of the stock count, so its own
+ * pieces count as free. Errors name the line: { field: 'rental.<itemId>' }. `stockData` is
+ * repo.rentalStockInputs() for the date.
  */
-function rentalLines(stockData, wanted, date) {
+function rentalLines(stockData, wanted, date, { excludeRef, current = [] } = {}) {
   const qtyById = new Map();
   (Array.isArray(wanted) ? wanted : []).forEach((line) => {
     const itemId = line && typeof line === 'object' ? line.itemId : undefined;
@@ -264,10 +278,11 @@ function rentalLines(stockData, wanted, date) {
     qtyById.set(itemId, (qtyById.get(itemId) || 0) + toNumber(line.qty));
   });
   if (!qtyById.size) throw invalid('Choose at least one item to rent.', 'rentalItems');
-  const stock = rentalStock(stockData, date);
+  const stock = rentalStock(stockData, date, excludeRef);
   return [...qtyById].map(([itemId, qty]) => {
     const item = stockData.inventory.find((i) => i.id === itemId);
-    if (!item || !item.rentable || item.archived || !item.rentPrice) {
+    const booked = current.find((line) => line.itemId === itemId);
+    if (!item || (!booked && (!item.rentable || item.archived || !item.rentPrice))) {
       throw invalid('One of the items is no longer for rent. Please remove it.', `rental.${itemId}`);
     }
     if (!Number.isInteger(qty) || qty < 1 || qty > RENTAL.maxQty) {
@@ -277,7 +292,7 @@ function rentalLines(stockData, wanted, date) {
     if (qty > left) {
       throw new ApiError('OUT_OF_STOCK', left ? `Only ${left} ${item.name} ${left === 1 ? 'is' : 'are'} free on ${formatDate(date)}.` : `${item.name} is fully booked on ${formatDate(date)}.`, { field: `rental.${itemId}` });
     }
-    return { itemId, name: item.name, qty, price: item.rentPrice, damageFee: item.damageFee || 0 };
+    return { itemId, name: item.name, qty, price: booked ? booked.price : item.rentPrice, damageFee: booked ? booked.damageFee : item.damageFee || 0 };
   });
 }
 
@@ -449,4 +464,593 @@ export async function requestChange(ref, customer, message) {
     await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: 'Requested a change to the reservation.' });
     return { threadId };
   });
+}
+
+/* ============================ Admin actions and edits (Phase 6B) ============================ */
+
+// Bookings that are over: nothing on them is edited or re-quoted any more
+const CLOSED = ['completed', 'declined', 'cancelled'];
+// The most one amount in a quotation may be (the outsourcing contract limit too): anything above is a typo
+const MAX_AMOUNT = 10000000;
+
+const closedError = () => new ApiError('INVALID_STATE', 'This reservation is closed and can no longer be edited.');
+// "₱1,200"
+const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
+// A reason typed by the admin as a sentence of its own, e.g. "Our kitchen is closed" -> "Our kitchen is closed."
+const asSentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`);
+// "pick up" / "delivery", for log lines and chat messages
+const fulfilmentWord = (value) => (value === 'delivery' ? 'delivery' : 'pick up');
+// The rental lines with too few pieces free, e.g. "Monobloc chair (40 of 80), Round table (2 of 5)"
+const shortList = (short, stock) => short.map((line) => `${line.name} (${stock[line.itemId] || 0} of ${line.qty})`).join(', ');
+
+// The admin's reason for a decline or a cancellation: at least 5 characters, as the admin's reason dialogs ask
+function reasonOf(value) {
+  const text = clean(value);
+  if (text.length < 5) throw invalid('Please give a short reason (at least 5 characters).', 'reason');
+  return text;
+}
+
+// An amount typed into the quotation: a whole number of pesos from 0 to MAX_AMOUNT (a box left out is 0)
+function quotationAmount(value, field, message = `Enter an amount in whole pesos, up to ${pesoText(MAX_AMOUNT)}.`) {
+  const amount = value === undefined ? 0 : toNumber(value);
+  if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT) throw invalid(message, field);
+  return amount;
+}
+
+// One entry in the booking's audit trail, by the signed-in admin
+const logAdmin = (conn, ref, admin, text) => repo.insertActivity(conn, ref, { at: now(), actor: admin.name, text });
+
+// The booking's summary as saved so far in the transaction (the admin's view, notes included)
+async function savedSummary(conn, ref) {
+  const [row] = await repo.findReservations(conn, { ref });
+  return summarize(row);
+}
+
+/**
+ * One admin action on a booking, in its own transaction: the availability lock first when the action
+ * takes or moves a slot or rental stock (`availability: true`), then the booking's row, locked until
+ * the end (it must exist and be spelled exactly as stored, see sameRef), then `action(conn, row)` with
+ * the booking as saved (an entry of repo.findReservations(), piecesOut included). A chat message the
+ * action posts locks the customer's thread last.
+ */
+function adminWrite(ref, action, { availability = false } = {}) {
+  return tx(async (conn) => {
+    if (availability) await lockAvailability(conn);
+    const owner = await repo.lockOwner(conn, ref);
+    if (!owner || !sameRef(owner, ref)) throw notFound();
+    const [row] = await repo.findReservations(conn, { ref });
+    return action(conn, row);
+  });
+}
+
+/**
+ * What a rental would cost as the customer holds it now: the sent quotation's delivery fee, other
+ * charges and discount (or the standard delivery fee before any quotation), with the given lines or
+ * pick up / delivery. The browser version's rentalQuote; `pkg` is the booking's package.
+ */
+function rentalQuote(pkg, reservation, { rentalItems = reservation.rentalItems, fulfilment = reservation.fulfilment } = {}) {
+  const quote = reservation.quotation;
+  const delivery = fulfilment !== 'delivery' ? 0 : quote && quote.fulfilment === 'delivery' ? quote.deliveryFee : RENTAL.deliveryFee;
+  return computeQuote({
+    pkg,
+    serviceType: reservation.serviceType,
+    rentalItems,
+    deliveryFee: delivery,
+    damageCharges: reservation.damageCharges || [],
+    otherCharges: quote ? quote.otherCharges : 0,
+    discount: quote ? quote.discount : 0
+  });
+}
+
+/**
+ * An approved booking moved to `date` keeps its downpayment due date at least 3 days before the event:
+ * the due date is pulled in, never pushed later. Returns { due, moved }: the due date to save, and
+ * whether this rule changed it (the audit trail then lists it).
+ */
+function dueAfterMove(reservation, date) {
+  const due = reservation.downpaymentDue;
+  if (reservation.status !== 'approved' || !due || date === reservation.date || due <= addDays(date, -3)) return { due, moved: false };
+  return { due: downpaymentDueFor(date, due), moved: true };
+}
+
+/**
+ * Admin: price the add-ons and any other charges, apply a discount, and send the quotation to the
+ * customer's chat (the browser version's sendQuotation). The food is never typed: a buffet is guests x
+ * the rate stored on the booking (never today's), and a rental is its items at the prices they were
+ * booked at plus any damage charges, with `deliveryFee` for a delivered rental (the standard fee when
+ * left out). `values` is { addonPrices: { addonId: price of one }, otherCharges, otherLabel, discount,
+ * deliveryFee, note }; every amount is whole pesos from 0 to MAX_AMOUNT.
+ *
+ * The new total can move the status (statusForPayments): forward when what was paid covers it (e.g. to
+ * Confirmed), or back to Approved with a new due date when the payments fall below the downpayment.
+ * It may be lower than what was paid: the quotation is sent as it is (a sent quotation is never edited
+ * afterwards), the chat says how much was paid above it and that it will be returned, and the audit
+ * trail keeps the old and new totals and the overpaid amount. Returns the booking's summary.
+ */
+export async function sendQuotation(ref, values, admin) {
+  return adminWrite(ref, async (conn, row) => {
+    const { reservation, payments } = row;
+    if (CLOSED.includes(reservation.status)) {
+      throw new ApiError('INVALID_STATE', `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be re-quoted.`);
+    }
+    const rental = isRental(reservation.serviceType);
+    const delivered = rental && reservation.fulfilment === 'delivery';
+    const fee = values.deliveryFee === undefined ? RENTAL.deliveryFee : values.deliveryFee;
+    const deliveryFee = delivered ? quotationAmount(fee, 'deliveryFee', 'Enter the delivery fee.') : 0;
+    const addonPrices = Object.fromEntries(Object.entries(plainObject(values.addonPrices)).map(([id, price]) => [id, quotationAmount(price, `addonPrices.${id}`)]));
+    const otherCharges = quotationAmount(values.otherCharges, 'otherCharges');
+    const discount = quotationAmount(values.discount, 'discount');
+    const note = clean(values.note);
+
+    // The total the customer held before this quotation, for the audit trail
+    const totalBefore = financials(reservation, payments, NO_REFUNDS).total;
+    const quote = computeQuote({
+      pkg: await catalogRepo.findPackageById(reservation.packageId, conn),
+      serviceType: reservation.serviceType,
+      guests: reservation.guests,
+      pricePerPlate: reservation.pricePerPlate,
+      rentalItems: rental ? reservation.rentalItems : [],
+      deliveryFee,
+      damageCharges: rental ? reservation.damageCharges : [],
+      addonIds: reservation.addonIds,
+      addonQty: reservation.addonQty,
+      addonPrices,
+      otherCharges,
+      discount
+    });
+    const quotation = { ...quote, ...(rental ? { fulfilment: reservation.fulfilment } : {}), otherLabel: quote.otherCharges ? clean(values.otherLabel) : '', sentAt: now(), note };
+    const quoted = { ...reservation, quotation };
+    const saved = { quotation };
+    const log = [`Sent the quotation (${pesoText(quote.net)}).`];
+
+    // The new total may change where the booking stands; back at Approved it gets a new due date
+    let extra = '';
+    const money = financials(quoted, payments, NO_REFUNDS);
+    const status = statusForPayments(reservation.status, money);
+    if (status !== reservation.status) {
+      saved.status = status;
+      if (status === 'approved') {
+        saved.downpaymentDue = downpaymentDueFor(reservation.date);
+        log.push('Status moved back to Approved: the payments are below the minimum downpayment.');
+        extra = ` Please pay ${pesoText(money.downpayment - money.paid)} more by ${formatDate(saved.downpaymentDue)} to reach the minimum downpayment of ${pesoText(money.downpayment)}.`;
+      } else {
+        log.push(`Status moved to ${statusLabel(status)} under the new quotation.`);
+      }
+    }
+    // Paid more than the new total: say so in the chat and keep both totals in the audit trail
+    const after = financials({ ...quoted, status }, payments, NO_REFUNDS);
+    if (after.overpaid > 0) {
+      log.push(`Total from ${pesoText(totalBefore)} to ${pesoText(quote.net)}, below the ${pesoText(after.paid)} paid: ${pesoText(after.overpaid)} was paid above the new total and is to be returned.`);
+      extra += ` You've paid ${pesoText(after.overpaid)} more than the new total. We'll return it and tell you here when it's sent.`;
+    }
+
+    await repo.updateReservation(conn, ref, saved);
+    for (const text of log) await logAdmin(conn, ref, admin, text);
+    await postAdminMessage(conn, reservation, `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`, { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
+    return savedSummary(conn, ref);
+  });
+}
+
+/**
+ * The chat message an approval sends (`money` is financials() for the approved booking), word for word
+ * the browser version's: pay at least the booking's minimum downpayment by the due date (up to the full
+ * total; a total below the minimum is paid in full), and until when the booking can be cancelled online
+ * after paying, or how to cancel when that date has already passed (a late approval).
+ */
+function approvalMessage(reservation, money) {
+  const due = formatDate(reservation.downpaymentDue);
+  const pay =
+    money.downpayment < money.total
+      ? `Please pay a downpayment of at least ${pesoText(money.downpayment)} by ${due} to secure your date. You can pay more, up to the full ${pesoText(money.total)}.`
+      : `Please pay the full ${pesoText(money.total)} by ${due} to secure your date.`;
+  const deadline = cancelDeadline(reservation);
+  const cancel =
+    deadline >= todayISO()
+      ? `After you pay, you can cancel online until ${formatDate(deadline)}.`
+      : `Online cancellation for paid bookings ended on ${formatDate(deadline)}, so after you pay, message us here or call ${BUSINESS.phone} to cancel.`;
+  return `Good news! ${reservation.eventName} is approved. ${pay} ${cancel}`;
+}
+
+/**
+ * Admin: approve a pending request and set the downpayment due date. The quotation must be sent first
+ * (NO_QUOTATION); the date must not have passed or be blocked. Then an event needs a slot under the
+ * daily capacity (CAPACITY) and a start time clear of the events already approved that day
+ * (TIME_UNAVAILABLE; pending requests hold no time), while an equipment rental, which takes no slot,
+ * needs enough of every item still free that day (OUT_OF_STOCK). It runs under the availability lock,
+ * so two approvals for the last slot never both pass. The chat message (approvalMessage) comes with the
+ * quotation. Returns the booking's summary.
+ */
+export async function approveReservation(ref, admin) {
+  return adminWrite(
+    ref,
+    async (conn, row) => {
+      const { reservation } = row;
+      const { date } = reservation;
+      if (reservation.status !== 'pending') throw new ApiError('INVALID_STATE', 'Only pending reservations can be approved.');
+      if (!reservation.quotation) throw new ApiError('NO_QUOTATION', 'Send the quotation first so the food and additional charges are priced.');
+      if (daysFromToday(date) < 0) throw new ApiError('INVALID_STATE', 'This event date has passed. Move the event to a new date before approving.');
+      const map = await availabilityMap(conn);
+      const blocked = map.blocked.find((b) => b.date === date);
+      if (blocked) throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is blocked (${blocked.reason.toLowerCase()}). Move the event to another date before approving.`);
+
+      if (isRental(reservation.serviceType)) {
+        // Refused if another approved rental (or an event's checked-out equipment) took the pieces meanwhile
+        const stock = rentalStock(await repo.rentalStockInputs(conn, date), date, ref);
+        const short = reservation.rentalItems.filter((line) => line.qty > (stock[line.itemId] || 0));
+        if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}. Change the items or the date before approving.`);
+      } else {
+        // The events already holding the date (this pending one holds none yet; rentals never do)
+        if ((map.booked[date] || 0) >= map.capacity) throw new ApiError('CAPACITY', `${formatDate(date)} is already at the daily capacity of ${map.capacity} events.`);
+        // The start time must be clear of the events approved that day, with the setup buffer around them
+        const timeReason = timeUnavailableReason(date, reservation.startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) });
+        if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason} on ${formatDate(date)}. Change the start time before approving.`);
+      }
+
+      // Due in RULES.downpaymentDueDays, but no later than 3 days before the event (and never before today)
+      const approved = { ...reservation, status: 'approved', downpaymentDue: downpaymentDueFor(date) };
+      await repo.updateReservation(conn, ref, { status: approved.status, downpaymentDue: approved.downpaymentDue });
+      await logAdmin(conn, ref, admin, 'Approved the reservation.');
+      await postAdminMessage(conn, reservation, approvalMessage(approved, financials(approved, row.payments, NO_REFUNDS)), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
+      return savedSummary(conn, ref);
+    },
+    { availability: true }
+  );
+}
+
+/** Admin: decline a pending request, with a reason (5+ characters) sent to the customer's chat. Returns the summary. */
+export async function declineReservation(ref, reason, admin) {
+  const text = reasonOf(reason);
+  return adminWrite(ref, async (conn, { reservation }) => {
+    if (reservation.status !== 'pending') throw new ApiError('INVALID_STATE', 'Only pending reservations can be declined.');
+    await repo.updateReservation(conn, ref, { status: 'declined', declineReason: text });
+    await logAdmin(conn, ref, admin, `Declined the reservation. Reason: ${text}`);
+    await postAdminMessage(conn, reservation, `We are sorry, we are unable to accept ${reservation.eventName}. ${text}`, null, admin.name);
+    return savedSummary(conn, ref);
+  });
+}
+
+/** Admin: confirm a booking once its downpayment is verified; the contract becomes available in the customer's Documents. Returns the summary. */
+export async function confirmReservation(ref, admin) {
+  return adminWrite(ref, async (conn, { reservation }) => {
+    if (reservation.status !== 'downpayment_paid') throw new ApiError('INVALID_STATE', 'The downpayment must be verified before the booking is confirmed.');
+    await repo.updateReservation(conn, ref, { status: 'confirmed' });
+    await logAdmin(conn, ref, admin, 'Confirmed the booking.');
+    await postAdminMessage(conn, reservation, `${reservation.eventName} is now confirmed. Your contract is available in Documents.`, { name: `Contract-${ref}.pdf`, kind: 'contract', ref }, admin.name);
+    return savedSummary(conn, ref);
+  });
+}
+
+/**
+ * Admin: mark a confirmed event completed, on or after its date, and invite a testimonial. A rental can
+ * only be completed once every rented piece is back (no inventory_allocations left) and the customer
+ * holds a quotation with any damage charges on it, because a completed booking can't be re-quoted.
+ * Returns the summary.
+ */
+export async function completeReservation(ref, admin) {
+  return adminWrite(ref, async (conn, row) => {
+    const { reservation } = row;
+    if (reservation.status !== 'confirmed') throw new ApiError('INVALID_STATE', 'Only confirmed bookings can be marked completed.');
+    if (daysFromToday(reservation.date) > 0) throw new ApiError('INVALID_STATE', 'An event can be completed on or after its date.');
+    if (isRental(reservation.serviceType)) {
+      if (row.piecesOut > 0) throw new ApiError('INVALID_STATE', 'Record the return of the rented items before completing this rental.');
+      if (quotationStale(reservation)) throw new ApiError('INVALID_STATE', 'Re-send the quotation first, so the customer has the final total with any damage charges.');
+    }
+    await repo.updateReservation(conn, ref, { status: 'completed' });
+    await logAdmin(conn, ref, admin, 'Marked the event as completed.');
+    await postAdminMessage(conn, reservation, `Thank you for celebrating with Tres Marias! We would love to hear how ${reservation.eventName} went. You can leave a testimonial from your account.`, null, admin.name);
+    return savedSummary(conn, ref);
+  });
+}
+
+/**
+ * Admin: cancel an Approved, Downpayment paid or Confirmed booking, with a reason (5+ characters) shown
+ * to the customer; a pending request is declined instead. Refused while a payment waits for
+ * verification (PENDING_PAYMENT: verify or reject it first) and while pieces are still checked out for
+ * it (record their return first). Saves cancelled_by = 'admin', releases the date, keeps the reason in
+ * the audit trail and tells the customer in their chat; when money was paid the message says it will be
+ * returned, and the booking shows under "Refunds to send". Returns the summary.
+ */
+export async function cancelReservationByAdmin(ref, reason, admin) {
+  const text = reasonOf(reason);
+  return adminWrite(ref, async (conn, row) => {
+    const { reservation } = row;
+    if (!HOLDS_DATE.includes(reservation.status)) {
+      throw new ApiError('INVALID_STATE', reservation.status === 'pending' ? 'A pending request is declined, not cancelled.' : `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be cancelled.`);
+    }
+    const money = financials(reservation, row.payments, NO_REFUNDS);
+    if (money.awaitingCount > 0) throw new ApiError('PENDING_PAYMENT', 'A payment for this reservation is waiting for verification. Verify or reject it first.');
+    if (row.piecesOut > 0) throw new ApiError('INVALID_STATE', 'Some items are still checked out for this booking. Record the return first.');
+    await repo.setCancelled(conn, ref, text, 'admin');
+    await logAdmin(conn, ref, admin, `Cancelled the reservation. Reason: ${text}`);
+    const refund = money.paid > 0 ? ` We'll return ${pesoText(money.paid)} and tell you here when it's sent.` : '';
+    await postAdminMessage(conn, reservation, `We are sorry, we had to cancel ${reservation.eventName} on ${formatDate(reservation.date)}. ${asSentence(text)}${refund}`, null, admin.name);
+    return savedSummary(conn, ref);
+  });
+}
+
+/**
+ * Admin: mark that preparation has started ("Started preparing") on a booking whose downpayment is paid
+ * (Downpayment paid or Confirmed). A mark (preparing_at), not a status: from now on the customer can no
+ * longer cancel online (onlineCancellation), and their chat says to message us or call instead.
+ * undoPreparing takes it back. Returns the summary.
+ */
+export async function startPreparing(ref, admin) {
+  return adminWrite(ref, async (conn, { reservation }) => {
+    if (!['downpayment_paid', 'confirmed'].includes(reservation.status)) throw new ApiError('INVALID_STATE', 'Preparation can be marked once the downpayment is paid.');
+    if (reservation.preparingAt) throw new ApiError('INVALID_STATE', 'This booking is already marked as started preparing.');
+    await repo.updateReservation(conn, ref, { preparingAt: now() });
+    await logAdmin(conn, ref, admin, 'Marked the booking as started preparing. The customer can no longer cancel online.');
+    await postAdminMessage(conn, reservation, `We've started preparing for ${reservation.eventName}. To cancel from now on, message us here or call ${BUSINESS.phone}.`, null, admin.name);
+    return savedSummary(conn, ref);
+  });
+}
+
+/**
+ * Admin: take back "Started preparing" (marked by mistake), while it is set and the booking is still
+ * open, so a closed booking never gets a message about cancelling online. The customer is told in their
+ * chat, with the date online cancellation stays open until when that date hasn't passed. Returns the summary.
+ */
+export async function undoPreparing(ref, admin) {
+  return adminWrite(ref, async (conn, { reservation }) => {
+    if (!reservation.preparingAt) throw new ApiError('INVALID_STATE', 'This booking is not marked as started preparing.');
+    if (CLOSED.includes(reservation.status)) throw closedError();
+    await repo.updateReservation(conn, ref, { preparingAt: null });
+    await logAdmin(conn, ref, admin, 'Removed the "Started preparing" mark (marked by mistake).');
+    const deadline = cancelDeadline(reservation);
+    const until = deadline >= todayISO() ? ` You can cancel online until ${formatDate(deadline)}.` : '';
+    await postAdminMessage(conn, reservation, `Our note that we started preparing for ${reservation.eventName} was marked by mistake.${until}`, null, admin.name);
+    return savedSummary(conn, ref);
+  });
+}
+
+/**
+ * Admin: edit an event's date, start time, guests and venue (the browser version's updateLogistics); an
+ * equipment rental goes to updateRentalLogistics. `patch` is the logistics card's fields: { date,
+ * startTime, guests, venueName, venueAddress, city, accessNotes } (and fulfilment for a rental).
+ *
+ * A new date must not be past, blocked or full (the admin may move an event inside the lead time), and a
+ * new date or start time must be clear of the other events that day (this one left out). Moving an
+ * approved booking earlier pulls its downpayment due date in (dueAfterMove). The audit trail lists what
+ * changed, old value and new.
+ *
+ * A buffet is charged per person, so a new guest count changes what the booking costs. The sent
+ * quotation is never edited: the customer is told in their chat straight away (old and new food total),
+ * the booking shows as out of date (quotationStale), and the new amount only counts once the admin
+ * re-sends the quotation. Before any quotation an event's estimate stays as booked, like the browser
+ * version. Runs under the availability lock. Returns { changed }: how many things changed.
+ */
+export async function updateLogistics(ref, patch, admin) {
+  const values = plainObject(patch);
+  return adminWrite(
+    ref,
+    async (conn, row) => {
+      const { reservation } = row;
+      if (CLOSED.includes(reservation.status)) throw closedError();
+      if (isRental(reservation.serviceType)) return updateRentalLogistics(conn, row, values, admin);
+      const guests = toNumber(values.guests);
+      if (!Number.isInteger(guests) || guests < RULES.minGuests || guests > RULES.maxGuests) {
+        throw invalid(`Guests must be between ${RULES.minGuests} and ${RULES.maxGuests}.`, 'guests');
+      }
+      const { date } = values;
+      if (!isISODate(date)) throw invalid('Choose the event date.', 'date');
+      const startTime = startTimeOf(values);
+      const map = await availabilityMap(conn);
+      if (date !== reservation.date) {
+        if (daysFromToday(date) < 0) throw invalid('An event cannot be moved to a past date.', 'date');
+        const reason = dateUnavailableReason(date, map, { enforceLeadTime: false });
+        if (reason) throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, { field: 'date' });
+      }
+      // A new date or start time: within booking hours, on the hour or half hour, and clear of the other
+      // events that day (this event is left out of its own check)
+      if (date !== reservation.date || startTime !== reservation.startTime) {
+        const timeReason = timeUnavailableReason(date, startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) });
+        if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason}.`, { field: 'startTime' });
+      }
+      const venue = { name: clean(values.venueName), address: clean(values.venueAddress), city: clean(values.city), accessNotes: clean(values.accessNotes) };
+      if (!venue.name || !venue.address || !venue.city) throw invalid('Enter the venue, city and address.', 'venueName');
+
+      // What changed, both values, e.g. "Updated guests from 100 to 150, venue."
+      const changes = [];
+      if (date !== reservation.date) changes.push(`date from ${formatDate(reservation.date)} to ${formatDate(date)}`);
+      if (startTime !== reservation.startTime) changes.push(`start time from ${reservation.startTime} to ${startTime}`);
+      if (guests !== reservation.guests) changes.push(`guests from ${reservation.guests} to ${guests}`);
+      if (venue.name !== reservation.venue.name || venue.address !== reservation.venue.address || venue.city !== reservation.venue.city) changes.push('venue');
+      const { due, moved } = dueAfterMove(reservation, date);
+      if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
+
+      await repo.updateReservation(conn, ref, { date, startTime, guests, venue, downpaymentDue: due });
+      if (changes.length) await logAdmin(conn, ref, admin, `Updated ${changes.join(', ')}.`);
+      // The guest count moved on a quoted buffet: tell the customer what it does to their total before
+      // anyone re-sends anything, so a change can never pass unnoticed
+      if (guests !== reservation.guests && reservation.quotation && includesFood(reservation.serviceType)) {
+        const food = guests * (reservation.pricePerPlate || 0);
+        await postAdminMessage(
+          conn,
+          reservation,
+          `The guest count for ${reservation.eventName} was changed from ${reservation.guests} to ${guests}. Your buffet is charged per person, so the food total changes from ${pesoText(reservation.quotation.food)} to ${pesoText(food)}. We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`,
+          null,
+          admin.name
+        );
+      }
+      return { changed: changes.length };
+    },
+    { availability: true }
+  );
+}
+
+/**
+ * updateLogistics for an equipment rental (inside its transaction): the date, the pick-up or delivery
+ * time, pick up versus delivery, and the delivery address. A new date needs an open (not blocked) day
+ * and enough of every rented item free that day. Switching between pick up and delivery adds or removes
+ * the delivery fee, so the customer is told in their chat (old and new total), the audit trail keeps
+ * both, and a sent quotation shows as out of date until the admin re-sends it. Before any quotation the
+ * estimate simply follows the change.
+ */
+async function updateRentalLogistics(conn, row, values, admin) {
+  const { reservation } = row;
+  const { ref } = reservation;
+  const fulfilment = values.fulfilment || reservation.fulfilment;
+  if (!['pickup', 'delivery'].includes(fulfilment)) throw invalid('Choose pick up or delivery.', 'fulfilment');
+  const { date } = values;
+  if (!isISODate(date)) throw invalid('Choose the date you need the items.', 'date');
+  const startTime = startTimeOf(values);
+  if (date !== reservation.date) {
+    if (daysFromToday(date) < 0) throw invalid('A rental cannot be moved to a past date.', 'date');
+    const reason = dateUnavailableReason(date, await availabilityMap(conn), { enforceLeadTime: false, rental: true });
+    if (reason) throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, { field: 'date' });
+    const stock = rentalStock(await repo.rentalStockInputs(conn, date), date, ref);
+    const short = reservation.rentalItems.filter((line) => line.qty > (stock[line.itemId] || 0));
+    if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}.`, { field: 'date' });
+  }
+  if (date !== reservation.date || startTime !== reservation.startTime) {
+    // Hours and half hours only: a rental does not clash with events, so no events are passed
+    const timeReason = timeUnavailableReason(date, startTime, { events: [] });
+    if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason}.`, { field: 'startTime' });
+  }
+  const place = { name: clean(values.venueName), address: clean(values.venueAddress), city: clean(values.city) };
+  if (fulfilment === 'delivery' && (!place.name || !place.address || !place.city)) throw invalid('Enter where to deliver the items.', 'venueAddress');
+  const venue = fulfilment === 'delivery' ? { ...place, accessNotes: clean(values.accessNotes) } : { ...RENTAL.pickupPlace, accessNotes: '' };
+
+  // What changed, old value and new, for the audit trail
+  const changes = [];
+  if (date !== reservation.date) changes.push(`date from ${formatDate(reservation.date)} to ${formatDate(date)}`);
+  if (startTime !== reservation.startTime) changes.push(`${fulfilmentWord(fulfilment)} time from ${reservation.startTime} to ${startTime}`);
+  const switched = fulfilment !== reservation.fulfilment;
+  if (switched) changes.push(`from ${fulfilmentWord(reservation.fulfilment)} to ${fulfilmentWord(fulfilment)}`);
+  else if (fulfilment === 'delivery' && JSON.stringify(venue) !== JSON.stringify(reservation.venue)) changes.push('delivery address');
+  const { due, moved } = dueAfterMove(reservation, date);
+  if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
+
+  // The total before and after a switch between pick up and delivery (the delivery fee comes or goes)
+  const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
+  const was = financials(reservation, row.payments, NO_REFUNDS).total;
+  const total = rentalQuote(pkg, reservation, { fulfilment }).net;
+  const saved = { date, startTime, fulfilment, venue, downpaymentDue: due };
+  if (!reservation.quotation) saved.estimate = rentalQuote(pkg, { ...reservation, ...saved });
+  await repo.updateReservation(conn, ref, saved);
+
+  const repriced = switched && was !== total;
+  const pending = reservation.quotation ? ' We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.' : '';
+  if (changes.length) {
+    await logAdmin(conn, ref, admin, `Updated ${changes.join(', ')}.${repriced ? ` Total from ${pesoText(was)} to ${pesoText(total)}${reservation.quotation ? ' once the revised quotation is sent' : ''}.` : ''}`);
+  }
+  if (repriced) {
+    const how = fulfilment === 'delivery' ? `Delivery is ${pesoText(RENTAL.deliveryFee)} (our standard fee; a large order may be quoted more)` : `Picking up at ${RENTAL.pickupAddress} is free`;
+    await postAdminMessage(
+      conn,
+      reservation,
+      `Your equipment rental for ${formatDate(date)} was changed from ${fulfilmentWord(reservation.fulfilment)} to ${fulfilmentWord(fulfilment)}. ${how}, so your total changes from ${pesoText(was)} to ${pesoText(total)}.${pending}`,
+      null,
+      admin.name
+    );
+  }
+  return { changed: changes.length };
+}
+
+/**
+ * Admin: change what the customer is having (e.g. after agreeing it in chat): the service type, the four
+ * menu lines and the food notes. Switching between a buffet and catering only changes the total (only a
+ * buffet is charged per person), so when a quotation was sent the customer is told in their chat and the
+ * quotation shows as out of date until the admin re-sends it. Returns { ok: true }.
+ */
+export async function updateMenu(ref, body, admin) {
+  const values = plainObject(body);
+  return adminWrite(ref, async (conn, { reservation }) => {
+    if (CLOSED.includes(reservation.status)) throw closedError();
+    if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no menu. Edit the rented items instead.');
+    const { serviceType } = values;
+    if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose a buffet or catering only.', 'serviceType');
+    // A buffet names something for each of the four categories (cut at MENU_LINE_MAX); catering only has no menu
+    let menu = null;
+    if (includesFood(serviceType)) {
+      const wanted = plainObject(values.menu);
+      menu = {};
+      DISH_CATEGORIES.forEach(({ key, label }) => {
+        const line = clean(wanted[key]);
+        if (line.length < 2) throw invalid(`Fill in the ${label.toLowerCase()}.`, `menu.${key}`);
+        menu[key] = cut(line, MENU_LINE_MAX);
+      });
+    }
+    const before = reservation.serviceType;
+    await repo.updateReservation(conn, ref, { serviceType, menu, foodNotes: clean(values.foodNotes) });
+    await logAdmin(conn, ref, admin, before === serviceType ? 'Updated the menu.' : `Changed the booking from ${before} to ${serviceType}.`);
+    // Switching to or from a buffet changes what the customer owes: tell them before re-quoting
+    if (before !== serviceType && reservation.quotation) {
+      const food = includesFood(serviceType)
+        ? `A buffet is charged per person, so food for ${reservation.guests} guests will be added to your total.`
+        : 'Catering only has no per-person charge, so the food will be taken off your total.';
+      await postAdminMessage(conn, reservation, `${reservation.eventName} was changed from ${before} to ${serviceType}. ${food} We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`, null, admin.name);
+    }
+    return { ok: true };
+  });
+}
+
+/** Admin: save the private notes on a booking, as typed (never shown to the customer). Returns { ok: true }. */
+export async function saveNotes(ref, notes) {
+  return adminWrite(ref, async (conn) => {
+    await repo.updateReservation(conn, ref, { notes });
+    return { ok: true };
+  });
+}
+
+/**
+ * Admin: change what a rental includes (e.g. after agreeing it in chat). `items` is the whole new list,
+ * [{ itemId, qty }]. Lines already booked keep their prices; an added item takes today's price. Every
+ * item needs enough pieces free on the date (this booking's own pieces count as free), and no line can
+ * drop below what is already checked out for it (record those pieces' return first).
+ *
+ * The new total is never written into a sent quotation: the customer is told in their chat (old and new
+ * total), the audit trail keeps both, and the quotation shows as out of date until the admin re-sends
+ * it. Before any quotation the estimate follows the new list at once. Runs under the availability lock.
+ * Returns { changed }: how many lines changed (0 when the list is the same, and nothing is written).
+ */
+export async function updateRentalItems(ref, body, admin) {
+  const { items } = plainObject(body);
+  return adminWrite(
+    ref,
+    async (conn, row) => {
+      const { reservation } = row;
+      if (!isRental(reservation.serviceType)) throw invalid('Only an equipment rental has rented items.');
+      if (CLOSED.includes(reservation.status)) throw closedError();
+      const stockData = await repo.rentalStockInputs(conn, reservation.date);
+      const lines = rentalLines(stockData, items, reservation.date, { excludeRef: ref, current: reservation.rentalItems });
+      stockData.inventory.forEach((item) => {
+        const out = item.allocations[ref] || 0;
+        const line = lines.find((l) => l.itemId === item.id);
+        if (out && (!line || line.qty < out)) {
+          throw invalid(`${out} ${item.name} ${out === 1 ? 'is' : 'are'} already checked out for this rental. Record their return first.`, `rental.${item.id}`);
+        }
+      });
+
+      // The change line by line, e.g. "Monobloc chair from 50 to 80, added 5 × Round table"
+      const before = reservation.rentalItems;
+      const changes = [];
+      lines.forEach((line) => {
+        const old = before.find((b) => b.itemId === line.itemId);
+        if (!old) changes.push(`added ${line.qty} × ${line.name}`);
+        else if (old.qty !== line.qty) changes.push(`${line.name} from ${old.qty} to ${line.qty}`);
+      });
+      before.forEach((old) => {
+        if (!lines.some((l) => l.itemId === old.itemId)) changes.push(`removed ${old.qty} × ${old.name}`);
+      });
+      if (!changes.length) return { changed: 0 };
+
+      const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
+      const was = financials(reservation, row.payments, NO_REFUNDS).total;
+      const total = rentalQuote(pkg, reservation, { rentalItems: lines }).net;
+      await repo.replaceRentalLines(conn, ref, lines);
+      if (!reservation.quotation) await repo.updateReservation(conn, ref, { estimate: rentalQuote(pkg, { ...reservation, rentalItems: lines }) });
+      await logAdmin(conn, ref, admin, `Changed the rented items: ${changes.join(', ')}. Total from ${pesoText(was)} to ${pesoText(total)}${reservation.quotation ? ' once the revised quotation is sent' : ''}.`);
+      const pending = reservation.quotation ? ' We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.' : '';
+      await postAdminMessage(
+        conn,
+        reservation,
+        `The items you are renting for ${formatDate(reservation.date)} were changed: ${changes.join(', ')}. Your total changes from ${pesoText(was)} to ${pesoText(total)}.${pending}`,
+        null,
+        admin.name
+      );
+      return { changed: changes.length };
+    },
+    { availability: true }
+  );
 }

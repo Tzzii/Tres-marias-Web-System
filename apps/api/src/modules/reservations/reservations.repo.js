@@ -259,14 +259,15 @@ export async function refsWithPrefix(conn, prefix) {
 
 /**
  * What the rental stock rules (rentalStock in @tm/shared/src/domain/reservation.js) need for one date:
- *   inventory     every item: { id, name, total, damaged, lowStockAt, rentable, archived, rentPrice,
- *                 damageFee, allocations: { reservationRef: pieces checked out for bookings on the date } }
+ *   inventory     every item, in the order it was added (its EQ- code): { id, name, total, damaged,
+ *                 lowStockAt, rentable, archived, rentPrice, damageFee,
+ *                 allocations: { reservationRef: pieces checked out for bookings on the date } }
  *   reservations  the bookings on the date in a status that holds it (HOLDS_DATE), each rental with its
  *                 rentalItems: [{ itemId, qty }]
  */
 export async function rentalStockInputs(db, date) {
   const [[items], [held], [lines], [allocations]] = await Promise.all([
-    db.query('SELECT id, name, total, damaged, low_stock_at, rentable, archived, rent_price, damage_fee FROM inventory_items'),
+    db.query('SELECT id, name, total, damaged, low_stock_at, rentable, archived, rent_price, damage_fee FROM inventory_items ORDER BY code'),
     db.query('SELECT ref, date, status, service_type FROM reservations WHERE date = ? AND status IN (?)', [date, HOLDS_DATE]),
     db.query(
       `SELECT l.reservation_ref, l.item_id, l.qty FROM reservation_rental_items l JOIN reservations r ON r.ref = l.reservation_ref
@@ -341,6 +342,55 @@ export async function insertRentalLines(conn, ref, lines) {
   await conn.query('INSERT INTO reservation_rental_items (reservation_ref, item_id, name, qty, price, damage_fee, sort_order) VALUES ?', [
     lines.map((line, index) => [ref, line.itemId, line.name, line.qty, line.price, line.damageFee, index])
   ]);
+}
+
+/** Swap a rental's lines for a new list (the admin's edit of the rented items), in the new list's order. */
+export async function replaceRentalLines(conn, ref, lines) {
+  await conn.query('DELETE FROM reservation_rental_items WHERE reservation_ref = ?', [ref]);
+  await insertRentalLines(conn, ref, lines);
+}
+
+// Record fields updateReservation may change -> [column, how the value is stored]
+const plain = (value) => value;
+const COLUMNS = {
+  status: ['status', plain],
+  date: ['date', plain],
+  startTime: ['start_time', plain],
+  guests: ['guests', plain],
+  serviceType: ['service_type', plain],
+  fulfilment: ['fulfilment', plain],
+  menu: ['menu', toJson],
+  foodNotes: ['food_notes', plain],
+  estimate: ['estimate', toJson],
+  quotation: ['quotation', toJson],
+  downpaymentDue: ['downpayment_due', plain],
+  preparingAt: ['preparing_at', plain],
+  notes: ['notes', plain],
+  declineReason: ['decline_reason', plain]
+};
+
+/**
+ * Save changed fields of a booking, given in the record's shape, e.g. { status: 'approved',
+ * downpaymentDue: '2026-10-06' } or { venue: { name, address, city, accessNotes } } (the four venue
+ * columns). JSON fields (menu, estimate, quotation) are stored with toJson. Only the fields in COLUMNS
+ * and `venue` can be written; any other name is a programming error and throws before anything is saved.
+ */
+export async function updateReservation(conn, ref, changes) {
+  const sets = [];
+  const params = [];
+  Object.entries(changes).forEach(([field, value]) => {
+    if (field === 'venue') {
+      sets.push('venue_name = ?', 'venue_address = ?', 'city = ?', 'access_notes = ?');
+      params.push(value.name, value.address, value.city, value.accessNotes);
+      return;
+    }
+    if (!COLUMNS[field]) throw new Error(`updateReservation: "${field}" is not a field it can save.`);
+    const [column, store] = COLUMNS[field];
+    sets.push(`${column} = ?`);
+    params.push(store(value));
+  });
+  if (!sets.length) return;
+  await conn.query(`UPDATE reservations SET ${sets.join(', ')} WHERE ref = ?`, [...params, ref]);
 }
 
 /** Add an entry to the booking's audit trail (always in the transaction of the change it describes). */

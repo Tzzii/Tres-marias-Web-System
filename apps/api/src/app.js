@@ -79,7 +79,7 @@ export function createApp() {
   admin.use(catalogAdminRoutes);
   // Calendar: /calendar/blocks (block, unblock) and /calendar/capacity
   admin.use('/calendar', calendarAdminRoutes);
-  // Reservations: every booking and one in full (Phase 6A; the admin's actions and edits come in Phase 6B)
+  // Reservations: every booking, one in full (Phase 6A), and the admin's actions and edits (Phase 6B)
   admin.use('/reservations', reservationAdminRoutes);
   app.use('/api/admin', admin);
 

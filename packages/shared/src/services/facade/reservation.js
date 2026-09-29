@@ -4,8 +4,8 @@ import * as local from '../reservationService.js';
 import * as remote from '../remote/reservation.js';
 import { pickImpl } from '../backend.js';
 
-// The API version since Phase 6A (services/remote/reservation.js), when VITE_API_SERVICES includes "reservations".
-// Its twelve admin actions and edits reach the server in Phase 6B; until then they answer with an error.
+// The API version (services/remote/reservation.js: the customer side since Phase 6A, the admin's actions
+// and edits since Phase 6B), when VITE_API_SERVICES includes "reservations".
 const impl = pickImpl('reservations', local, remote);
 
 export const listReservations = (...a) => impl.listReservations(...a);
