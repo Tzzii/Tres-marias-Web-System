@@ -64,8 +64,8 @@ export async function lockAvailability(conn) {
 }
 
 /**
- * Stamp calendar_settings.updated_at: the calendar's change stamp (Phase 7), which also sees an
- * unblock, since that leaves no row behind. Every calendar write runs this first: it locks the
+ * Stamp calendar_settings.updated_at: when the calendar last changed, an unblock included (it leaves
+ * no row behind). Every calendar write runs this first: it locks the
  * settings row until the transaction ends, so two calendar writes run one after the other.
  */
 export async function touchSettings(conn, at) {

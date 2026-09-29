@@ -1,10 +1,12 @@
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { ApiError } from '../lib/ApiError.js';
+import { readToken } from '../lib/tokens.js';
 
 /**
- * Request limits per client IP address (docs/backend-development-phases.md §7.2, Phase 3):
- *   authLimiter  5 a minute on each sign-in, sign-up, code and password-reset route
- *   apiLimiter   100 a minute on everything under /api
+ * Request limits (docs/backend-development-phases.md §7.2, Phase 3):
+ *   authLimiter  5 a minute per client IP address on each sign-in, sign-up, code and password-reset route
+ *   apiLimiter   100 a minute on everything under /api: per account for a signed-in request (since
+ *                Phase 7), per client IP address otherwise
  * Counted in memory, per API process: a restart forgets the counts (the lockouts, which matter more,
  * are in the database). req.ip is the real client because app.js trusts one proxy (Nginx) in front;
  * the API must therefore be reachable only through that proxy in production (Phase 13), otherwise a
@@ -38,11 +40,25 @@ export const authLimiter = rateLimit({
   handler: refuse
 });
 
+/**
+ * Who a request counts against: the account whose genuine, unexpired token it carries (people behind
+ * one IP address, such as a family's Wi-Fi or a mobile network, each get their own count, and the
+ * portals' change poller adds 4 requests a minute per open tab), or else its IP address (with IPv6
+ * grouped by /56, like authLimiter). Only the signature and expiry are checked here; requireAuth still
+ * decides whether the session is current.
+ */
+function accountOrAddress(req) {
+  const [scheme, token] = (req.get('Authorization') || '').split(' ');
+  const payload = scheme === 'Bearer' && token ? readToken(token) : null;
+  return payload && typeof payload.sub === 'string' ? `${payload.role}:${payload.sub}` : ipKeyGenerator(req.ip || '');
+}
+
 /** The general limit for every /api route (after /api/health, which uptime checks may call often). */
 export const apiLimiter = rateLimit({
   windowMs: MINUTE,
   limit: 100,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  keyGenerator: accountOrAddress,
   handler: refuse
 });

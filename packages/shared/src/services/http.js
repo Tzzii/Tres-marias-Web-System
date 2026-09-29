@@ -2,28 +2,45 @@ import { ApiError } from './errors.js';
 import { emitChange, emitSignedOut } from './events.js';
 
 /**
- * The API client used by the services' API versions (services/remote/*). Only services switched on
- * in VITE_API_SERVICES call it (see backend.js; `auth` since Phase 3); the rest use the browser store.
+ * The API client used by the services' API versions (services/remote/*) and the change poller
+ * (services/poller.js). Only services switched on in VITE_API_SERVICES call it (see backend.js; `auth`
+ * since Phase 3); the rest use the browser store.
  */
 
 // Where the API lives, from each app's .env.local; without a trailing slash so paths join cleanly
 const BASE = String(import.meta.env?.VITE_API_URL || 'http://localhost:4000/api').replace(/\/+$/, '');
-// Session keys written by apps/admin/src/auth.js and apps/client/src/auth.js
-const SESSION_KEYS = ['tm.admin.session', 'tm.client.session'];
+// Session keys written by apps/admin/src/auth.js and apps/client/src/auth.js, with the side each one signs in
+const SESSION_KEYS = [
+  ['tm.admin.session', 'admin'],
+  ['tm.client.session', 'customer']
+];
 
-// The token of whichever portal is running (each portal runs on its own origin, so only its own key exists).
-// Checks sessionStorage first, then localStorage ("Remember me"), the same order as createAuth.
-function token() {
-  for (const key of SESSION_KEYS) {
+// The session of whichever portal is running, { token, side } or null (each portal runs on its own origin,
+// so only its own key exists). Checks sessionStorage first, then localStorage ("Remember me"), the same
+// order as createAuth.
+function session() {
+  for (const [key, side] of SESSION_KEYS) {
     try {
       const raw = sessionStorage.getItem(key) || localStorage.getItem(key);
-      const session = raw ? JSON.parse(raw) : null;
-      if (session && session.token) return session.token;
+      const saved = raw ? JSON.parse(raw) : null;
+      if (saved && saved.token) return { token: saved.token, side };
     } catch (e) {
       /* storage unavailable or a damaged session: try the next key */
     }
   }
   return null;
+}
+
+// The session's token, or null
+function token() {
+  const current = session();
+  return current ? current.token : null;
+}
+
+/** Which portal is signed in: 'admin', 'customer' or null. For a call whose address depends on the side (e.g. opening a chat). */
+export function sessionSide() {
+  const current = session();
+  return current ? current.side : null;
 }
 
 // Send the request; a failure to reach the server at all becomes a NETWORK error pages can show

@@ -254,8 +254,8 @@ async function check() {
   }));
   compareKeyed('contracts', contracts, seed.outsourcing.contracts, 'id');
 
-  // ---- counters (receipt stored as the last one used) ----
-  const counterRows = await q('SELECT * FROM counters');
+  // ---- counters (receipt stored as the last one used; the 'change' stamp is not seed data, Phase 7) ----
+  const counterRows = await q("SELECT * FROM counters WHERE name <> 'change'");
   const counters = Object.fromEntries(counterRows.map((c) => [c.name, c.name === 'receipt' ? c.value + 1 : c.value]));
   compare('counters', counters, seed.counters);
   console.log('counters in db:', counterRows.map((c) => `${c.name}=${c.value}`).join(' '), `| seed.counters.receipt=${seed.counters.receipt}`);

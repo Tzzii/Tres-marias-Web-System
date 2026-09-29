@@ -92,10 +92,13 @@ the account pages run on the API, and since Phase 4 so does the catalogue (packa
 charges, buffet dishes, the buffet price per person and the rental price list):
 `VITE_API_SERVICES=auth,catalog` in each portal's `.env.local`. The other pages still use the
 browser store until their phase. The calendar (blocked dates, daily capacity, the date pickers) has
-its API version since Phase 5, and reservations since Phase 6 (lists, details, booking, the
-customer's cancel and change request, and the admin's actions and edits). Both are switched on
-together with messages and payments after Phase 8, since those four read each other's data; to try
-them earlier, add `calendar,reservations` in both portals. The API needs MySQL 8. First time only:
+its API version since Phase 5, reservations since Phase 6 (lists, details, booking, the customer's
+cancel and change request, and the admin's actions and edits), and the chat since Phase 7. While
+signed in on the API, each portal also asks the API every 15 seconds (only while the tab is visible)
+whether anything changed, and reloads what it shows, so one portal's changes show in the other
+without a refresh. The three are switched on together with payments after Phase 8, since those four
+read each other's data; to try them earlier, add `calendar,reservations,messages` in both portals.
+The API needs MySQL 8. First time only:
 
 1. Copy `apps/api/.env.example` to `apps/api/.env` and set `DB_PASSWORD` and a long random `JWT_SECRET`.
 2. As the MySQL root user, run `apps/api/db-setup.sql` once (creates the `tres_marias` database and user).
