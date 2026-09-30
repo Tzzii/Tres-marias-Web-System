@@ -383,10 +383,25 @@ export function buildSeed() {
 
   let receiptSeq = 1040; // next receipt number
   const payments = [];
+  // A PayMongo payment id for the n-th sample payment, e.g. "pay_Hq3xK…" (24 letters and digits, the same
+  // every time the seed is built): the reference of a GCash QR payment
+  const PAYMONGO_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const payMongoId = (n) => {
+    let x = ((n + 1) * 7919) % 2147483647;
+    let id = '';
+    for (let i = 0; i < 24; i++) {
+      x = (x * 48271) % 2147483647; // small enough to stay exact in a JS number
+      id += PAYMONGO_CHARS[x % PAYMONGO_CHARS.length];
+    }
+    return `pay_${id}`;
+  };
   // Add a payment record; verified payments get a receipt number. Cash is recorded by the admin on the
-  // spot (verified at once); GCash/bank are verified the next morning. Rejected ones keep the reason.
+  // spot and a GCash QR ('qrph') is confirmed by PayMongo the moment it is paid (both verified at once,
+  // with no proof); bank transfers come with a photo of the receipt and are verified the next morning.
+  // Rejected ones keep the reason.
   const pay = (ref, customerId, amount, kind, method, offset, status = 'verified', extra = {}) => {
     const id = `pay-${String(payments.length + 1).padStart(4, '0')}`;
+    const instant = method === 'cash' || method === 'qrph';
     payments.push({
       id,
       ref,
@@ -394,11 +409,11 @@ export function buildSeed() {
       amount,
       kind,
       method,
-      referenceNo: method === 'cash' ? '' : extra.referenceNo || `${1000 + payments.length * 37} ${4400 + payments.length * 91} ${310 + payments.length}`,
-      proofName: method === 'cash' ? '' : extra.proofName || `${method === 'gcash' ? 'gcash' : 'bank'}-receipt-${ref.toLowerCase()}.jpg`,
+      referenceNo: method === 'cash' ? '' : method === 'qrph' ? payMongoId(payments.length) : extra.referenceNo || `${1000 + payments.length * 37} ${4400 + payments.length * 91} ${310 + payments.length}`,
+      proofName: instant ? '' : extra.proofName || `bank-receipt-${ref.toLowerCase()}.jpg`,
       status,
       submittedAt: at(offset, 14, 20),
-      verifiedAt: status === 'verified' ? (method === 'cash' ? at(offset, 14, 20) : at(offset + 1, 10, 5)) : null,
+      verifiedAt: status === 'verified' ? (instant ? at(offset, 14, 20) : at(offset + 1, 10, 5)) : null,
       receiptNo: status === 'verified' ? `OR-${receiptSeq++}` : '',
       rejectReason: extra.rejectReason || ''
     });
@@ -437,7 +452,7 @@ export function buildSeed() {
       'Crispy pata, kare-kare, chicken inasal, pancit canton, rice, leche flan and iced tea.', {}],
     ['liam-christening', 'cus-005', "Baby Liam's Christening", 'Christening', 12, '12:00', 60, 'pkg-mini', 'approved', -9,
       [], ['San Antonio de Padua Parish Hall', 'Forbes Park', 'Makati City'],
-      'Spaghetti, fried chicken, lumpiang shanghai, rice and maja blanca.', { quoted: true, awaiting: { referenceNo: '5021 884 3317', proofName: 'GCash-Receipt-Liam-Christening.jpg' }, dueOffset: 4 }],
+      'Spaghetti, fried chicken, lumpiang shanghai, rice and maja blanca.', { quoted: true, awaiting: { referenceNo: 'BPI-IB-5021-8843', proofName: 'BPI-Receipt-Liam-Christening.jpg' }, dueOffset: 4 }],
     ['mendoza-anniversary', 'cus-006', 'Mendoza 25th Wedding Anniversary', 'Anniversary', 33, '18:30', 120, 'pkg-2', 'confirmed', -30,
       ['add-balloons'], ['Mendoza Residence', '8 Acacia Lane, Ayala Alabang', 'Muntinlupa City'],
       'Roast beef with mushroom gravy, chicken relleno, sinigang na hipon, rice and sans rival.', { paidHalf: true, accessNotes: true }],
@@ -576,20 +591,21 @@ export function buildSeed() {
         activity.push({ at: at(offset + 1, 10, 5), actor: 'Teresa Marquez', text: `Rejected a payment of ₱${Math.round(total / 2).toLocaleString('en-PH')}. Reason: ${reason}` });
       }
       if (extra.paidFull) {
-        pay(ref, customerId, Math.round(total / 2), 'downpayment', 'gcash', createdOffset + 4);
+        pay(ref, customerId, Math.round(total / 2), 'downpayment', 'qrph', createdOffset + 4);
         // The balance is paid by bank a few days before, or in cash to the coordinator on the event day
         if (extra.balanceMethod === 'cash') pay(ref, customerId, total - Math.round(total / 2), 'balance', 'cash', dateOffset);
         else pay(ref, customerId, total - Math.round(total / 2), 'balance', 'bank', Math.min(dateOffset - 3, -3));
       } else if (extra.paidHalf) {
         pay(ref, customerId, Math.round(total / 2), 'downpayment', 'bank', createdOffset + 5);
       } else if (extra.awaiting) {
-        const { method = 'gcash', referenceNo, proofName } = extra.awaiting;
+        const { method = 'bank', referenceNo, proofName } = extra.awaiting;
         pay(ref, customerId, Math.round(total / 2), 'downpayment', method, -1, 'awaiting', { referenceNo, proofName });
       }
 
       const myPayments = payments.filter((p) => p.ref === ref && p.status === 'verified');
+      // A GCash QR payment is confirmed by PayMongo, everything else by the admin
       myPayments.forEach((p) =>
-        activity.push({ at: p.verifiedAt, actor: 'Teresa Marquez', text: `Verified a ${p.kind} payment of ₱${p.amount.toLocaleString('en-PH')} (${p.receiptNo}).` })
+        activity.push({ at: p.verifiedAt, actor: p.method === 'qrph' ? 'PayMongo' : 'Teresa Marquez', text: `Verified a ${p.kind} payment of ₱${p.amount.toLocaleString('en-PH')} (${p.receiptNo}).` })
       );
       if (['confirmed', 'completed'].includes(status)) {
         activity.push({ at: at(createdOffset + 7, 9, 40), actor: 'Teresa Marquez', text: 'Confirmed the booking.' });
@@ -699,7 +715,7 @@ export function buildSeed() {
       customerId: 'cus-005',
       ref: null,
       messages: [
-        msg('customer', 'Patricia Lim', 'I have uploaded the GCash receipt for the downpayment. Thank you!', -1, 14, 25, { readByAdmin: false, ref: REF['liam-christening'] })
+        msg('customer', 'Patricia Lim', 'I have uploaded the bank receipt for the downpayment. Thank you!', -1, 14, 25, { readByAdmin: false, ref: REF['liam-christening'] })
       ]
     },
     {
@@ -885,7 +901,7 @@ export function buildSeed() {
   const outsourcing = buildOutsourceSeed(REF, reservations);
 
   return {
-    version: 15,
+    version: 16,
     seededOn: T,
     // Settings the admin edits in the app: the buffet price per person and the minimum downpayment
     settings: { pricePerPlate: DEFAULT_PRICE_PER_PLATE, minDownpayment: DEFAULT_MIN_DOWNPAYMENT },

@@ -18,8 +18,8 @@ import { toJson, parseJson } from '../../lib/json.js';
  *
  * Every function takes `db`: the pool, or a transaction's connection so reads and writes see and lock
  * the same rows. A list is one query per table (reservations with their package and customer names,
- * add-ons, activity, rental lines, damage lines, payments, checked-out pieces), joined up in JS: never
- * one query per booking.
+ * add-ons, activity, rental lines, damage lines, payments, refunds, checked-out pieces), joined up in
+ * JS: never one query per booking.
  */
 
 // First row of a SELECT, or null
@@ -55,8 +55,8 @@ function scope({ customerId, ref }) {
   return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }
 
-// payments row -> payment record (the proof file's storage columns never leave the server)
-const toPayment = (row) => ({
+// payments row -> payment record (the proof file's storage columns never leave the server); payments.repo.js uses it too
+export const toPayment = (row) => ({
   id: row.id,
   ref: row.ref,
   customerId: row.customer_id,
@@ -111,14 +111,36 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
   return record;
 }
 
+/**
+ * refunds row (with the recording admin's name as admin_name) -> refund record. The browser store keeps
+ * the admin's name in recordedBy, and the admin page shows it ("recorded by …"), so the id stays here.
+ */
+export const toRefund = (row) => ({
+  id: row.id,
+  ref: row.ref,
+  customerId: row.customer_id,
+  kind: row.kind,
+  amount: row.amount,
+  due: row.due,
+  method: row.method,
+  referenceNo: row.reference_no,
+  sentOn: row.sent_on,
+  reason: row.reason,
+  recordedAt: row.recorded_at,
+  recordedBy: row.admin_name ?? ''
+});
+
 /* ============================ Reads ============================ */
 
 /**
  * Reservations with what a summary needs, newest request first (created_at; ties by ref, the seed's
  * order): [{ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile,
- * payments, piecesOut }]. The names are null when the package or customer row is missing; `payments`
- * are the booking's payment records, newest first; `piecesOut` is how many inventory pieces are
- * checked out for it (inventory_allocations), 0 when none. `filter` is { customerId?, ref? } (see scope()).
+ * payments, refunds, pendingQrs, piecesOut }]. The names are null when the package or customer row is
+ * missing; `payments` are the booking's payment records, newest first; `refunds` its refund records
+ * (Phase 8), newest recorded first, which financials() takes off what was paid; `pendingQrs` its GCash QRs
+ * still marked pending ([{ id, amount, status, expiresAt }], Phase 8B; openQrIn in payments.service.js
+ * says which one still counts as open); `piecesOut` is how many inventory pieces are checked out for it
+ * (inventory_allocations), 0 when none. `filter` is { customerId?, ref? } (see scope()).
  */
 export async function findReservations(db, filter = {}) {
   const { where, params } = scope(filter);
@@ -137,7 +159,7 @@ export async function findReservations(db, filter = {}) {
   );
   if (!rows.length) return [];
 
-  const [[addonLinks], [activity], [rentalLines], [damageLines], [payments], [pieces]] = await Promise.all([
+  const [[addonLinks], [activity], [rentalLines], [damageLines], [payments], [refunds], [qrs], [pieces]] = await Promise.all([
     db.query(
       `SELECT ra.reservation_ref, ra.addon_id, ra.qty, a.has_quantity
          FROM reservation_addons ra JOIN reservations r ON r.ref = ra.reservation_ref JOIN addons a ON a.id = ra.addon_id
@@ -170,6 +192,18 @@ export async function findReservations(db, filter = {}) {
       params
     ),
     db.query(
+      `SELECT f.*, a.name AS admin_name
+         FROM refunds f JOIN reservations r ON r.ref = f.ref LEFT JOIN admins a ON a.id = f.recorded_by
+         ${where} ORDER BY f.recorded_at DESC, CAST(SUBSTRING(f.id, 4) AS UNSIGNED), f.id`,
+      params
+    ),
+    db.query(
+      `SELECT q.id, q.ref, q.amount, q.status, q.expires_at
+         FROM qr_payments q JOIN reservations r ON r.ref = q.ref
+         ${where ? `${where} AND` : 'WHERE'} q.status = 'pending' ORDER BY q.created_at DESC`,
+      params
+    ),
+    db.query(
       `SELECT a.reservation_ref, SUM(a.qty) AS pieces
          FROM inventory_allocations a JOIN reservations r ON r.ref = a.reservation_ref
          ${where} GROUP BY a.reservation_ref`,
@@ -183,6 +217,8 @@ export async function findReservations(db, filter = {}) {
     rentalLines: groupBy(rentalLines, 'reservation_ref'),
     damageLines: groupBy(damageLines, 'reservation_ref'),
     payments: groupBy(payments, 'ref'),
+    refunds: groupBy(refunds, 'ref'),
+    qrs: groupBy(qrs, 'ref'),
     pieces: new Map(pieces.map((row) => [row.reservation_ref, Number(row.pieces)])) // SUM comes back as a DECIMAL string
   };
   return rows.map((row) => ({
@@ -198,6 +234,8 @@ export async function findReservations(db, filter = {}) {
     customerEmail: row.customer_email,
     customerMobile: row.customer_mobile,
     payments: (byRef.payments.get(row.ref) || []).map(toPayment),
+    refunds: (byRef.refunds.get(row.ref) || []).map(toRefund),
+    pendingQrs: (byRef.qrs.get(row.ref) || []).map((qr) => ({ id: qr.id, amount: qr.amount, status: qr.status, expiresAt: qr.expires_at })),
     piecesOut: byRef.pieces.get(row.ref) || 0
   }));
 }

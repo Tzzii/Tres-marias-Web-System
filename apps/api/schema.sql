@@ -53,6 +53,7 @@ DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS threads;
 DROP TABLE IF EXISTS webhook_events;
 DROP TABLE IF EXISTS qr_payments;
+DROP TABLE IF EXISTS refunds;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS reservation_activity;
 DROP TABLE IF EXISTS reservation_damage_charges;
@@ -287,8 +288,9 @@ CREATE TABLE reservation_activity (
 -- Payments (paymentService, Phase 8 and 8B)
 -- ============================================================================
 
--- Money received for a reservation: GCash / bank transfers with proof sent by the customer,
--- cash recorded by the admin, and QR Ph payments confirmed by PayMongo (Phase 8B).
+-- Money received for a reservation: bank transfers sent by the customer with a photo of the receipt,
+-- cash recorded by the admin, and GCash / e-wallet QR payments confirmed by PayMongo ('qrph', Phase 8B).
+-- There is no manual GCash payment: GCash is paid by QR only (owner's decision, 2026-09-30).
 -- Only 'verified' rows count as paid (financials()).
 CREATE TABLE payments (
   id            VARCHAR(40)     NOT NULL,               -- pay-#### from the 'payment' counter
@@ -297,7 +299,7 @@ CREATE TABLE payments (
   amount        INT             NOT NULL,               -- whole pesos
   kind          VARCHAR(20)     NOT NULL,               -- worked out from the amount when it is recorded
   method        VARCHAR(20)     NOT NULL,
-  reference_no  VARCHAR(100)    NOT NULL DEFAULT '',    -- transaction number typed by the customer; PayMongo's pay_… for qrph; '' for cash
+  reference_no  VARCHAR(100)    NOT NULL DEFAULT '',    -- bank transfer number typed by the customer (6–30 characters); PayMongo's pay_… for qrph; '' for cash
   proof_key     VARCHAR(255)    NULL,                   -- storage key of the uploaded proof (Phase 8); never sent to the client
   proof_name    VARCHAR(255)    NOT NULL DEFAULT '',    -- the file name the customer uploaded; '' for cash and qrph
   proof_mime    VARCHAR(100)    NULL,                   -- type found from the file's bytes, sent back as Content-Type
@@ -318,8 +320,40 @@ CREATE TABLE payments (
   CONSTRAINT fk_payments_verified_by FOREIGN KEY (verified_by) REFERENCES admins (id),
   CONSTRAINT chk_payments_amount CHECK (amount > 0),
   CONSTRAINT chk_payments_kind CHECK (kind IN ('full', 'downpayment', 'balance')),
-  CONSTRAINT chk_payments_method CHECK (method IN ('gcash', 'bank', 'cash', 'qrph')),
+  CONSTRAINT chk_payments_method CHECK (method IN ('bank', 'cash', 'qrph')),
   CONSTRAINT chk_payments_status CHECK (status IN ('awaiting', 'verified', 'rejected'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Money returned to a customer (paymentService recordRefund, Phase 8), after the admin sent it outside
+-- the system: a cancellation refund on a cancelled or declined booking (₱0 up to what is due, with a
+-- reason when part is kept; a ₱0 one records that everything is kept and sends nothing, so it has no
+-- method or reference and sent_on is the day it was recorded), or an overpayment refund (always the
+-- whole overpayment). financials() takes them off what was paid. The admin who recorded it is an id
+-- here; the API answers with the admin's name.
+CREATE TABLE refunds (
+  id           VARCHAR(40)     NOT NULL,              -- rf-#### from the 'refund' counter
+  ref          VARCHAR(40)     NOT NULL,              -- the reservation
+  customer_id  VARCHAR(40)     NOT NULL,
+  kind         VARCHAR(20)     NOT NULL,              -- 'cancellation' or 'overpayment'
+  amount       INT             NOT NULL,              -- returned, whole pesos; 0 = everything kept (cancellation only)
+  due          INT             NOT NULL,              -- what was due back when it was recorded (refundDue)
+  method       VARCHAR(20)     NOT NULL DEFAULT '',   -- how it was sent: 'gcash', 'bank' or 'cash'; '' when ₱0
+  reference_no VARCHAR(30)     NOT NULL DEFAULT '',   -- '' for cash and ₱0; may be a PayMongo refund id (ref_…)
+  sent_on      DATE            NOT NULL,              -- the day it was sent (the day recorded when ₱0); reports count its month
+  reason       TEXT            NOT NULL,              -- why part (or all) was kept, shown to the customer; '' when all was returned
+  recorded_at  BIGINT UNSIGNED NOT NULL,
+  recorded_by  VARCHAR(40)     NOT NULL,              -- the admin who recorded it
+  PRIMARY KEY (id),
+  KEY idx_refunds_ref (ref),
+  KEY idx_refunds_customer (customer_id),
+  KEY idx_refunds_sent_on (sent_on),                    -- refunds by month (Phase 11)
+  CONSTRAINT fk_refunds_reservation FOREIGN KEY (ref) REFERENCES reservations (ref),
+  CONSTRAINT fk_refunds_customer FOREIGN KEY (customer_id) REFERENCES customers (id),
+  CONSTRAINT fk_refunds_recorded_by FOREIGN KEY (recorded_by) REFERENCES admins (id),
+  CONSTRAINT chk_refunds_kind CHECK (kind IN ('cancellation', 'overpayment')),
+  CONSTRAINT chk_refunds_amount CHECK (amount >= 0 AND amount <= due),
+  CONSTRAINT chk_refunds_overpayment CHECK (kind = 'cancellation' OR amount > 0),
+  CONSTRAINT chk_refunds_method CHECK (method IN ('', 'gcash', 'bank', 'cash') AND (amount = 0) = (method = ''))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- QR Ph codes opened through PayMongo (Phase 8B, server only). Kept apart from payments so
@@ -668,7 +702,7 @@ CREATE TABLE outsource_contract_history (
 -- ============================================================================
 
 -- Sequential numbers: receipt (OR-####), payment (pay-####), inventory (EQ-####),
--- outsource (OUT-YYYY-####) and refund (rf-####; the refunds table itself comes in Phase 8).
+-- outsource (OUT-YYYY-####) and refund (rf-####, the refunds table).
 -- `value` is always the LAST number used; nextCounter() adds 1 under SELECT … FOR UPDATE inside
 -- the caller's transaction. (The seed's `receipt` is the NEXT number instead, so the seeder
 -- stores it minus 1: §7.6.)

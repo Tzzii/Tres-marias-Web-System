@@ -100,10 +100,13 @@ export const config = {
     maxUploadMb: int('MAX_UPLOAD_MB', 5)
   },
 
+  // GCash / e-wallet QR payments (Phase 8B). Both secrets are needed before the Payments page offers the
+  // QR; `live` is true for a sk_live_ key (then only live webhook events count, see paymongo.webhook.js).
   paymongo: {
     secretKey: text('PAYMONGO_SECRET_KEY'),
     webhookSecret: text('PAYMONGO_WEBHOOK_SECRET'),
-    qrExpirySeconds: int('PAYMONGO_QR_EXPIRY_SECONDS', 1800)
+    qrExpirySeconds: int('PAYMONGO_QR_EXPIRY_SECONDS', 1800),
+    live: text('PAYMONGO_SECRET_KEY').startsWith('sk_live_')
   },
 
   clientUrl: text('CLIENT_URL', 'http://localhost:5173')
@@ -125,6 +128,17 @@ if (config.mail.driver === 'smtp' && (!config.mail.smtp.host || !config.mail.smt
 }
 if (!['log'].includes(config.sms.driver)) problems.push(`SMS_DRIVER must be "log" (got "${config.sms.driver}").`);
 if (!['local'].includes(config.storage.driver)) problems.push(`STORAGE_DRIVER must be "local" (got "${config.storage.driver}").`);
+// A key pasted with a typo or the public key (pk_) would only fail at the first QR; catch it here. Values are never printed.
+if (config.paymongo.secretKey && !/^sk_(test|live)_[A-Za-z0-9]+$/.test(config.paymongo.secretKey)) {
+  problems.push('PAYMONGO_SECRET_KEY must be a PayMongo secret key (sk_test_… or sk_live_…).');
+}
+if (config.paymongo.webhookSecret && !/^whsk_[A-Za-z0-9]+$/.test(config.paymongo.webhookSecret)) {
+  problems.push("PAYMONGO_WEBHOOK_SECRET must be the webhook's signing secret (whsk_…).");
+}
+// PayMongo accepts a QR lifetime from 60 to 9,000 seconds
+if (config.paymongo.qrExpirySeconds < 60 || config.paymongo.qrExpirySeconds > 9000) {
+  problems.push(`PAYMONGO_QR_EXPIRY_SECONDS must be from 60 to 9000 (got ${config.paymongo.qrExpirySeconds}).`);
+}
 if (isProduction) {
   // A missing secret is already reported above; here a short one or the .env.example placeholder
   if (config.jwtSecret && (config.jwtSecret.length < 32 || config.jwtSecret.startsWith('change-me'))) {

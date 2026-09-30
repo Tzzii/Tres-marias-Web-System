@@ -89,15 +89,25 @@ Each can also run alone: `npm run dev:api`, `npm run dev:client`, `npm run dev:a
 
 **The API is needed to sign in.** Since backend Phase 3, sign-in, sign-up, password reset and
 the account pages run on the API, and since Phase 4 so does the catalogue (packages, additional
-charges, buffet dishes, the buffet price per person and the rental price list):
-`VITE_API_SERVICES=auth,catalog` in each portal's `.env.local`. The other pages still use the
-browser store until their phase. The calendar (blocked dates, daily capacity, the date pickers) has
-its API version since Phase 5, reservations since Phase 6 (lists, details, booking, the customer's
-cancel and change request, and the admin's actions and edits), and the chat since Phase 7. While
-signed in on the API, each portal also asks the API every 15 seconds (only while the tab is visible)
-whether anything changed, and reloads what it shows, so one portal's changes show in the other
-without a refresh. The three are switched on together with payments after Phase 8, since those four
-read each other's data; to try them earlier, add `calendar,reservations,messages` in both portals.
+charges, buffet dishes, the buffet price per person and the rental price list). Since Phase 8 the
+calendar (blocked dates, daily capacity, the date pickers), reservations (lists, details, booking,
+cancelling, the admin's actions and edits), the chat and payments do too:
+`VITE_API_SERVICES=auth,catalog,calendar,reservations,messages,payments` in each portal's
+`.env.local`. While signed in, each portal asks the API every 15 seconds (only while the tab is
+visible) whether anything changed, and reloads what it shows, so one portal's changes show in the
+other without a refresh. The Dashboard, Reports, Customers, Feedback, Inventory and Outsourcing
+pages still use the browser store until Phase 11, so they don't show bookings made on the server yet.
+
+**Payments.** Customers pay three ways: **GCash / e-wallet by QR only** (PayMongo QR Ph, confirmed
+automatically), **bank transfer** (the reference number and a photo of the receipt, which the admin
+verifies under Reports → Payments) or **cash on site** (recorded by the admin). Uploaded receipts are
+kept in `apps/api/uploads/proofs` (git-ignored), never in a public folder. The GCash option stays
+greyed out until `apps/api/.env` has both `PAYMONGO_SECRET_KEY` (a `sk_test_…` key while developing;
+the `sk_live_…` key goes on the live server only) and `PAYMONGO_WEBHOOK_SECRET` (the `whsk_…`
+secret of the webhook created in the PayMongo dashboard, pointing at `/api/webhooks/paymongo`
+through a tunnel such as `cloudflared tunnel --url http://localhost:4000` while developing). In test
+mode the API prints each QR's test link (`[PAYMONGO TEST] …`) for simulating the payment; never scan
+and pay a test QR.
 The API needs MySQL 8. First time only:
 
 1. Copy `apps/api/.env.example` to `apps/api/.env` and set `DB_PASSWORD` and a long random `JWT_SECRET`.

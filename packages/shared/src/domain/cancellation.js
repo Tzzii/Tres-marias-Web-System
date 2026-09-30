@@ -9,7 +9,8 @@ import { statusLabel } from '../utils/status.js';
  *     day, or the first half when the event is 6 or more calendar months after the request
  *     (RULES.cancelWindowShare, cancelWindowShareLong, cancelWindowLongMonths), and never once the admin
  *     has marked the booking "Started preparing" (`preparingAt`);
- *   - never while equipment is checked out for it, or while a payment is waiting for verification.
+ *   - never while equipment is checked out for it, while a payment is waiting for verification, or while a
+ *     GCash QR for it is open (Phase 8B: the payment may still arrive).
  * Otherwise the customer cancels by messaging us in their chat or calling the business number.
  *
  * Pure (no store.js, no localStorage, no React): the browser service (reservationService.js), the API
@@ -43,7 +44,9 @@ export function cancelDeadline(reservation) {
  * `reason` and `code` are '' when allowed; otherwise `code` is the ApiError code cancelReservation
  * throws with `reason` as its message. `money` is financials() for the booking (domain/money.js);
  * `piecesOut` is how many inventory pieces are checked out for it (an event's equipment or a rental's
- * items, from the inventory's allocations; the services read it) and `today` is "YYYY-MM-DD".
+ * items, from the inventory's allocations; the services read it), `openQrUntil` is when its open GCash QR
+ * stops counting as open (milliseconds; the API passes it, the browser store has no QRs) and `today` is
+ * "YYYY-MM-DD".
  * Checked in this order:
  *   1. cancelled, declined or completed               -> INVALID_STATE
  *   2. the event day has come (or passed)             -> INVALID_STATE
@@ -51,9 +54,10 @@ export function cancelDeadline(reservation) {
  *   4. paid, and the deadline (cancelDeadline) passed -> INVALID_STATE
  *   5. equipment is checked out for it                -> INVALID_STATE (the team records the return first)
  *   6. a payment is waiting for verification          -> PENDING_PAYMENT
+ *   7. a GCash QR for it is open                       -> PENDING_PAYMENT (wait until it is paid or expires)
  * An unpaid booking with nothing checked out is always allowed before the event day.
  */
-export function onlineCancellation(reservation, money, { piecesOut = 0, today = todayISO() } = {}) {
+export function onlineCancellation(reservation, money, { piecesOut = 0, openQrUntil = 0, today = todayISO() } = {}) {
   const deadline = cancelDeadline(reservation);
   const refuse = (code, reason) => ({ allowed: false, deadline, reason, code });
   if (['cancelled', 'declined', 'completed'].includes(reservation.status)) {
@@ -65,6 +69,9 @@ export function onlineCancellation(reservation, money, { piecesOut = 0, today = 
   if (piecesOut > 0) return refuse('INVALID_STATE', 'Some of the equipment for this booking is already out, so it can no longer be cancelled online.');
   if (money.awaitingCount > 0) {
     return refuse('PENDING_PAYMENT', 'A payment for this reservation is still being verified. Please wait until our team checks it, or message us to cancel.');
+  }
+  if (openQrUntil) {
+    return refuse('PENDING_PAYMENT', 'A GCash QR payment for this reservation is still open. Please wait until it is paid or expires, or message us to cancel.');
   }
   return { allowed: true, deadline, reason: '', code: '' };
 }

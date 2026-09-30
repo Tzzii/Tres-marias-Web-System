@@ -139,7 +139,9 @@ function summarize(reservation, data) {
     quotationStaleReason: quotationStaleReason(reservation),
     ...money,
     cancelDeadline: cancelDeadline(reservation),
-    onlineCancel: onlineCancellation(reservation, money, { piecesOut: piecesOut(data, reservation.ref) })
+    onlineCancel: onlineCancellation(reservation, money, { piecesOut: piecesOut(data, reservation.ref) }),
+    // An open GCash QR (Phase 8B) exists on the API only; the browser store never has one
+    openQr: null
   };
 }
 

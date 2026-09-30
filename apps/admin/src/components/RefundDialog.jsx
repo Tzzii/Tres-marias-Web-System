@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import InputAdornment from '@mui/material/InputAdornment';
-import { AlertBanner, AppDialog, BusyButton, DateField, FormField, REFUND_METHODS, SelectField, paymentApi, peso, todayISO } from '@tm/shared';
+import { AlertBanner, AppDialog, BusyButton, DateField, FormField, REFUND_METHODS, SelectField, paymentApi, peso, referenceProblem, todayISO } from '@tm/shared';
 
 // The ways a refund can be sent, for the dropdown
 const METHOD_OPTIONS = Object.entries(REFUND_METHODS).map(([value, label]) => ({ value, label }));
@@ -60,7 +60,7 @@ export default function RefundDialog({ open, onClose, booking, onRecorded }) {
     if (keeps && values.reason.trim().length < 5) found.reason = `Tell the customer why ${nothingSent ? '' : 'part of '}the payment is kept (at least 5 characters).`;
     if (!nothingSent) {
       if (!cash && !values.referenceNo.trim()) found.referenceNo = 'Enter the reference number of the refund.';
-      else if (!cash && !/^[A-Za-z0-9 -]{6,30}$/.test(values.referenceNo.trim())) found.referenceNo = 'Use 6–30 letters, numbers, spaces or dashes.';
+      else if (!cash && referenceProblem(values.referenceNo.trim())) found.referenceNo = referenceProblem(values.referenceNo.trim());
       if (!values.sentOn) found.sentOn = 'Enter the date the refund was sent.';
       else if (values.sentOn > todayISO()) found.sentOn = 'The date sent cannot be later than today.';
     }

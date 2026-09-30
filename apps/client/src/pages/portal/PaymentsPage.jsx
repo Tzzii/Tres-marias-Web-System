@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,6 +11,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
@@ -37,6 +38,7 @@ import {
   formatDateTime,
   paymentApi,
   peso,
+  referenceProblem,
   reservationApi,
   tokens,
   useDocumentTitle,
@@ -45,13 +47,14 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-// Largest proof-of-payment file allowed
+// Largest receipt photo allowed
 const MAX_FILE_MB = 5;
-// Payment method buttons
+// Payment method buttons. GCash is paid only by the PayMongo QR (Phase 8B); a bank transfer is sent with a
+// photo of its receipt; cash is paid on site. `note` is the small line under the name.
 const METHODS = [
-  { value: 'gcash', label: 'GCash / e-wallet', icon: PhoneIphoneOutlinedIcon },
-  { value: 'bank', label: 'Bank transfer', icon: AccountBalanceOutlinedIcon },
-  { value: 'cash', label: 'Cash on site', icon: StorefrontOutlinedIcon }
+  { value: 'gcash', label: 'GCash / e-wallet', note: 'QR only', icon: PhoneIphoneOutlinedIcon },
+  { value: 'bank', label: 'Bank transfer', note: 'Upload receipt', icon: AccountBalanceOutlinedIcon },
+  { value: 'cash', label: 'Cash on site', note: 'On the event day', icon: StorefrontOutlinedIcon }
 ];
 
 /**
@@ -72,8 +75,97 @@ function copyWithTextArea(value) {
   if (!copied) throw new Error('Copy was refused');
 }
 
+// How often an open GCash QR asks the server whether it was paid (only while the page is visible)
+const QR_POLL_MS = 4000;
+
 /**
- * 1k · Payments: downpayment, balance, proof upload, history and receipts.
+ * The open GCash / e-wallet QR of a reservation (Phase 8B): the code for its exact amount, a countdown to
+ * when it stops working, how to pay it (on a phone: save the image and upload it from the gallery in the
+ * app; no links that open other apps) and a "Save QR image" download. While it waits it asks the server
+ * every 4 seconds, only while the page is visible; the server also checks with PayMongo, so the payment
+ * shows even when PayMongo's own notice is late. `onUpdate(qr)` gets the QR once it is paid, expired or
+ * failed; `onNew` goes back to the form after an expired or failed one.
+ */
+function QrPanel({ qr, customerId, onUpdate, onNew }) {
+  const [clock, setClock] = useState(Date.now());
+  // The countdown ticks once a second while the QR waits
+  useEffect(() => {
+    if (qr.status !== 'pending') return undefined;
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [qr.status]);
+  // Ask how the QR stands every few seconds while it waits and the page is on screen
+  useEffect(() => {
+    if (qr.status !== 'pending') return undefined;
+    let alive = true;
+    const timer = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const fresh = await paymentApi.getQrPayment(customerId, qr.id);
+        if (alive && fresh.status !== 'pending') onUpdate(fresh);
+      } catch (e) {
+        /* no answer this time: asked again in a few seconds */
+      }
+    }, QR_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [qr.id, qr.status, customerId, onUpdate]);
+
+  if (qr.status === 'expired' || qr.status === 'failed') {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <AlertBanner tone="warning" title={qr.status === 'expired' ? 'The QR expired' : 'The payment did not go through'}>
+          {qr.status === 'expired' ? `The QR for ${peso(qr.amount)} expired before it was paid.` : `Your payment of ${peso(qr.amount)} did not go through. Nothing was charged.`} You can make a new QR.
+        </AlertBanner>
+        <Button variant="outlined" onClick={onNew} sx={{ alignSelf: 'flex-start' }}>Generate new QR</Button>
+      </Box>
+    );
+  }
+
+  // Time left, "29:41"; after the QR's time the server still checks for a payment made in its last seconds
+  const left = Math.max(0, qr.expiresAt - clock);
+  const countdown = `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`;
+  return (
+    <Box sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2.5, alignItems: { xs: 'stretch', sm: 'flex-start' } }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+        {qr.qrImage ? (
+          <Box component="img" src={qr.qrImage} alt={`GCash / e-wallet QR code for ${peso(qr.amount)}`} sx={{ width: 220, height: 220, borderRadius: 1, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: '#fff' }} />
+        ) : (
+          <Box sx={{ width: 220, height: 220, borderRadius: 1, backgroundColor: tokens.surfaceMuted }} />
+        )}
+        {qr.qrImage && (
+          <Button component="a" href={qr.qrImage} download={`TresMarias-${qr.ref}-QR.png`} size="small" startIcon={<DownloadRoundedIcon />}>
+            Save QR image
+          </Button>
+        )}
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Scan to pay {peso(qr.amount)}</Typography>
+        <Box>
+          <DetailRow label="Reservation">{qr.ref}</DetailRow>
+          <DetailRow label="Amount (exact)">{peso(qr.amount)}</DetailRow>
+          <DetailRow label="QR works for">{left > 0 ? countdown : 'Checking for your payment…'}</DetailRow>
+        </Box>
+        <Box component="ol" sx={{ m: 0, pl: 2.25, fontSize: 13, color: tokens.textSecondary, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <li>Open GCash, Maya or your bank app and choose Pay QR or Scan QR.</li>
+          <li>Scan this code. On this phone, save the QR image, then upload it from your gallery in the app.</li>
+          <li>Keep this page open or come back to it: it updates by itself once you have paid.</li>
+        </Box>
+        <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>If your app refuses the amount, pay in parts or use bank transfer. To pay a different amount, wait until this QR expires.</Typography>
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * 1k · Payments: downpayment, balance, bank-transfer receipt upload, history and receipts.
+ * Three ways to pay: GCash / e-wallet by QR only (PayMongo, Phase 8B; the card can't be picked while
+ * paymentOptions() says the QR isn't available, and there is no GCash number to send to), a bank transfer
+ * with its reference number and a photo of the receipt (the admin verifies it), or cash on site.
+ * One payment at a time per reservation: while a bank transfer waits for verification or a GCash QR is
+ * open (QrPanel), the form is replaced by it. An open QR comes back with the page (the summary's openQr).
  * The customer types how much they are paying (whole pesos). Until the reservation's minimum downpayment
  * is reached, it is at least the rest of that minimum (all of it when the total is below the minimum)
  * and at most the balance; after that, any amount up to the balance, so the balance can be paid in parts.
@@ -85,15 +177,18 @@ export default function PaymentsPage() {
   const notify = useNotify();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  // Load the customer's reservations, payment history and refunds
+  // Load the customer's reservations, payment history and refunds, and whether the GCash QR can be used
   const { data, loading, error, reload } = useResource(async () => {
-    const [reservations, payments, refunds] = await Promise.all([
+    const [reservations, payments, refunds, options] = await Promise.all([
       reservationApi.listReservations({ customerId: user.id }),
       paymentApi.listPayments({ customerId: user.id }),
-      paymentApi.listRefunds({ customerId: user.id })
+      paymentApi.listRefunds({ customerId: user.id }),
+      paymentApi.paymentOptions()
     ]);
-    return { reservations, payments, refunds };
+    return { reservations, payments, refunds, options };
   }, [user.id]);
+  // The GCash / e-wallet QR can be used (PayMongo is set up on the server)
+  const qr = Boolean(data && data.options && data.options.qr);
 
   // Reservations that can be paid right now (approved or later, with money owed), soonest event first
   const payable = useMemo(
@@ -103,7 +198,7 @@ export default function PaymentsPage() {
 
   const [ref, setRef] = useState(params.get('ref') || ''); // reservation being paid (can come from ?ref=)
   const [amountText, setAmountText] = useState(''); // whole pesos typed in the amount box (digits only)
-  const [method, setMethod] = useState('gcash');
+  const [picked, setPicked] = useState(''); // the method card the customer chose ('' = the default below)
   const [referenceNo, setReferenceNo] = useState('');
   const [file, setFile] = useState(null); // uploaded proof of payment
   const [preview, setPreview] = useState(''); // temporary image URL for the thumbnail
@@ -111,6 +206,7 @@ export default function PaymentsPage() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState(null); // receipt open in the document dialog
+  const [qrPay, setQrPay] = useState(null); // the GCash QR on screen: { id, ref, amount, expiresAt, status, qrImage }
   const fileInput = useRef(null); // hidden <input type="file">, clicked by the upload box
   const touch = useMediaQuery('(pointer: coarse)'); // phones and tablets: tap to upload, no drag and drop
 
@@ -123,6 +219,8 @@ export default function PaymentsPage() {
   // Free the old preview image from memory when it changes or the page closes
   useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
 
+  // The method in use: the chosen card, or GCash when its QR can be used and a bank transfer otherwise
+  const method = picked === 'gcash' && !qr ? 'bank' : picked || (qr ? 'gcash' : 'bank');
   const selected = payable.find((r) => r.ref === ref);
   // The minimum downpayment isn't reached yet: this payment has to reach it
   const firstPayment = Boolean(selected) && !selected.downpaymentPaid;
@@ -131,6 +229,34 @@ export default function PaymentsPage() {
   // What the box starts with: the least while the downpayment is owed, the remaining balance after that
   const suggested = !selected ? 0 : firstPayment ? least : selected.balance;
   const selectedRef = selected ? selected.ref : '';
+  // A GCash QR already open on this reservation (the server's summary names it) comes back with its image
+  const openQrId = selected && selected.openQr ? selected.openQr.id : '';
+  useEffect(() => {
+    if (!openQrId) return undefined;
+    let alive = true;
+    paymentApi
+      .getQrPayment(user.id, openQrId, { image: true })
+      .then((found) => alive && setQrPay((current) => (current && current.id === found.id ? current : found)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [openQrId, user.id]);
+  // The QR panel shows for the selected reservation only
+  const shownQr = qrPay && selected && qrPay.ref === selected.ref ? qrPay : null;
+
+  // The QR was paid, expired or failed: say so; a paid one clears and the figures reload with the new receipt
+  const qrUpdated = useCallback(
+    (fresh) => {
+      if (fresh.status === 'paid') {
+        notify(`Payment received. Receipt ${fresh.receiptNo} is in Receipts and invoices.`);
+        setQrPay(null);
+        reload();
+      } else setQrPay((current) => (current && current.id === fresh.id ? { ...current, ...fresh } : current));
+    },
+    [notify, reload]
+  );
+
   // Fill the box again whenever another reservation is chosen or its figures change (e.g. after a verified payment)
   useEffect(() => {
     setAmountText(suggested ? String(suggested) : '');
@@ -191,30 +317,50 @@ export default function PaymentsPage() {
     setPreview('');
   };
 
-  // Validate the amount, reference number and proof, then submit the payment for the admin to verify
+  // Validate the amount, reference number and receipt photo, then send the bank transfer for the admin to verify
   const submit = async () => {
     const found = {};
     if (amountProblem) found.amount = amountProblem;
     if (!referenceNo.trim()) found.referenceNo = 'Enter the reference number from your receipt.';
-    else if (!/^[A-Za-z0-9 -]{6,30}$/.test(referenceNo.trim())) found.referenceNo = 'Use 6–30 letters, numbers or spaces.';
-    if (!file) found.proof = 'Upload a screenshot or receipt of your payment.';
+    else if (referenceProblem(referenceNo.trim())) found.referenceNo = referenceProblem(referenceNo.trim());
+    if (!file) found.proof = 'Upload a photo or screenshot of your bank receipt.';
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) return;
 
     setBusy(true);
     try {
-      // Whether it counts as downpayment, full or balance is worked out by the payment service from the amount
+      // Whether it counts as downpayment, full or balance is worked out by the payment service from the amount.
+      // The API version uploads `file`; the browser store keeps only its name.
       await paymentApi.submitPayment(user.id, {
         ref: selected.ref,
         method,
         amount,
         referenceNo,
-        proofName: file.name
+        proofName: file.name,
+        file
       });
       notify('Payment submitted. We will verify it within a day.');
       setReferenceNo('');
       clearFile();
+    } catch (e) {
+      if (e.meta && e.meta.field) setErrors((er) => ({ ...er, [e.meta.field]: e.message }));
+      else setFormError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Check the amount, then ask the server for a GCash QR of exactly that amount
+  const generateQr = async () => {
+    if (amountProblem) {
+      setErrors((e) => ({ ...e, amount: amountProblem }));
+      return;
+    }
+    setFormError('');
+    setBusy(true);
+    try {
+      setQrPay(await paymentApi.startQrPayment(user.id, { ref: selected.ref, amount }));
     } catch (e) {
       if (e.meta && e.meta.field) setErrors((er) => ({ ...er, [e.meta.field]: e.message }));
       else setFormError(e.message);
@@ -299,11 +445,13 @@ export default function PaymentsPage() {
 
                   {selected.balanceState === 'overdue' && <AlertBanner tone="error" title="Downpayment overdue">Please pay as soon as possible so we can keep your date reserved.</AlertBanner>}
 
-                  {/* A payment is already waiting for verification: hide the form until it's checked */}
+                  {/* A payment is already waiting for verification, or a GCash QR is open: hide the form until it's done */}
                   {selected.awaitingCount > 0 ? (
                     <AlertBanner tone="locked" title="Payment being verified">
                       We received {peso(selected.awaitingAmount)} and the admin is verifying it, usually within a day. You can pay again once it is verified.
                     </AlertBanner>
+                  ) : shownQr ? (
+                    <QrPanel qr={shownQr} customerId={user.id} onUpdate={qrUpdated} onNew={() => setQrPay(null)} />
                   ) : (
                     <>
                       {/* How much to pay: one whole-peso box, with quick amounts underneath. Errors show under the box as the amount is typed. */}
@@ -338,29 +486,40 @@ export default function PaymentsPage() {
                         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
                           {METHODS.map((m) => {
                             const on = method === m.value;
+                            // GCash can't be picked until its QR can be used
+                            const off = m.value === 'gcash' && !qr;
                             return (
-                              <ButtonBase key={m.value} onClick={() => setMethod(m.value)} aria-pressed={on} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, p: 1.5, fontFamily: 'inherit', borderRadius: 1.5, border: `2px solid ${on ? tokens.ink : tokens.cardLightBorder}`, backgroundColor: on ? tokens.surfaceSubtle : tokens.cardLight }}>
+                              <ButtonBase key={m.value} disabled={off} onClick={() => setPicked(m.value)} aria-pressed={on} sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, p: 1.5, fontFamily: 'inherit', borderRadius: 1.5, border: `2px solid ${on ? tokens.ink : tokens.cardLightBorder}`, backgroundColor: on ? tokens.surfaceSubtle : tokens.cardLight, opacity: off ? 0.55 : 1 }}>
                                 <m.icon sx={{ color: on ? tokens.ink : tokens.textMuted }} />
                                 <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textPrimary, textAlign: 'center' }}>{m.label}</Typography>
+                                <Typography sx={{ fontSize: 11, color: tokens.textMuted, textAlign: 'center' }}>{m.note}</Typography>
                               </ButtonBase>
                             );
                           })}
                         </Box>
+                        {!qr && <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textSecondary }}>GCash QR is not available right now. Please use bank transfer.</Typography>}
                       </Box>
 
-                      {/* Cash: just an explanation. GCash/bank: account details, reference number and proof upload. */}
+                      {/* Cash: just an explanation. GCash: the QR (Phase 8B). Bank: account details, reference number and receipt photo. */}
                       {method === 'cash' ? (
                         <AlertBanner tone="info" title="Paying in cash">
-                          Cash is paid to our event coordinator on the day, who records it and issues your official receipt on site. {firstPayment ? 'To reserve your date, the downpayment still needs to be paid by GCash or bank transfer.' : ''}
+                          Cash is paid to our event coordinator on the day, who records it and issues your official receipt on site. {firstPayment ? `To reserve your date, the downpayment still needs to be paid by ${qr ? 'GCash (QR) or bank transfer' : 'bank transfer'}.` : ''}
                         </AlertBanner>
+                      ) : method === 'gcash' ? (
+                        <>
+                          <AlertBanner tone="info" title="Pay with GCash, Maya or your bank app">
+                            We'll make a QR code for exactly {peso(amount)}. Scan it in your app and the payment is confirmed right away; no screenshot needed.
+                          </AlertBanner>
+                          {formError && <AlertBanner tone="error">{formError}</AlertBanner>}
+                          <BusyButton size="large" busy={busy} onClick={generateQr}>
+                            Generate QR · {peso(amount)}
+                          </BusyButton>
+                        </>
                       ) : (
                         <>
                           <Box sx={{ p: 2, borderRadius: 1.5, border: `1px dashed ${tokens.borderInput}` }}>
                             <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>Send {peso(amount)} to</Typography>
-                            {(method === 'gcash'
-                              ? [['GCash name', BUSINESS.gcashName], ['GCash number', BUSINESS.gcashNumber]]
-                              : [['Bank', BUSINESS.bankName], ['Account name', BUSINESS.bankAccountName], ['Account number', BUSINESS.bankAccountNumber]]
-                            ).map(([label, value]) => (
+                            {[['Bank', BUSINESS.bankName], ['Account name', BUSINESS.bankAccountName], ['Account number', BUSINESS.bankAccountNumber]].map(([label, value]) => (
                               <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, py: 0.25 }}>
                                 <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -375,18 +534,20 @@ export default function PaymentsPage() {
                               </Box>
                             ))}
                             <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textMuted }}>Include {selected.ref} in the message or remarks.</Typography>
+                            <Typography sx={{ mt: 0.5, fontSize: 12, color: tokens.textMuted }}>Paying from GCash or Maya without the QR? Use their Bank Transfer (InstaPay) to our account and upload that receipt.</Typography>
                           </Box>
 
-                          <FormField id="pay-reference" label="Reference number" required value={referenceNo} onChange={(e) => { setReferenceNo(e.target.value); setErrors((er) => ({ ...er, referenceNo: '' })); }} error={errors.referenceNo} placeholder={method === 'gcash' ? 'e.g. 5021 884 3317' : 'e.g. BPI-20260914-0042'} />
+                          <FormField id="pay-reference" label="Reference number" required value={referenceNo} onChange={(e) => { setReferenceNo(e.target.value); setErrors((er) => ({ ...er, referenceNo: '' })); }} error={errors.referenceNo} placeholder="e.g. BPI-20260914-0042" />
 
                           <Box>
-                            <Typography component="label" htmlFor="pay-proof" sx={{ display: 'block', mb: 0.75, fontSize: 13, fontWeight: 600 }}>
-                              Upload proof of payment <Box component="span" sx={{ color: tokens.red }}>*</Box>
+                            <Typography component="label" htmlFor="pay-proof" sx={{ display: 'block', mb: 0.25, fontSize: 13, fontWeight: 600 }}>
+                              Upload a photo or screenshot of your bank receipt <Box component="span" sx={{ color: tokens.red }}>*</Box>
                             </Typography>
+                            <Typography sx={{ mb: 0.75, fontSize: 12, color: tokens.textMuted }}>The reference number must be readable.</Typography>
                             <input ref={fileInput} id="pay-proof" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden onChange={chooseFile} />
                             {file ? (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
-                                {preview ? <Box component="img" src={preview} alt="Proof of payment preview" sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 1 }} /> : <InsertDriveFileOutlinedIcon sx={{ fontSize: 40, color: tokens.textMuted }} />}
+                                {preview ? <Box component="img" src={preview} alt="Bank receipt preview" sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 1 }} /> : <InsertDriveFileOutlinedIcon sx={{ fontSize: 40, color: tokens.textMuted }} />}
                                 <Box sx={{ flex: 1, minWidth: 0 }}>
                                   <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 600 }}>{file.name}</Typography>
                                   <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{(file.size / 1024).toFixed(0)} KB</Typography>
@@ -407,7 +568,7 @@ export default function PaymentsPage() {
                                 sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.75, py: 3, px: 2, fontFamily: 'inherit', borderRadius: 1.5, border: `2px dashed ${errors.proof ? tokens.red : tokens.borderInput}`, backgroundColor: tokens.surfaceSubtle, '&:hover': { borderColor: tokens.ink } }}
                               >
                                 <CloudUploadOutlinedIcon sx={{ fontSize: 30, color: tokens.textMuted }} />
-                                <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>{touch ? 'Tap to choose a screenshot or receipt' : 'Drop a screenshot or receipt here, or browse'}</Typography>
+                                <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>{touch ? 'Tap to choose a photo or screenshot of the receipt' : 'Drop a photo or screenshot of the receipt here, or browse'}</Typography>
                                 <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>JPG, PNG, WebP or PDF · up to {MAX_FILE_MB} MB</Typography>
                               </ButtonBase>
                             )}

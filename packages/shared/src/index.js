@@ -53,6 +53,8 @@ export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE
 export { computeQuote, extraGuests, isRentalPackage } from './services/pricing.js';
 // When a customer may cancel online (pages read the answer from each reservation's summary; the window in words is for texts)
 export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
+// The reference-number rule of the payment and refund forms, the same one the services check
+export { referenceProblem } from './domain/payment.js';
 export { ApiError } from './services/errors.js';
 export * as authApi from './services/facade/auth.js';
 export * as catalogApi from './services/facade/catalog.js';

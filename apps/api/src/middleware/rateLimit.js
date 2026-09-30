@@ -5,8 +5,9 @@ import { readToken } from '../lib/tokens.js';
 /**
  * Request limits (docs/backend-development-phases.md §7.2, Phase 3):
  *   authLimiter  5 a minute per client IP address on each sign-in, sign-up, code and password-reset route
- *   apiLimiter   100 a minute on everything under /api: per account for a signed-in request (since
- *                Phase 7), per client IP address otherwise
+ *   apiLimiter   on everything under /api: 300 a minute per account for a signed-in request (per account
+ *                since Phase 7; 300 since Phase 8, when three admin tabs reloading on every change came
+ *                to about 120 a minute), 100 a minute per client IP address otherwise
  * Counted in memory, per API process: a restart forgets the counts (the lockouts, which matter more,
  * are in the database). req.ip is the real client because app.js trusts one proxy (Nginx) in front;
  * the API must therefore be reachable only through that proxy in production (Phase 13), otherwise a
@@ -40,23 +41,35 @@ export const authLimiter = rateLimit({
   handler: refuse
 });
 
+// Requests a minute: a signed-in account (all its tabs and devices together), and an address without a token
+const ACCOUNT_LIMIT = 300;
+const ADDRESS_LIMIT = 100;
+
 /**
- * Who a request counts against: the account whose genuine, unexpired token it carries (people behind
- * one IP address, such as a family's Wi-Fi or a mobile network, each get their own count, and the
- * portals' change poller adds 4 requests a minute per open tab), or else its IP address (with IPv6
- * grouped by /56, like authLimiter). Only the signature and expiry are checked here; requireAuth still
- * decides whether the session is current.
+ * The account whose genuine, unexpired token the request carries, as "role:id", or null. Only the
+ * signature and expiry are checked here; requireAuth still decides whether the session is current.
+ * Worked out once per request (the key and the limit both ask).
  */
-function accountOrAddress(req) {
-  const [scheme, token] = (req.get('Authorization') || '').split(' ');
-  const payload = scheme === 'Bearer' && token ? readToken(token) : null;
-  return payload && typeof payload.sub === 'string' ? `${payload.role}:${payload.sub}` : ipKeyGenerator(req.ip || '');
+function accountOf(req) {
+  if (req.rateLimitAccount === undefined) {
+    const [scheme, token] = (req.get('Authorization') || '').split(' ');
+    const payload = scheme === 'Bearer' && token ? readToken(token) : null;
+    req.rateLimitAccount = payload && typeof payload.sub === 'string' ? `${payload.role}:${payload.sub}` : null;
+  }
+  return req.rateLimitAccount;
 }
+
+/**
+ * Who a request counts against: the signed-in account (people behind one IP address, such as a family's
+ * Wi-Fi or a mobile network, each get their own count, and the portals' change poller adds 4 requests a
+ * minute per open tab), or else its IP address (with IPv6 grouped by /56, like authLimiter).
+ */
+const accountOrAddress = (req) => accountOf(req) || ipKeyGenerator(req.ip || '');
 
 /** The general limit for every /api route (after /api/health, which uptime checks may call often). */
 export const apiLimiter = rateLimit({
   windowMs: MINUTE,
-  limit: 100,
+  limit: (req) => (accountOf(req) ? ACCOUNT_LIMIT : ADDRESS_LIMIT),
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   keyGenerator: accountOrAddress,

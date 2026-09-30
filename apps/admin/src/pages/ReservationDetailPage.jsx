@@ -28,6 +28,7 @@ import {
   MENU_LINE_MAX,
   PageHeader,
   PaymentStatusChip,
+  PAYMENT_METHODS,
   REFUND_METHODS,
   RENTAL,
   RENTAL_FULFILMENT,
@@ -276,7 +277,7 @@ export default function ReservationDetailPage() {
                         <PaymentStatusChip status={p.status} size="sm" />
                       </Box>
                       <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
-                        {p.method === 'gcash' ? 'GCash' : p.method === 'bank' ? 'Bank transfer' : 'Cash'} · {formatDateTime(p.submittedAt)}
+                        {PAYMENT_METHODS[p.method]} · {formatDateTime(p.submittedAt)}
                         {p.receiptNo ? ` · ${p.receiptNo}` : ''}
                       </Typography>
                       {p.status === 'awaiting' && (

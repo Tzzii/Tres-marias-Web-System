@@ -42,14 +42,17 @@ export const PAYMENT_STATUS = {
   rejected: { label: 'Rejected', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
 };
 
-// Display name for each payment method key
+// Display name for each payment method key. GCash is paid only by the PayMongo QR ('qrph', Phase 8B), which
+// Maya and most bank apps can pay too; a bank transfer comes with a photo of its receipt; cash is recorded
+// by the admin. There is no manual GCash payment (owner's decision, 2026-09-30).
 export const PAYMENT_METHODS = {
-  gcash: 'GCash / e-wallet',
+  qrph: 'GCash / e-wallet (QR)',
   bank: 'Bank transfer',
   cash: 'Cash on site'
 };
 
-// Display name for each way a refund is sent back. Shorter than PAYMENT_METHODS: a refund is never "on site".
+// Display name for each way a refund is sent back. Shorter than PAYMENT_METHODS: a refund is never "on site",
+// and the admin may send it by GCash even though customers pay GCash by QR only.
 export const REFUND_METHODS = {
   gcash: 'GCash',
   bank: 'Bank transfer',
