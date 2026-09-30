@@ -1,7 +1,15 @@
 import { dateUnavailableReason, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
 import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
-import { downpaymentDueFor, financials, statusForPayments } from '@tm/shared/src/domain/money.js';
-import { menuDishes, quotationStale, quotationStaleReason, rentalAvailability, rentalStock } from '@tm/shared/src/domain/reservation.js';
+import { downpaymentDueFor, dueAfterMove, financials, statusForPayments } from '@tm/shared/src/domain/money.js';
+import {
+  approvalMessage,
+  menuDishes,
+  quotationStale,
+  quotationStaleReason,
+  rentalAvailability,
+  rentalQuote,
+  rentalStock
+} from '@tm/shared/src/domain/reservation.js';
 import {
   BUSINESS,
   DEFAULT_MIN_DOWNPAYMENT,
@@ -18,7 +26,7 @@ import {
 } from '@tm/shared/src/services/config.js';
 import { computeQuote } from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
-import { addDays, daysFromToday, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
+import { daysFromToday, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
 import { HOLDS_DATE, statusLabel } from '@tm/shared/src/utils/status.js';
 import { tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
@@ -36,8 +44,9 @@ import * as repo from './reservations.repo.js';
  * confirm, complete, cancel, "Started preparing" and its undo, logistics, menu, notes and rented items
  * (Phase 6B). Same return shapes, error codes, messages and meta.field as the browser version
  * (reservationService.js), whose checks are repeated here in the same order because the server never
- * trusts the page (§3 rule 3). The rules that need no stored data (money, an out-of-date quotation,
- * rental stock, availability, online cancellation) come from @tm/shared/src/domain, the same code the
+ * trusts the page (§3 rule 3). The rules that need no stored data (money and the due date after a
+ * move, an out-of-date quotation, rental stock and a rental's total after an edit, availability,
+ * online cancellation, the approval message) come from @tm/shared/src/domain, the same code the
  * portals run.
  *
  * Differences from the browser version, on purpose:
@@ -524,36 +533,6 @@ function adminWrite(ref, action, { availability = false } = {}) {
 }
 
 /**
- * What a rental would cost as the customer holds it now: the sent quotation's delivery fee, other
- * charges and discount (or the standard delivery fee before any quotation), with the given lines or
- * pick up / delivery. The browser version's rentalQuote; `pkg` is the booking's package.
- */
-function rentalQuote(pkg, reservation, { rentalItems = reservation.rentalItems, fulfilment = reservation.fulfilment } = {}) {
-  const quote = reservation.quotation;
-  const delivery = fulfilment !== 'delivery' ? 0 : quote && quote.fulfilment === 'delivery' ? quote.deliveryFee : RENTAL.deliveryFee;
-  return computeQuote({
-    pkg,
-    serviceType: reservation.serviceType,
-    rentalItems,
-    deliveryFee: delivery,
-    damageCharges: reservation.damageCharges || [],
-    otherCharges: quote ? quote.otherCharges : 0,
-    discount: quote ? quote.discount : 0
-  });
-}
-
-/**
- * An approved booking moved to `date` keeps its downpayment due date at least 3 days before the event:
- * the due date is pulled in, never pushed later. Returns { due, moved }: the due date to save, and
- * whether this rule changed it (the audit trail then lists it).
- */
-function dueAfterMove(reservation, date) {
-  const due = reservation.downpaymentDue;
-  if (reservation.status !== 'approved' || !due || date === reservation.date || due <= addDays(date, -3)) return { due, moved: false };
-  return { due: downpaymentDueFor(date, due), moved: true };
-}
-
-/**
  * Admin: price the add-ons and any other charges, apply a discount, and send the quotation to the
  * customer's chat (the browser version's sendQuotation). The food is never typed: a buffet is guests x
  * the rate stored on the booking (never today's), and a rental is its items at the prices they were
@@ -629,26 +608,6 @@ export async function sendQuotation(ref, values, admin) {
     await postAdminMessage(conn, reservation, `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`, { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
     return savedSummary(conn, ref);
   });
-}
-
-/**
- * The chat message an approval sends (`money` is financials() for the approved booking), word for word
- * the browser version's: pay at least the booking's minimum downpayment by the due date (up to the full
- * total; a total below the minimum is paid in full), and until when the booking can be cancelled online
- * after paying, or how to cancel when that date has already passed (a late approval).
- */
-function approvalMessage(reservation, money) {
-  const due = formatDate(reservation.downpaymentDue);
-  const pay =
-    money.downpayment < money.total
-      ? `Please pay a downpayment of at least ${pesoText(money.downpayment)} by ${due} to secure your date. You can pay more, up to the full ${pesoText(money.total)}.`
-      : `Please pay the full ${pesoText(money.total)} by ${due} to secure your date.`;
-  const deadline = cancelDeadline(reservation);
-  const cancel =
-    deadline >= todayISO()
-      ? `After you pay, you can cancel online until ${formatDate(deadline)}.`
-      : `Online cancellation for paid bookings ended on ${formatDate(deadline)}, so after you pay, message us here or call ${BUSINESS.phone} to cancel.`;
-  return `Good news! ${reservation.eventName} is approved. ${pay} ${cancel}`;
 }
 
 /**

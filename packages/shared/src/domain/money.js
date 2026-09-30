@@ -99,3 +99,16 @@ export function downpaymentDueFor(eventDate, due = addDays(todayISO(), RULES.dow
   const capped = due < latest ? due : latest;
   return capped < todayISO() ? todayISO() : capped;
 }
+
+/**
+ * The downpayment due date of a booking whose event moves to `date` (the admin's logistics edit):
+ * { due, moved }. An approved booking must still pay at least 3 days before the event, so a due date
+ * later than that is brought forward to it (downpaymentDueFor, so never before today) and `moved` is
+ * true, for the audit trail to list it. Any other booking, a due date already early enough, or the
+ * same date keeps its due date, with `moved` false.
+ */
+export function dueAfterMove(reservation, date) {
+  const due = reservation.downpaymentDue;
+  if (reservation.status !== 'approved' || !due || date === reservation.date || due <= addDays(date, -3)) return { due, moved: false };
+  return { due: downpaymentDueFor(date, due), moved: true };
+}

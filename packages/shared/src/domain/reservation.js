@@ -1,14 +1,21 @@
-import { DISH_CATEGORIES, includesFood, isRental } from '../services/config.js';
+import { BUSINESS, DISH_CATEGORIES, RENTAL, includesFood, isRental } from '../services/config.js';
+import { computeQuote } from '../services/pricing.js';
+import { formatDate, todayISO } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
+import { cancelDeadline } from './cancellation.js';
 
 /**
  * Reservation rules that need no stored data: whether a sent quotation is out of date, how many
- * pieces of each item are free for a rental on a date, and the menu as a display list.
+ * pieces of each item are free for a rental on a date, what a rental costs after an edit, the menu as
+ * a display list, and the chat message an approval sends.
  *
  * Pure (no store.js, no localStorage, no React), so the browser service (reservationService.js) and
  * the API server (apps/api/src/modules/reservations) give the same answers
  * (docs/backend-development-phases.md §7.8). The money rules are in domain/money.js.
  */
+
+// "₱1,200", as the chat messages write amounts
+const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
 
 // Sum of qty x price over rental lines ([{ qty, price }]) or damage lines ([{ qty, fee }])
 const rentalTotal = (lines = []) => lines.reduce((sum, line) => sum + line.qty * line.price, 0);
@@ -80,6 +87,49 @@ export function rentalAvailability(data, date, excludeRef) {
         return [item.id, { left, status: left <= 0 ? 'out' : left <= item.lowStockAt ? 'limited' : 'available' }];
       })
   );
+}
+
+/**
+ * What an equipment rental would cost as the customer holds it now: the sent quotation's delivery fee,
+ * other charges and discount (or the standard delivery fee before any quotation), with the given lines
+ * or pick up / delivery instead of the booking's own (e.g. an edit of the rented items, or a switch to
+ * delivery). `pkg` is the booking's package. Gives the estimate of a rental with no quotation yet, and
+ * the old and new totals the audit trail and the customer's chat show after an edit.
+ */
+export function rentalQuote(pkg, reservation, { rentalItems = reservation.rentalItems, fulfilment = reservation.fulfilment } = {}) {
+  const quote = reservation.quotation;
+  const delivery = fulfilment !== 'delivery' ? 0 : quote && quote.fulfilment === 'delivery' ? quote.deliveryFee : RENTAL.deliveryFee;
+  return computeQuote({
+    pkg,
+    serviceType: reservation.serviceType,
+    rentalItems,
+    deliveryFee: delivery,
+    damageCharges: reservation.damageCharges || [],
+    otherCharges: quote ? quote.otherCharges : 0,
+    discount: quote ? quote.discount : 0
+  });
+}
+
+/**
+ * The chat message an approval sends (`reservation` is the approved booking, with its due date; `money`
+ * is financials() for it), e.g. "Good news! Lim Family Lunch is approved. Please pay a downpayment of at
+ * least ₱3,000 by 03 Oct 2026 to secure your date. You can pay more, up to the full ₱48,500. After you
+ * pay, you can cancel online until 10 Oct 2026." A total below the minimum asks for the full amount.
+ * When the online cancel deadline has already passed (a late approval), it says how to cancel instead
+ * of naming a date in the past.
+ */
+export function approvalMessage(reservation, money) {
+  const due = formatDate(reservation.downpaymentDue);
+  const pay =
+    money.downpayment < money.total
+      ? `Please pay a downpayment of at least ${pesoText(money.downpayment)} by ${due} to secure your date. You can pay more, up to the full ${pesoText(money.total)}.`
+      : `Please pay the full ${pesoText(money.total)} by ${due} to secure your date.`;
+  const deadline = cancelDeadline(reservation);
+  const cancel =
+    deadline >= todayISO()
+      ? `After you pay, you can cancel online until ${formatDate(deadline)}.`
+      : `Online cancellation for paid bookings ended on ${formatDate(deadline)}, so after you pay, message us here or call ${BUSINESS.phone} to cancel.`;
+  return `Good news! ${reservation.eventName} is approved. ${pay} ${cancel}`;
 }
 
 /**

@@ -33,9 +33,10 @@ export default function MessagesPage() {
       .finally(() => setParams({}, { replace: true }));
   }, [refParam, user.id, setParams, notify]);
 
-  // Opening the chat marks the admin's messages as read
+  // Opening the chat marks the admin's messages as read. A failed mark (e.g. no connection for a
+  // moment) is simply tried again the next time the chat reloads with unread messages.
   useEffect(() => {
-    if (thread.data && thread.data.unread > 0) messageApi.markThreadRead(thread.data.id, 'customer', { customerId: user.id });
+    if (thread.data && thread.data.unread > 0) messageApi.markThreadRead(thread.data.id, 'customer', { customerId: user.id }).catch(() => {});
   }, [thread.data]);
 
   // Load the reservation an attachment belongs to, then open the document preview
