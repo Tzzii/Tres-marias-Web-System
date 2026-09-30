@@ -1,8 +1,8 @@
-import { addDays, daysFromToday, formatDate, todayISO } from '../utils/format.js';
+import { daysFromToday, formatDate, todayISO } from '../utils/format.js';
 import { HOLDS_DATE, statusLabel } from '../utils/status.js';
 import { cancelDeadline, onlineCancellation } from '../domain/cancellation.js';
-import { downpaymentDueFor, financials, statusForPayments } from '../domain/money.js';
-import { menuDishes, quotationStale, quotationStaleReason, rentalAvailability, rentalStock } from '../domain/reservation.js';
+import { downpaymentDueFor, dueAfterMove, financials, statusForPayments } from '../domain/money.js';
+import { approvalMessage, menuDishes, quotationStale, quotationStaleReason, rentalAvailability, rentalQuote, rentalStock } from '../domain/reservation.js';
 import { availabilitySnapshot, dateUnavailableReason, timeUnavailableReason } from './calendarService.js';
 import { BUSINESS, DISH_CATEGORIES, MENU_LINE_MAX, RENTAL, RENTAL_SERVICE, RULES, SERVICE_TYPES, includesFood, isRental } from './config.js';
 import { minDownpayment, pricePerPlate } from './catalogService.js';
@@ -27,10 +27,11 @@ import { ApiError, clone, latency, read, uid, write } from './store.js';
  * the customer's).
  *
  * This is the browser-store version. The rules that need no stored data (the money figures, the
- * status for what has been paid, the downpayment due date, when a customer may cancel online, an
- * out-of-date quotation, rental stock and the menu list) live in domain/money.js,
- * domain/cancellation.js and domain/reservation.js, shared with the API server
- * (apps/api/src/modules/reservations); `financials` is re-exported here for the other services.
+ * status for what has been paid, the downpayment due date, also after a move, when a customer may
+ * cancel online, an out-of-date quotation, rental stock, a rental's total after an edit, the menu
+ * list and the approval message) live in domain/money.js, domain/cancellation.js and
+ * domain/reservation.js, shared with the API server (apps/api/src/modules/reservations); `financials`
+ * is re-exported here for the other services.
  */
 
 export { financials };
@@ -101,23 +102,8 @@ function rentalLines(data, wanted, date, { excludeRef, current = [] } = {}) {
   });
 }
 
-/**
- * What a rental would cost as the customer holds it now: the sent quotation's delivery fee, other
- * charges and discount (or the standard delivery fee before any quotation), with the given lines.
- */
-function rentalQuote(data, reservation, { rentalItems = reservation.rentalItems, fulfilment = reservation.fulfilment } = {}) {
-  const quote = reservation.quotation;
-  const delivery = fulfilment !== 'delivery' ? 0 : quote && quote.fulfilment === 'delivery' ? quote.deliveryFee : RENTAL.deliveryFee;
-  return computeQuote({
-    pkg: data.packages.find((p) => p.id === reservation.packageId),
-    serviceType: reservation.serviceType,
-    rentalItems,
-    deliveryFee: delivery,
-    damageCharges: reservation.damageCharges || [],
-    otherCharges: quote ? quote.otherCharges : 0,
-    discount: quote ? quote.discount : 0
-  });
-}
+// The package a booking was made with (rentalQuote in domain/reservation.js needs it)
+const packageOf = (data, reservation) => data.packages.find((p) => p.id === reservation.packageId);
 
 /**
  * How many of each rentable item are free on a date, for the rental form and the admin's edit dialog:
@@ -616,7 +602,7 @@ export async function sendQuotation(ref, { addonPrices = {}, otherCharges = 0, o
  *
  * The chat message asks for at least the booking's minimum downpayment by the due date (the customer
  * may pay more, up to the full total; a total below the minimum is paid in full), and says until when
- * the booking can be cancelled online after paying (see approvalMessage).
+ * the booking can be cancelled online after paying (approvalMessage in domain/reservation.js).
  */
 export async function approveReservation(ref) {
   await latency(450, 800);
@@ -663,27 +649,6 @@ export async function approveReservation(ref) {
     postAdminMessage(data, reservation, approvalMessage(reservation, financials(reservation, data.payments, data.refunds)), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref });
     return summarize(reservation, data);
   });
-}
-
-/**
- * The chat message an approval sends (`money` is financials() for the approved booking), e.g.
- * "Good news! Lim Family Lunch is approved. Please pay a downpayment of at least ₱3,000 by 03 Oct 2026
- * to secure your date. You can pay more, up to the full ₱48,500. After you pay, you can cancel online
- * until 10 Oct 2026." A total below the minimum asks for the full amount. When the online cancel deadline
- * has already passed (a late approval), it says how to cancel instead of naming a date in the past.
- */
-function approvalMessage(reservation, money) {
-  const due = formatDate(reservation.downpaymentDue);
-  const pay =
-    money.downpayment < money.total
-      ? `Please pay a downpayment of at least ${pesoText(money.downpayment)} by ${due} to secure your date. You can pay more, up to the full ${pesoText(money.total)}.`
-      : `Please pay the full ${pesoText(money.total)} by ${due} to secure your date.`;
-  const deadline = cancelDeadline(reservation);
-  const cancel =
-    deadline >= todayISO()
-      ? `After you pay, you can cancel online until ${formatDate(deadline)}.`
-      : `Online cancellation for paid bookings ended on ${formatDate(deadline)}, so after you pay, message us here or call ${BUSINESS.phone} to cancel.`;
-  return `Good news! ${reservation.eventName} is approved. ${pay} ${cancel}`;
 }
 
 /** Admin: decline a pending request with a reason shown to the customer (at least 5 characters, like every reason box in the admin). */
@@ -881,12 +846,9 @@ export async function updateLogistics(ref, patch) {
     if (guests !== guestsBefore) changes.push(`guests from ${guestsBefore} to ${guests}`);
     if (patch.venueName !== reservation.venue.name || patch.venueAddress !== reservation.venue.address || patch.city !== reservation.venue.city) changes.push('venue');
 
-    // The downpayment must still fall due at least 3 days before the (new) event date
-    let due = reservation.downpaymentDue;
-    if (reservation.status === 'approved' && due && patch.date !== reservation.date && due > addDays(patch.date, -3)) {
-      due = downpaymentDueFor(patch.date, due);
-      changes.push(`downpayment due date to ${formatDate(due)}`);
-    }
+    // An approved booking must still pay at least 3 days before the (new) event date (dueAfterMove in domain/money.js)
+    const { due, moved } = dueAfterMove(reservation, patch.date);
+    if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
 
     reservation.downpaymentDue = due;
     reservation.date = patch.date;
@@ -1015,20 +977,18 @@ function updateRentalLogistics(data, reservation, patch) {
   if (switched) changes.push(`from ${fulfilmentWord(reservation.fulfilment)} to ${fulfilmentWord(fulfilment)}`);
   else if (fulfilment === 'delivery' && JSON.stringify(venue) !== JSON.stringify(reservation.venue)) changes.push('delivery address');
 
-  // The downpayment must still fall due at least 3 days before the (new) date
-  let due = reservation.downpaymentDue;
-  if (reservation.status === 'approved' && due && patch.date !== reservation.date && due > addDays(patch.date, -3)) {
-    due = downpaymentDueFor(patch.date, due);
-    changes.push(`downpayment due date to ${formatDate(due)}`);
-  }
+  // An approved booking must still pay at least 3 days before the (new) date (dueAfterMove in domain/money.js)
+  const { due, moved } = dueAfterMove(reservation, patch.date);
+  if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
 
   // The total before and after a switch between pick up and delivery (the delivery fee comes or goes)
+  const pkg = packageOf(data, reservation);
   const was = financials(reservation, data.payments, data.refunds).total;
-  const now = rentalQuote(data, reservation, { fulfilment }).net;
+  const now = rentalQuote(pkg, reservation, { fulfilment }).net;
   const previous = reservation.fulfilment;
 
   Object.assign(reservation, { date: patch.date, startTime: patch.startTime, fulfilment, venue, downpaymentDue: due });
-  if (!reservation.quotation) reservation.estimate = rentalQuote(data, reservation);
+  if (!reservation.quotation) reservation.estimate = rentalQuote(pkg, reservation);
   if (changes.length) {
     log(reservation, ADMIN_NAME(), `Updated ${changes.join(', ')}.${switched && was !== now ? ` Total from ${pesoText(was)} to ${pesoText(now)}${reservation.quotation ? ' once the revised quotation is sent' : ''}.` : ''}`);
   }
@@ -1084,10 +1044,11 @@ export async function updateRentalItems(ref, { items = [] } = {}) {
     });
     if (!changes.length) return { changed: 0 };
 
+    const pkg = packageOf(data, reservation);
     const was = financials(reservation, data.payments, data.refunds).total;
-    const now = rentalQuote(data, reservation, { rentalItems: lines }).net;
+    const now = rentalQuote(pkg, reservation, { rentalItems: lines }).net;
     reservation.rentalItems = lines;
-    if (!reservation.quotation) reservation.estimate = rentalQuote(data, reservation);
+    if (!reservation.quotation) reservation.estimate = rentalQuote(pkg, reservation);
     const pending = reservation.quotation ? ' once the revised quotation is sent' : '';
     log(reservation, ADMIN_NAME(), `Changed the rented items: ${changes.join(', ')}. Total from ${pesoText(was)} to ${pesoText(now)}${pending}.`);
     postAdminMessage(

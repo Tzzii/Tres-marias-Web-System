@@ -112,18 +112,23 @@ function MessagesWindow({ mode, setMode, activeId, setActiveId, anchorRef }) {
     if (full && isDesktop && !activeId && threads.data && threads.data.length) setActiveId(threads.data[0].id);
   }, [full, isDesktop, activeId, threads.data, setActiveId]);
 
-  // Opening a conversation marks its messages as read for the admin
+  // Opening a conversation marks its messages as read for the admin. A failed mark (e.g. no connection
+  // for a moment) is simply tried again the next time the conversation reloads with unread messages.
   useEffect(() => {
-    if (thread.data && thread.data.unread > 0) messageApi.markThreadRead(thread.data.id, 'admin');
+    if (thread.data && thread.data.unread > 0) messageApi.markThreadRead(thread.data.id, 'admin').catch(() => {});
   }, [thread.data]);
 
-  // If the selected thread no longer exists, warn the admin and go back to the list
+  // If the selected thread can't be shown, say why and go back to the list: NOT_FOUND means it no longer
+  // exists, and any other error on its first load (on the API: no connection, too many requests) leaves
+  // nothing to show. A background reload that fails for such a passing reason keeps the conversation
+  // open with what was last loaded (useResource), until the next reload.
   useEffect(() => {
-    if (thread.error) {
-      notify('That conversation could not be found.', 'warning');
-      setActiveId(null);
-    }
-  }, [thread.error, notify, setActiveId]);
+    if (!thread.error) return;
+    if (thread.error.code === 'NOT_FOUND') notify('That conversation could not be found.', 'warning');
+    else if (!thread.data) notify(thread.error.message, 'error');
+    else return;
+    setActiveId(null);
+  }, [thread.error, thread.data, notify, setActiveId]);
 
   // Esc leaves fullscreen first, then closes the window
   useEffect(() => {

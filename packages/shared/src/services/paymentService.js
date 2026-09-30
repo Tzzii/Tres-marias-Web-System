@@ -200,22 +200,26 @@ export async function verifyPayment(paymentId) {
   });
 }
 
-/** Admin: reject an uploaded payment; the reason is sent to the customer's chat. */
+/**
+ * Admin: reject an uploaded payment with a reason shown to the customer (at least 5 characters, like
+ * every reason box in the admin); the reason goes to the customer's chat.
+ */
 export async function rejectPayment(paymentId, reason) {
   await latency(400, 700);
-  if (!reason || !reason.trim()) throw new ApiError('INVALID', 'A reason is required.', { field: 'reason' });
+  const text = String(reason || '').trim();
+  if (text.length < 5) throw new ApiError('INVALID', 'Please give a short reason (at least 5 characters).', { field: 'reason' });
   return write((data) => {
     const payment = data.payments.find((p) => p.id === paymentId);
     if (!payment) throw new ApiError('NOT_FOUND', 'Payment not found.');
     if (payment.status !== 'awaiting') throw new ApiError('INVALID_STATE', 'This payment has already been processed.');
     const reservation = data.reservations.find((r) => r.ref === payment.ref);
     payment.status = 'rejected';
-    payment.rejectReason = reason.trim();
-    reservation.activity.push({ at: Date.now(), actor: ADMIN_NAME(), text: `Rejected a payment of ₱${payment.amount.toLocaleString('en-PH')}. Reason: ${reason.trim()}` });
+    payment.rejectReason = text;
+    reservation.activity.push({ at: Date.now(), actor: ADMIN_NAME(), text: `Rejected a payment of ₱${payment.amount.toLocaleString('en-PH')}. Reason: ${text}` });
     postAdminMessage(
       data,
       reservation,
-      `We could not verify your payment of ₱${payment.amount.toLocaleString('en-PH')} for ${reservation.eventName}. ${reason.trim()} Please submit it again from Payments.`
+      `We could not verify your payment of ₱${payment.amount.toLocaleString('en-PH')} for ${reservation.eventName}. ${text} Please submit it again from Payments.`
     );
     return enrich(payment, data);
   });

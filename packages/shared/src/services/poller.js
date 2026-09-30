@@ -13,8 +13,10 @@ import { getCalendar } from './remote/calendar.js';
  * about 15 seconds, without a refresh. For data on the API this takes the place of the browser store's
  * cross-tab `storage` event.
  *
- * A failed ask (offline, the server restarting) is just tried again at the next tick; an ended session
- * is handled by http.js (UNAUTHENTICATED signs the portal out). createAuth starts it on sign-in.
+ * A failed ask (offline, the server restarting, the rate limit) is just tried again at the next tick,
+ * and the first answer after it also reloads every live page once, so a page that could not load
+ * meanwhile recovers by itself. An ended session is handled by http.js (UNAUTHENTICATED signs the
+ * portal out). createAuth starts it on sign-in.
  */
 
 const POLL_MS = 15 * 1000;
@@ -23,6 +25,7 @@ const POLL_MS = 15 * 1000;
 export function startChangePolling() {
   let last = null; // the stamp of the last answer; null until the first one
   let asking = false; // an ask is on its way, so a slow answer never overlaps the next tick
+  let missed = false; // the last ask failed: the next answer reloads the pages even if the stamp stayed
   let stopped = false;
 
   async function ask() {
@@ -30,14 +33,15 @@ export function startChangePolling() {
     asking = true;
     try {
       const { stamp } = await http.get('/changes');
-      const moved = last !== null && stamp !== last;
+      const moved = (last !== null && stamp !== last) || missed;
       last = stamp;
+      missed = false;
       if (moved && !stopped) {
         if (usesApi('calendar')) await getCalendar().catch(() => {});
         emitChange();
       }
     } catch (e) {
-      /* tried again at the next tick */
+      missed = true; // tried again at the next tick
     } finally {
       asking = false;
     }
