@@ -183,7 +183,7 @@ export async function runSavedReport(kind, range = 'this_year') {
       return {
         Month: `${MONTH_NAMES[month]} ${year}`,
         Payments: inMonth.length,
-        [PAYMENT_METHODS.gcash]: byMethod('gcash'),
+        [PAYMENT_METHODS.qrph]: byMethod('qrph'),
         [PAYMENT_METHODS.bank]: byMethod('bank'),
         [PAYMENT_METHODS.cash]: byMethod('cash'),
         Total: sum(inMonth),
@@ -191,7 +191,7 @@ export async function runSavedReport(kind, range = 'this_year') {
         Net: sum(inMonth) - refunded
       };
     });
-    return { title: 'Monthly sales summary', money: [PAYMENT_METHODS.gcash, PAYMENT_METHODS.bank, PAYMENT_METHODS.cash, 'Total', 'Refunds', 'Net'], rows };
+    return { title: 'Monthly sales summary', money: [PAYMENT_METHODS.qrph, PAYMENT_METHODS.bank, PAYMENT_METHODS.cash, 'Total', 'Refunds', 'Net'], rows };
   }
 
   // Outstanding balances: approved bookings that still owe money, by event date

@@ -2,7 +2,8 @@
  * Business rules shared by both portals. When the real backend arrives these
  * move server-side; the front-end keeps reading them from here.
  */
-// Company contact and payment details shown on the site, footer and payment page
+// Company contact and payment details shown on the site, footer and payment page. There is no GCash
+// number: customers pay GCash through the PayMongo QR only (Phase 8B); the bank account is for transfers.
 export const BUSINESS = {
   name: 'Tres Marias Catering Services',
   shortName: 'Tres Marias',
@@ -11,8 +12,6 @@ export const BUSINESS = {
   serviceArea: 'Malvar, Batangas and nearby towns',
   address: '48 Kalayaan Avenue, Diliman, Quezon City',
   hours: 'Open 24/7 · Monday to Sunday',
-  gcashName: 'TRES MARIAS CATERING',
-  gcashNumber: '0951 562 1060',
   bankName: 'BPI',
   bankAccountName: 'Tres Marias Catering Services',
   bankAccountNumber: '4471 0839 26'

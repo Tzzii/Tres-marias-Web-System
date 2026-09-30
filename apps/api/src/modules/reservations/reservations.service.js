@@ -35,6 +35,7 @@ import { lockAvailability } from '../calendar/calendar.repo.js';
 import { availabilityMap } from '../calendar/calendar.service.js';
 import * as catalogRepo from '../catalog/catalog.repo.js';
 import { postAdminMessage, postCustomerMessage } from '../messages/messages.repo.js';
+import { openQrError, openQrIn } from '../payments/payments.service.js';
 import * as repo from './reservations.repo.js';
 
 /**
@@ -61,17 +62,16 @@ import * as repo from './reservations.repo.js';
  * - A booking, an approval, a logistics edit and a rented-items edit read the availability map and
  *   the rental stock from the database inside their own transaction, after taking the availability
  *   lock (lockAvailability), so two of them never pass the same check at once.
- * - Refunds reach the server in Phase 8: until then the money figures are worked out with no refunds
- *   (financials(…, [])) and a detail's `refunds` is [].
+ * - Refunds (Phase 8) are taken off what was paid, from the refunds table, like the browser version.
+ * - A GCash QR that is still open (Phase 8B, server only) shows in the summary as `openQr` and stops the
+ *   customer's and the admin's cancellation until it is paid or expires: its payment may still arrive.
+ *   The browser store has no QRs (its `openQr` is always null).
  * The automatic chat messages (thank-you, change request, refund notice, quotation, approval …) are
  * saved in the same transaction as the change they are about; the chat (modules/messages, Phase 7)
  * shows them.
  * Lock order for every write, so two of them never deadlock: the availability lock (only when the
  * write takes or moves a slot or rental stock), then the booking's row (lockOwner), then the chat thread.
  */
-
-// Refunds are recorded in the browser store until Phase 8 (paymentService.js recordRefund), so the server has none yet
-const NO_REFUNDS = [];
 
 // Tries at a new ref when another booking took the same one first (see createReservation)
 const MAX_REF_ATTEMPTS = 3;
@@ -104,13 +104,15 @@ const withoutNotes = ({ notes, ...rest }) => rest;
 const viewFor = (customerId) => (customerId ? withoutNotes : (answer) => answer);
 
 /**
- * Reservation plus package name, customer contact and money figures, for lists: the browser
- * version's summarize(), with the same `cancelDeadline` and `onlineCancel` (whether the customer can
- * cancel online now, domain/cancellation.js, which also counts the pieces checked out for it).
- * `row` is one entry of repo.findReservations().
+ * Reservation plus package name, customer contact and money figures (refunds taken off), for lists: the
+ * browser version's summarize(), with the same `cancelDeadline` and `onlineCancel` (whether the customer
+ * can cancel online now, domain/cancellation.js, which also counts the pieces checked out for it and an
+ * open GCash QR), and `openQr`: the open GCash QR { id, amount, expiresAt } or null, so the Payments page
+ * shows it again. `row` is one entry of repo.findReservations().
  */
-function summarize({ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile, payments, piecesOut }) {
-  const money = financials(reservation, payments, NO_REFUNDS);
+function summarize({ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile, payments, refunds, pendingQrs, piecesOut }) {
+  const money = financials(reservation, payments, refunds);
+  const open = openQrIn(pendingQrs);
   return {
     ...reservation,
     packageName: packageName ?? 'Package',
@@ -122,7 +124,8 @@ function summarize({ reservation, packageName, packageSlug, customerName, custom
     quotationStaleReason: quotationStaleReason(reservation),
     ...money,
     cancelDeadline: cancelDeadline(reservation),
-    onlineCancel: onlineCancellation(reservation, money, { piecesOut })
+    onlineCancel: onlineCancellation(reservation, money, { piecesOut, openQrUntil: open ? open.openUntil : 0 }),
+    openQr: open ? { id: open.id, amount: open.amount, expiresAt: open.expiresAt } : null
   };
 }
 
@@ -136,7 +139,7 @@ export async function listReservations({ customerId } = {}) {
 
 /**
  * Full detail: the summary plus the package, the menu as a list, the add-ons (in the add-on list's
- * order, archived ones included), the payments (newest first), the refunds ([] until Phase 8), the
+ * order, archived ones included), the payments (newest first), the refunds (newest recorded first), the
  * customer with their completed events, and the review (without the admin's flag note). With
  * `customerId`, only that customer's own booking (another customer's is NOT_FOUND, never FORBIDDEN, so
  * its existence is not given away) and no notes. The ref must be spelled exactly as stored (see sameRef).
@@ -158,7 +161,7 @@ export async function getReservation(ref, { customerId } = {}) {
       menuDishes: menuDishes(reservation),
       addons: addons.filter((addon) => reservation.addonIds.includes(addon.id)),
       payments: row.payments,
-      refunds: NO_REFUNDS,
+      refunds: row.refunds,
       customer:
         row.customerName === null
           ? null
@@ -422,8 +425,9 @@ export async function createReservation(customer, form) {
  * The customer cancels their own reservation online, when onlineCancellation (domain/cancellation.js,
  * the browser version's rule) allows it: an unpaid booking any time before the event day; a paid one
  * only until its cancel deadline and before "Started preparing"; never while pieces are checked out
- * for it (inventory_allocations: an event's equipment or a rental's items) or while a payment is being
- * verified (so that payment can't be verified after the cancellation). A refusal carries that rule's
+ * for it (inventory_allocations: an event's equipment or a rental's items), while a payment is being
+ * verified (so that payment can't be verified after the cancellation) or while a GCash QR for it is open
+ * (its payment may still arrive). A refusal carries that rule's
  * code and reason, the same answer as the summary's `onlineCancel`. When money was paid, an unread
  * message from the customer tells the team it has to be returned. A cancelled approved booking frees
  * its slot (the portals then reload the availability map). Returns the customer's view of its summary.
@@ -437,8 +441,9 @@ export async function cancelReservation(ref, customer, reason) {
     const owner = await repo.lockOwner(conn, ref);
     if (!owner || !sameRef(owner, ref) || owner.customerId !== customer.id) throw notFound();
     const [row] = await repo.findReservations(conn, { ref });
-    const money = financials(row.reservation, row.payments, NO_REFUNDS);
-    const online = onlineCancellation(row.reservation, money, { piecesOut: row.piecesOut });
+    const money = financials(row.reservation, row.payments, row.refunds);
+    const open = openQrIn(row.pendingQrs);
+    const online = onlineCancellation(row.reservation, money, { piecesOut: row.piecesOut, openQrUntil: open ? open.openUntil : 0 });
     if (!online.allowed) throw new ApiError(online.code, online.reason);
     await repo.setCancelled(conn, ref, text, 'customer');
     await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Cancelled the reservation. Reason: ${text}` });
@@ -548,7 +553,7 @@ function adminWrite(ref, action, { availability = false } = {}) {
  */
 export async function sendQuotation(ref, values, admin) {
   return adminWrite(ref, async (conn, row) => {
-    const { reservation, payments } = row;
+    const { reservation, payments, refunds } = row;
     if (CLOSED.includes(reservation.status)) {
       throw new ApiError('INVALID_STATE', `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be re-quoted.`);
     }
@@ -562,7 +567,7 @@ export async function sendQuotation(ref, values, admin) {
     const note = clean(values.note);
 
     // The total the customer held before this quotation, for the audit trail
-    const totalBefore = financials(reservation, payments, NO_REFUNDS).total;
+    const totalBefore = financials(reservation, payments, refunds).total;
     const quote = computeQuote({
       pkg: await catalogRepo.findPackageById(reservation.packageId, conn),
       serviceType: reservation.serviceType,
@@ -584,7 +589,7 @@ export async function sendQuotation(ref, values, admin) {
 
     // The new total may change where the booking stands; back at Approved it gets a new due date
     let extra = '';
-    const money = financials(quoted, payments, NO_REFUNDS);
+    const money = financials(quoted, payments, refunds);
     const status = statusForPayments(reservation.status, money);
     if (status !== reservation.status) {
       saved.status = status;
@@ -597,7 +602,7 @@ export async function sendQuotation(ref, values, admin) {
       }
     }
     // Paid more than the new total: say so in the chat and keep both totals in the audit trail
-    const after = financials({ ...quoted, status }, payments, NO_REFUNDS);
+    const after = financials({ ...quoted, status }, payments, refunds);
     if (after.overpaid > 0) {
       log.push(`Total from ${pesoText(totalBefore)} to ${pesoText(quote.net)}, below the ${pesoText(after.paid)} paid: ${pesoText(after.overpaid)} was paid above the new total and is to be returned.`);
       extra += ` You've paid ${pesoText(after.overpaid)} more than the new total. We'll return it and tell you here when it's sent.`;
@@ -649,7 +654,7 @@ export async function approveReservation(ref, admin) {
       const approved = { ...reservation, status: 'approved', downpaymentDue: downpaymentDueFor(date) };
       await repo.updateReservation(conn, ref, { status: approved.status, downpaymentDue: approved.downpaymentDue });
       await logAdmin(conn, ref, admin, 'Approved the reservation.');
-      await postAdminMessage(conn, reservation, approvalMessage(approved, financials(approved, row.payments, NO_REFUNDS)), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
+      await postAdminMessage(conn, reservation, approvalMessage(approved, financials(approved, row.payments, row.refunds)), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
       return savedSummary(conn, ref);
     },
     { availability: true }
@@ -704,8 +709,9 @@ export async function completeReservation(ref, admin) {
 /**
  * Admin: cancel an Approved, Downpayment paid or Confirmed booking, with a reason (5+ characters) shown
  * to the customer; a pending request is declined instead. Refused while a payment waits for
- * verification (PENDING_PAYMENT: verify or reject it first) and while pieces are still checked out for
- * it (record their return first). Saves cancelled_by = 'admin', releases the date, keeps the reason in
+ * verification (PENDING_PAYMENT: verify or reject it first), while the customer's GCash QR for it is open
+ * (PENDING_PAYMENT: its payment may still arrive) and while pieces are still checked out for it (record
+ * their return first). Saves cancelled_by = 'admin', releases the date, keeps the reason in
  * the audit trail and tells the customer in their chat; when money was paid the message says it will be
  * returned, and the booking shows under "Refunds to send". Returns the summary.
  */
@@ -716,8 +722,10 @@ export async function cancelReservationByAdmin(ref, reason, admin) {
     if (!HOLDS_DATE.includes(reservation.status)) {
       throw new ApiError('INVALID_STATE', reservation.status === 'pending' ? 'A pending request is declined, not cancelled.' : `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be cancelled.`);
     }
-    const money = financials(reservation, row.payments, NO_REFUNDS);
+    const money = financials(reservation, row.payments, row.refunds);
     if (money.awaitingCount > 0) throw new ApiError('PENDING_PAYMENT', 'A payment for this reservation is waiting for verification. Verify or reject it first.');
+    const open = openQrIn(row.pendingQrs);
+    if (open) throw openQrError(open, 'admin');
     if (row.piecesOut > 0) throw new ApiError('INVALID_STATE', 'Some items are still checked out for this booking. Record the return first.');
     await repo.setCancelled(conn, ref, text, 'admin');
     await logAdmin(conn, ref, admin, `Cancelled the reservation. Reason: ${text}`);
@@ -882,7 +890,7 @@ async function updateRentalLogistics(conn, row, values, admin) {
 
   // The total before and after a switch between pick up and delivery (the delivery fee comes or goes)
   const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
-  const was = financials(reservation, row.payments, NO_REFUNDS).total;
+  const was = financials(reservation, row.payments, row.refunds).total;
   const total = rentalQuote(pkg, reservation, { fulfilment }).net;
   const saved = { date, startTime, fulfilment, venue, downpaymentDue: due };
   if (!reservation.quotation) saved.estimate = rentalQuote(pkg, { ...reservation, ...saved });
@@ -995,7 +1003,7 @@ export async function updateRentalItems(ref, body, admin) {
       if (!changes.length) return { changed: 0 };
 
       const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
-      const was = financials(reservation, row.payments, NO_REFUNDS).total;
+      const was = financials(reservation, row.payments, row.refunds).total;
       const total = rentalQuote(pkg, reservation, { rentalItems: lines }).net;
       await repo.replaceRentalLines(conn, ref, lines);
       if (!reservation.quotation) await repo.updateReservation(conn, ref, { estimate: rentalQuote(pkg, { ...reservation, rentalItems: lines }) });

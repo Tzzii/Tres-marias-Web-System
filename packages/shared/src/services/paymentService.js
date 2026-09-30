@@ -1,23 +1,22 @@
+import { kindOf, paymentAmountProblem, proofFileName, referenceKey, referenceProblem } from '../domain/payment.js';
 import { daysFromToday, formatDate, parseISODate, toISODate, todayISO } from '../utils/format.js';
 import { PAYMENT_METHODS, REFUND_METHODS, statusLabel } from '../utils/status.js';
 import { financials, postAdminMessage, syncPaymentStatus } from './reservationService.js';
 import { ApiError, clone, latency, nextId, read, write } from './store.js';
 
 /**
- * Payments: customer proof uploads, admin verification and receipts, and refunds.
+ * Payments: the customer's bank transfers (reference number and a photo of the receipt), the admin's
+ * verification, cash and receipts, and refunds. GCash is paid only through a PayMongo QR (Phase 8B,
+ * server only), so this browser-store version takes bank transfers alone and paymentOptions() says no QR.
  * The customer pays at least the booking's minimum downpayment first (or more, up to the full amount),
  * then the balance in parts. Verifying a payment advances the reservation: minimum downpayment reached
  * → Downpayment paid, paid in full → Confirmed.
- * Refunds record money returned for a cancelled booking or an overpayment (recordRefund). Like the
- * payments, they stay in the browser store until Phase 8 (docs/backend-development-phases.md).
+ * Refunds record money returned for a cancelled booking or an overpayment (recordRefund).
+ * The form rules (kindOf, amounts, reference numbers) are in domain/payment.js, shared with the API.
  */
 
 // Reservation statuses that can take payments (approved and later, but not declined or cancelled)
 const PAYABLE = ['approved', 'downpayment_paid', 'confirmed', 'completed'];
-
-// What a payment is for, from what was paid before it: "full" when it is the first payment and covers the
-// total, "downpayment" while the booking's minimum downpayment isn't reached yet, and "balance" after that
-const kindOf = (money, amount) => (money.paid === 0 && amount >= money.total ? 'full' : money.paid < money.downpayment ? 'downpayment' : 'balance');
 
 // "₱1,200"
 const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
@@ -82,12 +81,49 @@ export async function listBalances() {
 }
 
 /**
- * Customer submits a GCash / bank payment with proof. The amount is whole pesos, at most the balance.
- * Until the booking's minimum downpayment is reached, it must also be at least the rest of that
- * minimum (the whole balance when that is less), so the first payment always secures the date; after
- * that the balance can be paid in parts, any amount from ₱1. What the payment is for (downpayment, full
- * or balance) is worked out here from the amount, the same way as for cash, so a receipt can't carry
- * the wrong label.
+ * GCash / e-wallet QR (Phase 8B): PayMongo makes the QR and confirms the payment, on the server only.
+ * The browser store has no payment provider, so it refuses; the page never offers the QR here anyway
+ * (paymentOptions says no).
+ */
+export async function startQrPayment() {
+  await latency(150, 300);
+  throw new ApiError('INVALID_STATE', 'GCash QR payments are not available right now.');
+}
+
+/** A GCash QR as it stands: none exist in the browser store (see startQrPayment). */
+export async function getQrPayment() {
+  await latency(80, 200);
+  throw new ApiError('INVALID_STATE', 'GCash QR payments are not available right now.');
+}
+
+/**
+ * A payment's uploaded receipt as an image or PDF address, for the admin's verify panel. The browser
+ * store keeps only the file's name, never the file, so there is nothing to show: always null. The API
+ * version answers with an object URL of the real file.
+ */
+export async function proofUrl() {
+  return null;
+}
+
+/**
+ * What the Payments page can offer: { qr } is whether the GCash / e-wallet QR can be used. The browser
+ * store has no payment provider, so never; the API says yes once PayMongo is set up (Phase 8B).
+ */
+export async function paymentOptions() {
+  await latency(80, 200);
+  return { qr: false };
+}
+
+/**
+ * Customer submits a bank transfer: the reference number and a photo or screenshot of the receipt
+ * (`proofName`; the API version also takes the `file`). GCash is refused here: it is paid by QR only.
+ * The amount is whole pesos (paymentAmountProblem in domain/payment.js): at most the balance and, until
+ * the booking's minimum downpayment is reached, at least the rest of that minimum (the whole balance
+ * when that is less), so the first payment always secures the date; after that any amount from ₱1.
+ * The reference number is 6–30 letters, numbers, spaces, dashes or underscores, and may not belong to
+ * another payment that is waiting or verified (one receipt used twice); a rejected one can be sent again.
+ * What the payment is for (downpayment, full or balance) is worked out from the amount (kindOf), and
+ * again when it is verified.
  */
 export async function submitPayment(customerId, { ref, method, amount, referenceNo, proofName }) {
   await latency(600, 1000);
@@ -98,22 +134,26 @@ export async function submitPayment(customerId, { ref, method, amount, reference
       throw new ApiError('INVALID_STATE', 'Payments open once your reservation is approved.');
     }
     if (method === 'cash') throw new ApiError('INVALID', 'Cash payments are paid on site and recorded by Tres Marias.');
-    if (!['gcash', 'bank'].includes(method)) throw new ApiError('INVALID', 'Choose how you paid.', { field: 'method' });
+    if (method === 'gcash') throw new ApiError('INVALID', 'GCash is paid by scanning the QR code.', { field: 'method' });
+    if (method !== 'bank') throw new ApiError('INVALID', 'Choose how you paid.', { field: 'method' });
     // Only one payment can wait for verification at a time, and it can't go over the balance
     const money = financials(reservation, data.payments, data.refunds);
     if (money.awaitingCount > 0) {
       throw new ApiError('PENDING_PAYMENT', 'A payment for this reservation is still being verified.');
     }
     const value = Math.round(Number(amount));
-    if (!value || value <= 0) throw new ApiError('INVALID', 'Enter the amount you paid.', { field: 'amount' });
-    // Below the minimum downpayment: this payment has to reach it (or pay off a smaller balance)
-    const least = Math.min(money.downpayment - money.paid, money.balance);
-    if (!money.downpaymentPaid && value < least) {
-      throw new ApiError('INVALID', money.paid > 0 ? `Pay at least ${pesoText(least)} to complete your downpayment.` : `Pay at least ${pesoText(least)} as your downpayment.`, { field: 'amount' });
+    const amountProblem = paymentAmountProblem(money, value);
+    if (amountProblem) throw new ApiError('INVALID', amountProblem, { field: 'amount' });
+    const reference = String(referenceNo || '').trim();
+    const referenceIssue = referenceProblem(reference);
+    if (referenceIssue) throw new ApiError('INVALID', referenceIssue, { field: 'referenceNo' });
+    // One receipt can't pay twice: any payment waiting or verified with the same number (a rejected one can be sent again)
+    const key = referenceKey(reference);
+    if (data.payments.some((p) => ['awaiting', 'verified'].includes(p.status) && referenceKey(p.referenceNo) === key)) {
+      throw new ApiError('INVALID', 'This reference number was already used for another payment. Check the number on your receipt.', { field: 'referenceNo' });
     }
-    if (value > money.balance) throw new ApiError('INVALID', 'The amount is more than the remaining balance.', { field: 'amount' });
-    if (!referenceNo || !referenceNo.trim()) throw new ApiError('INVALID', 'Enter the transaction reference number.', { field: 'referenceNo' });
-    if (!proofName) throw new ApiError('INVALID', 'Upload a screenshot or receipt of your payment.', { field: 'proof' });
+    const fileName = proofFileName(proofName);
+    if (!fileName) throw new ApiError('INVALID', 'Upload a photo or screenshot of your bank receipt.', { field: 'proof' });
 
     data.counters.payment = (data.counters.payment || 0) + 1;
     const customer = data.customers.find((c) => c.id === customerId);
@@ -125,8 +165,8 @@ export async function submitPayment(customerId, { ref, method, amount, reference
       amount: value,
       kind,
       method,
-      referenceNo: referenceNo.trim(),
-      proofName,
+      referenceNo: reference,
+      proofName: fileName,
       status: 'awaiting',
       submittedAt: Date.now(),
       verifiedAt: null,
@@ -175,6 +215,8 @@ function applyVerifiedPayment(data, reservation, payment) {
  * Admin: accept an uploaded payment and issue the next receipt number.
  * Refused when the reservation was declined or cancelled, or when the amount is more than what is
  * still owed (e.g. a cash payment was recorded meanwhile): reject it instead, with the reason.
+ * What it is for (kindOf) is worked out again from what is paid now: a quotation changed since it was
+ * sent may have turned a "downpayment" into the full payment, and the receipt shows this label.
  */
 export async function verifyPayment(paymentId) {
   await latency(450, 800);
@@ -192,6 +234,7 @@ export async function verifyPayment(paymentId) {
     if (payment.amount > money.balance) {
       throw new ApiError('OVER_BALANCE', `This payment of ₱${payment.amount.toLocaleString('en-PH')} is more than the remaining balance of ₱${money.balance.toLocaleString('en-PH')}. Reject it and ask the customer to send the correct amount.`);
     }
+    payment.kind = kindOf(money, payment.amount);
     payment.status = 'verified';
     payment.verifiedAt = Date.now();
     payment.receiptNo = `OR-${data.counters.receipt++}`;
@@ -297,9 +340,6 @@ export async function sendPaymentReminder(ref) {
 
 /* ============================ Refunds ============================ */
 
-// A refund's reference number: 6–30 letters, numbers, spaces or dashes (the same format as the customer's payment form)
-const REFERENCE_FORMAT = /^[A-Za-z0-9 -]{6,30}$/;
-
 // True for a real calendar day written "YYYY-MM-DD" (so 2026-02-30 is not)
 const isRealDate = (iso) => typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(iso) && toISODate(parseISODate(iso)) === iso;
 
@@ -318,21 +358,23 @@ function enrichRefund(refund, data) {
 
 /**
  * Admin: record money returned to the customer, after it was sent outside the system (GCash, bank transfer
- * or cash). There must be something owed (refundDue in financials): on a cancelled or declined booking,
- * what was paid (one cancellation refund per booking, after which nothing more is due); on any other
- * booking, what was paid above a lower revised quotation (an overpayment refund, always the whole of it,
- * after which the booking's paid equals its total and the balance is 0; the status stays as it is).
+ * or cash, or through PayMongo for a GCash QR payment less than 30 days old). There must be something
+ * owed (refundDue in financials): on a cancelled or declined booking, what was paid (a cancellation
+ * refund settles it, even when part is kept; only money paid after it is due again, e.g. a GCash QR
+ * paid after the cancel); on any other booking, what was paid above a lower revised quotation (an
+ * overpayment refund, always the whole of it, after which the booking's paid equals its total and the
+ * balance is 0; the status stays as it is).
  *   amount       whole pesos, up to what is due. A cancellation refund may be less, even ₱0 when everything
  *                paid is kept, with a `reason` (5+ characters) the customer sees; the rest is kept. An
  *                overpayment refund is the whole overpayment.
  *   method       'gcash', 'bank' or 'cash'; `referenceNo` is required for GCash and bank (6–30 letters,
- *                numbers, spaces or dashes) and '' for cash
+ *                numbers, spaces, dashes or underscores, so a PayMongo refund id fits) and '' for cash
  *   sentOn       the day it was sent, "YYYY-MM-DD", not after today (reports count it in that month)
  * A refund of ₱0 sends nothing, so it takes no method, reference or date: it is saved with method '',
  * referenceNo '' and sentOn today (the day it was recorded), and it settles the booking like any other
  * cancellation refund.
  * One write saves the refund (rf-0001, rf-0002… from counters.refund), adds an audit-trail entry with the
- * old and new amounts (paid, returned, kept) and tells the customer in their chat. No slip or document is
+ * old and new amounts ("paid" being what was due back, returned, kept) and tells the customer in their chat. No slip or document is
  * made: the payment-history line and the chat message are the record. Returns the refund with event
  * name and date, customer name and method label.
  */
@@ -363,8 +405,8 @@ export async function recordRefund(ref, { amount, method, referenceNo = '', sent
     if (sent && !['gcash', 'bank', 'cash'].includes(method)) throw new ApiError('INVALID', 'Choose how the refund was sent.', { field: 'method' });
     const reference = !sent || method === 'cash' ? '' : String(referenceNo || '').trim();
     if (sent && method !== 'cash' && !reference) throw new ApiError('INVALID', 'Enter the reference number of the refund.', { field: 'referenceNo' });
-    if (sent && method !== 'cash' && !REFERENCE_FORMAT.test(reference)) {
-      throw new ApiError('INVALID', 'Use 6–30 letters, numbers, spaces or dashes.', { field: 'referenceNo' });
+    if (sent && method !== 'cash' && referenceProblem(reference)) {
+      throw new ApiError('INVALID', referenceProblem(reference), { field: 'referenceNo' });
     }
     if (sent && !isRealDate(sentOn)) throw new ApiError('INVALID', 'Enter the date the refund was sent.', { field: 'sentOn' });
     if (sent && sentOn > todayISO()) throw new ApiError('INVALID', 'The date sent cannot be later than today.', { field: 'sentOn' });
@@ -394,10 +436,10 @@ export async function recordRefund(ref, { amount, method, referenceNo = '', sent
       logText = `Recorded a refund of the overpayment, ${pesoText(value)} via ${via}, sent ${formatDate(sentOn)}. Paid from ${pesoText(money.paid)} to ${pesoText(money.paid - value)}, the total of ${pesoText(money.total)}.`;
       chatText = `We returned ${pesoText(value)} for ${reservation.eventName} on ${formatDate(sentOn)} via ${via}: the amount you paid above your new total.`;
     } else if (sent) {
-      logText = `Recorded a refund of ${pesoText(value)} via ${via}, sent ${formatDate(sentOn)}. Paid ${pesoText(money.paid)}, returned ${pesoText(value)}, kept ${pesoText(kept)}.${kept > 0 ? ` Reason: ${why}` : ''}`;
+      logText = `Recorded a refund of ${pesoText(value)} via ${via}, sent ${formatDate(sentOn)}. Paid ${pesoText(money.refundDue)}, returned ${pesoText(value)}, kept ${pesoText(kept)}.${kept > 0 ? ` Reason: ${why}` : ''}`;
       chatText = `We returned ${pesoText(value)} for ${reservation.eventName} on ${formatDate(sentOn)} via ${via}.${kept > 0 ? ` We kept ${pesoText(kept)}: ${why}` : ''}`;
     } else {
-      logText = `Recorded that nothing is returned. Paid ${pesoText(money.paid)}, returned ₱0, kept ${pesoText(kept)}. Reason: ${why}`;
+      logText = `Recorded that nothing is returned. Paid ${pesoText(money.refundDue)}, returned ₱0, kept ${pesoText(kept)}. Reason: ${why}`;
       chatText = `We kept the ${pesoText(kept)} paid for ${reservation.eventName}: ${why}`;
     }
     reservation.activity.push({ at: Date.now(), actor: refund.recordedBy, text: logText });

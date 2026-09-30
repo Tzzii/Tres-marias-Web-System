@@ -24,11 +24,13 @@ const ENDED_EARLY = ['cancelled', 'declined'];
  *                    is lower, e.g. minimum ₱3,000 on a ₱2,400 total -> 2,400 (paid in full)
  *   downpaymentPaid  paid has reached the downpayment
  *   overpaid         paid above the total (after a lower revised quotation); 0 for cancelled or declined
- *   refundDue        what still has to be returned: on a cancelled or declined booking everything paid,
- *                    until its one cancellation refund is recorded (then 0); on any other, the overpayment
+ *   refundDue        what still has to be returned: on a cancelled or declined booking, what was paid less
+ *                    what its cancellation refunds kept (each one's due − amount), so 0 once a cancellation
+ *                    refund is recorded, until more money arrives (e.g. a GCash QR paid after the cancel,
+ *                    Phase 8B), which is then due too; on any other booking, the overpayment
  *   awaitingAmount / awaitingCount   payments waiting for verification
  *   balanceState     'full', 'overdue' (approved, due date passed, downpayment not reached), 'partial' or 'unpaid'
- * `refunds` are refund records ({ ref, kind, amount }); the API passes [] until refunds reach the server in Phase 8.
+ * `refunds` are refund records ({ ref, kind, amount, due }).
  */
 export function financials(reservation, payments, refunds = []) {
   // Use the sent quotation's total, or the estimate if no quotation yet
@@ -43,8 +45,10 @@ export function financials(reservation, payments, refunds = []) {
   const balance = endedEarly ? 0 : Math.max(0, total - paid);
   const downpayment = Math.min(reservation.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT, total);
   const overpaid = endedEarly ? 0 : Math.max(0, paid - total);
-  // A cancelled booking gets one cancellation refund, which settles it even when part was kept
-  const refundDue = endedEarly ? (returned.some((r) => r.kind === 'cancellation') ? 0 : paid) : overpaid;
+  // A cancellation refund settles what was paid up to then, even when part was kept: what it kept is
+  // never due again, but anything paid after it is
+  const kept = returned.filter((r) => r.kind === 'cancellation').reduce((sum, r) => sum + (r.due - r.amount), 0);
+  const refundDue = endedEarly ? Math.max(0, paid - kept) : overpaid;
 
   // full = paid everything; overdue = approved, due date passed, downpayment not reached; partial = some paid
   let balanceState = 'unpaid';

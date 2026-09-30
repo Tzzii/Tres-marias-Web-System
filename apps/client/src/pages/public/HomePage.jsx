@@ -50,7 +50,7 @@ const servicesList = (minimum) => [
   [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick one pork, chicken, fish and vegetable dish from our menu, with water and juice for every guest. Served plated by our team, at one price per person.'],
   [AutoAwesomeOutlinedIcon, 'Event styling', 'Themed table setups, floral centrepieces, backdrops and mood lighting designed around your motif.'],
   [EventAvailableOutlinedIcon, 'Online reservations', 'Check open dates, reserve online and follow every step, from approval to the final headcount.'],
-  [CreditCardOutlinedIcon, 'Flexible payments', `Secure your date with a downpayment${minimum ? ` of at least ${peso(minimum)}` : ''} through cash, GCash or bank transfer, then pay the rest in parts or on the day.`],
+  [CreditCardOutlinedIcon, 'Flexible payments', `Secure your date with a downpayment${minimum ? ` of at least ${peso(minimum)}` : ''} by GCash QR or bank transfer, then pay the rest in parts or in cash on the day.`],
   [LocalBarOutlinedIcon, 'Food tasting', 'Wedding package bookings include a complimentary tasting for four so you can finalise the menu with confidence.']
 ];
 
@@ -62,7 +62,10 @@ const faqList = (minimum) => [
     'How much is the downpayment?',
     `${minimum ? `At least ${peso(minimum)}` : 'A downpayment'} secures your date, and you can pay more, up to the full amount. It is due within ${RULES.downpaymentDueDays} days after we approve your reservation. The rest can be paid in parts and is settled by the event day.${minimum ? ` If your total is below ${peso(minimum)}, you pay it in full.` : ''}`
   ],
-  ['How can I pay?', 'Through GCash or bank transfer. Upload your proof of payment in your account and our team will verify it.'],
+  [
+    'How can I pay?',
+    'In your account: scan our GCash / e-wallet QR, which is confirmed right away, or pay by bank transfer and upload a photo of the receipt with its reference number; our team verifies it within a day. The balance can also be paid in cash on the event day.'
+  ],
   [
     'Can I cancel and get my money back?',
     `Yes. Before you pay, you can cancel online any time before the event day. After you pay, you can cancel online during ${cancelWindowText()}, as long as we haven't started preparing; your reservation page shows the exact date. After that, message us in your chat or call ${BUSINESS.phone}. We return everything you paid, and if we ever return less, we tell you the amount and the reason in your chat.`

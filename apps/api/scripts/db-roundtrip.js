@@ -178,7 +178,9 @@ async function check() {
   // ---- payments ----
   const payments = (await q('SELECT * FROM payments')).map((p) => {
     if (p.proof_key !== null || p.proof_mime !== null || p.proof_size !== null) fail(`payments[${p.id}]: proof file columns should be NULL`);
-    if ((p.status === 'verified') !== (p.verified_by === 'adm-001')) fail(`payments[${p.id}]: verified_by ${p.verified_by} for status ${p.status}`);
+    // PayMongo confirms a GCash QR payment ('qrph'), so it has no admin; the admin verified every other verified one
+    const verifier = p.status === 'verified' && p.method !== 'qrph' ? 'adm-001' : null;
+    if (p.verified_by !== verifier) fail(`payments[${p.id}]: verified_by ${p.verified_by} for ${p.method} ${p.status}`);
     if (p.receipt_no === '') fail(`payments[${p.id}]: receipt_no stored as ''`);
     return {
       id: p.id, ref: p.ref, customerId: p.customer_id, amount: p.amount, kind: p.kind, method: p.method, referenceNo: p.reference_no,
@@ -186,6 +188,13 @@ async function check() {
     };
   });
   compareKeyed('payments', payments, seed.payments, 'id');
+
+  // ---- refunds (the admin's id comes back as the name, like the API's answers) ----
+  const refunds = await q('SELECT f.*, a.name AS admin_name FROM refunds f JOIN admins a ON a.id = f.recorded_by').then((rows) => rows.map((f) => ({
+    id: f.id, ref: f.ref, customerId: f.customer_id, kind: f.kind, amount: f.amount, due: f.due, method: f.method, referenceNo: f.reference_no,
+    sentOn: f.sent_on, reason: f.reason, recordedAt: f.recorded_at, recordedBy: f.admin_name
+  })));
+  compareKeyed('refunds', refunds, seed.refunds, 'id');
 
   // ---- chat (messages come back in time order; ids left out, see above) ----
   const withoutId = ({ id, ...message }) => message; // eslint-disable-line no-unused-vars

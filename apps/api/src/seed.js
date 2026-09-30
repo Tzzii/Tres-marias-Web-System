@@ -30,7 +30,7 @@ import { hashSecret } from './lib/passwords.js';
 const TABLES = [
   'admins', 'customers', 'packages', 'addons', 'dishes', 'catalog_settings',
   'reservations', 'reservation_addons', 'reservation_activity',
-  'payments', 'qr_payments', 'webhook_events',
+  'payments', 'refunds', 'qr_payments', 'webhook_events',
   'threads', 'messages', 'testimonials',
   'calendar_blocks', 'calendar_settings',
   'inventory_items', 'inventory_allocations', 'inventory_history',
@@ -150,8 +150,8 @@ function toRows(data, hashes, now) {
       r.activity.map((entry) => ({ reservation_ref: r.ref, at: entry.at, actor: entry.actor, text: entry.text }))
     ),
 
-    // receipt_no is NULL until verified (UNIQUE allows many NULLs, but only one ''). The sample
-    // payments name a proof file but have none, so proof_key, proof_mime and proof_size stay NULL.
+    // receipt_no is NULL until verified (UNIQUE allows many NULLs, but only one ''). The sample bank
+    // transfers name a proof file but have none, so proof_key, proof_mime and proof_size stay NULL.
     payments: data.payments.map((p) => ({
       id: p.id,
       ref: p.ref,
@@ -167,6 +167,21 @@ function toRows(data, hashes, now) {
       verified_by: p.status === 'verified' && p.method !== 'qrph' ? verifier : null, // PayMongo confirms qrph: no admin
       receipt_no: p.receiptNo || null,
       reject_reason: p.rejectReason || ''
+    })),
+    // The seed has none today; the admin who recorded one is found by name (the browser keeps the name)
+    refunds: data.refunds.map((r) => ({
+      id: r.id,
+      ref: r.ref,
+      customer_id: r.customerId,
+      kind: r.kind,
+      amount: r.amount,
+      due: r.due,
+      method: r.method || '',
+      reference_no: r.referenceNo || '',
+      sent_on: r.sentOn,
+      reason: r.reason || '',
+      recorded_at: r.recordedAt,
+      recorded_by: (data.admins.find((a) => a.name === r.recordedBy) || data.admins[0]).id
     })),
 
     threads: data.threads.map((t) => ({ id: t.id, customer_id: t.customerId })),
@@ -285,8 +300,7 @@ function toRows(data, hashes, now) {
       c.history.map((entry) => ({ contract_id: c.id, at: entry.at, actor: entry.actor, text: entry.text }))
     ),
 
-    // The seed's `receipt` is the NEXT number and the table keeps the LAST one used (§7.6). The refund
-    // counter is here already; the refunds it numbers (rf-####) reach the server in Phase 8.
+    // The seed's `receipt` is the NEXT number and the table keeps the LAST one used (§7.6).
     counters: [
       { name: 'receipt', value: data.counters.receipt - 1 },
       { name: 'payment', value: data.counters.payment },

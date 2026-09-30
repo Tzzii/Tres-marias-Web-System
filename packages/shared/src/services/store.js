@@ -1,4 +1,3 @@
-import { DEFAULT_MIN_DOWNPAYMENT } from './config.js';
 import { emitChange } from './events.js';
 import { buildSeed } from './seed.js';
 
@@ -33,38 +32,17 @@ import { buildSeed } from './seed.js';
 // v15: the Equipment Rental package (`kind: 'rental'`). Inventory items carry `rentable`, `rentPrice` and
 //      `damageFee`, lights and sound left the inventory (outsourced), and the list now has every item the
 //      packages use. A rental reservation carries `rentalItems`, `fulfilment` and `damageCharges`.
-// Later additions keep v15, so saved test bookings survive; load() fills in what older v15 data lacks
-// (see upgrade below).
+//      Later v15 additions (2026-09-26: refunds and the minimum downpayment) were filled into saved v15 data.
+// v16: GCash is paid by PayMongo QR only ('qrph'): the sample GCash payments are QR payments with no proof,
+//      and payment receipts are bank transfers. Starts again from the seed, so the v15 filling-in is gone.
 // Data saved under an older key is ignored and the app starts again from the seed.
-const STORAGE_KEY = 'tm.data.v15';
-const DATA_VERSION = 15; // must match `version` in seed.js
-const OLD_STORAGE_KEYS = ['tm.data.v1', 'tm.data.v2', 'tm.data.v3', 'tm.data.v4', 'tm.data.v5', 'tm.data.v6', 'tm.data.v7', 'tm.data.v8', 'tm.data.v9', 'tm.data.v10', 'tm.data.v11', 'tm.data.v12', 'tm.data.v13', 'tm.data.v14']; // removed on load so old data doesn't linger in the browser
+const STORAGE_KEY = 'tm.data.v16';
+const DATA_VERSION = 16; // must match `version` in seed.js
+const OLD_STORAGE_KEYS = ['tm.data.v1', 'tm.data.v2', 'tm.data.v3', 'tm.data.v4', 'tm.data.v5', 'tm.data.v6', 'tm.data.v7', 'tm.data.v8', 'tm.data.v9', 'tm.data.v10', 'tm.data.v11', 'tm.data.v12', 'tm.data.v13', 'tm.data.v14', 'tm.data.v15']; // removed on load so old data doesn't linger in the browser
 let cache = null; // data kept in memory after the first load
 
 /**
- * Fill in what data saved before a later v15 change lacks, keeping everything else as saved:
- * 2026-09-26: refunds (`refunds`, `counters.refund`) and the minimum downpayment setting
- * (`settings.minDownpayment`). A reservation saved before then gets its own `minDownpayment`:
- * DEFAULT_MIN_DOWNPAYMENT, or the 50% downpayment its quotation already asked for when that is lower
- * (the quotation's old `downpayment` field), so it is never asked for more than it was told and a
- * booking under ₱6,000 that paid its 50% stays paid up. It has no `preparingAt` (not being prepared)
- * and no `cancelledBy` (a cancellation then was always the customer's).
- */
-function upgrade(data) {
-  if (!Array.isArray(data.refunds)) data.refunds = [];
-  data.counters = { refund: 0, ...data.counters };
-  data.settings = { minDownpayment: DEFAULT_MIN_DOWNPAYMENT, ...data.settings };
-  data.reservations.forEach((r) => {
-    if (r.minDownpayment != null) return;
-    const asked = r.quotation && Number.isInteger(r.quotation.downpayment) ? r.quotation.downpayment : DEFAULT_MIN_DOWNPAYMENT;
-    r.minDownpayment = Math.min(DEFAULT_MIN_DOWNPAYMENT, asked);
-  });
-  return data;
-}
-
-/**
- * Get the data: from memory, else from localStorage (brought up to date by upgrade), else build the
- * starting data set. Data from an old storage key is deleted first, and saved data with another
+ * Get the data: from memory, else from localStorage, else build the starting data set. Data from an old storage key is deleted first, and saved data with another
  * version is replaced by the seed.
  */
 function load() {
@@ -75,7 +53,7 @@ function load() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.version === DATA_VERSION) {
-        cache = upgrade(parsed);
+        cache = parsed;
         return cache;
       }
     }

@@ -53,6 +53,49 @@ const FILTERS = [
   ['refunds', 'Refunds to send']
 ];
 
+/**
+ * The receipt the customer uploaded, in the verify panel: the photo itself (click it to open it full
+ * size in a new tab) or, for a PDF, a button that opens it. The file is fetched with the admin's token
+ * (paymentApi.proofUrl) and its address freed when the panel changes. The browser store keeps only the
+ * file's name, and the sample payments have no file: both show the name on a placeholder instead.
+ */
+function ProofPreview({ payment }) {
+  const [proof, setProof] = useState({ url: null, kind: 'loading' });
+  useEffect(() => {
+    let alive = true;
+    let made = null;
+    setProof({ url: null, kind: 'loading' });
+    paymentApi
+      .proofUrl(payment.id)
+      .then((url) => {
+        made = url;
+        if (alive) setProof({ url, kind: url ? 'image' : 'none' });
+      })
+      .catch(() => alive && setProof({ url: null, kind: 'none' }));
+    return () => {
+      alive = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [payment.id]);
+
+  const open = () => window.open(proof.url, '_blank', 'noopener');
+  if (proof.kind === 'image') {
+    // A PDF can't show as an image: onError switches to the button
+    return (
+      <Box component="img" src={proof.url} alt={`Receipt: ${payment.proofName}`} onClick={open} onError={() => setProof((p) => ({ ...p, kind: 'file' }))} sx={{ display: 'block', width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 1.5, backgroundColor: tokens.surfaceMuted, cursor: 'zoom-in' }} />
+    );
+  }
+  return (
+    <Box sx={{ height: 180, borderRadius: 1.5, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, backgroundColor: tokens.surfaceMuted, border: `1px dashed ${tokens.borderInput}` }}>
+      <ImageOutlinedIcon sx={{ fontSize: 40, color: tokens.textMuted }} />
+      <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textSecondary, px: 2, textAlign: 'center', overflowWrap: 'anywhere' }}>
+        {proof.kind === 'loading' ? 'Loading the receipt…' : payment.proofName}
+      </Typography>
+      {proof.kind === 'file' && <Button size="small" variant="outlined" onClick={open}>Open file</Button>}
+    </Box>
+  );
+}
+
 /** Does a reservation belong in a filter tab? "awaiting" = has a proof to verify; the rest match the balance status. */
 const inFilter = (key, r) => (key === 'all' ? true : key === 'awaiting' ? r.awaitingCount > 0 : r.balanceState === key);
 
@@ -257,11 +300,11 @@ export default function PaymentsSection() {
             <CardTitle subtitle={`${verifyingRow.customerName} · ${verifyingRow.eventName}`} action={<Button size="small" onClick={closeVerify}>Close</Button>}>
               Verifying · {verifying.ref}
             </CardTitle>
+            {/* A bank transfer shows its receipt (the typed reference is below, to compare); a GCash QR payment and cash have none */}
             {verifying.proofName ? (
-              <Box sx={{ height: 180, borderRadius: 1.5, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, backgroundColor: tokens.surfaceMuted, border: `1px dashed ${tokens.borderInput}` }}>
-                <ImageOutlinedIcon sx={{ fontSize: 40, color: tokens.textMuted }} />
-                <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textSecondary, px: 2, textAlign: 'center', overflowWrap: 'anywhere' }}>{verifying.proofName}</Typography>
-              </Box>
+              <ProofPreview payment={verifying} />
+            ) : verifying.method === 'qrph' ? (
+              <AlertBanner tone="info">GCash / e-wallet QR payment, confirmed by PayMongo.</AlertBanner>
             ) : (
               <AlertBanner tone="info">Cash payment recorded by the admin.</AlertBanner>
             )}
@@ -296,7 +339,7 @@ export default function PaymentsSection() {
       </Box>
 
       <Typography sx={{ mt: 2, fontSize: 12.5, color: tokens.textOnDarkMuted }}>
-        Cash-on-site payments are recorded from the reservation page with “Mark payment received”; customers never upload proof for those.
+        Cash-on-site payments are recorded from the reservation page with “Mark payment received”. GCash QR payments are confirmed by PayMongo; only bank transfers need verifying here.
       </Typography>
 
       <ConfirmDialog
