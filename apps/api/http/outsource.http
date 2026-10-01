@@ -1,0 +1,79 @@
+# Phase 10 checks for outsourcing: partners and contracts (VS Code REST Client: click "Send Request" above a block).
+# Start the API first (npm run dev:api) and load the sample data (npm run seed:api). Changes made here stay in
+# the database: run npm run seed:api again afterwards.
+#
+# Every request needs an admin token: get one with the sign-in requests at the top of catalog.http and paste it
+# into @adminToken below. A customer's token gets 403 FORBIDDEN, no token 401 UNAUTHENTICATED.
+# Errors come back as { code, message, meta }.
+#
+# Sending a contract really sends it through the mail and SMS ports. With MAIL_DRIVER=log / SMS_DRIVER=log
+# (development) nothing leaves the server: the text is printed on the API console as [EMAIL -> …] / [SMS -> …]
+# and kept in the outbox table, and the answer's deliveryNote tells the admin to send it themselves.
+
+@api = http://localhost:4000/api
+@adminToken = paste-an-admin-token
+@partner = op-001
+@contract = oc-005
+@event = paste-an-approved-to-confirmed-ref
+
+### Every partner (how they are reached, contract counts), by service then name; ?includeArchived=true adds the archived
+GET {{api}}/admin/outsource/partners
+Authorization: Bearer {{adminToken}}
+
+### Add a partner -> 201. An email or a mobile number is enough (neither: 400 on "email")
+POST {{api}}/admin/outsource/partners
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "Malvar Chairs", "service": "Chairs and tables", "contactPerson": "Ana Reyes", "email": "", "mobile": "0918 765 4321", "address": "", "notes": "" }
+
+### Edit a partner -> the partner (the history lists the fields that changed)
+PUT {{api}}/admin/outsource/partners/{{partner}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "Batangas Party Rentals", "service": "Chairs and tables", "contactPerson": "Rico Delgado", "email": "rentals@batangaspartyrentals.ph", "mobile": "09171112233", "address": "Poblacion, Malvar, Batangas", "notes": "Delivers free within Malvar." }
+
+### Archive or restore -> { count }. A partner with a contract waiting for their answer: 409 IN_USE
+POST {{api}}/admin/outsource/partners/archive
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "ids": ["op-006"], "archived": true }
+
+### The bookings a contract can be for (approved to confirmed), soonest first
+GET {{api}}/admin/outsource/events
+Authorization: Bearer {{adminToken}}
+
+### Every contract, newest first
+GET {{api}}/admin/outsource/contracts
+Authorization: Bearer {{adminToken}}
+
+### A new draft -> 201 (OUT-YYYY-#### from the counter). reservationRef "none" for no event; the amount is whole pesos
+POST {{api}}/admin/outsource/contracts
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "partnerId": "{{partner}}", "reservationRef": "{{event}}", "items": [{ "name": "Monobloc chair", "qty": 50 }], "needBy": "2026-12-01", "amount": 2500, "notes": "" }
+
+### Change a draft -> the contract. A sent contract: 423 LOCKED
+PUT {{api}}/admin/outsource/contracts/{{contract}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "partnerId": "op-005", "reservationRef": "none", "items": [{ "name": "Round tablecloth", "qty": 12 }], "needBy": "2026-12-01", "amount": 4200, "notes": "" }
+
+### Send (or send again): the same text to the partner's email and mobile number -> the contract with deliveryNote
+### ('' when every channel went out). Each channel gets an outbox row; an archived partner: 400
+POST {{api}}/admin/outsource/contracts/{{contract}}/send
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "body": "Tres Marias Catering Services · Outsourcing contract\n\nPlease supply 12 round tablecloths on 1 Dec 2026. Reply YES to accept." }
+
+### The next status: accepted | declined | completed | cancelled (a decline or cancellation needs a 5+ character note)
+POST {{api}}/admin/outsource/contracts/{{contract}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "accepted", "note": "Confirmed by text" }

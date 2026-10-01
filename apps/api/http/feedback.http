@@ -1,0 +1,94 @@
+# Phase 9 checks for reviews (testimonials) (VS Code REST Client: click "Send Request" above a block).
+# Start the API first (npm run dev:api) and load the sample data (npm run seed:api). Reviews and replies
+# made here stay in the database (a reply also goes to the customer's chat): run npm run seed:api again afterwards.
+#
+# The customer requests need a customer token and the admin requests an admin token: get them with the
+# sign-in requests at the top of catalog.http, and paste them into @customerToken and @adminToken below.
+# @ref is one of that customer's completed events without a review: GET /reservations shows their bookings
+# (refs follow the sample data's dates, which count from the day it was loaded). @review is a review id
+# (tst-001 … tst-009 in the sample data). Errors come back as { code, message, meta }.
+
+@api = http://localhost:4000/api
+@customerToken = paste-a-customer-token
+@adminToken = paste-an-admin-token
+@ref = paste-a-completed-ref
+@review = tst-009
+
+### ---------------------------------------------------------------- Public (no token)
+
+### The website's reviews: published, not flagged or archived, featured first. Only id, rating, categories,
+### body, featured, createdAt, customerName and eventName (no email, mobile, customer id or ref). limit 1-20, default 3
+GET {{api}}/feedback/published?limit=3
+
+### ---------------------------------------------------------------- Customer
+
+### The customer's own reviews, newest first (no flagReason, no customerMobile)
+GET {{api}}/feedback
+Authorization: Bearer {{customerToken}}
+
+### Review a completed event -> 201 with the review (hidden until the admin publishes it, unread by the admin).
+### Not their own completed event: 409 "Feedback opens once an event is completed."; reviewed already: 409;
+### stars, a missing category or under 20 characters: 400 INVALID with meta.field (rating, categories, body)
+POST {{api}}/feedback
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "ref": "{{ref}}", "rating": 5, "categories": { "food": 5, "service": 5, "punctuality": 4, "setup": 5 }, "body": "The food was still warm at the last dance. Thank you, Tres Marias!" }
+
+### ---------------------------------------------------------------- Admin
+
+### Every review, newest first, with flagReason and customerMobile
+GET {{api}}/admin/feedback
+Authorization: Bearer {{adminToken}}
+
+### How many are unread (a number)
+GET {{api}}/admin/feedback/unread-count
+Authorization: Bearer {{adminToken}}
+
+### Mark one as read -> the review
+POST {{api}}/admin/feedback/{{review}}/read
+Authorization: Bearer {{adminToken}}
+
+### Mark every review as read -> { marked }
+POST {{api}}/admin/feedback/read-all
+Authorization: Bearer {{adminToken}}
+
+### Publish on the website or take it off: "published" | "hidden" (flagged or archived: 409; hiding also unfeatures)
+PATCH {{api}}/admin/feedback/{{review}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "published" }
+
+### Feature it (publishes it; not while flagged or archived) or { "featured": false }
+PATCH {{api}}/admin/feedback/{{review}}/featured
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "featured": true }
+
+### Flag it with a reason only the admin sees (at least 5 characters; takes it off the website), or { "flagged": false }
+PATCH {{api}}/admin/feedback/{{review}}/flag
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "flagged": true, "reason": "Checking the service report for this date first." }
+
+### Archive it (off the website) or { "archived": false } to restore it
+PATCH {{api}}/admin/feedback/{{review}}/archived
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "archived": true }
+
+### Reply (5-1,000 characters): saved under the review, signed with the admin's name, and sent to the
+### customer's chat as "About your feedback on <event>: …". Replying again replaces it and sends the new one.
+POST {{api}}/admin/feedback/{{review}}/reply
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "body": "Thank you for celebrating with us! We are glad the food stayed warm." }
+
+### Delete for good -> { ok: true } (the customer may then write a new review). Again: 404
+DELETE {{api}}/admin/feedback/{{review}}
+Authorization: Bearer {{adminToken}}

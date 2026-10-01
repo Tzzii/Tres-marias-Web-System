@@ -1,8 +1,7 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { NotFoundPage, ScrollToTop, Spinner } from '@tm/shared';
 import { RequireAuth } from './auth.js';
-import { useMessenger } from './components/MessagesWidget.jsx';
 import AdminLayout from './layouts/AdminLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import SplashPage from './pages/SplashPage.jsx';
@@ -15,6 +14,7 @@ const PackagesPage = lazy(() => import('./pages/PackagesPage.jsx'));
 const InventoryPage = lazy(() => import('./pages/InventoryPage.jsx'));
 const CustomersPage = lazy(() => import('./pages/CustomersPage.jsx'));
 const OutsourcePage = lazy(() => import('./pages/OutsourcePage.jsx'));
+const MessagesPage = lazy(() => import('./pages/MessagesPage.jsx'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage.jsx'));
 const FeedbacksPage = lazy(() => import('./pages/FeedbacksPage.jsx'));
 const AccountPage = lazy(() => import('./pages/AccountPage.jsx'));
@@ -23,6 +23,7 @@ const AccountPage = lazy(() => import('./pages/AccountPage.jsx'));
  * Admin Dashboard routes. Everything except / and /login requires an admin session.
  * Reservation requests, all reservations and the calendar share /reservations (as tabs);
  * payments is a tab of /reports; contracts and partners share /outsource (as tabs);
+ * customer conversations have their own page at /messages (?thread=ID opens one);
  * customer reviews have their own page at /feedbacks.
  * The old /requests, /calendar and /payments URLs redirect there.
  */
@@ -49,8 +50,7 @@ export default function App() {
           <Route path="inventory" element={<Lazy page={InventoryPage} />} />
           <Route path="customers" element={<Lazy page={CustomersPage} />} />
           <Route path="outsource" element={<Lazy page={OutsourcePage} />} />
-          {/* Messages is a top-bar chat window now; the old address opens it full screen */}
-          <Route path="messages" element={<MessagesRedirect />} />
+          <Route path="messages" element={<Lazy page={MessagesPage} />} />
           <Route path="reports" element={<Lazy page={ReportsPage} />} />
           <Route path="feedbacks" element={<Lazy page={FeedbacksPage} />} />
           <Route path="account" element={<Lazy page={AccountPage} />} />
@@ -72,16 +72,6 @@ function TabRedirect({ to, tab }) {
   const params = new URLSearchParams(search);
   params.set('tab', tab);
   return <Navigate to={`${to}?${params}`} replace />;
-}
-
-/** Old /messages?thread=ID links: open the chat window full screen on that thread, over the dashboard. */
-function MessagesRedirect() {
-  const { search } = useLocation();
-  const { openMessages } = useMessenger();
-  useEffect(() => {
-    openMessages(new URLSearchParams(search).get('thread'), 'full');
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return <Navigate to="/dashboard" replace />;
 }
 
 /** Wraps a lazy page so a loading spinner shows while its code is downloading. */

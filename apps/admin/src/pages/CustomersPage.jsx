@@ -41,7 +41,6 @@ import {
   validateEmail,
   validateMobile
 } from '@tm/shared';
-import { useMessenger } from '../components/MessagesWidget.jsx';
 
 const PAGE_SIZE = 10;
 // Filter tabs as [key, label, test function that decides if a customer belongs in the tab]
@@ -57,7 +56,6 @@ export default function CustomersPage() {
   useDocumentTitle('Customers', 'Tres Marias Admin');
   const navigate = useNavigate();
   const notify = useNotify();
-  const { openMessages } = useMessenger();
   const [params, setParams] = useSearchParams();
   // Load all customers with their booking totals
   const { data, loading, error, reload } = useResource(() => customerApi.listCustomers(), []);
@@ -83,11 +81,11 @@ export default function CustomersPage() {
   // Keep the page in range when customers leave the list (e.g. a balance was paid off under "With balance")
   const current = Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
 
-  // Open the chat window with the customer (their one conversation, created if they have none)
+  // Go to the Messages page on the customer's conversation (their one conversation, created if they have none)
   const message = async (customerId) => {
     try {
       const { id } = await messageApi.openThread({ customerId });
-      openMessages(id);
+      navigate(`/messages?thread=${encodeURIComponent(id)}`);
     } catch (e) {
       notify(e.message, 'error');
     }

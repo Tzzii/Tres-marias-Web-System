@@ -1,10 +1,11 @@
 // Public face of the outsourcing service (partners and contracts): pages import it through outsourceApi (@tm/shared).
 // Each call goes to the browser-store version or the API version, chosen once at startup (backend.js).
 import * as local from '../outsourceService.js';
+import * as remote from '../remote/outsource.js';
 import { pickImpl } from '../backend.js';
 
-// The API version arrives in Phase 10 (services/remote/outsource.js); until then the browser store answers
-const impl = pickImpl('outsource', local);
+// The API version since Phase 10 (services/remote/outsource.js), when VITE_API_SERVICES includes "outsource"
+const impl = pickImpl('outsource', local, remote);
 
 export const listPartners = (...a) => impl.listPartners(...a);
 export const listContracts = (...a) => impl.listContracts(...a);

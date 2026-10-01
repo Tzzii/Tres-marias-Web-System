@@ -1,0 +1,50 @@
+# Phase 11 checks for the admin Dashboard and Reports (VS Code REST Client: click "Send Request" above a block).
+# Start the API first (npm run dev:api) and load the sample data (npm run seed:api). Every request here only
+# reads: nothing changes in the database.
+#
+# Every request needs an admin token: get one with the sign-in requests at the top of catalog.http and
+# paste it into @adminToken below. A customer's token gets 403 FORBIDDEN, no token 401 UNAUTHENTICATED.
+# Errors come back as { code, message, meta }. The figures are the browser version's (domain/reports.js):
+# revenue is payments verified in the range less refunds sent in it.
+
+@api = http://localhost:4000/api
+@adminToken = paste-an-admin-token
+@customerToken = paste-a-customer-token
+
+### The Dashboard: eventsToday (whole records with customerName, packageName and the money figures),
+### pending (newest first), pendingOldestDays, unverifiedPayments, revenueThisMonth, upcoming (next 5)
+GET {{api}}/admin/reports/dashboard
+Authorization: Bearer {{adminToken}}
+
+### The Reports page's figures for a range: this_year (also when ?range= is left out), last_12, last_year, all.
+### { range, eventsServed, revenue, refunds, averagePerEvent, declineRate, revenueBy, revenueChart, packageCounts }
+GET {{api}}/admin/reports?range=this_year
+Authorization: Bearer {{adminToken}}
+
+### "All time": revenueBy "year", one bar per year from the first payment or refund to this year
+GET {{api}}/admin/reports?range=all
+Authorization: Bearer {{adminToken}}
+
+### A range the page does not offer: 400 INVALID "Unknown report range." (meta.field "range")
+GET {{api}}/admin/reports?range=last_week
+Authorization: Bearer {{adminToken}}
+
+### Saved report: monthly sales, one row per month (Payments, one column per method, Total, Refunds, Net)
+GET {{api}}/admin/reports/saved/monthly_sales?range=last_12
+Authorization: Bearer {{adminToken}}
+
+### Saved report: outstanding balances, approved bookings and after that still owe money, by event date
+### (the range does not change it)
+GET {{api}}/admin/reports/saved/outstanding
+Authorization: Bearer {{adminToken}}
+
+### A saved report that does not exist: 400 INVALID "Unknown report."
+GET {{api}}/admin/reports/saved/weekly_sales
+Authorization: Bearer {{adminToken}}
+
+### A customer's token: 403 FORBIDDEN (every /api/admin address)
+GET {{api}}/admin/reports/dashboard
+Authorization: Bearer {{customerToken}}
+
+### No token: 401 UNAUTHENTICATED
+GET {{api}}/admin/reports?range=all

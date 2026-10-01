@@ -59,8 +59,9 @@ const readSet = (key) => {
  * - Nav items: { key, label, icon, to, exact?, match?, badge? }. The active item
  *   is worked out from the current URL.
  * - Notifications: [{ id, title, body, at, to, onClick? }]; read state is remembered per portal and user.
- *   `onClick` runs instead of navigating to `to` (e.g. opening the admin chat window).
- * - onNotificationsOpen: runs when the bell opens the list (the admin uses it to close the chat window).
+ *   `onClick` runs instead of navigating to `to` (for an action that is not a page of its own).
+ * - onNotificationsOpen: runs when the bell opens the list (e.g. to close a window of the portal's own
+ *   that would otherwise sit under it).
  * - headerActions: extra top-bar buttons shown just after the notification bell.
  */
 export default function PortalShell({
@@ -244,7 +245,7 @@ export default function PortalShell({
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: tokens.bgBase, backgroundImage: tokens.gradientPage, backgroundAttachment: 'fixed' }}>
       {/* --tm-bottom-nav: height of the phone tab bar (56px plus the iPhone home-bar area), 0px where there
-          is none. Set on :root so fixed bars and windows outside this frame (e.g. the admin chat window) see it too. */}
+          is none. Set on :root so fixed bars and windows outside this frame (e.g. the booking bar of the customer's Book page) see it too. */}
       <GlobalStyles
         styles={(theme) => ({
           ':root': {
@@ -341,7 +342,7 @@ export default function PortalShell({
       </AppBar>
 
       {/* Notifications. The page behind stays clickable (no blocking backdrop), so one click on another
-          top-bar button (e.g. the admin Messages icon) both closes this list and does its own action.
+          top-bar button (e.g. the light/dark switch) both closes this list and does its own action.
           variant="menu" and disableAutoFocusItem stop the menu from handing focus props (autoFocus,
           tabIndex) to its first child, the ClickAwayListener, which cannot take them; the list itself
           still gets focus when it opens. */}

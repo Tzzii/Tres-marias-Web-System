@@ -1,10 +1,11 @@
 // Public face of the feedback (reviews) service: pages import it through feedbackApi (@tm/shared).
 // Each call goes to the browser-store version or the API version, chosen once at startup (backend.js).
 import * as local from '../feedbackService.js';
+import * as remote from '../remote/feedback.js';
 import { pickImpl } from '../backend.js';
 
-// The API version arrives in Phase 9 (services/remote/feedback.js); until then the browser store answers
-const impl = pickImpl('feedback', local);
+// The API version since Phase 9 (services/remote/feedback.js), when VITE_API_SERVICES includes "feedback"
+const impl = pickImpl('feedback', local, remote);
 
 export const listFeedbacks = (...a) => impl.listFeedbacks(...a);
 export const listPublished = (...a) => impl.listPublished(...a);
@@ -19,5 +20,5 @@ export const setFeedbackArchived = (...a) => impl.setFeedbackArchived(...a);
 export const replyToFeedback = (...a) => impl.replyToFeedback(...a);
 export const deleteFeedback = (...a) => impl.deleteFeedback(...a);
 
-// Pure rating rule that takes the category ratings as an argument: the same on both sides (moves to domain/ later)
-export { categoryAverage } from '../feedbackService.js';
+// Pure rating rule that takes the category ratings as an argument: the same on both sides (domain/feedback.js)
+export { categoryAverage } from '../../domain/feedback.js';

@@ -11,7 +11,11 @@ import { adminAccountRoutes, authRoutes, customerAccountRoutes } from './modules
 import { calendarAdminRoutes, calendarRoutes } from './modules/calendar/calendar.routes.js';
 import { catalogAdminRoutes, catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { changesRoutes } from './modules/changes/changes.routes.js';
+import { customerAdminRoutes } from './modules/customers/customers.routes.js';
+import { feedbackAdminRoutes, feedbackPublishedRoutes, feedbackRoutes } from './modules/feedback/feedback.routes.js';
+import { inventoryAdminRoutes } from './modules/inventory/inventory.routes.js';
 import { threadAdminRoutes, threadRoutes } from './modules/messages/messages.routes.js';
+import { outsourceAdminRoutes } from './modules/outsource/outsource.routes.js';
 import { paymongoWebhook } from './modules/payments/paymongo.webhook.js';
 import {
   balanceAdminRoutes,
@@ -21,6 +25,7 @@ import {
   refundAdminRoutes,
   refundRoutes
 } from './modules/payments/payments.routes.js';
+import { reportAdminRoutes } from './modules/reports/reports.routes.js';
 import { rentalRoutes, reservationAdminRoutes, reservationRoutes } from './modules/reservations/reservations.routes.js';
 
 /**
@@ -33,9 +38,12 @@ import { rentalRoutes, reservationAdminRoutes, reservationRoutes } from './modul
  *    a token) for everything else under /api, then the change stamp, moved after every write that
  *    succeeds (Phase 7).
  * 4. Routes, each behind its guard (docs §7.2): /api/auth (no token, strict limit on every route),
- *    /api/me, /api/reservations, /api/threads, /api/payments and /api/refunds (customers only),
- *    /api/rentals and /api/changes (any signed-in user), the public catalogue reads (Phase 4) and calendar
- *    reads (Phase 5), and /api/admin/* behind ONE router-level guard.
+ *    the public list of published reviews (/api/feedback/published, Phase 9, before the customer guard
+ *    of /api/feedback), /api/me, /api/reservations, /api/threads, /api/payments, /api/refunds and
+ *    /api/feedback (customers only), /api/rentals and /api/changes (any signed-in user), the public
+ *    catalogue reads (Phase 4) and calendar reads (Phase 5), and /api/admin/* behind ONE router-level guard
+ *    (the inventory and outsourcing of Phase 10 and the dashboard and reports of Phase 11 are admin-only,
+ *    so they live there).
  * 5. The 404 and error handlers last, so every failure leaves in the same { code, message, meta } shape.
  */
 export function createApp() {
@@ -85,6 +93,12 @@ export function createApp() {
   app.use('/api/payments', requireAuth, requireRole('customer'), paymentRoutes);
   app.use('/api/refunds', requireAuth, requireRole('customer'), refundRoutes);
 
+  // Reviews (Phase 9). The website's published reviews are public (no token), so their router comes
+  // first: the customer guard below would otherwise answer 401 to every visitor of the homepage.
+  app.use('/api/feedback/published', feedbackPublishedRoutes);
+  // The signed-in customer's own reviews: list, and review a completed event
+  app.use('/api/feedback', requireAuth, requireRole('customer'), feedbackRoutes);
+
   // Rental stock on a date: the customer's rental form and the admin's rental edit dialog both read it,
   // so any signed-in user (the route honours excludeRef for an admin only)
   app.use('/api/rentals', requireAuth, rentalRoutes);
@@ -118,6 +132,16 @@ export function createApp() {
   admin.use('/refunds', refundAdminRoutes);
   // Chat: every customer's conversation (Phase 7)
   admin.use('/threads', threadAdminRoutes);
+  // Customers: the directory, one customer with their bookings, contact corrections (Phase 9)
+  admin.use('/customers', customerAdminRoutes);
+  // Reviews: every review and the admin's moderation (Phase 9)
+  admin.use('/feedback', feedbackAdminRoutes);
+  // Equipment inventory: items, stock movements, archiving, a rental's check-out and return (Phase 10)
+  admin.use('/inventory', inventoryAdminRoutes);
+  // Outsourcing: partners, contracts, sending a contract by email and SMS, its status (Phase 10)
+  admin.use('/outsource', outsourceAdminRoutes);
+  // Dashboard and Reports: the dashboard summary, the figures for a range, the saved reports (Phase 11)
+  admin.use('/reports', reportAdminRoutes);
   app.use('/api/admin', admin);
 
   app.use(notFound);

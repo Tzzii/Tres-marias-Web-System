@@ -1,9 +1,34 @@
-import { OUTSOURCE_SERVICES, isRental } from './config.js';
+import { isRental } from './config.js';
 import { ApiError, clone, latency, nextId, read, uid, write } from './store.js';
-import { NEXT_STATUS, NO_EVENT, channelsOf } from '../domain/outsource.js';
+import {
+  DRAFTED_TEXT,
+  EDITED_TEXT,
+  NO_EVENT,
+  PARTNER_ADDED_TEXT,
+  archiveText,
+  contractAmount,
+  contractDeliveries,
+  contractItems,
+  contractProblem,
+  contractRef,
+  contractView,
+  outsourceActivity,
+  partnerArchiveProblem,
+  partnerEditText,
+  partnerFields,
+  partnerOrder,
+  partnerProblem,
+  partnerStats,
+  partnerView,
+  sendProblem,
+  sentActivityText,
+  sentText,
+  statusChanges,
+  statusProblem,
+  statusText
+} from '../domain/outsource.js';
 import { todayISO } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
-import { EMAIL_RE } from '../utils/validation.js';
 
 /**
  * Outsourcing (admin): the partners Tres Marias rents from when its own stock runs short,
@@ -17,9 +42,11 @@ import { EMAIL_RE } from '../utils/validation.js';
  * Contract statuses: draft -> sent -> accepted or declined; accepted -> completed.
  * Cancelled is the exit from draft, sent or accepted.
  *
- * The rules that need no stored data (NO_EVENT, the statuses and NEXT_STATUS, channelsOf,
- * composeContractText) live in domain/outsource.js, shared with the seed and the API server.
- * The public ones are re-exported below, so code that imports them from this file keeps working.
+ * The rules that need no stored data (NO_EVENT, the statuses and NEXT_STATUS, channelsOf, what a partner,
+ * a contract, a send and a status change need, the history lines, the views, composeContractText) live in
+ * domain/outsource.js, shared with the seed and the API server (apps/api/src/modules/outsource), so both
+ * give the same answers and errors. The public ones are re-exported below, so code that imports them from
+ * this file keeps working. The browser store sends nothing anywhere: a send only records its deliveries.
  */
 
 export { CONTRACT_STATUSES, NO_EVENT, channelsOf, composeContractText } from '../domain/outsource.js';
@@ -34,15 +61,20 @@ const ADMIN_NAME = () => {
   }
 };
 
-// Add an entry to a contract's history. When the contract is for a reservation, the same line also
-// goes in that reservation's audit trail, e.g. "Outsourcing / Batangas Party Rentals: Sent the contract."
-const log = (data, contract, text) => {
+// A refusal from domain/outsource.js as the error the pages already handle
+const toError = ({ code, message, meta }) => new ApiError(code, message, meta);
+
+// Add an entry to a contract's history. When the contract is for a reservation, the same line also goes
+// in that reservation's audit trail, e.g. "Outsourcing · Batangas Party Rentals: Sent the contract by
+// email and SMS." (`activityText`, when given, is the line the audit trail gets instead: the customer
+// sees that trail, so a send names the channels there, never the partner's email or mobile number.)
+const log = (data, contract, text, activityText = text) => {
   const actor = ADMIN_NAME();
   contract.history.push({ at: Date.now(), actor, text });
   if (contract.reservationRef && contract.reservationRef !== NO_EVENT) {
     const reservation = data.reservations.find((r) => r.ref === contract.reservationRef);
     const partner = data.outsourcing.partners.find((p) => p.id === contract.partnerId);
-    if (reservation) reservation.activity.push({ at: Date.now(), actor, text: `Outsourcing · ${partner ? partner.name : contract.ref}: ${text}` });
+    if (reservation) reservation.activity.push({ at: Date.now(), actor, text: outsourceActivity(partner ? partner.name : contract.ref, activityText) });
   }
 };
 
@@ -58,37 +90,15 @@ const findContract = (data, id) => {
   return contract;
 };
 
-/** Partner plus how it can be reached and how its contracts are going. */
-function enrichPartner(partner, data) {
-  const contracts = data.outsourcing.contracts.filter((c) => c.partnerId === partner.id);
-  const sent = contracts.filter((c) => c.sentAt);
-  return {
-    ...clone(partner),
-    channels: channelsOf(partner),
-    contractCount: contracts.length,
-    openCount: contracts.filter((c) => c.status === 'sent').length,
-    lastSentAt: sent.length ? Math.max(...sent.map((c) => c.sentAt)) : null
-  };
-}
+/** Partner plus how it can be reached and how its contracts are going (partnerView in domain/outsource.js). */
+const enrichPartner = (partner, data) => partnerView(clone(partner), partnerStats(data.outsourcing.contracts.filter((c) => c.partnerId === partner.id)));
 
-/** Contract plus its partner, its event and a one-line summary of the items. */
+/** Contract plus its partner, its event and a one-line summary of the items (contractView in domain/outsource.js). */
 function enrichContract(contract, data) {
-  const partner = data.outsourcing.partners.find((p) => p.id === contract.partnerId);
+  const partner = data.outsourcing.partners.find((p) => p.id === contract.partnerId) || null;
   const reservation =
-    contract.reservationRef && contract.reservationRef !== NO_EVENT ? data.reservations.find((r) => r.ref === contract.reservationRef) : null;
-  return {
-    ...clone(contract),
-    partnerName: partner ? partner.name : 'Removed partner',
-    contactPerson: partner ? partner.contactPerson : '',
-    service: partner ? partner.service : '',
-    partnerEmail: partner ? partner.email : '',
-    partnerMobile: partner ? partner.mobile : '',
-    channels: partner ? channelsOf(partner) : [],
-    eventName: reservation ? reservation.eventName : '',
-    eventDate: reservation ? reservation.date : '',
-    eventVenue: reservation ? `${reservation.venue.name}, ${reservation.venue.city}` : '',
-    itemsSummary: contract.items.map((i) => `${i.name} × ${i.qty}`).join(', ')
-  };
+    contract.reservationRef && contract.reservationRef !== NO_EVENT ? data.reservations.find((r) => r.ref === contract.reservationRef) || null : null;
+  return contractView(clone(contract), partner, reservation);
 }
 
 /** All partners (archived ones only when asked), sorted by service order, then name. */
@@ -98,7 +108,7 @@ export async function listPartners({ includeArchived = false } = {}) {
   return data.outsourcing.partners
     .filter((partner) => includeArchived || !partner.archived)
     .map((partner) => enrichPartner(partner, data))
-    .sort((a, b) => OUTSOURCE_SERVICES.indexOf(a.service) - OUTSOURCE_SERVICES.indexOf(b.service) || a.name.localeCompare(b.name));
+    .sort(partnerOrder);
 }
 
 /** All contracts, newest first. */
@@ -120,44 +130,24 @@ export async function listOutsourceEvents() {
     .map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, guests: r.guests, rental: isRental(r.serviceType), venue: `${r.venue.name}, ${r.venue.city}` }));
 }
 
-// Check a partner's details. A partner with neither an email nor a mobile number could not be
-// reached at all, so one of the two is required; whichever is filled in must be well formed.
-function validatePartner(data, values, id) {
-  const name = (values.name || '').trim();
-  if (name.length < 2) throw new ApiError('INVALID', 'Enter the partner name.', { field: 'name' });
-  if (data.outsourcing.partners.some((p) => p.id !== id && p.name.toLowerCase() === name.toLowerCase())) {
-    throw new ApiError('NAME_TAKEN', `"${name}" is already a partner.`, { field: 'name' });
-  }
-  if (!OUTSOURCE_SERVICES.includes(values.service)) throw new ApiError('INVALID', 'Choose what they supply.', { field: 'service' });
-  const email = (values.email || '').trim().toLowerCase();
-  const mobile = (values.mobile || '').replace(/[\s-]/g, '');
-  if (!email && !mobile) throw new ApiError('INVALID', 'Give an email address or a mobile number so contracts can reach them.', { field: 'email' });
-  if (email && !EMAIL_RE.test(email)) throw new ApiError('INVALID', 'Enter a valid email address.', { field: 'email' });
-  if (mobile && !/^(09\d{9}|\+639\d{9})$/.test(mobile)) throw new ApiError('INVALID', 'Enter a valid mobile number, e.g. 0917 123 4567.', { field: 'mobile' });
-  return { name, email, mobile };
-}
-
-/** Add a partner, or save changes to one: pass `id` to edit, or null to add. */
+/**
+ * Add a partner, or save changes to one: pass `id` to edit, or null to add. A partner with neither an
+ * email nor a mobile number could not be reached at all, so one of the two is required (partnerProblem).
+ */
 export async function savePartner(id, values) {
   await latency(300, 550);
   return write((data) => {
-    const { name, email, mobile } = validatePartner(data, values, id);
-    const fields = {
-      name,
-      service: values.service,
-      contactPerson: (values.contactPerson || '').trim(),
-      email,
-      mobile,
-      address: (values.address || '').trim(),
-      notes: (values.notes || '').trim()
-    };
+    const names = data.outsourcing.partners.filter((p) => p.id !== id).map((p) => p.name);
+    const problem = partnerProblem(values, { names });
+    if (problem) throw toError(problem);
+    const fields = partnerFields(values);
 
     if (!id) {
       const partner = {
         id: uid('op'),
         ...fields,
         archived: false,
-        history: [{ at: Date.now(), actor: ADMIN_NAME(), text: 'Added as an outsourcing partner.' }]
+        history: [{ at: Date.now(), actor: ADMIN_NAME(), text: PARTNER_ADDED_TEXT }]
       };
       data.outsourcing.partners.push(partner);
       return enrichPartner(partner, data);
@@ -165,9 +155,9 @@ export async function savePartner(id, values) {
 
     // Describe what changed for the history
     const partner = findPartner(data, id);
-    const edits = Object.keys(fields).filter((key) => partner[key] !== fields[key]);
+    const text = partnerEditText(partner, fields);
     Object.assign(partner, fields);
-    if (edits.length) partner.history.push({ at: Date.now(), actor: ADMIN_NAME(), text: `Changed ${edits.join(', ')}.` });
+    if (text) partner.history.push({ at: Date.now(), actor: ADMIN_NAME(), text });
     return enrichPartner(partner, data);
   });
 }
@@ -177,54 +167,34 @@ export async function setPartnerArchived(ids, archived) {
   await latency(250, 450);
   return write((data) => {
     const partners = ids.map((id) => findPartner(data, id));
-    const busy = archived ? partners.filter((p) => data.outsourcing.contracts.some((c) => c.partnerId === p.id && c.status === 'sent')) : [];
-    if (busy.length) throw new ApiError('IN_USE', `Close their open contracts first: ${busy.map((p) => p.name).join(', ')}.`);
+    const open = (partnerId) => data.outsourcing.contracts.some((c) => c.partnerId === partnerId && c.status === 'sent');
+    const problem = partnerArchiveProblem(partners, archived, open);
+    if (problem) throw toError(problem);
     partners.forEach((partner) => {
       if (partner.archived === archived) return;
       partner.archived = archived;
-      partner.history.push({ at: Date.now(), actor: ADMIN_NAME(), text: archived ? 'Archived.' : 'Restored from the archive.' });
+      partner.history.push({ at: Date.now(), actor: ADMIN_NAME(), text: archiveText(archived) });
     });
     return { count: partners.length };
   });
 }
 
-// Check a contract's partner, items, date and amount. Rows with neither a name nor a quantity are
-// dropped first, so a blank last row in the dialog is not an error.
-function validateContract(data, values, contract) {
-  const partner = findPartner(data, values.partnerId);
-  if (partner.archived) throw new ApiError('INVALID', 'That partner is archived. Restore them first.', { field: 'partnerId' });
-  const items = (values.items || [])
-    .map((item) => ({ name: (item.name || '').trim(), qty: Number(item.qty) }))
-    .filter((item) => item.name || item.qty);
-  if (!items.length) throw new ApiError('INVALID', 'List at least one item.', { field: 'items' });
-  const bad = items.findIndex((item) => !item.name || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > 100000);
-  if (bad >= 0) throw new ApiError('INVALID', 'Each item needs a name and a quantity of 1 or more.', { field: 'items', row: bad });
-  if (!values.needBy) throw new ApiError('INVALID', 'Choose the date the items are needed.', { field: 'needBy' });
-  // A contract that is still a draft has to be needed today or later; one already sent keeps its date
-  if (!contract || contract.status === 'draft') {
-    if (values.needBy < todayISO()) throw new ApiError('INVALID', 'The date needed is in the past.', { field: 'needBy' });
-  }
-  const ref = values.reservationRef && values.reservationRef !== NO_EVENT ? values.reservationRef : NO_EVENT;
-  if (ref !== NO_EVENT) {
-    const reservation = data.reservations.find((r) => r.ref === ref);
-    if (!reservation || !HOLDS_DATE.includes(reservation.status)) throw new ApiError('INVALID', 'Choose an approved or confirmed reservation.', { field: 'reservationRef' });
-  }
-  const amount = Number(values.amount || 0);
-  if (!(amount >= 0) || amount > 10000000) throw new ApiError('INVALID', 'Enter the agreed amount in pesos.', { field: 'amount' });
-  return { items, ref, amount };
-}
-
 /**
  * Save a contract as a draft: pass `id` to change an existing draft, or null for a new one.
  * Only drafts can be edited; once sent, a contract's terms are what the partner received.
+ * The partner, items, date, event and amount are checked by contractProblem (domain/outsource.js).
  */
 export async function saveContract(id, values) {
   await latency(320, 600);
   return write((data) => {
     const existing = id ? findContract(data, id) : null;
     if (existing && existing.status !== 'draft') throw new ApiError('LOCKED', 'This contract has been sent and can no longer be edited.');
-    const { items, ref, amount } = validateContract(data, values, existing);
-    const fields = { partnerId: values.partnerId, reservationRef: ref, items, needBy: values.needBy, amount, notes: (values.notes || '').trim() };
+    const partner = data.outsourcing.partners.find((p) => p.id === values.partnerId) || null;
+    const ref = contractRef(values);
+    const reservation = ref === NO_EVENT ? null : data.reservations.find((r) => r.ref === ref);
+    const problem = contractProblem(values, { partner, refStatus: reservation ? reservation.status : null, today: todayISO() });
+    if (problem) throw toError(problem);
+    const fields = { partnerId: values.partnerId, reservationRef: ref, items: contractItems(values.items), needBy: values.needBy, amount: contractAmount(values), notes: (values.notes || '').trim() };
 
     if (!existing) {
       const contract = {
@@ -241,12 +211,12 @@ export async function saveContract(id, values) {
         history: []
       };
       data.outsourcing.contracts.push(contract);
-      log(data, contract, 'Drafted the contract.');
+      log(data, contract, DRAFTED_TEXT);
       return enrichContract(contract, data);
     }
 
     Object.assign(existing, fields);
-    log(data, existing, 'Edited the draft.');
+    log(data, existing, EDITED_TEXT);
     return enrichContract(existing, data);
   });
 }
@@ -256,29 +226,27 @@ export async function saveContract(id, values) {
  *
  * The same `body` goes to every channel the partner has: an email when they have an email address,
  * an SMS when they have a mobile number, both when they have both. A partner reachable only by SMS
- * therefore gets exactly the wording an emailed partner gets.
+ * therefore gets exactly the wording an emailed partner gets. An archived partner is sent nothing.
+ * The browser store only records the deliveries (nothing leaves the browser), so `deliveryNote`, which
+ * the API version fills in when a channel did not really go out, is always ''.
  */
 export async function sendContract(id, { body } = {}) {
   await latency(500, 900);
   return write((data) => {
     const contract = findContract(data, id);
-    if (!['draft', 'sent'].includes(contract.status)) throw new ApiError('LOCKED', 'Only a draft or an unanswered contract can be sent.');
-    const partner = findPartner(data, contract.partnerId);
-    const channels = channelsOf(partner);
-    if (!channels.length) throw new ApiError('NO_CHANNEL', `${partner.name} has no email address or mobile number. Add one first.`, { field: 'partner' });
+    const partner = data.outsourcing.partners.find((p) => p.id === contract.partnerId) || null;
     const text = (body || '').trim();
-    if (text.length < 20) throw new ApiError('INVALID', 'The contract text is too short to send.', { field: 'body' });
+    const problem = sendProblem(contract, partner, text);
+    if (problem) throw toError(problem);
 
-    const at = Date.now();
     // One delivery per channel, every one of them carrying the identical text
-    const deliveries = channels.map((channel) => ({ channel, to: channel === 'email' ? partner.email : partner.mobile, at, body: text }));
+    const deliveries = contractDeliveries(partner, text, Date.now());
     contract.body = text;
     contract.deliveries = [...contract.deliveries, ...deliveries];
     contract.status = 'sent';
-    contract.sentAt = at;
-    const where = deliveries.map((d) => `${d.channel === 'email' ? 'email' : 'SMS'} (${d.to})`).join(' and ');
-    log(data, contract, `Sent the contract by ${where}.`);
-    return enrichContract(contract, data);
+    contract.sentAt = deliveries[0].at;
+    log(data, contract, sentText(deliveries), sentActivityText(deliveries));
+    return { ...enrichContract(contract, data), deliveryNote: '' };
   });
 }
 
@@ -292,20 +260,11 @@ export async function setContractStatus(id, status, { note = '' } = {}) {
   await latency(300, 550);
   return write((data) => {
     const contract = findContract(data, id);
-    if (!NEXT_STATUS[contract.status].includes(status)) throw new ApiError('INVALID', `A ${contract.status} contract cannot be marked ${status}.`);
     const reason = note.trim();
-    if (['declined', 'cancelled'].includes(status) && reason.length < 5) throw new ApiError('INVALID', 'Give a short reason.', { field: 'note' });
-
-    contract.status = status;
-    if (status !== 'completed' || reason) contract.answerNote = reason;
-    if (['accepted', 'declined'].includes(status)) contract.answeredAt = Date.now();
-    const labels = {
-      accepted: 'Partner accepted the contract.',
-      declined: 'Partner declined the contract.',
-      completed: 'Marked delivered and completed.',
-      cancelled: 'Cancelled the contract.'
-    };
-    log(data, contract, `${labels[status]}${reason ? ` Reason: ${reason}` : ''}`);
+    const problem = statusProblem(contract, status, reason);
+    if (problem) throw toError(problem);
+    Object.assign(contract, statusChanges(status, reason, Date.now()));
+    log(data, contract, statusText(status, reason));
     return enrichContract(contract, data);
   });
 }

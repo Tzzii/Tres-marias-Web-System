@@ -314,7 +314,7 @@ CREATE TABLE payments (
   UNIQUE KEY uq_payments_receipt_no (receipt_no),
   KEY idx_payments_ref (ref),
   KEY idx_payments_customer (customer_id),
-  KEY idx_payments_status_verified (status, verified_at), -- badge counts and revenue by verification date (Phase 11)
+  KEY idx_payments_status_verified (status, verified_at), -- by status and verification date; the Phase 11 reports read every payment instead (domain/reports.js)
   CONSTRAINT fk_payments_reservation FOREIGN KEY (ref) REFERENCES reservations (ref),
   CONSTRAINT fk_payments_customer FOREIGN KEY (customer_id) REFERENCES customers (id),
   CONSTRAINT fk_payments_verified_by FOREIGN KEY (verified_by) REFERENCES admins (id),
@@ -346,7 +346,7 @@ CREATE TABLE refunds (
   PRIMARY KEY (id),
   KEY idx_refunds_ref (ref),
   KEY idx_refunds_customer (customer_id),
-  KEY idx_refunds_sent_on (sent_on),                    -- refunds by month (Phase 11)
+  KEY idx_refunds_sent_on (sent_on),                    -- by the day sent; the Phase 11 reports read every refund instead (domain/reports.js)
   CONSTRAINT fk_refunds_reservation FOREIGN KEY (ref) REFERENCES reservations (ref),
   CONSTRAINT fk_refunds_customer FOREIGN KEY (customer_id) REFERENCES customers (id),
   CONSTRAINT fk_refunds_recorded_by FOREIGN KEY (recorded_by) REFERENCES admins (id),
