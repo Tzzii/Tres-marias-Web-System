@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import ButtonBase from '@mui/material/ButtonBase';
 import Container from '@mui/material/Container';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
@@ -15,16 +16,19 @@ import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import LocalBarOutlinedIcon from '@mui/icons-material/LocalBarOutlined';
+import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import { BUSINESS, RULES, cancelWindowText, catalogApi, feedbackApi, isRentalPackage, peso, tokens, useDocumentTitle, useResource } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import BookingBar from '../../components/BookingBar.jsx';
+import GalleryDialog from '../../components/GalleryDialog.jsx';
 import { PackageCard, SectionHead } from '../../components/Marketing.jsx';
 import SiteFooter from '../../components/SiteFooter.jsx';
 import SiteNav from '../../components/SiteNav.jsx';
 import MobileAuthBar from '../../components/MobileAuthBar.jsx';
 import { Reveal, reducedMotionSx, useInView } from '../../components/Reveal.jsx';
+import { GALLERY, photoCount } from '../../lib/gallery.js';
 import { site } from '../../theme/siteTheme.js';
 
 // Hero line fade-up: hidden and lowered until the hero is on screen, then eased in `delay` ms later.
@@ -78,15 +82,16 @@ const faqList = (minimum) => [
   ['How many guests can you serve?', `Each package lists how many guests its tableware and chairs cover. If you have more guests than that, you can still book it and we add the extra charges to your quotation, from ${RULES.minGuests} up to ${RULES.maxGuests.toLocaleString('en-PH')} guests.`]
 ];
 
-// Gallery tiles as [label, soft light background gradient, icon file name]
-const GALLERY = [
-  ['Wedding', 'linear-gradient(150deg, #fbf3ea 0%, #efdcc9 100%)', 'wedding'],
-  ['Debut', 'linear-gradient(150deg, #f9ecef 0%, #ecd3da 100%)', 'debut'],
-  ['Corporate', 'linear-gradient(150deg, #eef0ea 0%, #d9ded2 100%)', 'corporate'],
-  ['Anniversary', 'linear-gradient(150deg, #f8eedd 0%, #e9d3ae 100%)', 'anniversary'],
-  ['Christenings', 'linear-gradient(150deg, #edf2f1 0%, #d5e2df 100%)', 'christening'],
-  ['Birthdays', 'linear-gradient(150deg, #f6eee6 0%, #e6d6c6 100%)', 'birthday']
-];
+// Soft light background of each gallery box (keyed by event folder), seen while its cover photo loads.
+// The boxes themselves and their photos come from lib/gallery.js.
+const GALLERY_WASH = {
+  wedding: 'linear-gradient(150deg, #fbf3ea 0%, #efdcc9 100%)',
+  debut: 'linear-gradient(150deg, #f9ecef 0%, #ecd3da 100%)',
+  corporate: 'linear-gradient(150deg, #eef0ea 0%, #d9ded2 100%)',
+  anniversary: 'linear-gradient(150deg, #f8eedd 0%, #e9d3ae 100%)',
+  christening: 'linear-gradient(150deg, #edf2f1 0%, #d5e2df 100%)',
+  birthday: 'linear-gradient(150deg, #f6eee6 0%, #e6d6c6 100%)'
+};
 
 // Smooth-scroll to the element with this id
 const scrollToId = (id) => {
@@ -118,6 +123,51 @@ export default function HomePage() {
     const timer = setTimeout(() => scrollToId(location.hash.slice(1)), 120);
     return () => clearTimeout(timer);
   }, [location.hash, packages.loading]);
+
+  // The gallery pop-up is part of the browser history. Opening it, and opening a photo from its grid, each
+  // add a step with the same address (router state), so the phone's Back button first leaves the photo, then
+  // closes the pop-up, instead of leaving the page. The state is { key, photo, depth }: the event's folder,
+  // the index of the photo shown large (none for the grid) and how many steps the pop-up has added (1 or 2).
+  const gallery = (location.state && location.state.gallery) || null;
+  const galleryEvent = gallery ? GALLERY.find((event) => event.key === gallery.key) || null : null;
+  // True while a step back is on its way, so a second click (e.g. a double-click on X) can't step back off the page
+  const steppingBack = useRef(false);
+  useEffect(() => {
+    steppingBack.current = false;
+  }, [location.key]);
+  // Puts a gallery state in the history: as a new step, or in place of the current one (`replace`).
+  // The address (and its #section) stays the same, so the page does not scroll.
+  const setGallery = (next, replace = false) => {
+    navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace, state: { ...location.state, gallery: next } });
+  };
+  // Undoes the pop-up's own steps (once, however many times it is asked)
+  const stepBack = (steps) => {
+    if (steppingBack.current) return;
+    steppingBack.current = true;
+    navigate(-steps);
+  };
+  // A gallery box opens its grid, or its only photo straight away
+  const openGallery = (event) => {
+    if (gallery) return;
+    setGallery(event.photos.length === 1 ? { key: event.key, photo: 0, depth: 1 } : { key: event.key, depth: 1 });
+  };
+  // A grid photo opens large as a new step; previous / next replace it, so Back returns straight to the grid
+  const showPhoto = (index) => {
+    if (gallery) setGallery({ key: gallery.key, photo: index, depth: 2 });
+  };
+  const stepPhoto = (index) => {
+    if (gallery) setGallery({ ...gallery, photo: index }, true);
+  };
+  // From a large photo back to the grid: undo the photo's step (or, if the photo opened first, show the grid in its place)
+  const backToGrid = () => {
+    if (!gallery) return;
+    if (gallery.depth > 1) stepBack(1);
+    else setGallery({ key: gallery.key, depth: 1 }, true);
+  };
+  // Closing undoes every step the pop-up added, landing back on the page where the visitor was
+  const closeGallery = () => {
+    if (gallery) stepBack(gallery.depth > 1 ? 2 : 1);
+  };
 
   // Only reviews the admin published on the Feedbacks page reach the website
   const reviews = testimonials.data || [];
@@ -222,14 +272,48 @@ export default function HomePage() {
       <Box component="section" id="gallery" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: '80px' }}>
         <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
           <SectionHead eyebrow="Gallery" title="Moments we have served" description="A glimpse of the celebrations our team has had the honour of catering." />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', lg: 'repeat(3, 1fr)' }, gap: 2 }}>
-            {/* Soft pastel tiles fade up as they come into view; on hover the tile lifts and the icon brightens and grows slightly */}
-            {GALLERY.map(([label, background, icon], i) => (
-              <Reveal key={label} delay={(i % 3) * 100}>
-                <Box sx={{ position: 'relative', height: { xs: 150, md: 200 }, display: 'flex', alignItems: 'flex-end', p: 2.5, borderRadius: 3, overflow: 'hidden', background, border: `1px solid ${site.border}`, transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease', '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover }, '&:hover img': { opacity: 1, transform: 'scale(1.08)' } }}>
-                  <Box component="img" src={`/images/icons/${icon}.svg`} alt="" sx={{ position: 'absolute', top: 16, right: 16, width: { xs: 40, md: 56 }, opacity: 0.8, transition: 'opacity 0.35s ease, transform 0.35s ease' }} />
-                  <Typography sx={{ position: 'relative', fontFamily: site.fontSerif, fontSize: { xs: 16, md: 20 }, fontWeight: 600, color: site.ink }}>{label}</Typography>
-                </Box>
+          {/* One box per event that has photos (lib/gallery.js): two per row, three on wide screens, and a short
+              last row is centred. Each box fades up as it comes into view and shows the event's cover photo (its
+              first) over the soft colour; on hover it lifts and the photo zooms in slightly. Clicking it (or
+              Enter / Space) opens the event's photos in the pop-up at the end of the page (GalleryDialog). */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 2 }}>
+            {GALLERY.map((event, i) => (
+              <Reveal key={event.key} delay={(i % 3) * 100} sx={{ width: { xs: 'calc((100% - 16px) / 2)', lg: 'calc((100% - 32px) / 3)' } }}>
+                <ButtonBase
+                  onClick={() => openGallery(event)}
+                  aria-haspopup="dialog"
+                  sx={{
+                    position: 'relative',
+                    display: 'flex',
+                    width: '100%',
+                    height: { xs: 150, md: 200 },
+                    alignItems: 'flex-end',
+                    justifyContent: 'flex-start',
+                    p: 2.5,
+                    textAlign: 'left',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    background: GALLERY_WASH[event.key],
+                    border: `1px solid ${site.border}`,
+                    transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease',
+                    '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover },
+                    '&:hover .tm-gallery-cover': { transform: 'scale(1.06)' },
+                    '&.Mui-focusVisible': { outline: `2px solid ${site.gold}`, outlineOffset: 3 }
+                  }}
+                >
+                  <Box component="img" className="tm-gallery-cover" src={event.photos[0].thumb} alt="" loading="lazy" decoding="async" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease' }} />
+                  {/* Darkens the bottom of the photo so the white name stays readable */}
+                  <Box component="span" sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(23, 19, 17, 0) 38%, rgba(23, 19, 17, 0.74) 100%)' }} />
+                  <Box component="span" sx={{ position: 'relative', display: 'block' }}>
+                    <Typography component="span" sx={{ display: 'block', fontFamily: site.fontSerif, fontSize: { xs: 16, md: 20 }, fontWeight: 600, lineHeight: 1.25, color: '#fff' }}>
+                      {event.label}
+                    </Typography>
+                    <Typography component="span" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.75, fontSize: { xs: 12, md: 13 }, color: 'rgba(255, 255, 255, 0.85)' }}>
+                      <PhotoLibraryOutlinedIcon sx={{ fontSize: 15 }} />
+                      {photoCount(event.photos.length)}
+                    </Typography>
+                  </Box>
+                </ButtonBase>
               </Reveal>
             ))}
           </Box>
@@ -354,6 +438,9 @@ export default function HomePage() {
 
       <SiteFooter bottomSpace={!user} />
       <MobileAuthBar />
+
+      {/* Pop-up with the photos of the gallery box that was opened (see the gallery state above) */}
+      <GalleryDialog event={galleryEvent} photo={gallery ? gallery.photo : null} onShowPhoto={showPhoto} onStep={stepPhoto} onBack={backToGrid} onClose={closeGallery} />
     </Box>
   );
 }
