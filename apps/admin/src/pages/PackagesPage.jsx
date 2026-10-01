@@ -4,11 +4,13 @@ import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import {
   AlertBanner,
   AppDialog,
@@ -24,14 +26,19 @@ import {
   ListSkeleton,
   PageHeader,
   DISH_CATEGORIES,
+  MAX_ADDON_SIZES,
+  PACKAGE_INCLUDES_MAX,
   PRICE_PER_PLATE_RANGE,
   Pill,
   RULES,
   SelectField,
   catalogApi,
   formatPackageItem,
+  inventoryApi,
   isRentalPackage,
   peso,
+  readAddonPrice,
+  readAddonSizes,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -61,22 +68,27 @@ const parseItems = (text) =>
 
 /**
  * 1u · Catalogue manager. What customers see on the public site and the reservation form.
- * A package is a flat price for equipment and service (never food), covering a number of guests.
- * Additional charges are extras customers can tick; the admin prices them in each quotation.
+ * A package is a flat price for equipment and service (never food), with a default guest count.
+ * The default only helps customers pick a package; the booking follows the customer's own guest count.
+ * Additional charges are extras customers can tick, at their own price or priced in each quotation; the
+ * charges with packages (Sounds and lights, Photographer and videographer) are listed under them, and
+ * customers pick one package of each.
  * Dishes are what a buffet menu is built from, one per category, and the buffet price per person
  * is set here too, because every buffet is charged the same way.
  */
 export default function PackagesPage() {
   useDocumentTitle('Packages', 'Tres Marias Admin');
   const notify = useNotify();
-  // Load packages and additional charges, including hidden and archived ones
+  // Load packages and additional charges, including hidden and archived ones, and the inventory items
+  // an additional charge or size can take from (its Inventory item)
   const { data, loading, error, reload } = useResource(async () => {
-    const [packages, addons, dishes] = await Promise.all([
+    const [packages, addons, dishes, inventory] = await Promise.all([
       catalogApi.listPackages({ includeHidden: true, includeArchived: true }),
       catalogApi.listAddons({ includeArchived: true }),
-      catalogApi.listDishes({ includeArchived: true })
+      catalogApi.listDishes({ includeArchived: true }),
+      inventoryApi.listInventory()
     ]);
-    return { packages, addons, dishes, pricePerPlate: catalogApi.pricePerPlate() };
+    return { packages, addons, dishes, inventory, pricePerPlate: catalogApi.pricePerPlate() };
   }, []);
 
   const [tab, setTab] = useState('packages'); // packages / addons / dishes / archived
@@ -84,11 +96,24 @@ export default function PackagesPage() {
   const [addonDialog, setAddonDialog] = useState(null); // additional charge being edited ({} = new)
   const [dishDialog, setDishDialog] = useState(null); // dish being edited ({} = new)
   const [archive, setArchive] = useState(null); // item waiting for archive confirmation
+  const [remove, setRemove] = useState(null); // additional charge or dish waiting for delete confirmation: { type, item }
 
   // Active (not archived) items for each tab
   const packages = data ? data.packages.filter((p) => !p.archived) : [];
   const addons = data ? data.addons.filter((a) => !a.archived) : [];
   const dishes = data ? data.dishes.filter((d) => !d.archived) : [];
+  // The Additional charges tab's two lists: the charges customers tick, and the charges with packages
+  const plainAddons = addons.filter((a) => !a.hasPackages);
+  const packageAddons = addons.filter((a) => a.hasPackages);
+  // The columns of both lists
+  const addonColumns = [
+    { key: 'name', label: 'Additional charge', render: (a) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{a.description}</Typography></Box>) },
+    // Its own price (of one, when counted by the piece), or "Set in quotation" when it has none; a charge
+    // with sizes lists each size with its price of one, and a charge with packages each package with its price
+    { key: 'price', label: 'Price', align: 'right', render: (a) => (a.sizes && a.sizes.length ? <Box>{a.sizes.map((s) => <AddonPrice key={s.id} label={s.size} price={s.price} each={!a.hasPackages} />)}</Box> : <AddonPrice price={a.price} each={a.hasQuantity} />) },
+    // Archive hides it (and can be undone); Delete removes it for good, so only Delete is red
+    { key: 'actions', label: '', align: 'right', render: (a) => (<Box sx={{ whiteSpace: 'nowrap' }}><Button size="small" onClick={() => setAddonDialog(a)}>Edit</Button><Button size="small" sx={{ color: tokens.textSecondary }} onClick={() => setArchive({ type: 'addon', item: a })}>Archive</Button><Button size="small" color="error" onClick={() => setRemove({ type: 'addon', item: a })}>Delete</Button></Box>) }
+  ];
   // Total archived items across all three types
   const archivedCount = data
     ? data.packages.filter((p) => p.archived).length + data.addons.filter((a) => a.archived).length + data.dishes.filter((d) => d.archived).length
@@ -187,7 +212,7 @@ export default function PackagesPage() {
                       <Pill size="sm" label={p.visible ? 'Visible on site' : 'Hidden'} bg={p.visible ? 'rgba(16,185,129,0.12)' : tokens.surfaceMuted} fg={p.visible ? '#047857' : tokens.textMuted} />
                     </Box>
                     <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                      {isRentalPackage(p) ? 'Priced per piece from the inventory' : `${peso(p.price)} · covers ${p.guests} guests · ${p.items.length} items`}
+                      {isRentalPackage(p) ? 'Priced per piece from the inventory' : `${peso(p.price)} · Default: ${p.guests} guests · ${p.items.length} items`}
                     </Typography>
                   </ButtonBase>
                   {/* Edit and Hide/Show stay together; on a phone they drop under the name, on the right */}
@@ -221,25 +246,40 @@ export default function PackagesPage() {
           </Box>
         </Box>
       ) : tab === 'addons' ? (
-        <DashCard>
-          <CardTitle
-            subtitle="Customers tick these on the reservation form. You set the price for each one in the quotation."
-            action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({})}>New additional charge</Button>}
-          >
-            Additional charges · {addons.length}
-          </CardTitle>
-          <DataTable
-            columns={[
-              { key: 'name', label: 'Additional charge', render: (a) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{a.description}</Typography></Box>) },
-              { key: 'price', label: 'Price', align: 'right', render: () => 'Set in quotation' },
-              { key: 'actions', label: '', align: 'right', render: (a) => (<Box sx={{ whiteSpace: 'nowrap' }}><Button size="small" onClick={() => setAddonDialog(a)}>Edit</Button><Button size="small" color="error" onClick={() => setArchive({ type: 'addon', item: a })}>Archive</Button></Box>) }
-            ]}
-            rows={addons}
-            rowKey={(a) => a.id}
-            minWidth={560}
-            empty={<EmptyState compact title="No additional charges" description="Add extras customers can ask for on the reservation form, such as a tent or stage decoration." />}
-          />
-        </DashCard>
+        // Additional charges tab: the charges customers tick (some in sizes, like the tent), then below them
+        // the charges with packages, where customers pick one package (like Sounds and lights)
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          <DashCard>
+            <CardTitle
+              subtitle="Customers tick these on the reservation form. Give one a price, or leave it without one and set it in each quotation."
+              action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({})}>New additional charge</Button>}
+            >
+              Additional charges · {plainAddons.length}
+            </CardTitle>
+            <DataTable
+              columns={addonColumns}
+              rows={plainAddons}
+              rowKey={(a) => a.id}
+              minWidth={560}
+              empty={<EmptyState compact title="No additional charges" description="Add extras customers can ask for on the reservation form, such as a tent or stage decoration." />}
+            />
+          </DashCard>
+          <DashCard>
+            <CardTitle
+              subtitle="Customers tick one of these and pick one of its packages. Each package has its own price and a list of what it includes."
+              action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({ hasPackages: true })}>New charge with packages</Button>}
+            >
+              Additional charges with packages · {packageAddons.length}
+            </CardTitle>
+            <DataTable
+              columns={addonColumns}
+              rows={packageAddons}
+              rowKey={(a) => a.id}
+              minWidth={560}
+              empty={<EmptyState compact title="No charges with packages" description="Add a charge that comes in packages, such as sounds and lights with a basic and a full setup." />}
+            />
+          </DashCard>
+        </Box>
       ) : tab === 'dishes' ? (
         // Buffet menu tab: the price per person, then the dishes grouped by category
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.6fr' }, gap: 2.5, alignItems: 'start' }}>
@@ -267,7 +307,8 @@ export default function PackagesPage() {
                         <Box key={d.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pl: 1.5, pr: 0.5, py: 0.5, borderRadius: 999, border: `1px solid ${tokens.cardLightBorder}` }}>
                           <Typography sx={{ fontSize: 13.5 }}>{d.name}</Typography>
                           <Button size="small" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setDishDialog(d)}>Edit</Button>
-                          <Button size="small" color="error" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setArchive({ type: 'dish', item: d })}>Archive</Button>
+                          <Button size="small" sx={{ minWidth: 0, px: 0.75, color: tokens.textSecondary }} onClick={() => setArchive({ type: 'dish', item: d })}>Archive</Button>
+                          <Button size="small" color="error" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setRemove({ type: 'dish', item: d })}>Delete</Button>
                         </Box>
                       ))}
                     </Box>
@@ -278,7 +319,8 @@ export default function PackagesPage() {
           </DashCard>
         </Box>
       ) : (
-        // Archived tab: packages, additional charges and dishes in one list, each with a Restore button
+        // Archived tab: packages, additional charges and dishes in one list, each with a Restore button;
+        // additional charges and dishes can also be deleted for good from here
         <DashCard>
           {archivedCount === 0 ? (
             <EmptyState compact title="Nothing archived" description="Archived packages, additional charges and dishes appear here and can be restored." />
@@ -286,7 +328,7 @@ export default function PackagesPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {[
                 ...data.packages.filter((p) => p.archived).map((p) => ({ type: 'package', id: p.id, name: p.name, meta: `Package · ${isRentalPackage(p) ? 'priced per piece' : peso(p.price)}`, restore: () => catalogApi.setPackageArchived(p.id, false) })),
-                ...data.addons.filter((a) => a.archived).map((a) => ({ type: 'addon', id: a.id, name: a.name, meta: 'Additional charge', restore: () => catalogApi.setAddonArchived(a.id, false) })),
+                ...data.addons.filter((a) => a.archived).map((a) => ({ type: 'addon', id: a.id, name: a.name, meta: a.hasPackages ? 'Additional charge with packages' : 'Additional charge', restore: () => catalogApi.setAddonArchived(a.id, false) })),
                 ...data.dishes.filter((d) => d.archived).map((d) => ({ type: 'dish', id: d.id, name: d.name, meta: `Dish · ${(DISH_CATEGORIES.find((c) => c.key === d.category) || {}).label || d.category}`, restore: () => catalogApi.setDishArchived(d.id, false) }))
               ].map((item) => (
                 <Box key={`${item.type}-${item.id}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
@@ -295,6 +337,9 @@ export default function PackagesPage() {
                     <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{item.meta}</Typography>
                   </Box>
                   <Button size="small" variant="outlined" onClick={() => run(item.restore, `${item.name} restored.`)}>Restore</Button>
+                  {item.type !== 'package' && (
+                    <Button size="small" color="error" onClick={() => setRemove({ type: item.type, item: { id: item.id, name: item.name } })}>Delete</Button>
+                  )}
                 </Box>
               ))}
             </Box>
@@ -302,7 +347,7 @@ export default function PackagesPage() {
         </DashCard>
       )}
 
-      <AddonDialog addon={addonDialog} onClose={() => setAddonDialog(null)} onSaved={(isNew) => { setAddonDialog(null); notify(isNew ? 'Additional charge created.' : 'Additional charge saved.'); }} />
+      <AddonDialog addon={addonDialog} inventory={data ? data.inventory : []} onClose={() => setAddonDialog(null)} onSaved={(isNew) => { setAddonDialog(null); notify(isNew ? 'Additional charge created.' : 'Additional charge saved.'); }} />
 
       <DishDialog dish={dishDialog} onClose={() => setDishDialog(null)} onSaved={(isNew) => { setDishDialog(null); notify(isNew ? 'Dish added to the menu.' : 'Dish saved.'); }} />
 
@@ -330,6 +375,28 @@ export default function PackagesPage() {
           notify(`${item.name} archived.`);
         }}
       />
+
+      {/* Delete for good. A charge already on a reservation is refused (IN_USE): the message shows in the
+          window, which stays open, and the admin can archive it instead */}
+      <ConfirmDialog
+        open={Boolean(remove)}
+        onClose={() => setRemove(null)}
+        title={remove ? `Delete ${remove.item.name}?` : ''}
+        description={
+          remove?.type === 'dish'
+            ? 'The dish is removed for good and is no longer suggested on the booking form. Past reservations keep what customers wrote. This cannot be undone.'
+            : 'The additional charge is removed for good, with its sizes or packages and prices; its inventory items stay in the inventory. A charge that is already on a reservation cannot be deleted: archive it instead. This cannot be undone.'
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={async () => {
+          const { type, item } = remove;
+          if (type === 'addon') await catalogApi.deleteAddon(item.id);
+          if (type === 'dish') await catalogApi.deleteDish(item.id);
+          setRemove(null);
+          notify(`${item.name} deleted.`);
+        }}
+      />
     </>
   );
 }
@@ -339,7 +406,7 @@ export default function PackagesPage() {
 const editorField = (field) => (field === 'items' ? 'itemsText' : ['name', 'price', 'guests', 'description', 'itemsText'].includes(field) ? field : null);
 
 /**
- * Form for creating or editing a package: name, price, guests covered, description, what's included, setup styles, visibility.
+ * Form for creating or editing a package: name, price, default guest count, description, what's included, setup styles, visibility.
  * The Equipment Rental package only has a name, description and visibility here: its prices are each
  * rentable item's rent price on the Inventory page.
  */
@@ -419,7 +486,7 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
         {!rental && (
           <>
             <FormField id="p-price" label="Package price" required type="number" value={form.price} onChange={set('price')} error={errors.price} hint="Flat price, food not included" InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} />
-            <FormField id="p-guests" label="Guests covered" required type="number" value={form.guests} onChange={set('guests')} error={errors.guests} hint="How many guests the tableware and chairs cover" />
+            <FormField id="p-guests" label="Default guest count" required type="number" value={form.guests} onChange={set('guests')} error={errors.guests} hint="The guest count this package is set up for; customers book their own count" />
           </>
         )}
         <FormField id="p-desc" label="Description shown on the site" required multiline minRows={2} value={form.description} onChange={set('description')} error={errors.description} sx={{ gridColumn: { sm: '1 / -1' } }} />
@@ -469,56 +536,236 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   );
 }
 
-/** Dialog to create or edit an additional charge (name and description; the price is set in each quotation). */
-function AddonDialog({ addon, onClose, onSaved }) {
-  const [values, setValues] = useState({ name: '', description: '' });
+/**
+ * One price in the Additional charges lists: "₱4,500 each" (`each`: counted by the piece), "₱3,500", or
+ * "Set in quotation" when there is none; `label` names a size or package.
+ */
+function AddonPrice({ label, price, each }) {
+  return (
+    <Typography sx={{ fontSize: 13.5, whiteSpace: 'nowrap', fontWeight: price ? 600 : 400, color: price ? tokens.textPrimary : tokens.textMuted }}>
+      {label && <Box component="span" sx={{ fontWeight: 400, color: tokens.textMuted }}>{label} · </Box>}
+      {price ? `${peso(price)}${each ? ' each' : ''}` : 'Set in quotation'}
+    </Typography>
+  );
+}
+
+/**
+ * Read-only line under a charge or size: the inventory item it takes from and how many the business owns,
+ * e.g. "Inventory: Tent 10x10 · 2 pcs owned", or that it uses none. How many are left depends on the
+ * date, so customers see that on the booking form instead.
+ */
+function InventoryLine({ item, error, sx }) {
+  return (
+    <Box sx={sx}>
+      <Typography sx={{ fontSize: 12.5, color: item ? tokens.textSecondary : tokens.textMuted }}>
+        Inventory:{' '}
+        {item ? (
+          <>
+            <Box component="span" sx={{ fontWeight: 600, color: tokens.textPrimary }}>{item.name}</Box> · {item.total} pcs owned
+          </>
+        ) : (
+          'none'
+        )}
+      </Typography>
+      {error && <Typography sx={{ fontSize: 12, color: tokens.redPress }}>{error}</Typography>}
+    </Box>
+  );
+}
+
+/**
+ * Dialog to create or edit an additional charge: name, description, price, whether it is counted by the
+ * piece, and its sizes. The price is optional: blank means the charge is priced in each quotation.
+ * Sizes are optional too, for a charge that comes in sizes such as a tent (10 × 10, 10 × 20): each size
+ * has its own price of one, and the customer picks the sizes and how many of each, so a charge with
+ * sizes has no price or how-many of its own. A new price applies to bookings made from now on; a
+ * booking already made keeps the price it was made at.
+ * The charge (when it has no sizes) and each size can take from an inventory item (the 10 × 10 size takes
+ * Tent 10x10): an approved booking then holds those pieces on its date, and customers can't book more
+ * than are free. The window only shows the item and how many are owned; the link is made on save from
+ * the names (linkByName: an item named after the charge and size). `inventory` is the item list.
+ * A charge with packages (`addon.hasPackages`, such as Sounds and lights; a new one opens with
+ * { hasPackages: true }) has packages instead of sizes: each has its own price and a "What's included"
+ * list, the customer picks one, and nothing is counted by the piece, so "Ask how many" is not offered.
+ * Until it has a package, the charge is booked on its own at its own price.
+ */
+function AddonDialog({ addon, inventory, onClose, onSaved }) {
+  const [values, setValues] = useState({ name: '', description: '', price: '', inventoryItemId: '', sizes: [] });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
+  // A React key for each size row: its id, or a number for a size not saved yet
+  const nextKey = useRef(0);
+  // A charge with packages (fixed when it is created); its rows are packages, not sizes
+  const packages = Boolean(addon && addon.hasPackages);
+  const noun = packages ? 'package' : 'size';
   // When the dialog opens, fill the form with the additional charge (or blanks for a new one)
   useEffect(() => {
     if (addon) {
-      setValues({ name: addon.name || '', description: addon.description || '', hasQuantity: Boolean(addon.hasQuantity) });
+      setValues({
+        name: addon.name || '',
+        description: addon.description || '',
+        price: addon.price ? String(addon.price) : '',
+        hasQuantity: Boolean(addon.hasQuantity),
+        inventoryItemId: addon.inventoryItemId || '',
+        // A size's or package's own name (`size`), not the full "Tent 10 × 10"; a package also keeps
+        // what it includes (a size's description is its charge's, so it is not copied)
+        sizes: (addon.sizes || []).map((s) => ({ key: s.id, id: s.id, name: s.size, price: s.price ? String(s.price) : '', description: addon.hasPackages ? s.description || '' : '', inventoryItemId: s.inventoryItemId || '' }))
+      });
       setErrors({});
     }
   }, [addon]);
+
+  const sized = values.sizes.length > 0;
+  // The inventory item a charge or size takes from, by id (null when none)
+  const itemOf = (itemId) => (itemId && inventory.find((item) => item.id === itemId)) || null;
+  // Change one size's or package's name, price (digits only) or what it includes; its message clears as the admin types
+  const setSize = (index, field, value) => {
+    setValues((v) => ({ ...v, sizes: v.sizes.map((s, i) => (i === index ? { ...s, [field]: value } : s)) }));
+    setErrors((er) => ({ ...er, [`sizes.${index}.${field}`]: '' }));
+  };
+  const addSize = () => setValues((v) => ({ ...v, sizes: [...v.sizes, { key: `new-${(nextKey.current += 1)}`, id: '', name: '', price: '', description: '', inventoryItemId: '' }] }));
+  // Removing a row shifts the rows below it, so the size messages are cleared rather than left on the wrong row
+  const removeSize = (index) => {
+    setValues((v) => ({ ...v, sizes: v.sizes.filter((_, i) => i !== index) }));
+    setErrors((er) => Object.fromEntries(Object.entries(er).filter(([key]) => !key.startsWith('sizes'))));
+  };
 
   // Validate and save; onSaved(true) means a new additional charge was created
   const save = async () => {
     const e = {};
     if (values.name.trim().length < 3) e.name = 'Enter the name.';
     if (values.description.trim().length < 10) e.description = 'Add a short description.';
+    const own = sized ? { price: null } : readAddonPrice(values.price);
+    if (own.problem) e.price = own.problem;
+    const checked = readAddonSizes(values.sizes, { packages });
+    if (checked.problem) e[checked.field] = checked.problem;
     setErrors(e);
     if (Object.keys(e).length) return;
     setBusy(true);
     try {
-      await catalogApi.saveAddon({ id: addon.id, ...values });
+      await catalogApi.saveAddon({
+        id: addon.id,
+        name: values.name,
+        description: values.description,
+        price: own.price,
+        hasQuantity: sized || packages ? false : values.hasQuantity,
+        hasPackages: packages,
+        inventoryItemId: sized ? null : values.inventoryItemId || null,
+        sizes: checked.sizes
+      });
       onSaved(!addon.id);
     } catch (err) {
-      // Under its input (name or description), or in the banner above the form when it has none (e.g. a network error)
-      const field = err.meta && ['name', 'description'].includes(err.meta.field) ? err.meta.field : null;
-      setErrors(field ? { [field]: err.message } : { form: err.message });
+      // Under its input (name, description, price, inventory item or a size or package), or in the banner above the form when it has none (e.g. a network error)
+      const field = err.meta && err.meta.field;
+      const known = field && (['name', 'description', 'price', 'inventoryItemId', 'sizes'].includes(field) || field.startsWith('sizes.'));
+      setErrors(known ? { [field]: err.message } : { form: err.message });
     } finally {
       setBusy(false);
     }
   };
 
+  const pesoSign = { startAdornment: <InputAdornment position="start">₱</InputAdornment> };
+
   return (
-    <AppDialog open={Boolean(addon)} onClose={onClose} busy={busy} maxWidth="xs" title={addon && addon.id ? 'Edit additional charge' : 'New additional charge'} description="The price is not fixed: you set it in each reservation's quotation." actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save</BusyButton></>}>
+    <AppDialog
+      open={Boolean(addon)}
+      onClose={onClose}
+      busy={busy}
+      maxWidth="sm"
+      title={`${addon && addon.id ? 'Edit' : 'New'} additional charge${packages ? ' with packages' : ''}`}
+      description={`${packages ? 'Customers pick one of its packages. ' : ''}Leave a price blank to set it in each reservation's quotation instead. A new price applies to bookings made from now on.`}
+      actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save</BusyButton></>}
+    >
       {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <FormField id="addon-name" label="Name" required value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} error={errors.name} autoFocus />
         <FormField id="addon-desc" label="Description" required multiline minRows={2} value={values.description} onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))} error={errors.description} />
-        {/* Counted by the piece: the booking form asks how many, and the quotation prices one */}
-        <FormControlLabel
-          control={<Checkbox size="small" checked={Boolean(values.hasQuantity)} onChange={(e) => setValues((v) => ({ ...v, hasQuantity: e.target.checked }))} />}
-          label={
-            <Box>
-              <Typography sx={{ fontSize: 13.5 }}>Ask the customer how many</Typography>
-              <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>For charges counted by the piece, such as extra waiters. You then price one of them in the quotation.</Typography>
+        {/* A charge with sizes or packages is priced per size or package, so its own price and how-many are hidden */}
+        {!sized && (
+          <>
+            {/* Optional: whole pesos only, so the box keeps digits and drops anything else typed */}
+            <FormField
+              id="addon-price"
+              label={values.hasQuantity && !packages ? 'Price of one' : 'Price'}
+              optional
+              value={values.price}
+              onChange={(e) => setValues((v) => ({ ...v, price: e.target.value.replace(/\D/g, '') }))}
+              error={errors.price}
+              hint={errors.price ? undefined : packages ? 'Blank: set the price in each quotation. Used only until you add a package.' : 'Blank: set the price in each quotation'}
+              InputProps={pesoSign}
+              inputProps={{ inputMode: 'numeric', maxLength: 7 }}
+            />
+            {/* Counted by the piece: the booking form asks how many, and the price is that of one.
+                A charge with packages is never counted by the piece. */}
+            {!packages && (
+              <FormControlLabel
+                control={<Checkbox size="small" checked={Boolean(values.hasQuantity)} onChange={(e) => setValues((v) => ({ ...v, hasQuantity: e.target.checked }))} />}
+                label={
+                  <Box>
+                    <Typography sx={{ fontSize: 13.5 }}>Ask the customer how many</Typography>
+                    <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>For charges counted by the piece, such as extra waiters. The price is then the price of one.</Typography>
+                  </Box>
+                }
+                sx={{ alignItems: 'flex-start' }}
+              />
+            )}
+            {/* Shown only when it takes from the inventory; a charge such as Host never does */}
+            {itemOf(values.inventoryItemId) && <InventoryLine item={itemOf(values.inventoryItemId)} error={errors.inventoryItemId} />}
+          </>
+        )}
+
+        {/* Sizes: one row each, with its own price of one. Packages: one row each, with its own price and
+            what it includes. */}
+        <Box sx={{ p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{packages ? 'Packages' : 'Sizes'}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+            {packages
+              ? 'Customers pick one package. Each has its own price and a list of what it includes, shown on the reservation form.'
+              : 'Optional. For a charge that comes in sizes, such as a tent. Customers pick the size and how many of each, and each size has its own price of one. A size uses the Inventory item named after it (10 × 10 uses “Tent 10x10”), matched when you save: a booking uses up those pieces for the event date, so customers can only book what is left.'}
+          </Typography>
+          {values.sizes.map((s, i) => (
+            <Box key={s.key} sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr auto', sm: '1fr 170px auto' }, gap: 1, alignItems: 'start', ...(packages && i > 0 ? { pt: 1.5, borderTop: `1px solid ${tokens.cardLightBorder}` } : {}) }}>
+              <FormField id={`addon-size-${i}`} label={packages ? 'Package name' : 'Size'} required value={s.name} onChange={(e) => setSize(i, 'name', e.target.value)} error={errors[`sizes.${i}.name`]} placeholder={packages ? 'e.g. Basic sound system' : 'e.g. 10 × 10'} inputProps={{ maxLength: 60 }} />
+              <FormField
+                id={`addon-size-price-${i}`}
+                label={packages ? 'Price' : 'Price of one'}
+                optional
+                value={s.price}
+                onChange={(e) => setSize(i, 'price', e.target.value.replace(/\D/g, ''))}
+                error={errors[`sizes.${i}.price`]}
+                InputProps={pesoSign}
+                inputProps={{ inputMode: 'numeric', maxLength: 7 }}
+              />
+              <IconButton onClick={() => removeSize(i)} aria-label={`Remove ${noun} ${s.name || i + 1}`} sx={{ mt: 3.25 }}>
+                <CloseRoundedIcon fontSize="small" />
+              </IconButton>
+              {/* What the package includes, one thing per line */}
+              {packages && (
+                <FormField
+                  id={`addon-size-includes-${i}`}
+                  label="What's included"
+                  optional
+                  multiline
+                  minRows={2}
+                  value={s.description}
+                  onChange={(e) => setSize(i, 'description', e.target.value)}
+                  error={errors[`sizes.${i}.description`]}
+                  hint={errors[`sizes.${i}.description`] ? undefined : 'One thing per line, e.g. "2 speakers with stands"'}
+                  inputProps={{ maxLength: PACKAGE_INCLUDES_MAX }}
+                  sx={{ gridColumn: '1 / -1' }}
+                />
+              )}
+              {/* A package rarely takes from the inventory, so its line shows only when it does */}
+              {(!packages || itemOf(s.inventoryItemId) || errors[`sizes.${i}.inventoryItemId`]) && (
+                <InventoryLine item={itemOf(s.inventoryItemId)} error={errors[`sizes.${i}.inventoryItemId`]} sx={{ gridColumn: '1 / -1', mt: -0.5 }} />
+              )}
             </Box>
-          }
-          sx={{ alignItems: 'flex-start' }}
-        />
+          ))}
+          {errors.sizes && <Typography sx={{ mt: 1, fontSize: 12, color: tokens.redPress }}>{errors.sizes}</Typography>}
+          <Button size="small" startIcon={<AddRoundedIcon />} onClick={addSize} disabled={values.sizes.length >= MAX_ADDON_SIZES} sx={{ mt: 1 }}>
+            Add {noun}
+          </Button>
+          {sized && <Typography sx={{ mt: 0.5, fontSize: 12, color: tokens.textMuted }}>Leave a {noun}'s price blank to set it in each quotation. A {noun} you remove stays on bookings that already have it.</Typography>}
+        </Box>
       </Box>
     </AppDialog>
   );

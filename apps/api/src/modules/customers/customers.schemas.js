@@ -4,7 +4,7 @@ import { z } from 'zod';
  * Request shapes for the customer directory routes (zod), checked by middleware/validate.js before a
  * service runs. Like auth.schemas.js, these check only that a field is text and not absurdly long, so
  * an over-long value is a clear 400 under its input instead of a database error; the email and mobile
- * number formats are checked by customers.service.js with the browser version's messages. Keys not
+ * number formats are checked by customers.service.js with the admin form's messages. Keys not
  * listed are dropped, so a name, company or password added to a request never reaches a service.
  */
 

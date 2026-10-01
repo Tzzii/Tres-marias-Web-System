@@ -5,9 +5,9 @@ import { FEEDBACK_CATEGORIES } from '../services/config.js';
  * needs, what the admin's reply and a flag's reason need, and what the public website may show of
  * a review.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (feedbackService.js), the
- * API server (apps/api/src/modules/feedback) and the API client (services/remote/feedback.js) apply
- * the same rules with the same messages (docs/backend-development-phases.md §7.8).
+ * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/feedback) and
+ * the API client (services/remote/feedback.js) apply the same rules with the same messages
+ * (docs/backend-development-phases.md §7.8).
  */
 
 /** Where a review can stand: 'published' (the website may show it) or 'hidden' (with the team). */

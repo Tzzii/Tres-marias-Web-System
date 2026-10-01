@@ -4,7 +4,7 @@
 #
 # Every request needs an admin token: get one with the sign-in requests at the top of catalog.http and
 # paste it into @adminToken below. A customer's token gets 403 FORBIDDEN, no token 401 UNAUTHENTICATED.
-# Errors come back as { code, message, meta }. The figures are the browser version's (domain/reports.js):
+# Errors come back as { code, message, meta }. The figures come from domain/reports.js (@tm/shared):
 # revenue is payments verified in the range less refunds sent in it.
 
 @api = http://localhost:4000/api

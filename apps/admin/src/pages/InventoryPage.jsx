@@ -172,7 +172,7 @@ export default function InventoryPage() {
     if (action === 'details') setDetailsId(item.id);
     else if (action === 'edit') setEditingId(item.id);
     else if (action === 'archive' || action === 'restore') setArchive({ ids: [item.id], archived: action === 'archive' });
-    // Renting this item in: start a contract on the Outsourcing page with the item, and how many
+    // Renting this item in: start a request on the Outsourcing page with the item, and how many
     // are missing when stock is low or out, already filled in
     else if (action === 'outsource') {
       const short = item.stock === 'ok' ? 0 : Math.max(1, item.lowStockAt - item.available);

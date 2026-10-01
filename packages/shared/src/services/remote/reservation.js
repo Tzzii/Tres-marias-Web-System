@@ -1,26 +1,21 @@
-import { usesApi } from '../backend.js';
 import { ApiError } from '../errors.js';
 import { emitChange } from '../events.js';
 import { http } from '../http.js';
 import { getCalendar } from './calendar.js';
 
 /**
- * The reservation service on the API (apps/api/src/modules/reservations, endpoint map in
- * docs/backend-development-phases.md §9.4). Same function names, arguments, return shapes and
- * ApiError codes as the browser version (reservationService.js), so no page changes when
- * VITE_API_SERVICES includes "reservations" (see facade/reservation.js).
+ * Reservations (reservationApi in @tm/shared; apps/api/src/modules/reservations, endpoint map in
+ * docs/backend-development-phases.md §9.4).
  *
  * - The customer id the pages pass is only used to pick the address (/reservations for a customer,
  *   /admin/reservations for the admin); the server always takes the customer from the token.
- * - One difference on purpose: answers to a customer never carry the admin's private `notes`.
- * - Until refunds reach the server (Phase 8), a detail's `refunds` is [] and the money figures leave
- *   refunds out (the server passes [] to financials).
+ * - Answers to a customer never carry the admin's private `notes`.
  * - A write that can take, free or move an event's slot (a cancellation by either side, an approval,
  *   marking an event completed, a new date or start time) is saved quietly, the availability map is
- *   reloaded (when the calendar is on the API too), and then one change event goes out, so every page
+ *   reloaded, and then one change event goes out, so every page
  *   that reloads already reads the new map. Creating a booking takes no slot (a pending request holds
  *   none), so it only sends the usual change event, like the other admin actions and edits.
- * - The admin's actions and edits (Phase 6B) answer like the browser version: the booking's summary,
+ * - The admin's actions and edits (Phase 6B) answer with the booking's summary,
  *   { changed } for logistics and rented items, { ok: true } for the menu and notes.
  */
 
@@ -33,7 +28,7 @@ const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'da
 // Reload the availability map after a write that can change it (no change event of its own). The
 // write is saved either way, so a failed reload is not an error: the map catches up on its next load.
 async function refreshAvailability() {
-  if (usesApi('calendar')) await getCalendar().catch(() => {});
+  await getCalendar().catch(() => {});
 }
 
 // A write that can change the availability map, e.g. slotWrite((options) => http.post(path, body, options)):
@@ -128,5 +123,5 @@ export const saveNotes = (ref, notes) => http.put(adminPath(ref, 'notes'), { not
 /** A rental's whole new list of items: { items: [{ itemId, qty }] }. Returns { changed }. */
 export const updateRentalItems = (ref, values) => http.put(adminPath(ref, 'rental-items'), values);
 
-// Pure money rule, the same code as the browser version and the server
+// Pure money rule, the same code the server uses (domain/money.js)
 export { financials } from '../../domain/money.js';

@@ -239,7 +239,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     ))}
                   </>
                 ) : (
-                  <Line label={`Package (covers ${detail.package.guests} guests)`} value={peso(quote.packageTotal)} />
+                  <Line label={`Package (default: ${detail.package.guests} guests)`} value={peso(quote.packageTotal)} />
                 )}
                 {/* The buffet is charged per person, so the line shows the sum it came from */}
                 {quote.plates > 0 && <Line label={`Buffet (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`} value={peso(quote.food)} />}

@@ -4,10 +4,8 @@ import { ApiError } from '../errors.js';
 import { http } from '../http.js';
 
 /**
- * The customer directory on the API (apps/api/src/modules/customers, endpoint map in
- * docs/backend-development-phases.md §9.7). Same function names, arguments, return shapes and ApiError
- * codes as the browser version (customerService.js), so no page changes when VITE_API_SERVICES includes
- * "customers" (see facade/customer.js). Admin only: the three addresses are under /api/admin.
+ * The customer directory (customerApi in @tm/shared; apps/api/src/modules/customers, endpoint map in
+ * docs/backend-development-phases.md §9.7). Admin only: the three addresses are under /api/admin.
  * The contact correction is one request, which emits one change event (http.js), so the list and the
  * open side panel reload with the new details.
  */
@@ -26,8 +24,8 @@ export async function getCustomer(customerId) {
 
 /**
  * Admin: correct a customer's email and mobile number: { email, mobile } -> the customer's summary.
- * Without an id there is nothing to send; the answer is still the browser version's, whose format
- * checks come before the customer is looked up.
+ * Without an id there is nothing to send; the answer is still the server's, whose format checks come
+ * before the customer is looked up (the same rules, from @tm/shared).
  */
 export async function updateCustomerContact(customerId, { email = '', mobile = '' } = {}) {
   if (!customerId) {

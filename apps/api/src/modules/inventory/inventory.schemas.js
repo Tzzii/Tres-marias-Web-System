@@ -7,7 +7,7 @@ import { z } from 'zod';
  * and fits its column, and that a list is a list, so a bad value is a clear 400 instead of a database
  * error. Everything the dialogs check (the name, category, quantities, alert level, rental price, damage
  * fee, the stock action and its numbers) passes through to inventory.service.js and
- * @tm/shared/src/domain/inventory.js, which answer with the browser version's own messages. The rows of
+ * @tm/shared/src/domain/inventory.js, which answer with the admin dialogs' own messages. The rows of
  * Add item(s) are checked there too, so an error names its row (meta.row). Keys not listed are dropped,
  * so a code, an allocation or a history line added to a request never reaches a service.
  */

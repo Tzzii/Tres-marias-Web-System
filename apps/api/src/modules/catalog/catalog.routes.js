@@ -81,7 +81,7 @@ catalogAdminRoutes.patch('/packages/:id/archived', validate({ params: schemas.id
   res.json(await catalog.setPackageArchived(req.valid.params.id, req.valid.body.archived));
 });
 
-// Additional charges (add-ons): create (201), edit, archive/restore
+// Additional charges (add-ons): create (201), edit, archive/restore, delete (only when no booking has it)
 catalogAdminRoutes.post('/addons', validate({ body: schemas.addonBody }), async (req, res) => {
   res.status(201).json(await catalog.saveAddon(null, req.valid.body));
 });
@@ -91,8 +91,11 @@ catalogAdminRoutes.put('/addons/:id', validate({ params: schemas.idParams, body:
 catalogAdminRoutes.patch('/addons/:id/archived', validate({ params: schemas.idParams, body: schemas.archivedBody }), async (req, res) => {
   res.json(await catalog.setAddonArchived(req.valid.params.id, req.valid.body.archived));
 });
+catalogAdminRoutes.delete('/addons/:id', validate({ params: schemas.idParams }), async (req, res) => {
+  res.json(await catalog.deleteAddon(req.valid.params.id));
+});
 
-// Buffet dishes: create (201), edit, archive/restore
+// Buffet dishes: create (201), edit, archive/restore, delete
 catalogAdminRoutes.post('/dishes', validate({ body: schemas.dishBody }), async (req, res) => {
   res.status(201).json(await catalog.saveDish(null, req.valid.body));
 });
@@ -101,6 +104,9 @@ catalogAdminRoutes.put('/dishes/:id', validate({ params: schemas.idParams, body:
 });
 catalogAdminRoutes.patch('/dishes/:id/archived', validate({ params: schemas.idParams, body: schemas.archivedBody }), async (req, res) => {
   res.json(await catalog.setDishArchived(req.valid.params.id, req.valid.body.archived));
+});
+catalogAdminRoutes.delete('/dishes/:id', validate({ params: schemas.idParams }), async (req, res) => {
+  res.json(await catalog.deleteDish(req.valid.params.id));
 });
 
 // Buffet price per person: { pricePerPlate } in, { pricePerPlate } out

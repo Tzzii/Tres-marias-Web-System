@@ -1,0 +1,137 @@
+# Phase 8 / 8B checks for payments and refunds (VS Code REST Client: click "Send Request" above a block).
+# Start the API first (npm run dev:api) and load the sample data (npm run seed:api). What is saved here
+# stays in the database: run npm run seed:api again afterwards. Written in Phase 12 (it was missing).
+#
+# Get tokens with the sign-in requests at the top of catalog.http and paste them below: a customer's for the
+# /payments and /refunds blocks, the admin's for the /admin blocks. The other side's token gets 403, none 401.
+# Customers pay three ways: a GCash / e-wallet QR (PayMongo, confirmed by its webhook), a bank transfer with
+# a photo of the receipt (the admin verifies it), or cash on site (recorded by the admin).
+# Errors come back as { code, message, meta }; meta.field names the form input the message belongs to.
+
+@api = http://localhost:4000/api
+@customerToken = paste-a-customer-token
+@adminToken = paste-an-admin-token
+# An approved booking of the customer above, and a payment id from the lists below
+@ref = RES-2026-0000-01
+@payment = pay-0001
+
+### ---------------------------------------------------------------- Customer (/api/payments, /api/refunds)
+
+### The customer's own payments, newest first (a customerId in the URL is ignored)
+GET {{api}}/payments
+Authorization: Bearer {{customerToken}}
+
+### What the Payments page can offer: { qr } (true once PAYMONGO_SECRET_KEY and PAYMONGO_WEBHOOK_SECRET are set)
+GET {{api}}/payments/options
+Authorization: Bearer {{customerToken}}
+
+### Bank transfer with the receipt photo (multipart, the file field is "proof"; put a receipt.png next to this
+### file first): 201 with the payment, status "awaiting". Only one payment can wait at a time (409 PENDING_PAYMENT);
+### a file that is not really a JPG, PNG, WebP or PDF: 400 (meta.field "proof"); another customer's booking: 404
+POST {{api}}/payments
+Authorization: Bearer {{customerToken}}
+Content-Type: multipart/form-data; boundary=----TresMariasForm
+
+------TresMariasForm
+Content-Disposition: form-data; name="ref"
+
+{{ref}}
+------TresMariasForm
+Content-Disposition: form-data; name="method"
+
+bank
+------TresMariasForm
+Content-Disposition: form-data; name="amount"
+
+3000
+------TresMariasForm
+Content-Disposition: form-data; name="referenceNo"
+
+BPI 2026 1001 77
+------TresMariasForm
+Content-Disposition: form-data; name="proof"; filename="receipt.png"
+Content-Type: image/png
+
+< ./receipt.png
+------TresMariasForm--
+
+### The customer's own receipt photo (another customer's: 404)
+GET {{api}}/payments/{{payment}}/proof
+Authorization: Bearer {{customerToken}}
+
+### GCash / e-wallet QR for an amount (at least the minimum downpayment, or the whole balance if smaller):
+### 201 { id, ref, amount, expiresAt, status: "pending", receiptNo: "", qrImage }. The same amount again gives
+### the same open QR back. Test mode prints "[PAYMONGO TEST] … simulate paying" in the API's terminal.
+# @name qr
+POST {{api}}/payments/qr
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "ref": "{{ref}}", "amount": 3000 }
+
+### How the QR stands (asked every few seconds by the page; ?image=1 adds the QR image again)
+GET {{api}}/payments/qr/{{qr.response.body.id}}?image=1
+Authorization: Bearer {{customerToken}}
+
+### The customer's refunds, newest first
+GET {{api}}/refunds
+Authorization: Bearer {{customerToken}}
+
+### ---------------------------------------------------------------- Admin (/api/admin/...)
+
+### Every payment, newest first
+GET {{api}}/admin/payments
+Authorization: Bearer {{adminToken}}
+
+### A customer's uploaded receipt (404 for cash, a QR payment or a sample payment: they have no file)
+GET {{api}}/admin/payments/{{payment}}/proof
+Authorization: Bearer {{adminToken}}
+
+### Verify a bank transfer: 200 with the payment, now "verified" with its OR number. Again: 409 INVALID_STATE
+POST {{api}}/admin/payments/{{payment}}/verify
+Authorization: Bearer {{adminToken}}
+
+### Reject it, with the reason the customer sees (at least 5 characters)
+POST {{api}}/admin/payments/{{payment}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "The reference number does not match the receipt." }
+
+### Record cash paid on site: 201 with the payment (verified at once, with its OR number)
+POST {{api}}/admin/reservations/{{ref}}/cash-payments
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "amount": 1000 }
+
+### Send the customer a payment reminder in their chat
+POST {{api}}/admin/reservations/{{ref}}/payment-reminder
+Authorization: Bearer {{adminToken}}
+
+### Record money returned to the customer (after it was sent outside the system): 201 with the refund
+POST {{api}}/admin/reservations/{{ref}}/refunds
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "amount": 500, "method": "bank", "referenceNo": "RF 2026 0001", "sentOn": "2026-10-01", "reason": "Overpayment after the revised quotation." }
+
+### The Payments ledger: every booking's total, paid and balance
+GET {{api}}/admin/balances
+Authorization: Bearer {{adminToken}}
+
+### Every refund, newest first; then the bookings with money still to return (oldest event first)
+GET {{api}}/admin/refunds
+Authorization: Bearer {{adminToken}}
+
+###
+GET {{api}}/admin/refunds/due
+Authorization: Bearer {{adminToken}}
+
+### ---------------------------------------------------------------- PayMongo webhook (no token: the signature is the guard)
+
+### Without a valid Paymongo-Signature: 401, nothing changes (security test #18; #19 sends a signed event twice)
+POST {{api}}/webhooks/paymongo
+Content-Type: application/json
+
+{ "data": { "id": "evt_test", "type": "event", "attributes": { "type": "payment.paid", "livemode": false, "data": { "attributes": { "payment_intent_id": "pi_test" } } } } }

@@ -206,7 +206,8 @@ export default function PortalShell({
     );
   };
 
-  // Main links, secondary links (e.g. My account) and the Log out button, reused in the sidebar and drawer
+  // Main links and secondary links (e.g. My account), reused in the sidebar and drawer.
+  // Log out is only in the profile menu at the top right, not in the sidebar or drawer.
   const navList = (forceExpanded) => (
     <Box component="nav" aria-label="Main" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
       {navItems.map((item) => renderNavItem(item, forceExpanded))}
@@ -217,22 +218,6 @@ export default function PortalShell({
     secondaryNavItems.length > 0 && (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>{secondaryNavItems.map((item) => renderNavItem(item, forceExpanded))}</Box>
     );
-
-  // Log out is always red (light red text and a soft red fill on the dark sidebar) so it stands apart
-  // from the nav links; hover deepens the fill
-  const logoutButton = (forceExpanded) => {
-    const narrow = collapsed && !forceExpanded;
-    const button = (
-      <ButtonBase
-        onClick={() => setLogoutOpen(true)}
-        sx={{ width: '100%', display: 'flex', justifyContent: narrow ? 'center' : 'flex-start', gap: 1.4, px: narrow ? 1 : 1.75, py: 1.15, borderRadius: 1.25, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 500, color: tokens.sidebarDanger, backgroundColor: tokens.sidebarDangerBg, borderLeft: '3px solid transparent', '&:hover': { backgroundColor: tokens.sidebarDangerHover } }}
-      >
-        <LogoutRoundedIcon sx={{ fontSize: 19 }} />
-        {!narrow && 'Log out'}
-      </ButtonBase>
-    );
-    return narrow ? <Tooltip title="Log out" placement="right">{button}</Tooltip> : button;
-  };
 
   const hasBottomNav = Boolean(bottomNav && bottomNav.length);
   // Which bottom tab matches the current page. A page with no tab of its own lights up the
@@ -470,10 +455,7 @@ export default function PortalShell({
         <Divider sx={{ borderColor: tokens.sidebarBorder }} />
         <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, gap: 2 }}>
           {navList(true)}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {secondaryList(true)}
-            {logoutButton(true)}
-          </Box>
+          {secondaryList(true)}
         </Box>
       </Drawer>
 
@@ -511,10 +493,7 @@ export default function PortalShell({
             </Box>
             {navList(false)}
           </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {secondaryList(false)}
-            {logoutButton(false)}
-          </Box>
+          {secondaryList(false)}
         </Box>
 
         {/* Empty spacer the same width as the fixed sidebar, so page content isn't hidden behind it */}

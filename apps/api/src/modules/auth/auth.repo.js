@@ -1,11 +1,10 @@
 import { pool } from '../../db.js';
 
 /**
- * SQL for accounts, emailed/texted codes and failed-attempt counters (docs §7.1: the repo holds SQL
- * only; the rules are in auth.service.js and lockout.js). Rows come back as camelCase records shaped
- * like the browser store's admins[] / customers[] entries, so auth.service.js reads them the way
- * authService.js reads the store. Functions that must run inside a transaction take its connection
- * (`conn`, from tx()) as the first argument; the rest use the pool.
+ * SQL for accounts, emailed one-time codes and failed-attempt counters (docs §7.1: the repo holds SQL
+ * only; the rules are in auth.service.js and lockout.js). Rows come back as camelCase records (e.g.
+ * password_hash -> passwordHash), the shape auth.service.js works with. Functions that must run inside
+ * a transaction take its connection (`conn`, from tx()); the rest use the pool.
  */
 
 /* ============================ Accounts ============================ */
@@ -53,9 +52,12 @@ export const findCustomerByEmail = async (email) => toCustomer(first(await pool.
 /** The customer with this id, or null. */
 export const findCustomerById = async (id) => toCustomer(first(await pool.query('SELECT * FROM customers WHERE id = ?', [id])));
 
-/** Save a new customer. A second account with the same email fails with ER_DUP_ENTRY (UNIQUE email). */
-export async function insertCustomer(c) {
-  await pool.query(
+/**
+ * Save a new customer (from a sign-up whose emailed code was right, so it runs inside that transaction:
+ * pass its `conn`). A second account with the same email fails with ER_DUP_ENTRY (UNIQUE email).
+ */
+export async function insertCustomer(c, conn = pool) {
+  await conn.query(
     `INSERT INTO customers (id, first_name, middle_name, last_name, name, email, mobile, password_hash, company, created_at, password_changed_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     [c.id, c.firstName, c.middleName, c.lastName, c.name, c.email, c.mobile, c.passwordHash, c.company, c.createdAt]
@@ -266,6 +268,138 @@ export async function markResetVerified(id, { at, expiresAt }) {
 export async function markResetUsed(conn, id, at) {
   const [result] = await conn.query('UPDATE password_resets SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
   return result.affectedRows === 1;
+}
+
+/* ============================ Sign-ups waiting for their code (signup_requests, Phase 12) ============================ */
+
+// signup_requests row -> request record (the account-to-be's details, its password hash and the code's hash)
+const toSignup = (row) =>
+  row && {
+    id: row.id,
+    email: row.email,
+    firstName: row.first_name,
+    middleName: row.middle_name,
+    lastName: row.last_name,
+    mobile: row.mobile,
+    passwordHash: row.password_hash,
+    codeHash: row.code_hash,
+    expiresAt: row.expires_at,
+    resendAt: row.resend_at,
+    attempts: row.attempts,
+    usedAt: row.used_at,
+    createdAt: row.created_at
+  };
+
+/** The sign-up request with this id (used or not), or null. */
+export const findSignup = async (id) => toSignup(first(await pool.query('SELECT * FROM signup_requests WHERE id = ?', [id])));
+
+/** Save a new sign-up request. */
+export async function insertSignup(r) {
+  await pool.query(
+    `INSERT INTO signup_requests (id, email, first_name, middle_name, last_name, mobile, password_hash, code_hash, expires_at, resend_at, attempts, used_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
+    [r.id, r.email, r.firstName, r.middleName, r.lastName, r.mobile, r.passwordHash, r.codeHash, r.expiresAt, r.resendAt, r.createdAt]
+  );
+}
+
+/** Remove the waiting sign-ups for this email, so only the newest code works. Used ones stay as a record. */
+export async function deleteSignupsFor(email) {
+  await pool.query('DELETE FROM signup_requests WHERE email = ? AND used_at IS NULL', [email]);
+}
+
+/** Remove one sign-up request (its code could not be sent). */
+export async function deleteSignup(id) {
+  await pool.query('DELETE FROM signup_requests WHERE id = ?', [id]);
+}
+
+/** A resend: the new code's hash and fresh expiry / resend times. The old code stops working. */
+export async function replaceSignupCode(id, { codeHash, expiresAt, resendAt }) {
+  await pool.query('UPDATE signup_requests SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+}
+
+/** Move the resend time (back to now after a failed send). */
+export async function setSignupResendAt(id, resendAt) {
+  await pool.query('UPDATE signup_requests SET resend_at = ? WHERE id = ?', [resendAt, id]);
+}
+
+/** Count one wrong code on the request itself (the lockout is counted separately, in login_attempts). */
+export async function addSignupAttempt(id) {
+  await pool.query('UPDATE signup_requests SET attempts = attempts + 1 WHERE id = ?', [id]);
+}
+
+/** Spend the request when its account is created, only if it was not spent yet: false when another request got there first. */
+export async function markSignupUsed(conn, id, at) {
+  const [result] = await conn.query('UPDATE signup_requests SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  return result.affectedRows === 1;
+}
+
+/* ============================ Password changes waiting for their code (password_changes, Phase 12) ============================ */
+
+// password_changes row -> request record
+const toChange = (row) =>
+  row && {
+    id: row.id,
+    customerId: row.customer_id,
+    newPasswordHash: row.new_password_hash,
+    codeHash: row.code_hash,
+    expiresAt: row.expires_at,
+    resendAt: row.resend_at,
+    attempts: row.attempts,
+    usedAt: row.used_at,
+    createdAt: row.created_at
+  };
+
+/** The password-change request with this id (used or not), or null. */
+export const findChange = async (id) => toChange(first(await pool.query('SELECT * FROM password_changes WHERE id = ?', [id])));
+
+/** Save a new password-change request. */
+export async function insertChange(r) {
+  await pool.query(
+    `INSERT INTO password_changes (id, customer_id, new_password_hash, code_hash, expires_at, resend_at, attempts, used_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
+    [r.id, r.customerId, r.newPasswordHash, r.codeHash, r.expiresAt, r.resendAt, r.createdAt]
+  );
+}
+
+/** Remove the customer's waiting password-change requests, so only the newest code works. */
+export async function deleteChangesFor(customerId) {
+  await pool.query('DELETE FROM password_changes WHERE customer_id = ? AND used_at IS NULL', [customerId]);
+}
+
+/** Remove one request (its code could not be sent). */
+export async function deleteChange(id) {
+  await pool.query('DELETE FROM password_changes WHERE id = ?', [id]);
+}
+
+/** A resend: the new code's hash and fresh expiry / resend times. The old code stops working. */
+export async function replaceChangeCode(id, { codeHash, expiresAt, resendAt }) {
+  await pool.query('UPDATE password_changes SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+}
+
+/** Move the resend time (back to now after a failed send). */
+export async function setChangeResendAt(id, resendAt) {
+  await pool.query('UPDATE password_changes SET resend_at = ? WHERE id = ?', [resendAt, id]);
+}
+
+/** Count one wrong code on the request itself. */
+export async function addChangeAttempt(id) {
+  await pool.query('UPDATE password_changes SET attempts = attempts + 1 WHERE id = ?', [id]);
+}
+
+/** Spend the request, only if it was not spent yet: false when another request got there first. */
+export async function markChangeUsed(conn, id, at) {
+  const [result] = await conn.query('UPDATE password_changes SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  return result.affectedRows === 1;
+}
+
+/**
+ * Remove the customer's password changes and resets that are still waiting for their code. Runs inside
+ * the transaction (`conn`) of a finished password change or reset, after that request was marked used
+ * (so it stays as a record): a code sent before the password changed can never set it again.
+ */
+export async function deleteWaitingPasswordRequests(customerId, conn) {
+  await conn.query('DELETE FROM password_changes WHERE customer_id = ? AND used_at IS NULL', [customerId]);
+  await conn.query('DELETE FROM password_resets WHERE customer_id = ? AND used_at IS NULL', [customerId]);
 }
 
 /* ============================ Failed attempts (login_attempts) ============================ */

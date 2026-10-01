@@ -119,14 +119,15 @@ export const formatRelative = (value) => {
   return formatDate(toISODate(new Date(value)));
 };
 
-/** "Maria Santos" -> "MS" (first letters of the first two words). */
-export const initials = (name = '') =>
-  name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('');
+/**
+ * "Maria Santos" -> "MS", "Wilma W. Cabiscuelas" -> "WC": first letters of the first and last words,
+ * so a middle name or initial is skipped. A one-word name gives one letter.
+ */
+export const initials = (name = '') => {
+  const parts = name.split(' ').filter(Boolean);
+  if (parts.length < 2) return parts.map((part) => part[0].toUpperCase()).join('');
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
 
 /** "Maria Santos" -> "Maria". */
 export const firstName = (name = '') => name.split(' ')[0] || '';

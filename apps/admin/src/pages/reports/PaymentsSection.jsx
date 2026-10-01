@@ -56,8 +56,8 @@ const FILTERS = [
 /**
  * The receipt the customer uploaded, in the verify panel: the photo itself (click it to open it full
  * size in a new tab) or, for a PDF, a button that opens it. The file is fetched with the admin's token
- * (paymentApi.proofUrl) and its address freed when the panel changes. The browser store keeps only the
- * file's name, and the sample payments have no file: both show the name on a placeholder instead.
+ * (paymentApi.proofUrl) and its address freed when the panel changes. The sample payments have no
+ * file (only a name): they show the name on a placeholder instead.
  */
 function ProofPreview({ payment }) {
   const [proof, setProof] = useState({ url: null, kind: 'loading' });
@@ -116,7 +116,7 @@ export default function PaymentsSection() {
     const [balances, refundsDue] = await Promise.all([paymentApi.listBalances(), paymentApi.listRefundsDue()]);
     return { balances, refundsDue };
   }, []);
-  // The minimum downpayment setting, read from the catalogue (on the API this also refreshes catalogApi.minDownpayment())
+  // The minimum downpayment setting, read from the catalogue (this also refreshes catalogApi.minDownpayment())
   const setting = useResource(() => catalogApi.getCatalog(), []);
 
   // Can start from ?filter= (dashboard link); an unknown value falls back to "All"

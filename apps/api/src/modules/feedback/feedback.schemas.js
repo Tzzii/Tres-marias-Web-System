@@ -7,7 +7,7 @@ import { z } from 'zod';
  * fits its column, so an over-long value is a clear 400 under its input instead of a database error.
  * Everything the forms check (the booking, the stars, the four category ratings, the review's and the
  * reply's length, a flag's reason, the status) passes through to feedback.service.js, which answers
- * with the browser version's own messages. Keys not listed are dropped, so a customerId, status, reply
+ * with the pages' own messages. Keys not listed are dropped, so a customerId, status, reply
  * or read flag added to a request never reaches a service.
  */
 

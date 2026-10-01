@@ -5,16 +5,16 @@ import * as repo from './messages.repo.js';
 
 /**
  * The chat rules on the server (docs/backend-development-phases.md Phase 7, §9.5): one conversation
- * per customer with the Tres Marias admin. Same return shapes, error codes and messages as the browser
- * version (messageService.js).
+ * per customer with the Tres Marias admin, with the return shapes, error codes and messages the chat
+ * pages expect (services/remote/message.js).
  *
- * Differences from the browser version, on purpose:
+ * On purpose:
  * - `side` ('customer' or 'admin'), the customer and the sender's name come from the signed-in account
  *   (the routes pass them), never from the request: a customer can only read and write their own
  *   conversation, and a message always carries its writer's real name.
  * - Messages are in time order (the database keeps no other order).
  * - A thread id or reservation ref must be spelled exactly as stored: the columns' collation ignores
- *   case and trailing spaces, and the browser version finds only the exact id.
+ *   case and trailing spaces, so the service compares the id itself.
  */
 
 // Longest message a person can type (automatic messages may be longer)
@@ -22,7 +22,7 @@ const MESSAGE_MAX = 2000;
 
 const conversationNotFound = () => new ApiError('NOT_FOUND', 'Conversation not found.');
 
-// Thread info for the conversation list, the browser version's summarize(). `row` is an entry of repo.findThreads().
+// Thread info for the conversation list. `row` is an entry of repo.findThreads().
 const summarize = (row) => ({ ...row, updatedAt: row.lastMessage ? row.lastMessage.at : 0 });
 
 // The thread the asker may use: it exists, is spelled as stored, and is the customer's own when `customerId` is set; else null
@@ -52,8 +52,8 @@ export async function getThread(threadId, { customerId, side }) {
 
 /**
  * Mark every message in a thread as read for one side. With `customerId`, only that customer's own
- * thread can be marked. Answers { ok: false } for a thread that is missing or not theirs (the browser
- * version's answer, not an error), and { ok: true } otherwise, also when nothing was unread.
+ * thread can be marked. Answers { ok: false } for a thread that is missing or not theirs (not an
+ * error: the page just reloads), and { ok: true } otherwise, also when nothing was unread.
  */
 export async function markThreadRead(threadId, side, { customerId } = {}) {
   const thread = await allowedThread(pool, threadId, customerId);

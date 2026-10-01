@@ -9,9 +9,8 @@ import { cancelDeadline } from './cancellation.js';
  * pieces of each item are free for a rental on a date, what a rental costs after an edit, the menu as
  * a display list, and the chat message an approval sends.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (reservationService.js) and
- * the API server (apps/api/src/modules/reservations) give the same answers
- * (docs/backend-development-phases.md §7.8). The money rules are in domain/money.js.
+ * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/reservations)
+ * and the pages give the same answers (docs/backend-development-phases.md §7.8). The money rules are in domain/money.js.
  */
 
 // "₱1,200", as the chat messages write amounts
@@ -49,14 +48,27 @@ export function quotationStaleReason(reservation) {
 export const quotationStale = (reservation) => Boolean(quotationStaleReason(reservation));
 
 /**
- * Pieces of each item still free for a rental on `date`: the total, minus damaged pieces, minus what
- * other approved rentals on that date have booked, minus what is checked out for other events dated
- * that day. { itemId: pieces }. `excludeRef` leaves one booking out (the one being edited or approved).
- * Package bookings only take stock once the admin checks it out, so the admin still confirms on approval.
+ * Pieces of an item an event booking holds through its additional charges: the booked quantity of the
+ * charge or size the item is linked to (`item.addonId`, e.g. Tent 10x10 for the Tent's 10 × 10 size),
+ * 1 for a charge not counted by the piece, 0 when the booking has none of it.
+ */
+export function addonPieces(reservation, item) {
+  if (!item.addonId || !(reservation.addonIds || []).includes(item.addonId)) return 0;
+  return (reservation.addonQty || {})[item.addonId] || 1;
+}
+
+/**
+ * Pieces of each item still free on `date`: the total, minus damaged pieces, minus what other approved
+ * rentals on that date have booked, minus what other events dated that day hold. { itemId: pieces }.
+ * An event holds what is checked out for it, or what its additional charges book from the item
+ * (addonPieces) when that is more, so a tent booked as an additional charge is held from approval and
+ * never counted twice once it is checked out. `excludeRef` leaves one booking out (the one being
+ * edited or approved). A package's own items only take stock once the admin checks them out, so the
+ * admin still confirms them on approval.
  *
- *   inventory     items with { id, total, damaged, allocations: { reservationRef or 'none': pieces out } }
- *   reservations  records with { ref, date, status, serviceType, rentalItems }; the browser store passes
- *                 all of them, the server only the ones dated `date` (others are skipped here anyway)
+ *   inventory     items with { id, total, damaged, addonId?, allocations: { reservationRef or 'none': pieces out } }
+ *   reservations  records with { ref, date, status, serviceType, rentalItems, addonIds, addonQty }; the
+ *                 server passes only the ones dated `date` (others are skipped here anyway)
  */
 export function rentalStock({ inventory, reservations }, date, excludeRef) {
   const sameDay = reservations.filter((r) => r.date === date && r.ref !== excludeRef && HOLDS_DATE.includes(r.status));
@@ -65,23 +77,53 @@ export function rentalStock({ inventory, reservations }, date, excludeRef) {
   const stock = {};
   inventory.forEach((item) => {
     const booked = rentals.reduce((sum, r) => sum + ((r.rentalItems || []).find((line) => line.itemId === item.id) || { qty: 0 }).qty, 0);
-    const atEvents = events.reduce((sum, r) => sum + (item.allocations[r.ref] || 0), 0);
+    const atEvents = events.reduce((sum, r) => sum + Math.max(item.allocations[r.ref] || 0, addonPieces(r, item)), 0);
     stock[item.id] = Math.max(0, item.total - item.damaged - booked - atEvents);
   });
   return stock;
 }
 
 /**
- * How many of each rentable item are free on a date, for the rental form and the admin's edit dialog:
- * { itemId: { left, status } }, status 'available', 'limited' (at or below the item's alert level
- * `lowStockAt`) or 'out'. Only items that are rentable and not archived are listed. Takes the same
- * inputs as rentalStock; `excludeRef` leaves out the booking being edited, so its own pieces count as free.
+ * The stock-tracked additional charges an event books that `date` can't supply: [{ itemId, addonId,
+ * name, qty }] (name = the item's, e.g. "Tent 10x10"), empty when everything fits. `booking` is
+ * { addonIds, addonQty }; `excludeRef` leaves the booking itself out of the count (an approval or a
+ * date move). Takes the same `data` as rentalStock.
+ */
+export function addonShortfall(data, booking, date, excludeRef) {
+  const stock = rentalStock(data, date, excludeRef);
+  return data.inventory
+    .map((item) => ({ itemId: item.id, addonId: item.addonId, name: item.name, qty: addonPieces(booking, item) }))
+    .filter((line) => line.qty > 0 && line.qty > (stock[line.itemId] || 0));
+}
+
+/**
+ * Why a new booking's stock-tracked charges can't be had on `date`, or null: the first one short, as
+ * { message, field }, e.g. "Only 1 Tent 10 × 10 is free on 03 Oct 2026." for 'addonQty.add-tent-10x10'.
+ * `addons` are the booked charges and sizes (a size named in full); the rest as addonShortfall.
+ */
+export function addonStockProblem(data, booking, date, addons, excludeRef) {
+  const [line] = addonShortfall(data, booking, date, excludeRef);
+  if (!line) return null;
+  const left = rentalStock(data, date, excludeRef)[line.itemId] || 0;
+  const addon = addons.find((a) => a.id === line.addonId);
+  const what = addon ? addon.name : line.name;
+  const message = left ? `Only ${left} ${what} ${left === 1 ? 'is' : 'are'} free on ${formatDate(date)}.` : `${what} is fully booked on ${formatDate(date)}.`;
+  return { message, field: `addonQty.${line.addonId}` };
+}
+
+/**
+ * How many of each rentable item are free on a date, for the rental form and the admin's edit dialog,
+ * and of each item an additional charge books (a tent size), for the booking form: { itemId: { left,
+ * status } }, status 'available', 'limited' (at or below the item's alert level `lowStockAt`) or 'out'.
+ * Only items that are rentable or linked to an additional charge, and not archived, are listed. Takes
+ * the same inputs as rentalStock; `excludeRef` leaves out the booking being edited, so its own pieces
+ * count as free.
  */
 export function rentalAvailability(data, date, excludeRef) {
   const stock = rentalStock(data, date, excludeRef);
   return Object.fromEntries(
     data.inventory
-      .filter((item) => item.rentable && !item.archived)
+      .filter((item) => (item.rentable || item.addonId) && !item.archived)
       .map((item) => {
         const left = stock[item.id] || 0;
         return [item.id, { left, status: left <= 0 ? 'out' : left <= item.lowStockAt ? 'limited' : 'available' }];

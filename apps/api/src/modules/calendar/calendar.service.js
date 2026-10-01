@@ -8,21 +8,21 @@ import * as repo from './calendar.repo.js';
 
 /**
  * The calendar rules on the server (docs/backend-development-phases.md Phase 5, §9.3): blocked
- * dates, the daily event capacity and availability. Same return shapes, error codes and messages as
- * the browser version (calendarService.js). The availability rules themselves (which reservations
+ * dates, the daily event capacity and availability, with the return shapes, error codes and messages
+ * the pages expect (services/remote/calendar.js). The availability rules themselves (which reservations
  * take a slot, why a date or a start time is unavailable) come from
  * @tm/shared/src/domain/availability.js, the same code the portals run.
  *
- * Differences from the browser version, on purpose:
+ * On purpose:
  * - The public map has no events[].ref: anyone can read it, and it must not show which booking holds a time.
  * - Every date must be a real "YYYY-MM-DD" day, a start time must be "HH:MM", and a block's reason
  *   must be one of BLOCK_REASONS (the admin page only offers those).
  * Every write (block, unblock, capacity) also moves calendar_settings.updated_at (when the calendar
- * last changed), in the same transaction. The calendar keeps no audit trail, in the browser
- * version or in the schema, so none is written here.
+ * last changed), in the same transaction. The calendar keeps no audit trail (the schema has none),
+ * so none is written here.
  */
 
-// Most dates one block request may cover (the browser version's limit)
+// Most dates one block request may cover (the admin page says so too)
 const MAX_BLOCK_DAYS = 60;
 
 const invalid = (message, field) => new ApiError('INVALID', message, { field });
@@ -49,7 +49,7 @@ export async function getCalendar() {
 
 /**
  * Is this date, and start time if given, free to reserve? Returns { date, startTime, available,
- * reason, timeConflict }, the browser version's answer (startTime is '' when none was given).
+ * reason, timeConflict } (startTime is '' when none was given).
  * `timeConflict` is true when the date itself is open but the chosen time is not.
  */
 export async function checkAvailability(date, time) {
@@ -87,7 +87,7 @@ export async function blockDates({ from, to, reason }) {
   });
 }
 
-/** Admin: open a blocked date again. { ok: true } even when it was not blocked, like the browser version. */
+/** Admin: open a blocked date again. { ok: true } even when it was not blocked (nothing left to do). */
 export async function unblockDate(date) {
   if (!isISODate(date)) throw invalid('Choose the date to unblock.', 'date');
   await tx(async (conn) => {

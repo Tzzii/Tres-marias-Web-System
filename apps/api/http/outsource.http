@@ -69,7 +69,7 @@ POST {{api}}/admin/outsource/contracts/{{contract}}/send
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
-{ "body": "Tres Marias Catering Services · Outsourcing contract\n\nPlease supply 12 round tablecloths on 1 Dec 2026. Reply YES to accept." }
+{ "body": "Tres Marias Catering Services · Outsourcing request\n\nPlease supply 12 round tablecloths on 1 Dec 2026. Please text or call 0951 562 1060 to confirm." }
 
 ### The next status: accepted | declined | completed | cancelled (a decline or cancellation needs a 5+ character note)
 POST {{api}}/admin/outsource/contracts/{{contract}}/status

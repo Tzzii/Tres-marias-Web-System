@@ -1,14 +1,14 @@
+import { nestAddons } from '@tm/shared/src/domain/catalog.js';
 import { pool } from '../../db.js';
 import { parseJson, toJson } from '../../lib/json.js';
 
 /**
  * SQL for packages, add-ons, dishes, the buffet price per person, the minimum downpayment and the
  * rental price list (docs §7.1: the repo holds SQL only; the rules are in catalog.service.js). Rows
- * come back as camelCase records shaped like the browser store's packages[] / addons[] / dishes[]
- * entries, so a page gets the same objects from either side.
+ * come back as camelCase records, the package, add-on and dish objects the pages work with.
  *
- * Lists are in sort_order (then id): the seed's order, and each new record after the rest, which is
- * the order of the browser store's arrays. MySQL has no order of its own without ORDER BY.
+ * Lists are in sort_order (then id): the seed's order, and each new record after the rest, the order
+ * the admin's lists show. MySQL has no order of its own without ORDER BY.
  *
  * The reads a booking needs (findPackageById, listAddons, getPricePerPlate, getMinDownpayment) use the
  * pool unless given a connection (`db`), so the reservations module can read them inside its own
@@ -102,58 +102,122 @@ export async function setPackageArchived(id, archived) {
 
 /* ============================ Add-ons ============================ */
 
-const ADDON_COLUMNS = 'id, name, description, has_quantity, archived';
-
-// addons row -> add-on record (null stays null)
-const toAddon = (row) =>
-  row && {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    hasQuantity: Boolean(row.has_quantity),
-    archived: Boolean(row.archived)
-  };
-
-/** Add-ons in list order; without includeArchived, only the ones still offered. */
-export async function listAddons({ includeArchived = false } = {}, db = pool) {
-  const [rows] = await db.query(`SELECT ${ADDON_COLUMNS} FROM addons ${where(includeArchived ? [] : ['archived = 0'])} ORDER BY sort_order, id`);
-  return rows.map(toAddon);
-}
-
-/** The add-on with this id (archived included), or null. */
-export const findAddonById = async (id) => toAddon(first(await pool.query(`SELECT ${ADDON_COLUMNS} FROM addons WHERE id = ?`, [id])));
+// addons row (with the id of the inventory item it books, if any) -> stored add-on record: a charge,
+// or one of its sizes or packages when parentId is set
+const toAddonRow = (row) => ({
+  id: row.id,
+  parentId: row.parent_id,
+  name: row.name,
+  description: row.description,
+  price: row.price === null ? null : Number(row.price), // null: priced in each quotation
+  hasQuantity: Boolean(row.has_quantity),
+  hasPackages: Boolean(row.has_packages), // a charge with packages: its child rows are packages
+  archived: Boolean(row.archived),
+  inventoryItemId: row.inventory_item_id ?? null // inventory_items.addon_id points here; null: stock not tracked
+});
 
 /**
- * True when an add-on other than `exceptId` (archived ones included) already has this name. The
- * comparison uses the column's collation (utf8mb4_unicode_ci: case and accents ignored), the same
- * one its UNIQUE index uses, so this check and the index agree.
+ * The additional charges in list order, each with its sizes or packages in `sizes` (nestAddons in
+ * domain/catalog.js: named in full, "Tent 10 × 10"). Without includeArchived, only what is still offered.
+ */
+export async function listAddons({ includeArchived = false } = {}, db = pool) {
+  const [rows] = await db.query(
+    `SELECT a.id, a.parent_id, a.name, a.description, a.price, a.has_quantity, a.has_packages, a.archived, i.id AS inventory_item_id
+       FROM addons a LEFT JOIN inventory_items i ON i.addon_id = a.id ORDER BY a.sort_order, a.id`
+  );
+  return nestAddons(rows.map(toAddonRow), { includeArchived });
+}
+
+/** The charge with this id (archived included) with all its sizes, archived ones too, or null. A size's id gives null. */
+export async function findAddonById(id, db = pool) {
+  return (await listAddons({ includeArchived: true }, db)).find((charge) => charge.id === id) || null;
+}
+
+/**
+ * True when a charge other than `exceptId` (archived ones included) already has this name. Sizes are
+ * not counted: they are named within their charge. The comparison uses the column's collation
+ * (utf8mb4_unicode_ci: case and accents ignored), the same one its UNIQUE index uses, so this check
+ * and the index agree.
  */
 export async function addonNameTaken(name, exceptId) {
-  const [rows] = await pool.query('SELECT 1 FROM addons WHERE name = ? AND id <> ? LIMIT 1', [name, exceptId]);
+  const [rows] = await pool.query('SELECT 1 FROM addons WHERE parent_id IS NULL AND name = ? AND id <> ? LIMIT 1', [name, exceptId]);
   return rows.length > 0;
 }
 
-/** The sort_order a new add-on takes (after the last). */
-export async function nextAddonOrder() {
-  return Number(first(await pool.query('SELECT COALESCE(MAX(sort_order) + 1, 0) AS nextOrder FROM addons')).nextOrder);
+/** The sort_order a new charge takes (after the last). */
+export async function nextAddonOrder(db = pool) {
+  return Number(first(await db.query('SELECT COALESCE(MAX(sort_order) + 1, 0) AS nextOrder FROM addons WHERE parent_id IS NULL')).nextOrder);
 }
 
-/** Save a new add-on. A name already in use fails with ER_DUP_ENTRY (UNIQUE name). */
-export async function insertAddon(a) {
-  await pool.query(
-    'INSERT INTO addons (id, name, description, has_quantity, archived, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
-    [a.id, a.name, a.description, a.hasQuantity, a.archived, a.sortOrder]
+/**
+ * Save a new charge (`hasPackages` on for a charge with packages), or a new size or package of one
+ * (`parentId` set). A name already in use fails with ER_DUP_ENTRY (UNIQUE parent_key + name).
+ */
+export async function insertAddon(a, db = pool) {
+  await db.query(
+    'INSERT INTO addons (id, parent_id, name, description, price, has_quantity, has_packages, archived, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [a.id, a.parentId ?? null, a.name, a.description, a.price, a.hasQuantity, Boolean(a.hasPackages), a.archived, a.sortOrder]
   );
 }
 
-/** Save the add-on form: name, description and whether it is counted by the piece. */
-export async function updateAddon(id, a) {
-  await pool.query('UPDATE addons SET name = ?, description = ?, has_quantity = ? WHERE id = ?', [a.name, a.description, a.hasQuantity, id]);
+/**
+ * Save the add-on form: name, description, price (null for none) and whether it is counted by the piece.
+ * Whether it is a charge with packages is set when it is created and never changes here.
+ */
+export async function updateAddon(id, a, db = pool) {
+  await db.query('UPDATE addons SET name = ?, description = ?, price = ?, has_quantity = ? WHERE id = ?', [a.name, a.description, a.price, a.hasQuantity, id]);
 }
 
-/** Archive or restore an add-on. */
-export async function setAddonArchived(id, archived) {
-  await pool.query('UPDATE addons SET archived = ? WHERE id = ?', [archived, id]);
+/**
+ * Save one size or package as the admin listed it: name, price, description (what a package includes;
+ * '' for a size), whether it is counted by the piece (a size) or booked once (a package), and position.
+ * A listed one is never archived.
+ */
+export async function updateAddonSize(id, size, db = pool) {
+  await db.query('UPDATE addons SET name = ?, description = ?, price = ?, sort_order = ?, has_quantity = ?, archived = 0 WHERE id = ?', [
+    size.name,
+    size.description,
+    size.price,
+    size.sortOrder,
+    size.hasQuantity,
+    id
+  ]);
+}
+
+/** Every inventory item as a charge's link needs it: [{ id, name, archived, addonId }], to match and check links. */
+export async function listInventoryForLinks(db = pool) {
+  const [rows] = await db.query('SELECT id, name, archived, addon_id FROM inventory_items');
+  return rows.map((row) => ({ id: row.id, name: row.name, archived: Boolean(row.archived), addonId: row.addon_id }));
+}
+
+/**
+ * Point inventory items at the charges and sizes that book them: every item booked by one of `addonIds`
+ * is let go first, then each [addonId, itemId] of `links` is set, so items can swap between sizes in one
+ * save without meeting the UNIQUE addon_id index.
+ */
+export async function linkInventoryItems(conn, addonIds, links) {
+  if (addonIds.length) await conn.query('UPDATE inventory_items SET addon_id = NULL WHERE addon_id IN (?)', [addonIds]);
+  for (const [addonId, itemId] of links) await conn.query('UPDATE inventory_items SET addon_id = ? WHERE id = ?', [addonId, itemId]);
+}
+
+/** How many bookings have one of these add-ons (a charge and its sizes). */
+export async function countAddonBookings(ids, db = pool) {
+  return Number(first(await db.query('SELECT COUNT(DISTINCT reservation_ref) AS n FROM reservation_addons WHERE addon_id IN (?)', [ids])).n);
+}
+
+/**
+ * Delete a charge for good with its sizes (`ids`: the charge's and its sizes'), inside a transaction:
+ * the inventory items they took from are let go first, then the sizes, then the charge.
+ */
+export async function deleteAddon(conn, chargeId, ids) {
+  await conn.query('UPDATE inventory_items SET addon_id = NULL WHERE addon_id IN (?)', [ids]);
+  await conn.query('DELETE FROM addons WHERE parent_id = ?', [chargeId]);
+  await conn.query('DELETE FROM addons WHERE id = ?', [chargeId]);
+}
+
+/** Archive or restore an add-on (a charge, or a size the admin took off the list). */
+export async function setAddonArchived(id, archived, db = pool) {
+  await db.query('UPDATE addons SET archived = ? WHERE id = ?', [archived, id]);
 }
 
 /* ============================ Dishes ============================ */
@@ -196,6 +260,11 @@ export async function updateDish(id, d) {
 /** Archive or restore a dish. */
 export async function setDishArchived(id, archived) {
   await pool.query('UPDATE dishes SET archived = ? WHERE id = ?', [archived, id]);
+}
+
+/** Delete a dish for good. No table points at dishes (a menu is the customer's own words). */
+export async function deleteDish(id) {
+  await pool.query('DELETE FROM dishes WHERE id = ?', [id]);
 }
 
 /* ============================ Buffet price per person ============================ */

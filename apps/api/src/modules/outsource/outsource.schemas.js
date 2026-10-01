@@ -8,7 +8,7 @@ import { z } from 'zod';
  * error. Everything the dialogs check (the partner's name, service, email and mobile number; a
  * contract's partner, items, date, booking and amount; the contract text; a status and its reason)
  * passes through to outsource.service.js and @tm/shared/src/domain/outsource.js, which answer with the
- * browser version's own messages. Keys not listed are dropped, so a status, a delivery or a history line
+ * admin page's own messages. Keys not listed are dropped, so a status, a delivery or a history line
  * added to a request never reaches a service.
  */
 

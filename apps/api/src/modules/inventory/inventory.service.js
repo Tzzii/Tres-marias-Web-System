@@ -35,16 +35,15 @@ import * as repo from './inventory.repo.js';
 /**
  * The equipment inventory on the server (docs/backend-development-phases.md Phase 10, §9.9): the item
  * list, adding and editing items, stock movements (check out, return, report damage, repair, dispose),
- * archiving, and an equipment rental's check-out and return with its damage charges. Admin only. Same
- * return shapes, error codes, messages and meta.field / meta.row as the browser version
- * (inventoryService.js): the rules, counts and texts are @tm/shared/src/domain/inventory.js, the code the
- * browser version runs, and its checks are repeated here in the same order because the server never
- * trusts the page (§3 rule 3).
+ * archiving, and an equipment rental's check-out and return with its damage charges. Admin only. The
+ * rules, counts, texts and errors (with meta.field / meta.row) are @tm/shared/src/domain/inventory.js,
+ * and the page's checks are repeated here in the same order because the server never trusts the page
+ * (§3 rule 3).
  *
- * Differences from the browser version, on purpose:
+ * On purpose:
  * - The admin in the histories, the audit trail and the chat is the signed-in one (req.user.name).
  * - An item id and a booking ref must be spelled exactly as stored: the columns' collation ignores case
- *   and trailing spaces, and the browser version finds only the exact id or ref.
+ *   and trailing spaces, so the service compares the id or ref itself.
  * - The columns' limits: an item name up to 120 characters and notes up to 2,000 (the dialogs allow 80
  *   and 300), a batch of up to 100 new items (the dialog has 20 rows).
  * - Two names that differ only by an accent ("Cafe" / "Café") are the same name to the UNIQUE index, so
@@ -137,7 +136,7 @@ export async function listCheckoutEvents() {
 
 /**
  * What is out for one reservation right now: { itemId: pieces checked out }, in the items' order; {}
- * when nothing is, when the booking does not exist, or for no ref at all (as the browser version).
+ * when nothing is, when the booking does not exist, or for no ref at all.
  */
 export async function listReservationEquipment(ref) {
   if (typeof ref !== 'string' || !ref) return {};
@@ -258,8 +257,8 @@ export async function moveInventoryStock(id, action, input, admin) {
 }
 
 /**
- * Archive or restore several items (`ids`, as ticked; a repeated id counts once per mention in `count`,
- * as in the browser version). Items with pieces still out can't be archived (IN_USE, naming them).
+ * Archive or restore several items (`ids`, as ticked; a repeated id counts once per mention in
+ * `count`). Items with pieces still out can't be archived (IN_USE, naming them).
  * Returns { count }.
  */
 export async function setInventoryArchived(ids, archived, admin) {

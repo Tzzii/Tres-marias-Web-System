@@ -5,7 +5,7 @@ import { now } from '../../lib/time.js';
 /**
  * SQL for the chat (docs §7.1: the repo holds SQL only; the rules are in messages.service.js). Each
  * customer has one conversation with the admin (threads, UNIQUE customer_id), created on first use.
- * Records come back in the browser store's shape (messageService.js): a message is { id, from,
+ * Records come back in the shape the chat pages use: a message is { id, from,
  * senderName, body, ref, at, readByCustomer, readByAdmin, attachment }.
  *
  * The messages of a thread are in time order (at, then id): the table keeps no other order. Automatic

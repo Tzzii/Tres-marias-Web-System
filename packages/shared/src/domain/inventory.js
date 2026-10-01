@@ -8,9 +8,8 @@ import { rentalQuote } from './reservation.js';
  * counts the pages show, the lines written to an item's history and to a reservation's audit trail,
  * and the damage charges of an equipment rental that came back damaged or short.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (inventoryService.js) and the
- * API server (apps/api/src/modules/inventory) give the same answers, texts and errors
- * (docs/backend-development-phases.md §7.8). A refusal comes back as data, { code, message, meta }:
+ * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/inventory), its
+ * seeder and the pages give the same answers, texts and errors (docs/backend-development-phases.md §7.8). A refusal comes back as data, { code, message, meta }:
  * the ApiError each service then throws.
  *
  * An item is { id, code, name, category, total, lowStockAt, allocations, damaged, rentable, rentPrice,
@@ -49,7 +48,7 @@ export const availableOf = (item) => item.total - inUseOf(item) - item.damaged;
  * [{ ref, qty, eventName, eventDate }], soonest event first (then by ref), pieces out without an event
  * last. The Return dialog starts on the first of them. `eventOf(ref)` gives a reservation's
  * { eventName, date }, or null. The record is copied one level deep only, so pass a copy of a stored
- * item (the browser store clones it first).
+ * item (the API's repo builds a fresh record for each answer).
  */
 export function inventoryView(item, eventOf) {
   const inUse = inUseOf(item);
@@ -266,7 +265,9 @@ export const rentalReturnText = (ref, good, damaged) => `Returned ${good + damag
  * An approved rental's check-out: for each rented item, the pieces not yet out for it. `itemById(id)`
  * finds an item (null when there is none). Every line is checked before anything moves, so a short item
  * never leaves the rental half checked out: an archived item, or one with too few pieces available,
- * refuses the whole check-out (OUT_OF_STOCK, naming each). Returns { problem } or { moves: [{ item, qty }] }.
+ * refuses the whole check-out (OUT_OF_STOCK, naming each). A second check-out when everything is already
+ * out is INVALID_STATE (409, like a second verify of a payment; INVALID before Phase 12).
+ * Returns { problem } or { moves: [{ item, qty }] }.
  */
 export function rentalCheckOut(reservation, itemById) {
   if (!HOLDS_DATE.includes(reservation.status)) return { problem: refuse('INVALID_STATE', 'Approve the rental before checking out its items.') };
@@ -277,7 +278,7 @@ export function rentalCheckOut(reservation, itemById) {
     const qty = line.qty - (item.allocations[reservation.ref] || 0);
     if (qty > 0) moves.push({ item, qty });
   }
-  if (!moves.length) return { problem: invalid('Everything on this rental is already checked out.') };
+  if (!moves.length) return { problem: refuse('INVALID_STATE', 'Everything on this rental is already checked out.') };
   const left = (item) => Math.max(0, availableOf(item));
   const short = moves.filter(({ item, qty }) => item.archived || qty > left(item));
   if (short.length) {
@@ -330,7 +331,7 @@ export function rentalReturn(reservation, returns, itemById) {
  * recorded earlier and not yet quoted.
  *
  * Returns { lines: the booking's new damageCharges, by item id (the order the API's database gives them
- * back in, so a quotation lists them the same way on both sides), added: ₱ of this charge, activity,
+ * back in, so a quotation lists them the same way every time), added: ₱ of this charge, activity,
  * message }; the two texts are '' when nothing was charged (every fee ₱0), which then leaves no log line
  * and no message.
  */

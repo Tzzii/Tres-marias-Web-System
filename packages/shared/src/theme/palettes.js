@@ -70,7 +70,7 @@ export const darkPalette = {
   shellScrim: 'rgba(15, 23, 42, 0.97)',
 
   // Portal sidebar (and the phone drawer): a shade darker than the page so it reads as its own column.
-  // It is dark in both modes, so its text, hover and Log out colours are light in both.
+  // It is dark in both modes, so its text and hover colours are light in both.
   sidebarBg: '#070a12',
   sidebarBorder: 'rgba(255, 255, 255, 0.06)',
   sidebarText: '#b6c0d0',
@@ -79,9 +79,6 @@ export const darkPalette = {
   sidebarActiveBg: 'rgba(197, 160, 89, 0.16)',
   sidebarActiveHover: 'rgba(197, 160, 89, 0.22)',
   sidebarHover: 'rgba(255, 255, 255, 0.06)',
-  sidebarDanger: '#fca5a5',
-  sidebarDangerBg: 'rgba(239, 68, 68, 0.12)',
-  sidebarDangerHover: 'rgba(239, 68, 68, 0.2)',
 
   // Text colours. textPrimary/Secondary/Muted sit on white cards;
   // textLight/textOnDark* sit on the shell and turn to ink in light mode.
@@ -195,9 +192,6 @@ export const lightPalette = {
   sidebarActiveBg: 'rgba(197, 160, 89, 0.18)',
   sidebarActiveHover: 'rgba(197, 160, 89, 0.26)',
   sidebarHover: 'rgba(255, 255, 255, 0.06)',
-  sidebarDanger: '#fca5a5',
-  sidebarDangerBg: 'rgba(239, 68, 68, 0.14)',
-  sidebarDangerHover: 'rgba(239, 68, 68, 0.22)',
 
   // Ink on ivory, in the same three weights as the navy scheme
   textPrimary: '#2b2622',

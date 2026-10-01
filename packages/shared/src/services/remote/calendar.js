@@ -2,13 +2,10 @@ import { emitChange } from '../events.js';
 import { http } from '../http.js';
 
 /**
- * The calendar service on the API (apps/api/src/modules/calendar, endpoint map in
+ * The calendar (calendarApi in @tm/shared; apps/api/src/modules/calendar, endpoint map in
  * docs/backend-development-phases.md §9.3): blocked dates, the daily event capacity and the times
- * booked events take. Same function names, arguments, return shapes and ApiError codes as the
- * browser version (calendarService.js), so no page changes when VITE_API_SERVICES includes
- * "calendar" (see facade/calendar.js). Two differences on purpose: the server's map has no
- * events[].ref (it never shows which booking holds a time), and until the first map arrives,
- * availabilitySnapshot() answers with one marked `loading: true`.
+ * booked events take. The server's map has no events[].ref (it never shows which booking holds a
+ * time), and until the first map arrives, availabilitySnapshot() answers with one marked `loading: true`.
  *
  * availabilitySnapshot() must answer right away (date pickers read it while rendering), so it returns
  * the last map the server gave (the kept map):
@@ -23,8 +20,8 @@ import { http } from '../http.js';
  * - Loads are numbered, and an answer older than the kept map is never kept.
  * - Admin writes are sent quietly; the map is reloaded, then one change event goes out, so every page
  *   that reloads already reads the new map. A failed reload never turns a saved change into an error.
- * primeAvailability() (reload, with a change event only when the map changed) is not in the facade.
- * The other API services' writes that can move a slot (remote/reservation.js, since Phase 6A) reload
+ * primeAvailability() reloads, with a change event only when the map changed (the reads above use it).
+ * The other services' writes that can move a slot (remote/reservation.js, since Phase 6A) reload
  * with getCalendar() instead and then send their own single change event, so a write never sends two.
  */
 
@@ -115,7 +112,7 @@ export async function getCalendar() {
 
 /**
  * Is this date, and start time if given, free to reserve? Used by the home page booking bar.
- * Returns { date, startTime, available, reason, timeConflict } like the browser version.
+ * Returns { date, startTime, available, reason, timeConflict }.
  */
 export function checkAvailability(iso, startTime) {
   const query = new URLSearchParams({ date: iso || '' });
@@ -140,5 +137,5 @@ export const unblockDate = (date) => save(() => http.delete(`/admin/calendar/blo
 /** Admin: set how many events can be booked on one day (1–10). Returns { capacity }. */
 export const setDailyCapacity = (value) => save(() => http.put('/admin/calendar/capacity', { value }, { quiet: true }));
 
-// Pure rules that take the map as an argument: the same code as the browser version and the server
+// Pure rules that take the map as an argument: the same code the server checks bookings with (domain/availability.js)
 export { dateUnavailableReason, timeUnavailableReason, daySchedule, earliestBookableDate } from '../../domain/availability.js';

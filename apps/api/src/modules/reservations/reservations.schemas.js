@@ -6,8 +6,8 @@ import { z } from 'zod';
  * Like catalog.schemas.js, these check only what the service cannot: that a text field is text and
  * fits its database column, so an over-long value is a clear 400 under its input instead of a database
  * error. Everything the booking form checks itself (the package, date, start time, guests, menu,
- * add-ons, rented items …) passes through to reservations.service.js, which answers with the browser
- * version's own messages. Keys not listed are dropped, so a customerId, status, ref or price added to a
+ * add-ons, rented items …) passes through to reservations.service.js, which answers with the booking
+ * form's own messages. Keys not listed are dropped, so a customerId, status, ref or price added to a
  * request never reaches a service.
  */
 
@@ -25,7 +25,7 @@ export const refParams = z.object({ ref: z.string() });
 /**
  * POST /api/reservations: the booking form. Lengths follow the columns (event_name 120, occasion 40,
  * venue_name 160, venue_address 255, city 120). The notes are TEXT, kept to 2,000 characters (the
- * form allows 500); each menu line is cut to MENU_LINE_MAX by the service, as in the browser version.
+ * form allows 500); each menu line is cut to MENU_LINE_MAX by the service.
  */
 export const createBody = z.object({
   packageId: passThrough,

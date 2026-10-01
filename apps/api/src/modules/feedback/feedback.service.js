@@ -18,17 +18,17 @@ import * as repo from './feedback.repo.js';
 /**
  * Reviews on the server (docs/backend-development-phases.md Phase 9, §9.8): the review a customer
  * writes after a completed event, the admin's moderation of it on the Feedbacks page (read, publish or
- * hide, feature, flag, archive, reply, delete) and the public website's list. Same return shapes, error
- * codes, messages and meta.field as the browser version (feedbackService.js), whose checks are repeated
- * here in the same order because the server never trusts the page (§3 rule 3). The rules that need no
+ * hide, feature, flag, archive, reply, delete) and the public website's list, with the return shapes,
+ * error codes, messages and meta.field the pages expect; the page's own checks are repeated here in the
+ * same order because the server never trusts the page (§3 rule 3). The rules that need no
  * stored data (star ratings, what a review, a reply and a flag's reason need, the public fields) come
- * from @tm/shared/src/domain/feedback.js, the code the browser version runs.
+ * from @tm/shared/src/domain/feedback.js, the code the pages run too.
  *
- * Differences from the browser version, on purpose:
+ * On purpose:
  * - The customer is the signed-in one (from the token), and so is the admin whose name goes on a reply
  *   and its chat message (req.user.name).
  * - A review id or booking ref must be spelled exactly as stored: the columns' collation ignores case
- *   and trailing spaces, and the browser version finds only the exact id or ref.
+ *   and trailing spaces, so the service compares the id or ref itself.
  * - Text is saved as well-formed Unicode (a lone half of an emoji, possible only in a hand-made
  *   request, becomes "�").
  * Every change runs in one transaction with the review's row locked (lockFeedback), so two admin
@@ -46,7 +46,7 @@ const alreadyReviewed = () => new ApiError('INVALID_STATE', 'You already reviewe
 const clean = (text) => text.toWellFormed().trim();
 
 /**
- * One review with the names the pages show, the browser version's shape(): who wrote it and which
+ * One review with the names the pages show: who wrote it and which
  * event it is about. The admin's view adds the customer's mobile number and keeps the reason for a
  * flag; a customer's view has neither (that reason is the admin's own note). `row` is an entry of
  * repo.findFeedbacks().
@@ -100,7 +100,7 @@ export async function listPublished({ limit = 3 } = {}) {
   return rows.map((row) => publicReview(view(row, { admin: false })));
 }
 
-/** Admin: how many reviews are unread (the browser version's sidebar count; the layout counts from listFeedbacks). */
+/** Admin: how many reviews are unread (the admin layout counts its badge from listFeedbacks instead). */
 export async function unreadFeedbackCount() {
   return repo.countUnread(pool);
 }
@@ -109,8 +109,8 @@ export async function unreadFeedbackCount() {
 
 /**
  * Customer: review one of their own completed events. One review per event; 1–5 stars overall, a
- * rating for every part of the service and at least 20 characters (reviewProblem). Same order as the
- * browser version: the booking (INVALID_STATE unless it is theirs and completed), an earlier review
+ * rating for every part of the service and at least 20 characters (reviewProblem). In this order:
+ * the booking (INVALID_STATE unless it is theirs and completed), an earlier review
  * (INVALID_STATE), then the form (INVALID with meta.field). The booking's row is locked first, so two
  * reviews of one event sent at the same moment are checked one after the other; the UNIQUE ref index
  * is the last guard. Saved hidden and unread: the admin decides what reaches the website. Returns the
@@ -194,7 +194,7 @@ export async function setFeedbackFeatured(id, featured) {
 
 /**
  * Admin: flag a review with a reason of at least 5 characters, only the admin sees (flagReasonProblem;
- * checked before the review is looked up, as in the browser version). A flagged review comes off the
+ * checked before the review is looked up). A flagged review comes off the
  * website and the featured ones. Clearing the flag also clears the reason and leaves the review hidden
  * until the admin publishes it again.
  */
@@ -223,7 +223,7 @@ export async function setFeedbackArchived(id, archived) {
 
 /**
  * Admin: answer a review (5–1,000 characters after trimming, replyProblem; checked before the review is
- * looked up, as in the browser version). The answer is kept on the review, signed with the admin's
+ * looked up). The answer is kept on the review, signed with the admin's
  * name, so the customer sees it under their review, and the same words go to the customer's chat,
  * tagged with the event ("About your feedback on …: …"), in the same transaction. Replying again
  * replaces the answer and sends the new one. `admin` is the signed-in admin (req.user).

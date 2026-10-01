@@ -6,7 +6,7 @@ import { z } from 'zod';
  * Like reservations.schemas.js, these check only what the service cannot: that a text field is text and
  * fits its column, so an over-long value is a clear 400 under its input instead of a database error.
  * Everything the forms check (amounts, the reference format, methods, dates) passes through to
- * payments.service.js, which answers with the browser version's own messages. Keys not listed are
+ * payments.service.js, which answers with the forms' own messages. Keys not listed are
  * dropped, so a customerId, status or receipt number added to a request never reaches a service.
  */
 
@@ -48,7 +48,7 @@ export const cashBody = z.object({ amount: passThrough });
 
 /**
  * POST /api/admin/reservations/:ref/refunds: { amount, method, referenceNo, sentOn, reason }. amount must
- * be a number (the service refuses text, as the browser version does); reason is TEXT, kept to 1,000.
+ * be a number (the service refuses text); reason is TEXT, kept to 1,000.
  */
 export const refundBody = z.object({
   amount: passThrough,

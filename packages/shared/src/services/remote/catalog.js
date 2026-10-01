@@ -3,11 +3,9 @@ import { emitChange } from '../events.js';
 import { http } from '../http.js';
 
 /**
- * The catalog service on the API (apps/api/src/modules/catalog, endpoint map in
+ * The catalogue (catalogApi in @tm/shared; apps/api/src/modules/catalog, endpoint map in
  * docs/backend-development-phases.md §9.2): packages, additional charges, buffet dishes, the buffet
- * price per person, the minimum downpayment and the Equipment Rental price list. Same function names,
- * arguments, return shapes and ApiError codes as the browser version (catalogService.js), so no page
- * changes when VITE_API_SERVICES includes "catalog" (see facade/catalog.js).
+ * price per person, the minimum downpayment and the Equipment Rental price list.
  *
  * - The includeHidden / includeArchived switches are sent as asked; the server honours them for an
  *   admin's token only, so the customer site can never list a hidden or archived record.
@@ -32,7 +30,7 @@ function switches(options) {
 /**
  * A booking-wide amount the pages read synchronously, kept as the last value the server gave: `path` is
  * its small GET (e.g. '/catalog/price-per-plate'), `field` the key of the answer that holds it, and
- * `fallback` the starting value used until the first answer (the same default as the browser version).
+ * `fallback` the starting value used until the first answer (the default in config.js).
  * `version` goes up with each save, so an answer to a request sent before the last save never replaces
  * the newer value; reads made at the same time share one request.
  */
@@ -87,7 +85,7 @@ const withSettings = (request) => Promise.all([request, rate.refresh(), minimum.
 
 /**
  * The buffet price per person, returned right away: the last price the server gave, or the starting
- * price (DEFAULT_PRICE_PER_PLATE, like the browser version) before any catalogue read has finished.
+ * price (DEFAULT_PRICE_PER_PLATE) before any catalogue read has finished.
  */
 export const pricePerPlate = () => rate.read();
 
@@ -143,10 +141,24 @@ export const setPackageVisibility = (id, visible) => http.patch(`/admin/packages
 /** Archive (also hides it) or restore a package. */
 export const setPackageArchived = (id, archived) => http.patch(`/admin/packages/${segment(id)}/archived`, { archived });
 
-/** Update or create an additional charge: { id?, name, description, hasQuantity }. */
+/**
+ * Update or create an additional charge: { id?, name, description, price, hasQuantity, hasPackages,
+ * inventoryItemId, sizes } (price blank or null = none; hasPackages makes a new charge a charge with
+ * packages, and the server keeps it as it is on an edit; inventoryItemId the item it books, or null; sizes
+ * [{ id?, name, price, description, inventoryItemId }], a charge with packages' packages, description being
+ * what one includes; empty for a charge without sizes). Returns it with its sizes.
+ */
 export function saveAddon(addon) {
-  const { id, name, description, hasQuantity } = addon;
-  const body = { name, description, hasQuantity: Boolean(hasQuantity) };
+  const { id, name, description, price, hasQuantity, hasPackages, inventoryItemId, sizes = [] } = addon;
+  const body = {
+    name,
+    description,
+    price: price ?? null,
+    hasQuantity: Boolean(hasQuantity),
+    hasPackages: Boolean(hasPackages),
+    inventoryItemId: inventoryItemId || null,
+    sizes: sizes.map((size) => ({ id: size.id || '', name: size.name, price: size.price ?? null, description: size.description || '', inventoryItemId: size.inventoryItemId || null }))
+  };
   return id ? http.put(`/admin/addons/${segment(id)}`, body) : http.post('/admin/addons', body);
 }
 
@@ -162,10 +174,16 @@ export function saveDish(dish) {
 /** Archive or restore a dish. */
 export const setDishArchived = (id, archived) => http.patch(`/admin/dishes/${segment(id)}/archived`, { archived });
 
+/** Delete an additional charge for good, with its sizes (IN_USE when a booking has it). Returns { id }. */
+export const deleteAddon = (id) => http.delete(`/admin/addons/${segment(id)}`);
+
+/** Delete a dish suggestion for good. Returns { id }. */
+export const deleteDish = (id) => http.delete(`/admin/dishes/${segment(id)}`);
+
 /**
  * Set the buffet price per person. The saved price is kept for pricePerPlate() before the change
  * event (quiet, then emitChange), so the pages that reload afterwards already read the new one.
- * Returns { pricePerPlate } like the browser version.
+ * Returns { pricePerPlate }.
  */
 export async function setPricePerPlate(value) {
   const result = await http.put('/admin/catalog/price-per-plate', { pricePerPlate: value }, { quiet: true });
@@ -177,7 +195,7 @@ export async function setPricePerPlate(value) {
 /**
  * Set the minimum downpayment, the same way as the buffet price: the saved amount is kept for
  * minDownpayment() before the change event (quiet, then emitChange), so the pages that reload
- * afterwards already read it. Returns { minDownpayment } like the browser version.
+ * afterwards already read it. Returns { minDownpayment }.
  */
 export async function setMinDownpayment(value) {
   const result = await http.put('/admin/catalog/min-downpayment', { minDownpayment: value }, { quiet: true });

@@ -13,9 +13,8 @@ import { statusLabel } from '../utils/status.js';
  *     GCash QR for it is open (Phase 8B: the payment may still arrive).
  * Otherwise the customer cancels by messaging us in their chat or calling the business number.
  *
- * Pure (no store.js, no localStorage, no React): the browser service (reservationService.js), the API
- * server (apps/api/src/modules/reservations) and the pages all use it, so every side gives the same
- * answer (docs/backend-development-phases.md §7.8).
+ * Pure (no database, no localStorage, no React): the API server (apps/api/src/modules/reservations)
+ * and the pages both use it, so both give the same answer (docs/backend-development-phases.md §7.8).
  */
 
 // Whole days from one "YYYY-MM-DD" date to another, rounded like daysFromToday in utils/format.js
@@ -45,7 +44,7 @@ export function cancelDeadline(reservation) {
  * throws with `reason` as its message. `money` is financials() for the booking (domain/money.js);
  * `piecesOut` is how many inventory pieces are checked out for it (an event's equipment or a rental's
  * items, from the inventory's allocations; the services read it), `openQrUntil` is when its open GCash QR
- * stops counting as open (milliseconds; the API passes it, the browser store has no QRs) and `today` is
+ * stops counting as open (milliseconds; 0 when there is none) and `today` is
  * "YYYY-MM-DD".
  * Checked in this order:
  *   1. cancelled, declined or completed               -> INVALID_STATE

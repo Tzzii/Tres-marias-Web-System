@@ -7,12 +7,13 @@ export const isRentalPackage = (pkg) => Boolean(pkg && pkg.kind === 'rental');
  * Quotation maths shared by the customer form's summary, the admin quotation
  * panel and the printed documents, so all of them show the same figures.
  *
- *   package           = the package's flat price (0 for the Equipment Rental package)
+ *   package           = the package's flat price (0 for the Equipment Rental package), whatever the guest
+ *                       count: the package's own guest count is only a default that helps customers choose
  *   food              = guests x the buffet price per person, or 0 for a catering-only booking
  *   rental            = for an equipment rental, each rented item's price per piece x how many
  *   delivery          = for a delivered rental, the delivery fee (standard or set by the admin)
  *   additional charges = the admin's price for each extra the customer ticked, x the quantity asked for
- *   other charges     = set by the admin, e.g. extra guests above what the package covers
+ *   other charges     = set by the admin, e.g. extra hours
  *   damage            = rented pieces that came back damaged or not at all, x each item's damage fee
  *   net               = package + food + rental + delivery + additional charges + other charges + damage - discount
  *
@@ -99,13 +100,4 @@ export function computeQuote({
     discount: cleanDiscount,
     net
   };
-}
-
-/**
- * How many guests are above what the package's tableware and chairs cover (0 when they fit).
- * Always 0 for the Equipment Rental package, which has no guest count.
- */
-export function extraGuests(pkg, guests) {
-  if (!pkg || isRentalPackage(pkg)) return 0;
-  return Math.max(0, (Number(guests) || 0) - pkg.guests);
 }

@@ -3,16 +3,14 @@ import { ApiError } from '../errors.js';
 import { http } from '../http.js';
 
 /**
- * The equipment inventory on the API (apps/api/src/modules/inventory, endpoint map in
- * docs/backend-development-phases.md §9.9). Same function names, arguments, return shapes and ApiError
- * codes as the browser version (inventoryService.js), so no page changes when VITE_API_SERVICES includes
- * "inventory" (see facade/inventory.js). Admin only: every address is under /api/admin/inventory.
+ * The equipment inventory (inventoryApi in @tm/shared; apps/api/src/modules/inventory, endpoint map in
+ * docs/backend-development-phases.md §9.9). Admin only: every address is under /api/admin/inventory.
  *
  * - Every write is one request, which emits one change event (http.js), so the Inventory page, the
  *   reservation page's rented items and anything else on screen reload. The customer's rental form reads
  *   the stock fresh for each date (getRentalAvailability), so nothing else needs refreshing.
  * - Without an item id or a booking ref there is nothing to send: those calls still answer as the
- *   browser version would (the item or the booking is not found; nothing is out for no ref at all).
+ *   server would (the item or the booking is not found; nothing is out for no ref at all).
  */
 
 // An item id or a reservation ref in a URL path (never trust a path segment)
@@ -65,5 +63,5 @@ export async function listReservationEquipment(ref) {
   return http.get(`/admin/inventory/rentals/${segment(ref)}`);
 }
 
-// The "no event" key: the same on both sides
+// The "no event" key: the same as the server's (domain/inventory.js)
 export { NO_EVENT };

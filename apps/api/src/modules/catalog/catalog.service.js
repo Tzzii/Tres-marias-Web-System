@@ -1,5 +1,6 @@
-import { rentalPriceList, slugify } from '@tm/shared/src/domain/catalog.js';
+import { linkByName, planAddonSizes, readAddonPrice, readAddonSizes, rentalPriceList, slugify, withListedSizes } from '@tm/shared/src/domain/catalog.js';
 import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, MIN_DOWNPAYMENT_RANGE, PRICE_PER_PLATE_RANGE, RULES } from '@tm/shared/src/services/config.js';
+import { tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { newId } from '../../lib/ids.js';
 import { now } from '../../lib/time.js';
@@ -8,9 +9,8 @@ import * as repo from './catalog.repo.js';
 /**
  * The catalogue rules on the server (docs/backend-development-phases.md Phase 4, §9.2): packages,
  * additional charges (add-ons), buffet dishes, the buffet price per person, the minimum downpayment
- * (added 2026-09-26, next to the price per person) and the Equipment Rental price list. Same return
- * shapes, error codes and messages as the browser version (catalogService.js)
- * and as the admin forms on the Packages page (PackagesPage.jsx), whose checks are repeated here
+ * (added 2026-09-26, next to the price per person) and the Equipment Rental price list. Same error
+ * codes and messages as the admin forms on the Packages page (PackagesPage.jsx), whose checks are repeated here
  * because the server never trusts the page (§3 rule 3).
  *
  * - Hidden and archived records are shown to an admin only: callers pass { admin } from the token,
@@ -21,8 +21,8 @@ import * as repo from './catalog.repo.js';
  * - Names are unique: a package by its slug, an add-on case-insensitively, a dish within its
  *   category. The UNIQUE indexes are the last guard for two saves at the same moment (ER_DUP_ENTRY
  *   becomes the same NAME_TAKEN).
- * - Pure rules (the slug, the rental price list) come from @tm/shared/src/domain/catalog.js, the
- *   same code the browser version runs.
+ * - Pure rules (the slug, the rental price list, an add-on's price and sizes) come from @tm/shared/src/domain/catalog.js, the
+ *   same code the admin's forms run.
  */
 
 // Highest package price accepted (whole pesos), so an extra digit is a clear error rather than a
@@ -60,9 +60,12 @@ export async function getPackageBySlug(slug) {
   return pkg;
 }
 
-/** Additional charges (add-ons): by default only the ones not archived; archived ones for an admin only. */
-export function listAddons({ includeArchived = false } = {}, { admin = false } = {}) {
-  return repo.listAddons({ includeArchived: admin && includeArchived });
+/**
+ * Additional charges (add-ons), each with the sizes still offered: by default only the charges not
+ * archived; archived ones for an admin only. Removed sizes never show (withListedSizes).
+ */
+export async function listAddons({ includeArchived = false } = {}, { admin = false } = {}) {
+  return (await repo.listAddons({ includeArchived: admin && includeArchived })).map(withListedSizes);
 }
 
 /** Dishes a buffet menu can be built from: by default only the ones still offered; archived ones for an admin only. */
@@ -70,7 +73,7 @@ export function listDishes({ includeArchived = false } = {}, { admin = false } =
   return repo.listDishes({ includeArchived: admin && includeArchived });
 }
 
-/** The buffet price per person the admin has set, falling back to the starting price (like the browser version). */
+/** The buffet price per person the admin has set, falling back to the starting price (DEFAULT_PRICE_PER_PLATE). */
 async function currentPricePerPlate() {
   return Number(await repo.getPricePerPlate()) || DEFAULT_PRICE_PER_PLATE;
 }
@@ -80,7 +83,7 @@ export async function getPricePerPlate() {
   return { pricePerPlate: await currentPricePerPlate() };
 }
 
-/** The minimum downpayment the admin has set, falling back to the starting amount (like the browser version). */
+/** The minimum downpayment the admin has set, falling back to the starting amount (DEFAULT_MIN_DOWNPAYMENT). */
 async function currentMinDownpayment() {
   return Number(await repo.getMinDownpayment()) || DEFAULT_MIN_DOWNPAYMENT;
 }
@@ -226,34 +229,120 @@ export async function setPackageArchived(id, archived) {
 const addonTaken = () => new ApiError('NAME_TAKEN', 'An additional charge with this name already exists.', { field: 'name' });
 
 /**
- * Admin: update the add-on with this id, or create one when id is null: { name, description,
- * hasQuantity }. The price is set in each quotation. Returns the saved add-on.
+ * Admin: update the charge with this id, or create one when id is null: { name, description, price,
+ * hasQuantity, hasPackages, inventoryItemId, sizes }. Returns the saved charge with its sizes.
+ * - `price` is optional (readAddonPrice in domain/catalog.js): blank saves null, and the charge is then
+ *   priced in each quotation; for a charge counted by the piece it is the price of one.
+ * - `hasPackages` makes a new charge a charge with packages (the admin's "Additional charges with
+ *   packages", e.g. Sounds and lights); it is read only when the charge is created, and an edit keeps it.
+ * - `sizes` is optional (readAddonSizes): [{ id?, name, price }], e.g. a Tent in 10 × 10 and 10 × 20.
+ *   Each size has its own price of one and is always counted by the piece; the customer books the sizes,
+ *   so a charge with sizes keeps no price or how-many of its own. Sizes left off the list are archived
+ *   (planAddonSizes), never deleted, because bookings may point at them, and let their item go.
+ *   For a charge with packages the list is its packages: [{ id?, name, price, description }], each with
+ *   its own price and what it includes (`description`), booked once; the customer picks one of them.
+ *   A charge with packages is never counted by the piece, and keeps no price of its own once it has packages.
+ * - `inventoryItemId` (the charge's, when it has no sizes, and each size's) is the inventory item it takes
+ *   from, so an event holds those pieces on its date (rentalStock). The admin's page shows it without
+ *   changing it: one with none takes the item named after it, if there is one (linkByName: the Tent's
+ *   10 × 10 size takes "Tent 10x10"). An item must exist, not be archived and not be used by another charge.
+ * All of it is one transaction.
+ * A new price applies to bookings made from now on (each booking copies it into its estimate).
  */
 export async function saveAddon(id, values) {
   const name = values.name.trim();
   const description = values.description.trim();
   if (name.length < 3) throw invalid('Enter the name.', 'name');
   if (description.length < 10) throw invalid('Add a short description.', 'description');
-  if (id && !(await repo.findAddonById(id))) throw new ApiError('NOT_FOUND', 'Add-on not found.');
+  const current = id ? await repo.findAddonById(id) : null;
+  if (id && !current) throw new ApiError('NOT_FOUND', 'Add-on not found.');
+  const hasPackages = current ? current.hasPackages : values.hasPackages === true;
+  const sized = readAddonSizes(values.sizes, { packages: hasPackages });
+  if (sized.problem) throw invalid(sized.problem, sized.field);
+  let { sizes } = sized;
+  const own = sizes.length ? { price: null } : readAddonPrice(values.price);
+  if (own.problem) throw invalid(own.problem, 'price');
   if (await repo.addonNameTaken(name, id || '')) throw addonTaken();
 
-  const clean = { name, description, hasQuantity: values.hasQuantity };
+  // The inventory items it takes from: the links it has, plus the item named after anything without one
+  // (linkByName). Each must exist, not be archived, and not be used by another charge.
+  const ownIds = new Set([id, ...(current ? current.sizes.map((s) => s.id) : [])].filter(Boolean));
+  const inventory = await repo.listInventoryForLinks();
+  const linked = linkByName({ name, inventoryItemId: typeof values.inventoryItemId === 'string' ? values.inventoryItemId : null, sizes }, inventory, ownIds);
+  const ownItem = linked.inventoryItemId;
+  sizes = linked.sizes;
+  [[ownItem, 'inventoryItemId'], ...sizes.map((s, i) => [s.inventoryItemId, `sizes.${i}.inventoryItemId`])]
+    .filter(([itemId]) => itemId)
+    .forEach(([itemId, field]) => {
+      const item = inventory.find((i) => i.id === itemId);
+      if (!item || item.archived) throw invalid('That inventory item no longer exists.', field);
+      if (item.addonId && !ownIds.has(item.addonId)) throw invalid(`${item.name} is already used by another additional charge.`, field);
+    });
+
+  const clean = { name, description, price: own.price, hasQuantity: sizes.length || hasPackages ? false : values.hasQuantity, hasPackages };
+  // A size is counted by the piece; a package is booked once
+  const sizeCounted = !hasPackages;
   const savedId = id || newId('add');
+  const plan = planAddonSizes(current ? current.sizes : [], sizes);
+  const addedIds = plan.add.map(() => newId('add'));
+  // [add-on id, item id] for everything that books an item; archived sizes book none
+  const links = [
+    ...(ownItem ? [[savedId, ownItem]] : []),
+    ...plan.update.filter((s) => s.inventoryItemId).map((s) => [s.id, s.inventoryItemId]),
+    ...plan.add.map((s, i) => [addedIds[i], s.inventoryItemId]).filter(([, itemId]) => itemId)
+  ];
   try {
-    if (id) await repo.updateAddon(id, clean);
-    else await repo.insertAddon({ ...clean, id: savedId, archived: false, sortOrder: await repo.nextAddonOrder() });
+    await tx(async (conn) => {
+      if (id) await repo.updateAddon(id, clean, conn);
+      else await repo.insertAddon({ ...clean, id: savedId, archived: false, sortOrder: await repo.nextAddonOrder(conn) }, conn);
+      // Updates first, so a new size never meets a name that an existing size is giving up
+      for (const size of plan.update) await repo.updateAddonSize(size.id, { ...size, hasQuantity: sizeCounted }, conn);
+      for (const sizeId of plan.archive) await repo.setAddonArchived(sizeId, true, conn);
+      for (const [i, size] of plan.add.entries()) {
+        await repo.insertAddon(
+          { id: addedIds[i], parentId: savedId, name: size.name, description: size.description, price: size.price, hasQuantity: sizeCounted, archived: false, sortOrder: size.sortOrder },
+          conn
+        );
+      }
+      await repo.linkInventoryItems(conn, [savedId, ...ownIds], links);
+    });
   } catch (err) {
     if (isDuplicate(err, 'uq_addons_name')) throw addonTaken();
     throw err;
   }
-  return repo.findAddonById(savedId);
+  return withListedSizes(await repo.findAddonById(savedId));
+}
+
+// A charge is on bookings: deleting it would take it off them, so the admin archives it instead
+const addonInUse = (name, count) =>
+  new ApiError('IN_USE', `${name} is on ${count} reservation${count === 1 ? '' : 's'}, so it can't be deleted. Archive it instead to stop offering it.`);
+
+/**
+ * Admin: delete a charge for good, with its sizes. Only when no booking has it or one of its sizes
+ * (IN_USE otherwise: archive it instead, so those bookings keep naming it); a booking made at the same
+ * moment is caught by the foreign key and answered the same way. The inventory items it took from stay,
+ * no longer linked. Returns { id }.
+ */
+export async function deleteAddon(id) {
+  const charge = await repo.findAddonById(id);
+  if (!charge) throw new ApiError('NOT_FOUND', 'Add-on not found.');
+  const ids = [charge.id, ...charge.sizes.map((s) => s.id)];
+  const booked = await repo.countAddonBookings(ids);
+  if (booked) throw addonInUse(charge.name, booked);
+  try {
+    await tx((conn) => repo.deleteAddon(conn, charge.id, ids));
+  } catch (err) {
+    if (err && err.code === 'ER_ROW_IS_REFERENCED_2') throw addonInUse(charge.name, await repo.countAddonBookings(ids));
+    throw err;
+  }
+  return { id };
 }
 
 /** Admin: archive or restore an add-on. Returns the add-on. */
 export async function setAddonArchived(id, archived) {
   if (!(await repo.findAddonById(id))) throw new ApiError('NOT_FOUND', 'Add-on not found.');
   await repo.setAddonArchived(id, archived);
-  return repo.findAddonById(id);
+  return withListedSizes(await repo.findAddonById(id));
 }
 
 /* ============================ Dishes (admin) ============================ */
@@ -293,6 +382,16 @@ export async function setDishArchived(id, archived) {
   return repo.findDishById(id);
 }
 
+/**
+ * Admin: delete a dish suggestion for good. Nothing points at it: a booking's menu is what the customer
+ * wrote, so past reservations keep their menus as they are. Returns { id }.
+ */
+export async function deleteDish(id) {
+  if (!(await repo.findDishById(id))) throw new ApiError('NOT_FOUND', 'Dish not found.');
+  await repo.deleteDish(id);
+  return { id };
+}
+
 /* ============================ Buffet price per person (admin) ============================ */
 
 /**
@@ -314,7 +413,7 @@ export async function setPricePerPlate(value) {
 
 /**
  * Admin: set the minimum downpayment, the least a customer pays first to secure a date: a whole number
- * of pesos in MIN_DOWNPAYMENT_RANGE (same message and meta.field as the browser version). It applies to
+ * of pesos in MIN_DOWNPAYMENT_RANGE (same message and meta.field as the admin's form). It applies to
  * bookings made from now on: each reservation stores the amount it was made with (reservations.
  * min_downpayment), so a change never moves an existing booking. Returns { minDownpayment }.
  */

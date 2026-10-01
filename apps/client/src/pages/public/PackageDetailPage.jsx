@@ -25,7 +25,6 @@ import {
   RULES,
   SelectField,
   catalogApi,
-  extraGuests,
   formatPackageItem,
   isRentalPackage,
   peso,
@@ -74,8 +73,6 @@ export default function PackageDetailPage() {
   const pkg = data && data.pkg;
   // True for the Equipment Rental package
   const rental = isRentalPackage(pkg);
-  // Guests above what this package covers; allowed, the team may add charges in the quotation
-  const overBy = extraGuests(pkg, guests);
 
   // Guest count is typed only (no up/down arrows): digits only, and never above the largest count the business serves
   const updateGuests = (raw) => {
@@ -118,7 +115,7 @@ export default function PackageDetailPage() {
             <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: site.inkMuted }}>Package price</Typography>
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
               <Typography sx={{ fontFamily: site.fontSerif, fontSize: 34, fontWeight: 700, color: site.goldText }}>{peso(pkg.price)}</Typography>
-              <Typography sx={{ fontSize: 13, color: site.inkMuted }}>covers {pkg.guests} guests</Typography>
+              <Typography sx={{ fontSize: 13, color: site.inkMuted }}>Default: {pkg.guests} guests</Typography>
             </Box>
             <Typography sx={{ fontSize: 13, color: site.inkSoft }}>Food and additional charges are priced in your quotation</Typography>
           </Box>
@@ -130,12 +127,6 @@ export default function PackageDetailPage() {
           {!rental && <FormField id="pkg-guests" label="Guests" value={guests} placeholder={String(pkg.guests)} onChange={(e) => updateGuests(e.target.value)} error={guestError} inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }} />}
           <SelectField id="pkg-occasion" label="Occasion" value={occasion} onChange={(e) => setOccasion(e.target.value)} options={OCCASIONS} placeholder="Select" />
         </Box>
-        {/* Heads-up when the guest count is above what the package covers */}
-        {overBy > 0 && !guestError && (
-          <Typography sx={{ px: 1.5, py: 1, borderRadius: 1.5, fontSize: 12.5, lineHeight: 1.55, color: site.inkSoft, backgroundColor: site.sand }}>
-            That is {overBy} more guests than this package covers. You can still reserve it; our team may add charges for the extra guests.
-          </Typography>
-        )}
         <Button variant="contained" size="large" onClick={reserve} sx={{ py: 1.4, borderRadius: 999 }}>
           {rental ? 'Choose items to rent' : 'Reserve this date'}
         </Button>
@@ -173,7 +164,7 @@ export default function PackageDetailPage() {
                   <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 2.5, color: site.inkSoft, fontSize: 13.5 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                       {rental ? <SellOutlinedIcon sx={{ fontSize: 18, color: site.gold }} /> : <GroupsOutlinedIcon sx={{ fontSize: 18, color: site.gold }} />}
-                      {rental ? 'Priced per piece' : `Covers ${pkg.guests} guests`}
+                      {rental ? 'Priced per piece' : `Default: ${pkg.guests} guests`}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                       {rental ? <LocalShippingOutlinedIcon sx={{ fontSize: 18, color: site.gold }} /> : <RestaurantMenuOutlinedIcon sx={{ fontSize: 18, color: site.gold }} />}
@@ -211,15 +202,34 @@ export default function PackageDetailPage() {
                   Food and additional charges
                 </Typography>
                 <Typography sx={{ mt: 0.5, mb: 2.5, fontSize: 13.5, lineHeight: 1.75, color: site.inkSoft }}>
-                  Food is not part of the package. On the reservation form you choose a buffet, where you pick one pork, chicken, fish and vegetable dish and we charge per person on top of this package, or catering only, where you get the equipment above and cook the food yourself. Anything you add below is priced in your quotation.
+                  Food is not part of the package. On the reservation form you choose a buffet, where you pick one pork, chicken, fish and vegetable dish and we charge per person on top of this package, or catering only, where you get the equipment above and cook the food yourself. You can add any of the extras below; one without a price shown is priced in your quotation.
                 </Typography>
-                {/* Extras the customer can tick on the form; the team prices them per event */}
+                {/* Extras the customer can tick on the form, with the price when the admin set one (else priced per
+                    event); a charge with sizes lists each size, e.g. "Tent · 10 × 10 ₱4,500 each / 10 × 20", and a
+                    charge with packages says how many and the cheapest, e.g. "Sounds and lights · 4 packages from
+                    ₱3,500", with each package and its price in the tooltip */}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {data.addons.map((a) => (
-                    <Box key={a.id} component="span" title={a.description} sx={{ px: 1.25, py: 0.5, borderRadius: 999, fontSize: 12.5, color: site.ink, backgroundColor: site.ivory, border: `1px solid ${site.border}` }}>
-                      {a.name}
-                    </Box>
-                  ))}
+                  {data.addons.map((a) => {
+                    const choices = a.sizes || [];
+                    const prices = choices.map((s) => s.price).filter((price) => price > 0);
+                    return (
+                      <Box
+                        key={a.id}
+                        component="span"
+                        title={a.hasPackages && choices.length ? [a.description, ...choices.map((s) => `${s.size}: ${s.price ? peso(s.price) : 'priced in your quotation'}`)].join('\n') : a.description}
+                        sx={{ px: 1.25, py: 0.5, borderRadius: 999, fontSize: 12.5, color: site.ink, backgroundColor: site.ivory, border: `1px solid ${site.border}` }}
+                      >
+                        {a.name}
+                        {a.hasPackages && choices.length
+                          ? ` · ${choices.length} package${choices.length === 1 ? '' : 's'}${prices.length ? ` from ${peso(Math.min(...prices))}` : ''}`
+                          : choices.length
+                            ? ` · ${choices.map((s) => (s.price ? `${s.size} ${peso(s.price)} each` : s.size)).join(' / ')}`
+                            : a.price
+                              ? ` · ${peso(a.price)}${a.hasQuantity ? ' each' : ''}`
+                              : ''}
+                      </Box>
+                    );
+                  })}
                 </Box>
               </Paper>
               </>

@@ -1,7 +1,7 @@
 /**
  * SQL for the equipment inventory (docs §7.1: the repo holds SQL only; the rules are in
- * inventory.service.js and @tm/shared/src/domain/inventory.js). An item comes back in the browser
- * store's shape (inventoryService.js), the way the seeder saves it and scripts/db-roundtrip.js reads it:
+ * inventory.service.js and @tm/shared/src/domain/inventory.js). An item comes back in the record
+ * shape domain/inventory.js works with, the way the seeder saves it and scripts/db-roundtrip.js reads it:
  *   { id, code, name, category, total, lowStockAt, allocations: { reservationRef or 'none': pieces out },
  *     damaged, rentable, rentPrice, damageFee, notes, archived, history: [{ at, actor, text, ref? }] }
  * `allocations` comes from inventory_allocations (one row per item and place; a row that would reach 0
@@ -41,6 +41,7 @@ const toItem = (row, allocations = [], history = []) => ({
   damageFee: row.damage_fee,
   notes: row.notes,
   archived: Boolean(row.archived),
+  addonId: row.addon_id ?? null, // the additional charge or size that books it (set on the Packages page)
   history: history.map((h) => ({ at: h.at, actor: h.actor, text: h.text, ...(h.ref === null ? {} : { ref: h.ref }) }))
 });
 
@@ -152,7 +153,7 @@ export async function updateItem(conn, id, changes) {
 
 /**
  * Set how many pieces of an item are out at one place (a reservation's ref as stored, or 'none'): the
- * row is written when `qty` is above 0 and deleted at 0, as the browser version deletes the key.
+ * row is written when `qty` is above 0 and deleted at 0 (no row means nothing is out there).
  */
 export async function setAllocation(conn, itemId, ref, qty) {
   if (qty > 0) {

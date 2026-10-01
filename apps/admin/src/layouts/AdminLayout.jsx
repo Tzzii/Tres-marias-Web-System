@@ -39,7 +39,7 @@ export default function AdminLayout() {
     }
   }, [account.data, account.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load reservations, payments, the admin's message threads, the outsourcing contracts and the
+  // Load reservations, payments, the admin's message threads, the outsourcing requests and the
   // customer feedback at the same time. They feed the notification bell and the red badge counts in
   // the sidebar (Messages included) and the phone tabs.
   const { data } = useResource(async () => {
@@ -87,7 +87,7 @@ export default function AdminLayout() {
       pending: pendingList.length,
       awaiting: awaitingList.length,
       unread: unreadCount,
-      // Outsourcing contracts sent but not yet answered by the partner
+      // Outsourcing requests sent but not yet answered by the partner
       awaitingReply: data.contracts.filter((c) => c.status === 'sent').length,
       newFeedback: unreadFeedback.length
     };
@@ -95,7 +95,7 @@ export default function AdminLayout() {
 
   // Sidebar links, in the order they appear. `badge` shows a count bubble next to the link.
   // Reservation & Calendar holds requests, all reservations and the calendar (badge = pending requests);
-  // Outsource sits under Inventory, since it covers what the inventory can't (badge = contracts still
+  // Outsource sits under Inventory, since it covers what the inventory can't (badge = requests still
   // waiting for a reply); Messages sits under Customers, one conversation per customer (badge = unread
   // messages); Reports holds the payments tab (badge = payment proofs to verify);
   // Feedbacks holds the reviews customers wrote (badge = reviews the admin has not read).

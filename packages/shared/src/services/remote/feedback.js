@@ -3,10 +3,8 @@ import { ApiError } from '../errors.js';
 import { http, sessionSide } from '../http.js';
 
 /**
- * The review (feedback) service on the API (apps/api/src/modules/feedback, endpoint map in
- * docs/backend-development-phases.md §9.8). Same function names, arguments, return shapes and ApiError
- * codes as the browser version (feedbackService.js), so no page changes when VITE_API_SERVICES includes
- * "feedback" (see facade/feedback.js).
+ * Reviews (feedbackApi in @tm/shared; apps/api/src/modules/feedback, endpoint map in
+ * docs/backend-development-phases.md §9.8).
  *
  * - The customer and the admin come from the session, so the page's `customerId` is not sent; the
  *   signed-in portal picks the address (/feedback for a customer, /admin/feedback for the admin), as
@@ -14,8 +12,8 @@ import { http, sessionSide } from '../http.js';
  * - listPublished() is public: the homepage calls it signed in or not, and gets only the public fields.
  * - Every write is one request, which emits one change event (http.js); a review never takes or frees a
  *   date, so the calendar has nothing to reload. The other portal sees the change through the poller.
- * - Without an id there is nothing to send: those calls still answer as the browser version would,
- *   whose form checks (the status, a flag's reason, the reply) come before the review is looked up.
+ * - Without an id there is nothing to send: those calls still answer as the server would, whose form
+ *   checks (the status, a flag's reason, the reply) come before the review is looked up.
  */
 
 // A review id in a URL path (never trust a path segment)
@@ -91,3 +89,6 @@ export async function deleteFeedback(id) {
   if (!id) throw gone();
   return http.delete(`/admin/feedback/${segment(id)}`);
 }
+
+// Pure rating rule that takes the category ratings as an argument: the same code the server uses (domain/feedback.js)
+export { categoryAverage } from '../../domain/feedback.js';

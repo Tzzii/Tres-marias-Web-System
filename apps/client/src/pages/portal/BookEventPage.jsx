@@ -30,10 +30,11 @@ import {
   SERVICE_TYPES,
   SelectField,
   TimeField,
+  addonPriceMap,
   calendarApi,
   catalogApi,
   computeQuote,
-  extraGuests,
+  flattenAddons,
   formatClock,
   formatDate,
   formatPackageItem,
@@ -76,9 +77,21 @@ const sectionForField = (field) => {
   return FIELD_SECTION[field] || 'details';
 };
 
-// Blank form values. A booking starts as a Buffet, the option most customers want.
+// True for an additional charge that comes in sizes (the customer books its sizes, each by the piece) or,
+// for a charge with packages (`hasPackages`), in packages (the customer books one of them, once). Either
+// way the chosen ones are kept in addonQty: a size's count as typed, a picked package as '1'.
+const hasSizes = (addon) => Boolean(addon && addon.sizes && addon.sizes.length);
+
+// The lowest price among a charge's packages, for "From ₱3,500"; null when none has a price yet
+const lowestPackagePrice = (addon) => {
+  const prices = addon.sizes.map((s) => s.price).filter((price) => price > 0);
+  return prices.length ? Math.min(...prices) : null;
+};
+
+// Blank form values. `serviceType` starts empty, so nothing under "What you are booking" is picked
+// until the customer chooses it themselves.
 // `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental.
-const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', guests: '', serviceType: 'Buffet and Catering', packageId: '', menu: {}, foodNotes: '', venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
+const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
 
 // Date error while the availability map is still on its way from the API (the date cannot be checked yet)
 const DATES_LOADING = 'The available dates are still loading. Please try again in a moment.';
@@ -138,6 +151,7 @@ export default function BookEventPage() {
     const picks = intentIsNewer ? intent : {};
     const pkg = catalog.data.packages.find((p) => p.slug === (params.get('package') || picks.packageSlug));
     // Picking the Equipment Rental package makes the booking a rental; any other package leaves a rental
+    // and clears the choice, so the customer picks Buffet or Catering only again
     const serviceFor = pkg && isRentalPackage(pkg) ? { serviceType: RENTAL_SERVICE } : pkg && isRental(base.serviceType) ? { serviceType: EMPTY.serviceType } : {};
     setForm({
       ...base,
@@ -197,19 +211,28 @@ export default function BookEventPage() {
   const packages = data ? data.packages.filter((p) => !isRentalPackage(p)) : [];
   // True when this booking is an equipment rental
   const rental = isRental(form.serviceType);
-  // Guests above what the chosen package covers (0 when they fit); allowed, but the admin may add charges
-  const overBy = extraGuests(pkg, form.guests);
   // True when the booking includes our food, and so a menu and a per-person charge
   const buffet = includesFood(form.serviceType);
   // The dishes still offered in one menu category
   const dishesIn = (category) => (data ? data.dishes.filter((d) => d.category === category) : []);
-  // The additional charges the customer ticked (a rental has none)
-  const chosenAddons = data && !rental ? data.addons.filter((a) => form.addonIds.includes(a.id)) : [];
+  // Every additional charge, size and package by id. A charge with sizes stays ticked in addonIds while the
+  // customer fills in its sizes, but only the sizes given a count are booked, never the charge itself; a
+  // charge with packages likewise books only the package picked.
+  const addonById = data ? Object.fromEntries(flattenAddons(data.addons).map((a) => [a.id, a])) : {};
+  const bookedAddonIds = rental
+    ? []
+    : form.addonIds.flatMap((id) => {
+        const a = addonById[id];
+        if (!a) return []; // archived since the draft was saved
+        return hasSizes(a) ? a.sizes.filter((s) => Number(form.addonQty[s.id]) > 0).map((s) => s.id) : [id];
+      });
+  // The additional charges booked, a size named in full ("Tent 10 × 10"); a rental has none
+  const chosenAddons = bookedAddonIds.map((id) => addonById[id]);
   // The items a rental asks for, with today's price per piece: [{ itemId, name, qty, price }]
   const rentalChosen = data && rental ? data.rentals.filter((i) => Number(form.rentalQty[i.id]) > 0).map((i) => ({ itemId: i.id, name: i.name, qty: Number(form.rentalQty[i.id]), price: i.price })) : [];
   const delivered = rental && form.fulfilment === 'delivery';
-  // The running total, worked out exactly as the admin's quotation will be. The add-on prices are
-  // not known yet, so they come out as 0 here and are shown as "To be quoted" instead.
+  // The running total, worked out exactly as the admin's quotation will be. An additional charge with
+  // its own price is counted at it; one without a price comes out as 0 here and shows "To be quoted".
   const quote = computeQuote({
     pkg,
     serviceType: form.serviceType,
@@ -217,17 +240,23 @@ export default function BookEventPage() {
     pricePerPlate: data ? data.pricePerPlate : 0,
     rentalItems: rentalChosen,
     deliveryFee: delivered ? RENTAL.deliveryFee : 0,
-    addonIds: rental ? [] : form.addonIds,
-    addonQty: form.addonQty
+    addonIds: bookedAddonIds,
+    addonQty: form.addonQty,
+    addonPrices: addonPriceMap(chosenAddons)
   });
-  // What is known now: the package plus, for a buffet, the food. The rest is quoted later.
-  // A rental is fully priced already: its items plus the delivery fee.
-  const knownTotal = rental ? quote.net : quote.packageTotal + quote.food;
+  // What is known now: the package, the food for a buffet, and the additional charges that have their
+  // own price; the others are quoted later. A rental is fully priced already: its items plus the delivery fee.
+  const knownTotal = quote.net;
+  // The ticked charges' total that is already known, and a reminder when some are still to be quoted
+  const addonNote = quote.addons ? ` + additional charges ${peso(quote.addons)}` : '';
+  const quotedNote = chosenAddons.some((a) => !a.price) ? ' Charges marked "To be quoted" are priced in your quotation.' : '';
 
-  // A rental's items: how many of each are free on the chosen date, { itemId: { left, status } }
+  // How many of each item are free on the chosen date, { itemId: { left, status } }: a rental's items,
+  // and the items additional charges book (a tent size), so the form can say how many are left
+  const tracksStock = Boolean(data) && flattenAddons(data.addons).some((a) => a.inventoryItemId);
   const [avail, setAvail] = useState({});
   useEffect(() => {
-    if (!rental || !form.date) {
+    if (!(rental || tracksStock) || !form.date) {
       setAvail({});
       return undefined;
     }
@@ -239,7 +268,10 @@ export default function BookEventPage() {
     return () => {
       live = false;
     };
-  }, [rental, form.date]);
+  }, [rental, tracksStock, form.date]);
+  // Pieces still free on the chosen date for a stock-tracked charge or size (a tent size); null when it
+  // isn't tracked, or before a date is chosen and its count has arrived
+  const leftFor = (a) => (a.inventoryItemId && form.date && avail[a.inventoryItemId] ? avail[a.inventoryItemId].left : null);
 
   // Change one or more fields, mark the form as touched, and clear those fields' errors
   const update = (patch) => {
@@ -281,21 +313,46 @@ export default function BookEventPage() {
 
   // Add or remove an additional charge. One counted by the piece starts at 1 when it is ticked
   // and drops its count when it is unticked, so an untouched charge never keeps an old number.
+  // A charge with sizes starts with every size blank (the customer types how many of the sizes they
+  // want) and drops all of its sizes' counts when it is unticked; a charge with packages likewise starts
+  // with no package picked and drops its pick when it is unticked.
   const toggleAddon = (id) => {
+    const charge = addonById[id];
     const on = form.addonIds.includes(id);
     const qty = { ...form.addonQty };
-    if (on) delete qty[id];
-    else qty[id] = '1';
+    if (on) {
+      delete qty[id];
+      if (hasSizes(charge)) charge.sizes.forEach((s) => delete qty[s.id]);
+    } else if (!hasSizes(charge)) qty[id] = '1';
     update({ addonIds: on ? form.addonIds.filter((a) => a !== id) : [...form.addonIds, id], addonQty: qty });
   };
 
-  // How many of a by-the-piece charge: digits only, at most two (1-99)
+  // How many of a by-the-piece charge or of one size: digits only, at most two (1-99). A size's
+  // count also clears its charge's "at least one size" message.
   const updateAddonQty = (id, raw) => {
     const digits = raw.replace(/\D/g, '').slice(0, 2);
     update({ addonQty: { ...form.addonQty, [id]: digits } });
+    const parentId = addonById[id] && addonById[id].parentId;
     setErrors((e) => {
       const next = { ...e };
       delete next[`addonQty.${id}`];
+      if (parentId) delete next[`addonQty.${parentId}`];
+      return next;
+    });
+  };
+
+  // Pick one package of a ticked charge with packages: it is booked once ('1'), and the charge's other
+  // packages are dropped, so a booking never carries two of them (the server refuses that too). Clears
+  // the charge's "Choose one of the packages" message and any package's own message.
+  const pickPackage = (charge, id) => {
+    const qty = { ...form.addonQty };
+    charge.sizes.forEach((s) => delete qty[s.id]);
+    qty[id] = '1';
+    update({ addonQty: qty });
+    setErrors((e) => {
+      const next = { ...e };
+      delete next[`addonQty.${charge.id}`];
+      charge.sizes.forEach((s) => delete next[`addonQty.${s.id}`]);
       return next;
     });
   };
@@ -339,7 +396,7 @@ export default function BookEventPage() {
     const guests = Number(form.guests);
     if (!form.guests) e.guests = 'Enter your guest count.';
     else if (!Number.isInteger(guests) || guests < RULES.minGuests || guests > RULES.maxGuests) e.guests = `Between ${RULES.minGuests} and ${RULES.maxGuests} guests.`;
-    if (!SERVICE_TYPES.includes(form.serviceType)) e.serviceType = 'Choose a buffet or catering only.';
+    if (!SERVICE_TYPES.includes(form.serviceType)) e.serviceType = 'Choose what you are booking.';
     if (!pkg) e.packageId = 'Choose a package.';
     // A buffet needs something written on every line; catering only has no menu at all
     if (buffet) {
@@ -347,11 +404,24 @@ export default function BookEventPage() {
         if ((form.menu[key] || '').trim().length < 2) e[`menu.${key}`] = `Tell us what you would like for your ${label.toLowerCase()}.`;
       });
     }
+    // A ticked charge with sizes needs a count for at least one size, and one with packages a package
+    form.addonIds.forEach((id) => {
+      const charge = addonById[id];
+      if (hasSizes(charge) && !charge.sizes.some((s) => Number(form.addonQty[s.id]) > 0)) {
+        e[`addonQty.${id}`] = charge.hasPackages ? 'Choose one of the packages.' : 'Enter how many for at least one size.';
+      }
+    });
     // Every by-the-piece charge that was ticked needs a count
     chosenAddons.forEach((a) => {
       if (!a.hasQuantity) return;
       const many = Number(form.addonQty[a.id]);
       if (!Number.isInteger(many) || many < 1 || many > 99) e[`addonQty.${a.id}`] = 'Enter 1 to 99.';
+    });
+    // A stock-tracked charge (a tent size) can't ask for more than are free on the date (the server checks again)
+    chosenAddons.forEach((a) => {
+      const left = leftFor(a);
+      const many = a.hasQuantity ? Number(form.addonQty[a.id]) : 1;
+      if (!e[`addonQty.${a.id}`] && left !== null && many > left) e[`addonQty.${a.id}`] = left ? `Only ${left} left on this date.` : 'Fully booked on this date.';
     });
     if (!form.venueName.trim()) e.venueName = 'Enter the venue name.';
     if (!form.venueAddress.trim()) e.venueAddress = 'Enter the venue address.';
@@ -402,8 +472,9 @@ export default function BookEventPage() {
     }
     setBusy(true);
     try {
-      // Catering only carries no menu, and only by-the-piece charges carry a count.
-      // A rental sends the items it asks for instead.
+      // Catering only carries no menu, and only by-the-piece charges carry a count. A charge with
+      // sizes is sent as the sizes given a count, and one with packages as the package picked. A rental
+      // sends the items it asks for instead.
       const created = await reservationApi.createReservation(
         user.id,
         rental
@@ -412,6 +483,7 @@ export default function BookEventPage() {
               ...form,
               guests: Number(form.guests),
               menu: buffet ? form.menu : {},
+              addonIds: bookedAddonIds,
               addonQty: Object.fromEntries(Object.entries(form.addonQty).map(([id, many]) => [id, Number(many)]))
             }
       );
@@ -542,7 +614,7 @@ export default function BookEventPage() {
                 <TimeField id="f-startTime" label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start time'} required value={form.startTime} onChange={(v) => update({ startTime: v })} error={errors.startTime} min={RULES.earliestStart} max={RULES.latestStart} step={30} />
                 {/* A rental has no guest count: the customer says how many of each item instead */}
                 {!rental && (
-                  <FormField id="f-guests" label="Guest count" required value={form.guests} onChange={(e) => updateGuests(e.target.value)} error={errors.guests} hint={pkg ? `${pkg.name} covers ${pkg.guests} guests` : `Between ${RULES.minGuests} and ${RULES.maxGuests} guests`} inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }} />
+                  <FormField id="f-guests" label="Guest count" required value={form.guests} onChange={(e) => updateGuests(e.target.value)} error={errors.guests} hint={pkg ? `Default for ${pkg.name}: ${pkg.guests} guests` : `Between ${RULES.minGuests} and ${RULES.maxGuests} guests`} inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }} />
                 )}
               </Box>
             </Section>
@@ -579,12 +651,10 @@ export default function BookEventPage() {
             </Section>
 
             {!rental && (
-            <Section id="package" index={sectionNo('package')} title="Package" subtitle="Any package works for any occasion. Pick the one that covers your guest count." error={errors.packageId}>
+            <Section id="package" index={sectionNo('package')} title="Package" subtitle="Any package works for any occasion. Each one shows its default guest count, so pick the one closest to yours." error={errors.packageId}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
                 {packages.map((p) => {
                   const selected = p.id === form.packageId;
-                  // Guest count turns red when it is above what this package covers
-                  const fits = !form.guests || Number(form.guests) <= p.guests;
                   return (
                     <ButtonBase key={p.id} onClick={() => update({ packageId: p.id })} aria-pressed={selected} sx={{ display: 'block', p: 2, textAlign: 'left', borderRadius: 2, fontFamily: 'inherit', border: `2px solid ${selected ? tokens.ink : tokens.cardLightBorder}`, backgroundColor: selected ? tokens.surfaceSubtle : tokens.cardLight, transition: 'border-color 0.15s ease', '&:hover': { borderColor: selected ? tokens.ink : tokens.placeholder } }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
@@ -593,27 +663,24 @@ export default function BookEventPage() {
                       </Box>
                       <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{p.description}</Typography>
                       <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                        <Typography sx={{ fontSize: 12.5, color: fits ? tokens.textMuted : tokens.redPress, fontWeight: fits ? 400 : 600 }}>Covers {p.guests} guests</Typography>
+                        <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>Default: {p.guests} guests</Typography>
                         <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>{peso(p.price)}</Typography>
                       </Box>
                     </ButtonBase>
                   );
                 })}
               </Box>
-              {/* What the chosen package includes */}
+              {/* What the chosen package includes, and how it is booked once "What you are booking" is picked */}
               {pkg && (
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>{pkg.name} includes</Typography>
                   <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>{pkg.items.map(formatPackageItem).join(' · ')}</Typography>
-                  <Typography sx={{ mt: 0.75, fontSize: 12.5, color: tokens.textSecondary }}>
-                    {buffet ? 'Your food is cooked by us and charged per person on top of this package.' : 'Booked as catering only: the equipment above, with no food.'}
-                  </Typography>
+                  {form.serviceType && (
+                    <Typography sx={{ mt: 0.75, fontSize: 12.5, color: tokens.textSecondary }}>
+                      {buffet ? 'Your food is cooked by us and charged per person on top of this package.' : 'Booked as catering only: the equipment above, with no food.'}
+                    </Typography>
+                  )}
                 </Box>
-              )}
-              {overBy > 0 && (
-                <AlertBanner tone="info" sx={{ mt: 2 }}>
-                  Your {form.guests} guests are {overBy} more than {pkg.name} covers. You can still book it; our team may add charges for the extra guests in your quotation.
-                </AlertBanner>
               )}
             </Section>
             )}
@@ -755,36 +822,140 @@ export default function BookEventPage() {
             )}
 
             {!rental && (
-            <Section id="addons" index={sectionNo('addons')} title="Additional charges" subtitle="Optional. Tick what you need and we price it in your quotation.">
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25 }}>
-                {data.addons.map((a) => {
-                  const on = form.addonIds.includes(a.id);
-                  return (
-                    <Box key={a.id} component="label" sx={{ display: 'flex', gap: 1, p: 1.5, borderRadius: 1.5, cursor: 'pointer', border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`, backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff' }}>
-                      <Checkbox checked={on} onChange={() => toggleAddon(a.id)} size="small" sx={{ p: 0.25, alignSelf: 'flex-start' }} />
-                      <Box sx={{ flex: 1 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                          <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{a.name}</Typography>
-                          <Typography sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: tokens.textMuted }}>Quoted</Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{a.description}</Typography>
-                        {/* Charges counted by the piece ask how many; the admin then prices one of them */}
-                        {a.hasQuantity && on && (
-                          <FormField
-                            id={`f-qty-${a.id}`}
-                            label="How many do you need?"
-                            value={form.addonQty[a.id] || ''}
-                            onChange={(e) => updateAddonQty(a.id, e.target.value)}
-                            error={errors[`addonQty.${a.id}`]}
-                            inputProps={{ inputMode: 'numeric', maxLength: 2, 'aria-label': `How many ${a.name}` }}
-                            sx={{ mt: 1, maxWidth: 150 }}
-                          />
-                        )}
+            <Section id="addons" index={sectionNo('addons')} title="Additional charges" subtitle="Optional. Tick what you need. A charge marked Quoted is priced in your quotation.">
+              {/* The charges customers tick, then the charges with packages, where a ticked charge asks for one package */}
+              {[
+                { key: 'plain', list: data.addons.filter((a) => !a.hasPackages) },
+                { key: 'packages', list: data.addons.filter((a) => a.hasPackages), title: 'Additional charges with packages', hint: 'Tick one, then pick the package you want.' }
+              ]
+                .filter((group) => group.list.length)
+                .map((group, groupIndex) => (
+                  <Box key={group.key} sx={groupIndex ? { mt: 2.5 } : undefined}>
+                    {group.title && (
+                      <Box sx={{ mb: 1.25 }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>{group.title}</Typography>
+                        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{group.hint}</Typography>
                       </Box>
+                    )}
+                    {/* A charge with packages lists them with what each includes, so it takes the full width */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: group.key === 'packages' ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.25 }}>
+                      {group.list.map((a) => {
+                        const on = form.addonIds.includes(a.id);
+                        const sized = hasSizes(a) && !a.hasPackages;
+                        const packaged = hasSizes(a) && a.hasPackages;
+                        const from = packaged ? lowestPackagePrice(a) : null;
+                        return (
+                          <Box key={a.id} component="label" sx={{ display: 'flex', gap: 1, p: 1.5, borderRadius: 1.5, cursor: 'pointer', border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`, backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff' }}>
+                            <Checkbox checked={on} onChange={() => toggleAddon(a.id)} size="small" sx={{ p: 0.25, alignSelf: 'flex-start' }} />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{a.name}</Typography>
+                                {/* Its own price (of one, when counted by the piece), "Quoted" when the admin prices it per event,
+                                    "By size" when each size has its own price, or the cheapest package ("From ₱3,500") */}
+                                <Typography sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: (packaged ? from : a.price && !sized) ? tokens.textPrimary : tokens.textMuted }}>
+                                  {sized ? 'By size' : packaged ? (from ? `From ${peso(from)}` : 'Quoted') : a.price ? `${peso(a.price)}${a.hasQuantity ? ' each' : ''}` : 'Quoted'}
+                                </Typography>
+                              </Box>
+                              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{a.description}</Typography>
+                              {/* Charges counted by the piece ask how many; the price is that of one */}
+                              {a.hasQuantity && on && (
+                                <FormField
+                                  id={`f-qty-${a.id}`}
+                                  label="How many do you need?"
+                                  value={form.addonQty[a.id] || ''}
+                                  onChange={(e) => updateAddonQty(a.id, e.target.value)}
+                                  error={errors[`addonQty.${a.id}`]}
+                                  inputProps={{ inputMode: 'numeric', maxLength: 2, 'aria-label': `How many ${a.name}` }}
+                                  sx={{ mt: 1, maxWidth: 150 }}
+                                />
+                              )}
+                              {/* A charge with sizes: how many of each size, blank for a size not wanted. A click on the
+                                  rows (other than in a box) must not untick the charge, which the card's label would do. */}
+                              {sized && on && (
+                                <Box onClick={(e) => e.target.tagName !== 'INPUT' && e.preventDefault()} sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}>
+                                  {a.sizes.map((s) => {
+                                    const left = leftFor(s);
+                                    return (
+                                      <Box key={s.id} sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+                                        <Box sx={{ minWidth: 0, pt: 3 }}>
+                                          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{s.size}</Typography>
+                                          <Typography sx={{ fontSize: 12, color: s.price ? tokens.textSecondary : tokens.textMuted }}>{s.price ? `${peso(s.price)} each` : 'Quoted'}</Typography>
+                                          {/* How many are still free on the chosen date, for a size that books from the inventory */}
+                                          {left !== null && (
+                                            <Typography sx={{ fontSize: 11.5, fontWeight: left ? 400 : 600, color: left ? tokens.textMuted : tokens.redPress }}>
+                                              {left ? `${left} left on this date` : 'Fully booked on this date'}
+                                            </Typography>
+                                          )}
+                                        </Box>
+                                        <FormField
+                                          id={`f-qty-${s.id}`}
+                                          label="How many"
+                                          value={form.addonQty[s.id] || ''}
+                                          onChange={(e) => updateAddonQty(s.id, e.target.value)}
+                                          error={errors[`addonQty.${s.id}`]}
+                                          disabled={left === 0}
+                                          inputProps={{ inputMode: 'numeric', maxLength: 2, 'aria-label': `How many ${s.name}` }}
+                                          sx={{ maxWidth: 130 }}
+                                        />
+                                      </Box>
+                                    );
+                                  })}
+                                  {errors[`addonQty.${a.id}`] && <Typography role="alert" sx={{ fontSize: 12, color: tokens.redPress }}>{errors[`addonQty.${a.id}`]}</Typography>}
+                                </Box>
+                              )}
+                              {/* A charge with packages: pick one, each with its price and what it includes. A click here
+                                  must not untick the charge, which the card's label would do, so the label's action is cancelled. */}
+                              {packaged && on && (
+                                <Box role="radiogroup" aria-label={`${a.name} package`} onClick={(e) => e.preventDefault()} sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}>
+                                  {a.sizes.map((s) => {
+                                    const picked = Number(form.addonQty[s.id]) > 0;
+                                    const left = leftFor(s);
+                                    return (
+                                      <ButtonBase
+                                        key={s.id}
+                                        role="radio"
+                                        aria-checked={picked}
+                                        disabled={left === 0 && !picked}
+                                        onClick={() => pickPackage(a, s.id)}
+                                        sx={{ display: 'block', width: '100%', p: 1.25, textAlign: 'left', borderRadius: 1.5, fontFamily: 'inherit', border: `1.5px solid ${picked ? tokens.ink : tokens.cardLightBorder}`, backgroundColor: picked ? tokens.surfaceSubtle : tokens.cardLight, transition: 'border-color 0.15s ease', '&:hover': { borderColor: picked ? tokens.ink : tokens.placeholder }, '&.Mui-disabled': { opacity: 0.55 } }}
+                                      >
+                                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          {picked ? <CheckCircleRoundedIcon sx={{ fontSize: 18, color: tokens.ink }} /> : <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 18, color: tokens.borderInput }} />}
+                                          <Typography component="span" sx={{ flex: 1, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>{s.size}</Typography>
+                                          <Typography component="span" sx={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', color: s.price ? tokens.textPrimary : tokens.textMuted }}>{s.price ? peso(s.price) : 'Quoted'}</Typography>
+                                        </Box>
+                                        {/* What it includes, one line each as the admin wrote them */}
+                                        {s.description
+                                          .split('\n')
+                                          .map((line) => line.trim())
+                                          .filter(Boolean)
+                                          .map((line, i) => (
+                                            <Typography key={i} component="span" sx={{ display: 'block', position: 'relative', pl: 3.25, fontSize: 12, lineHeight: 1.55, color: tokens.textSecondary, '&::before': { content: '"•"', position: 'absolute', left: 14 } }}>
+                                              {line}
+                                            </Typography>
+                                          ))}
+                                        {/* How many are still free on the chosen date, for a package that books from the inventory */}
+                                        {left !== null && (
+                                          <Typography component="span" sx={{ display: 'block', pl: 3.25, fontSize: 11.5, fontWeight: left ? 400 : 600, color: left ? tokens.textMuted : tokens.redPress }}>
+                                            {left ? `${left} left on this date` : 'Fully booked on this date'}
+                                          </Typography>
+                                        )}
+                                        {errors[`addonQty.${s.id}`] && (
+                                          <Typography component="span" role="alert" sx={{ display: 'block', pl: 3.25, fontSize: 12, color: tokens.redPress }}>{errors[`addonQty.${s.id}`]}</Typography>
+                                        )}
+                                      </ButtonBase>
+                                    );
+                                  })}
+                                  {errors[`addonQty.${a.id}`] && <Typography role="alert" sx={{ fontSize: 12, color: tokens.redPress }}>{errors[`addonQty.${a.id}`]}</Typography>}
+                                </Box>
+                              )}
+                            </Box>
+                          </Box>
+                        );
+                      })}
                     </Box>
-                  );
-                })}
-              </Box>
+                  </Box>
+                ))}
             </Section>
             )}
 
@@ -818,7 +989,7 @@ export default function BookEventPage() {
                     ['Pick up or delivery', delivered ? 'Delivery' : 'Pick up']
                   ]
                 : [
-                    ['Booking', form.serviceType],
+                    ['Booking', form.serviceType || '—'],
                     ['Date', form.date ? formatDate(form.date) : '—'],
                     ['Guests', form.guests || '—'],
                     ['Package', pkg ? pkg.name : '—'],
@@ -843,11 +1014,13 @@ export default function BookEventPage() {
                     : 'Type how many you need of each item to see your total'
                   : !pkg
                   ? 'Choose a package to see your total'
+                  : !form.serviceType
+                  ? `Package ${peso(quote.packageTotal)}${addonNote}. Choose what you are booking to finish your total.${quotedNote}`
                   : buffet && quote.plates
-                    ? `Package ${peso(quote.packageTotal)} + buffet for ${quote.plates} at ${peso(quote.pricePerPlate)} each. Additional charges are priced in your quotation.`
+                    ? `Package ${peso(quote.packageTotal)} + buffet for ${quote.plates} at ${peso(quote.pricePerPlate)} each${addonNote}.${quotedNote}`
                     : buffet
                       ? 'Enter your guest count to see the buffet price'
-                      : 'Catering only, so there is no per-person charge. Additional charges are priced in your quotation.'}
+                      : `Package ${peso(quote.packageTotal)}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
               </Typography>
               <BusyButton fullWidth size="large" busy={busy} onClick={submit} sx={{ mt: 2 }}>
                 Submit request
@@ -892,8 +1065,9 @@ function Section({ id, index, title, subtitle, error, children }) {
 
 /**
  * Price breakdown before the quotation. The package price and, for a buffet, the food are both
- * known here, because a buffet is charged per person. Only the additional charges are still
- * "To be quoted", so the starting total is what the customer can already count on.
+ * known here, because a buffet is charged per person, and so is each additional charge with its own
+ * price. Only the charges without one are still "To be quoted", so the starting total is what the
+ * customer can already count on.
  */
 function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
   const rows = [
@@ -902,7 +1076,7 @@ function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
     ...(includesFood(serviceType)
       ? [[quote.plates ? `Buffet · ${quote.plates} × ${peso(quote.pricePerPlate)}` : 'Buffet · enter your guest count', quote.plates ? peso(quote.food) : '—']]
       : []),
-    ...addons.map((a) => [a.hasQuantity ? `${a.name} × ${Number(addonQty[a.id]) || 1}` : a.name, 'To be quoted'])
+    ...addons.map((a) => [a.hasQuantity ? `${a.name} × ${Number(addonQty[a.id]) || 1}` : a.name, a.price ? peso(quote.addonTotals[a.id]) : 'To be quoted'])
   ];
   return (
     <Box sx={{ borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, overflow: 'hidden' }}>
@@ -914,7 +1088,7 @@ function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
       ))}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, px: 2, py: 1.5, backgroundColor: tokens.surfaceSubtle }}>
         <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Starting total</Typography>
-        <Typography sx={{ fontSize: 16, fontWeight: 800 }}>{pkg ? peso(quote.packageTotal + quote.food) : '—'}</Typography>
+        <Typography sx={{ fontSize: 16, fontWeight: 800 }}>{pkg ? peso(quote.net) : '—'}</Typography>
       </Box>
     </Box>
   );

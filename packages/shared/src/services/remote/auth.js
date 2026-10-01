@@ -3,14 +3,14 @@ import { emitChange, emitTokenRenewed } from '../events.js';
 import { http } from '../http.js';
 
 /**
- * The auth service on the API (apps/api/src/modules/auth, endpoint map in
- * docs/backend-development-phases.md §9.1). Same function names, arguments, return shapes and
- * ApiError codes as the browser version (authService.js), so no page changes when VITE_API_SERVICES
- * includes "auth" (see facade/auth.js).
+ * Sign-in, sign-up and the account pages of both portals (authApi in @tm/shared): each function is one
+ * call to the API (apps/api/src/modules/auth, endpoint map in docs/backend-development-phases.md §9.1).
  *
  * - The server decides whose account a /me call is about from the session token; the id arguments
- *   (customerId, adminId) are kept for the pages' sake and not sent.
- * - Codes are emailed (admin) or texted (customer) by the server and never come back in a response.
+ *   (customerId, adminId) some pages pass are not sent.
+ * - Every one-time code is emailed by the server (never texted, Phase 12) and never comes back in a
+ *   response: the admin's sign-in and contact-change codes, and the customer's codes for signing up,
+ *   resetting a forgotten password and changing the password in My profile.
  * - Lockouts are enforced by the server. getLockout only remembers, for this tab, the lock the server
  *   last reported, so the log-in page can restore its countdown after a reload.
  */
@@ -74,21 +74,40 @@ const segment = (id) => encodeURIComponent(String(id || ''));
 export const customerLogin = ({ email, password, remember = false }) =>
   trackLock('customer', email, () => http.post('/auth/customer/login', { email, password, remember }));
 
-/** Create a customer account and sign them in: { token, user }. Only the account fields are sent. */
-export const customerRegister = ({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '' }) =>
+/**
+ * Sign-up, step 1 (Phase 12): the server checks the form and emails a code to the new address; no
+ * account exists yet. Only the account fields are sent. Returns { challengeId, maskedEmail, expiresAt, resendAt }.
+ */
+export const startSignUp = ({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '' }) =>
   http.post('/auth/customer/register', { firstName, middleName, lastName, email, mobile, password });
 
-/** Forgot password, step 1: the server texts a code to the account's mobile. { challengeId, maskedMobile, expiresAt, resendAt } */
+/** Sign-up: email a new code (after the resend cooldown): { expiresAt, resendAt } */
+export const resendSignUpCode = (challengeId) => http.post(`/auth/customer/register/${segment(challengeId)}/resend`);
+
+/** Sign-up, step 2: the emailed code. The server creates the account and signs the customer in: { token, user } */
+export const confirmSignUp = ({ challengeId, code }) => http.post(`/auth/customer/register/${segment(challengeId)}/verify`, { code });
+
+/** Forgot password, step 1: the server emails a code to the account's address. { challengeId, maskedEmail, expiresAt, resendAt } */
 export const startPasswordReset = ({ email }) => http.post('/auth/customer/password-reset', { email });
 
-/** Text a new code (after the resend cooldown): { expiresAt, resendAt } */
+/** Email a new code (after the resend cooldown): { expiresAt, resendAt } */
 export const resendPasswordResetCode = (challengeId) => http.post(`/auth/customer/password-reset/${segment(challengeId)}/resend`);
 
-/** Step 2: check the texted code: { ok: true } */
+/** Step 2: check the emailed code: { ok: true } */
 export const verifyPasswordResetCode = ({ challengeId, code }) => http.post(`/auth/customer/password-reset/${segment(challengeId)}/verify`, { code });
 
-/** Step 3: save the new password: { ok: true, email } */
-export const completePasswordReset = ({ challengeId, password }) => http.post(`/auth/customer/password-reset/${segment(challengeId)}/complete`, { password });
+/**
+ * Step 3: save the new password: { ok: true, email }. Run from My profile ("Forgot your current
+ * password?"), the request carries the customer's session, and the server answers with a new token for
+ * it (the reset ends every older session); it is saved (emitTokenRenewed) before the change event, so
+ * the page stays signed in. From the Log in page there is no session and no token.
+ */
+export async function completePasswordReset({ challengeId, password }) {
+  const result = await http.post(`/auth/customer/password-reset/${segment(challengeId)}/complete`, { password }, { quiet: true });
+  if (result.token) emitTokenRenewed(result.token);
+  emitChange();
+  return { ok: true, email: result.email };
+}
 
 /** The signed-in customer's profile. */
 export const getCustomerProfile = () => http.get('/me');
@@ -97,12 +116,21 @@ export const getCustomerProfile = () => http.get('/me');
 export const updateCustomerProfile = (customerId, { name = '', mobile = '', company = '' }) => http.patch('/me', { name, mobile, company });
 
 /**
- * Change the password. The server signs out every other session and returns a new token for this
- * one; it is saved (emitTokenRenewed) before the change event, so the pages that reload afterwards
- * already use it. Returns { ok: true } like the browser version.
+ * Change the password in My profile, step 1 (Phase 12): the server checks the current password and the
+ * new one, and emails a code; nothing changes yet. Returns { challengeId, maskedEmail, expiresAt, resendAt }.
  */
-export async function changeCustomerPassword(customerId, { current, next }) {
-  const { token } = await http.post('/me/password', { current, next }, { quiet: true });
+export const startPasswordChange = ({ current, next }) => http.post('/me/password', { current, next });
+
+/** Password change: email a new code (after the resend cooldown): { expiresAt, resendAt } */
+export const resendPasswordChangeCode = (challengeId) => http.post(`/me/password/${segment(challengeId)}/resend`);
+
+/**
+ * Password change, step 2: the emailed code. The server saves the new password, signs out every other
+ * session and returns a new token for this one; it is saved (emitTokenRenewed) before the change event,
+ * so the pages that reload afterwards already use it. Returns { ok: true }.
+ */
+export async function confirmPasswordChange({ challengeId, code }) {
+  const { token } = await http.post(`/me/password/${segment(challengeId)}/confirm`, { code }, { quiet: true });
   emitTokenRenewed(token);
   emitChange();
   return { ok: true };

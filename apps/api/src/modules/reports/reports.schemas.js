@@ -3,9 +3,9 @@ import { REPORT_RANGES } from '@tm/shared/src/domain/reports.js';
 
 /**
  * Request shapes for the report routes (zod), checked by middleware/validate.js before a service runs.
- * The range must be one the Reports page offers, refused with the browser version's message (rangeProblem
+ * The range must be one the Reports page offers, refused with the page's own message (rangeProblem
  * in domain/reports.js); without one it is this year, as on the page. The saved report's name is any text
- * here: reports.service.js answers an unknown one exactly as the browser version does.
+ * here: reports.service.js answers an unknown one (INVALID "Unknown report.").
  */
 
 // ?range=this_year | last_12 | last_year | all (a repeated ?range= arrives as a list and is refused too)

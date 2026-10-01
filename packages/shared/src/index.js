@@ -5,8 +5,9 @@
  *   components/  buttons, inputs, cards, dialogs, calendar, charts, portal shell
  *   hooks/       data loading, countdowns, toasts, page titles
  *   auth/        session provider factory and route guard
- *   services/    the data layer; each xxxApi goes through services/facade/, which picks the
- *                browser store or the API per service (VITE_API_SERVICES, see services/backend.js)
+ *   services/    the data layer: each xxxApi is services/remote/xxx.js, one function per API call
+ *                (services/http.js); every page's data comes from the API (the browser data store
+ *                was removed in Phase 12)
  *   utils/       formatting, status pipeline, validation
  */
 export { tokens, eyebrowSx, shakeSx } from './theme/tokens.js';
@@ -49,21 +50,23 @@ export * from './utils/format.js';
 export * from './utils/status.js';
 export * from './utils/validation.js';
 
-export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, BLOCK_REASONS, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
-export { computeQuote, extraGuests, isRentalPackage } from './services/pricing.js';
+export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
+export { computeQuote, isRentalPackage } from './services/pricing.js';
 // When a customer may cancel online (pages read the answer from each reservation's summary; the window in words is for texts)
 export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
 // The reference-number rule of the payment and refund forms, the same one the services check
 export { referenceProblem } from './domain/payment.js';
+// An additional charge's own price, its sizes and its packages (the admin's form and the booking form use the same rules as the services)
+export { MAX_ADDON_SIZES, PACKAGE_INCLUDES_MAX, addonPriceMap, flattenAddons, readAddonPrice, readAddonSizes } from './domain/catalog.js';
 export { ApiError } from './services/errors.js';
-export * as authApi from './services/facade/auth.js';
-export * as catalogApi from './services/facade/catalog.js';
-export * as calendarApi from './services/facade/calendar.js';
-export * as reservationApi from './services/facade/reservation.js';
-export * as paymentApi from './services/facade/payment.js';
-export * as messageApi from './services/facade/message.js';
-export * as customerApi from './services/facade/customer.js';
-export * as feedbackApi from './services/facade/feedback.js';
-export * as reportApi from './services/facade/report.js';
-export * as inventoryApi from './services/facade/inventory.js';
-export * as outsourceApi from './services/facade/outsource.js';
+export * as authApi from './services/remote/auth.js';
+export * as catalogApi from './services/remote/catalog.js';
+export * as calendarApi from './services/remote/calendar.js';
+export * as reservationApi from './services/remote/reservation.js';
+export * as paymentApi from './services/remote/payment.js';
+export * as messageApi from './services/remote/message.js';
+export * as customerApi from './services/remote/customer.js';
+export * as feedbackApi from './services/remote/feedback.js';
+export * as reportApi from './services/remote/report.js';
+export * as inventoryApi from './services/remote/inventory.js';
+export * as outsourceApi from './services/remote/outsource.js';

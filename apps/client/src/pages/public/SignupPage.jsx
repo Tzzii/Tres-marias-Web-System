@@ -29,6 +29,7 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import AuthLayout, { BookingIntentBanner, FormCard, useCardFlip } from '../../components/AuthLayout.jsx';
+import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import { readIntent } from '../../lib/booking.js';
 
 // Validation rule for each field. Each returns an error message, or '' when valid.
@@ -43,7 +44,12 @@ const RULES = {
   agree: (v) => (v ? '' : 'Please agree to the terms and privacy notice.')
 };
 
-/** 1d · Sign up. From the gate it continues to the reservation form; from the nav, the dashboard. */
+/**
+ * 1d · Sign up. From the gate it continues to the reservation form; from the nav, the dashboard.
+ * Two steps (Phase 12): the form, then the 6-digit code the server emails to the address typed. The
+ * account is made, and the customer signed in, only once that code is entered, so every account's
+ * email is proven.
+ */
 export default function SignupPage() {
   useDocumentTitle('Create an account');
   const navigate = useNavigate();
@@ -62,10 +68,11 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false); // terms dialog open
+  const [challenge, setChallenge] = useState(null); // the emailed-code step ({ challengeId, maskedEmail, … }), open while set
   // "Log in" flips the card over to the login page (keeps the booking the visitor started)
   const { flipping, flipTo } = useCardFlip();
   const loginPath = continuingBooking ? '/login?next=/portal/book' : '/login';
-  // The minimum downpayment named in the terms. Loading the catalogue brings it up to date on the API
+  // The minimum downpayment named in the terms. Loading the catalogue brings it up to date from the API
   // (remote/catalog.js); until it arrives (null) the terms leave the amount out.
   const catalog = useResource(() => catalogApi.getCatalog(), []);
   const minimum = catalog.data ? catalogApi.minDownpayment() : null;
@@ -80,7 +87,7 @@ export default function SignupPage() {
     setErrors((e) => ({ ...e, [field]: '' }));
   };
 
-  // Validate everything, create the account, sign in, and continue
+  // Validate everything, then ask the server to check the form and email a code (no account yet)
   const submit = async (event) => {
     event.preventDefault();
     const found = collectErrors(values, RULES);
@@ -95,16 +102,29 @@ export default function SignupPage() {
     }
     setBusy(true);
     try {
-      const result = await authApi.customerRegister(values);
-      signIn(result);
-      notify(`Welcome to Tres Marias, ${result.user.firstName}!`);
-      navigate(destination, { replace: true });
+      setChallenge(await authApi.startSignUp(values));
     } catch (error) {
-      setBusy(false);
       setShake(true);
       // e.g. "email already registered" is shown under the email field
       if (error.meta && error.meta.field) setErrors((e) => ({ ...e, [error.meta.field]: error.message }));
       else setFormError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // The emailed code: the server makes the account and signs the customer in, then the page continues.
+  // Someone else taking the email meanwhile sends the customer back to the form with the message under it.
+  const confirmCode = async (code) => {
+    try {
+      const session = await authApi.confirmSignUp({ challengeId: challenge.challengeId, code });
+      signIn(session);
+      notify(`Welcome to Tres Marias, ${session.user.firstName}!`);
+      navigate(destination, { replace: true });
+    } catch (error) {
+      if (error.code !== 'EMAIL_TAKEN') throw error;
+      setChallenge(null);
+      setErrors((e) => ({ ...e, email: error.message }));
     }
   };
 
@@ -127,7 +147,7 @@ export default function SignupPage() {
           <FormField id="signup-middleName" label="Middle name" optional autoComplete="additional-name" value={values.middleName} onChange={set('middleName')} disabled={busy} />
         </Box>
         <FormField id="signup-lastName" label="Last name" required autoComplete="family-name" value={values.lastName} onChange={set('lastName')} error={errors.lastName} disabled={busy} />
-        <FormField id="signup-email" label="Email" required type="email" autoComplete="email" value={values.email} onChange={set('email')} error={errors.email} disabled={busy} />
+        <FormField id="signup-email" label="Email" required type="email" autoComplete="email" value={values.email} onChange={set('email')} error={errors.email} hint="We email a code to this address to confirm it is yours." disabled={busy} />
         <FormField id="signup-mobile" label="Mobile number" required type="tel" autoComplete="tel" placeholder="0917 123 4567" value={values.mobile} onChange={set('mobile')} error={errors.mobile} hint="We text you about event-day updates only." disabled={busy} />
         <PasswordField id="signup-password" label="Password" required autoComplete="new-password" value={values.password} onChange={set('password')} error={errors.password} hint="8 characters or more, with a number" disabled={busy} />
         <PasswordField id="signup-confirm" label="Confirm password" required autoComplete="new-password" value={values.confirm} onChange={set('confirm')} error={errors.confirm} disabled={busy} />
@@ -159,6 +179,20 @@ export default function SignupPage() {
           </Link>
         </Typography>
       </FormCard>
+
+      {/* Step 2: the code emailed to the new address; Cancel goes back to the filled-in form */}
+      <EmailCodeDialog
+        challenge={challenge}
+        title="Confirm your email"
+        actionLabel="Create account"
+        onVerify={confirmCode}
+        onResend={() => authApi.resendSignUpCode(challenge.challengeId)}
+        onRestart={(message) => {
+          setChallenge(null);
+          setFormError(message);
+        }}
+        onClose={() => setChallenge(null)}
+      />
 
       <AppDialog
         open={termsOpen}

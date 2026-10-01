@@ -57,7 +57,7 @@ export default function PackagesPage() {
                 <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{pkg.description}</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 12.5, color: tokens.textMuted }}>
                   <GroupsOutlinedIcon sx={{ fontSize: 16 }} />
-                  {isRentalPackage(pkg) ? `Free pick-up in ${RENTAL.pickupAddress} · delivery ${peso(RENTAL.deliveryFee)}` : `Covers ${pkg.guests} guests · food quoted separately`}
+                  {isRentalPackage(pkg) ? `Free pick-up in ${RENTAL.pickupAddress} · delivery ${peso(RENTAL.deliveryFee)}` : `Default: ${pkg.guests} guests · food quoted separately`}
                 </Box>
                 {/* Everything the package includes, with quantities (a rental's items are picked on the form) */}
                 {isRentalPackage(pkg) && (

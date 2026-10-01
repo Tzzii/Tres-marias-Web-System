@@ -151,7 +151,7 @@ export default function AccountPage() {
         </>
       )}
 
-      {/* Same confirmation as the sidebar's Log out */}
+      {/* Same confirmation as Log out in the top-right profile menu */}
       <ConfirmDialog
         open={dialog === 'logout'}
         onClose={close}

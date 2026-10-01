@@ -56,7 +56,7 @@ export default function MessagesPage() {
   }, [thread.data]);
 
   // If the open conversation can't be shown, say why and go back to the list: NOT_FOUND means it no longer
-  // exists, and any other error on its first load (on the API: no connection, too many requests) leaves
+  // exists, and any other error on its first load (no connection, too many requests) leaves
   // nothing to show. A background reload that fails for such a passing reason keeps the conversation
   // open with what was last loaded (useResource), until the next reload.
   // Skipped once no conversation is open: the old error stays in `thread` for one more render after the

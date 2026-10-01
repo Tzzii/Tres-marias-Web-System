@@ -2,15 +2,13 @@ import { ApiError } from '../errors.js';
 import { fetchFileUrl, http, sessionSide } from '../http.js';
 
 /**
- * The payment service on the API (apps/api/src/modules/payments, endpoint map in
- * docs/backend-development-phases.md §9.6). Same function names, arguments, return shapes and ApiError
- * codes as the browser version (paymentService.js), so no page changes when VITE_API_SERVICES includes
- * "payments" (see facade/payment.js).
+ * Payments and refunds (paymentApi in @tm/shared; apps/api/src/modules/payments, endpoint map in
+ * docs/backend-development-phases.md §9.6).
  *
  * - The customer comes from the session, so the page's `customerId` is not sent; the signed-in portal
  *   picks the address (/payments and /refunds for a customer, /admin/… for the admin).
  * - submitPayment() sends the bank transfer as multipart FormData with the receipt photo (`file`);
- *   http.js leaves the Content-Type to the browser for FormData. The browser version ignores `file`.
+ *   http.js leaves the Content-Type to the browser for FormData.
  * - Every write is one request, which emits one change event (http.js): a payment never frees or takes
  *   a date, so the calendar has nothing to reload.
  * - The uploaded receipt itself is fetched with the token by fetchFileUrl (http.js), see proofUrl().
@@ -27,7 +25,7 @@ export const listPayments = () => http.get(isAdmin() ? '/admin/payments' : '/pay
 /** Admin: one row per booking with money attached (not pending, declined or cancelled), by event date, with its payments. */
 export const listBalances = () => http.get('/admin/balances');
 
-/** What the Payments page can offer: { qr } is whether the GCash / e-wallet QR can be used (false until Phase 8B). */
+/** What the Payments page can offer: { qr } is whether the GCash / e-wallet QR can be used (true once PayMongo's keys are set on the server). */
 export const paymentOptions = () => http.get('/payments/options');
 
 /**
@@ -47,7 +45,7 @@ export async function getQrPayment(customerId, id, { image = false } = {}) {
 
 /**
  * Customer sends a bank transfer: { ref, method: 'bank', amount, referenceNo, proofName, file }. The
- * server checks everything the browser version does, and the file's real type. Returns the payment.
+ * server checks every payment rule (domain/payment.js) and the file's real type. Returns the payment.
  */
 export async function submitPayment(customerId, { ref, method, amount, referenceNo, proofName, file } = {}) {
   const form = new FormData();

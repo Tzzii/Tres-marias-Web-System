@@ -1,6 +1,6 @@
 /**
  * SQL for reviews (docs §7.1: the repo holds SQL only; the rules are in feedback.service.js). A review
- * comes back in the browser store's shape (feedbackService.js):
+ * comes back in the shape the pages use:
  *   { id, customerId, ref, rating, categories: { food, service, punctuality, setup }, body, createdAt,
  *     status, featured, flagged, flagReason, archived, readByAdmin, reply: { body, at, by } | null }
  * `categories` and `reply` are flattened into columns (schema.sql: cat_*, reply_*), the way the
@@ -95,7 +95,7 @@ export async function findFeedbackIdFor(db, ref) {
   return row ? row.id : null;
 }
 
-/** How many reviews the admin has not read yet (archived ones too, like the browser version). */
+/** How many reviews the admin has not read yet (archived ones too). */
 export async function countUnread(db) {
   const row = first(await db.query('SELECT COUNT(*) AS n FROM testimonials WHERE read_by_admin = 0'));
   return Number(row.n);

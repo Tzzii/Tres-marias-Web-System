@@ -43,7 +43,6 @@ import {
   computeQuote,
   daysFromToday,
   documentsFor,
-  extraGuests,
   formatDate,
   formatDateTime,
   formatMobile,
@@ -151,7 +150,7 @@ export default function ReservationDetailPage() {
       {HOLDS.includes(r.status) && <Button onClick={() => setDialog('cancel')} sx={{ color: tokens.dangerSoft }}>Cancel reservation</Button>}
     </>
   );
-  // What was returned on this booking, newest first (none on the API before Phase 8)
+  // What was returned on this booking, newest first
   const refunds = r.refunds || [];
   const refunded = r.refunded || 0;
 
@@ -208,15 +207,9 @@ export default function ReservationDetailPage() {
               <RentalCard r={r} closed={closed} onEdit={() => setDialog('rentalItems')} onCheckOut={() => setDialog('checkout')} onReturn={() => setDialog('return')} />
             ) : (
             <DashCard>
-              <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · covers ${r.package.guests} guests`} action={!closed && <Button size="small" variant="outlined" onClick={() => setDialog('food')}>Edit menu</Button>}>
+              <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`} action={!closed && <Button size="small" variant="outlined" onClick={() => setDialog('food')}>Edit menu</Button>}>
                 {r.serviceType}
               </CardTitle>
-              {/* The package can be used for any occasion; warn when the guests are more than it covers */}
-              {extraGuests(r.package, r.guests) > 0 && (
-                <AlertBanner tone="info" sx={{ mb: 2 }}>
-                  {r.guests} guests is {extraGuests(r.package, r.guests)} more than {r.packageName} covers. Add a charge for the extra guests under Other charges in the quotation.
-                </AlertBanner>
-              )}
               <Field label="Package includes">{r.package.items.map(formatPackageItem).join(', ')}</Field>
               <Divider sx={{ my: 2 }} />
               {/* A buffet lists the dish chosen for each category, so the kitchen reads it at a glance */}
@@ -454,8 +447,6 @@ function LogisticsCard({ r, closed, onSave }) {
   const delivered = rental && values.fulfilment === 'delivery';
   // A rental switched between pick up and delivery gains or loses the delivery fee
   const switching = rental && values.fulfilment !== r.fulfilment;
-  // Warn (but don't block) when the guest count is above what the package covers
-  const overBy = extraGuests(r.package, values.guests);
   // A buffet is charged per person, so a new guest count moves the total before it is even saved
   const guestsNow = Number(values.guests) || 0;
   const repricing = includesFood(r.serviceType) && guestsNow !== r.guests && guestsNow > 0;
@@ -520,7 +511,7 @@ function LogisticsCard({ r, closed, onSave }) {
         <DateField id="l-date" label="Date" mode="any" value={values.date} onChange={set('date')} disabled={closed} />
         {/* Same hour / minute / AM-PM picker as the customer form: booking hours only, every 30 minutes */}
         <TimeField id="l-start" label="Start time" value={values.startTime} onChange={set('startTime')} min={RULES.earliestStart} max={RULES.latestStart} step={30} disabled={closed} />
-        <FormField id="l-guests" label="Guests" type="number" value={values.guests} onChange={set('guests')} disabled={closed} hint={overBy ? `${overBy} more than ${r.packageName} covers (${r.package.guests})` : undefined} />
+        <FormField id="l-guests" label="Guests" type="number" value={values.guests} onChange={set('guests')} disabled={closed} />
         <FormField id="l-venue" label="Venue" value={values.venueName} onChange={set('venueName')} disabled={closed} />
         <FormField id="l-city" label="City" value={values.city} onChange={set('city')} disabled={closed} />
         <FormField id="l-address" label="Address" value={values.venueAddress} onChange={set('venueAddress')} disabled={closed} sx={{ gridColumn: { sm: '1 / -1' } }} />
@@ -549,8 +540,9 @@ function LogisticsCard({ r, closed, onSave }) {
 /**
  * The admin prices the quotation. The package price is fixed and the food works itself out - a
  * buffet is the guest count times the per-person rate stored on this booking, and Catering only
- * has no food at all - so the admin only types a price for each additional charge the customer
- * ticked, any other charges (e.g. extra guests) and a discount, then sends it to the customer.
+ * has no food at all - so the admin only prices each additional charge the customer ticked (one with
+ * its own price on the Packages page is filled in, and can still be changed for this booking), any
+ * other charges (e.g. extra hours) and a discount, then sends it to the customer.
  *
  * For an add-on counted by the piece the amount typed is the price of ONE; the line total is that
  * times the quantity the customer asked for.
@@ -566,11 +558,19 @@ function QuotationCard({ r, closed, onSend }) {
   const delivered = rental && r.fulfilment === 'delivery';
   // Form values from the last sent quotation (blank amounts when nothing was sent yet).
   // The delivery fee starts at the standard fee until a delivered quotation sets another.
+  // Before the first quotation, an add-on with its own price starts at the price the booking was made
+  // at (its estimate), else at today's price on the Packages page; one with no price starts blank.
   const initial = () => {
     const q = r.quotation;
     const amount = (value) => (q && value ? String(value) : '');
+    const startPrice = (id) => {
+      const booked = r.estimate && r.estimate.addonPrices && r.estimate.addonPrices[id];
+      const addon = r.addons.find((a) => a.id === id);
+      const price = booked || (addon && addon.price);
+      return price ? String(price) : '';
+    };
     return {
-      addonPrices: Object.fromEntries(r.addonIds.map((id) => [id, amount(q && q.addonPrices && q.addonPrices[id])])),
+      addonPrices: Object.fromEntries(r.addonIds.map((id) => [id, q ? amount(q.addonPrices && q.addonPrices[id]) : startPrice(id)])),
       deliveryFee: String(q && q.fulfilment === 'delivery' ? q.deliveryFee : RENTAL.deliveryFee),
       otherCharges: amount(q && q.otherCharges),
       otherLabel: q ? q.otherLabel || '' : '',
@@ -686,7 +686,7 @@ function QuotationCard({ r, closed, onSend }) {
           ))}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
             <FormField id="q-other" label="Other charges" optional type="number" value={values.otherCharges} onChange={set('otherCharges')} error={amountError(values.otherCharges)} InputProps={peso0} inputProps={{ min: 0, step: 500 }} />
-            <FormField id="q-other-label" label="What for" optional value={values.otherLabel} onChange={set('otherLabel')} placeholder="e.g. 20 extra guests" inputProps={{ maxLength: 60 }} />
+            <FormField id="q-other-label" label="What for" optional value={values.otherLabel} onChange={set('otherLabel')} placeholder="e.g. 2 extra hours" inputProps={{ maxLength: 60 }} />
           </Box>
           <FormField id="q-discount" label="Discount" optional type="number" value={values.discount} onChange={set('discount')} error={discountError} InputProps={peso0} inputProps={{ min: 0, step: 500 }} />
         </Box>

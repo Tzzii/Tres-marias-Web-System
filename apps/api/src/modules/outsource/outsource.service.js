@@ -37,28 +37,27 @@ import * as repo from './outsource.repo.js';
 
 /**
  * Outsourcing on the server (docs/backend-development-phases.md Phase 10, §9.10): the partners Tres
- * Marias rents from, the contracts sent to them, and each contract's status. Admin only. Same return
- * shapes, error codes, messages and meta.field / meta.row as the browser version (outsourceService.js):
- * the rules, texts and views are @tm/shared/src/domain/outsource.js, the code the browser version runs,
- * and its checks are repeated here in the same order because the server never trusts the page (§3 rule 3).
+ * Marias rents from, the requests sent to them (a "contract" in the code is a request, see domain/outsource.js) and each one's status. Admin only. The
+ * rules, texts, views and errors (with meta.field / meta.row) are @tm/shared/src/domain/outsource.js, and
+ * the page's checks are repeated here in the same order because the server never trusts the page (§3 rule 3).
  *
- * Sending a contract really sends it, through the mail and SMS ports (integrations/mailer and sms), with
+ * Sending a request really sends it, through the mail and SMS ports (integrations/mailer and sms), with
  * one text for every channel. Nothing waits on an email or SMS provider while rows are locked: the send
  * is saved first, in one transaction (the contract marked sent, one delivery per channel, each with an
  * outbox row marked 'queued', the history line and the booking's audit-trail line); after the commit
  * each message is handed to its port, and its outbox row records what happened ('sent', 'logged' or
  * 'failed'). A channel that did not really go out (the log driver only prints it, or the provider refused
  * it) adds a line to the contract's history, and the answer carries `deliveryNote`, which the page shows,
- * telling the admin to send the contract themselves (Download as .txt).
+ * telling the admin to send the request themselves (Download as .txt).
  *
- * Differences from the browser version, on purpose:
+ * On purpose:
  * - The admin in the histories and the audit trail is the signed-in one (req.user.name).
  * - A partner, contract or booking must be named exactly as stored: the columns' collation ignores case
- *   and trailing spaces, and the browser version finds only the exact id or ref.
+ *   and trailing spaces, so the service compares the id or ref itself.
  * - The date needed must be a real "YYYY-MM-DD" day (else "Choose the date the items are needed."), and
  *   text fits its column (a contract's items up to 50 lines, each name up to 120 characters).
  * - Two partner names that differ only by an accent are the same name to the UNIQUE index (NAME_TAKEN).
- * - `deliveryNote` (above); the browser version sends nothing, so its note is always ''.
+ * - `deliveryNote` (above): '' when every channel really went out.
  *
  * Lock order: the contract's row first (every contract write starts with lockContract), then its
  * partner's row (a send reads it FOR SHARE, so archiving that partner waits for the send, and a send
@@ -70,7 +69,7 @@ import * as repo from './outsource.repo.js';
 // A refusal from domain/outsource.js as an ApiError
 const toError = ({ code, message, meta }) => new ApiError(code, message, meta);
 const partnerNotFound = () => new ApiError('NOT_FOUND', 'Partner not found.');
-const contractNotFound = () => new ApiError('NOT_FOUND', 'Contract not found.');
+const contractNotFound = () => new ApiError('NOT_FOUND', 'Request not found.');
 
 // The columns' limits (schema.sql) for what the forms leave to the server: a contract's lines and their names
 const MAX_ITEMS = 50;
@@ -141,8 +140,8 @@ export async function listOutsourceEvents() {
 
 /**
  * Add a partner (`id` null) or save changes to one (partnerProblem: a name not already used, what they
- * supply, and an email address or a mobile number, each well formed). As in the browser version the
- * details are checked before the partner is looked up. A new partner gets its first history line; an
+ * supply, and an email address or a mobile number, each well formed). The details are checked before
+ * the partner is looked up. A new partner gets its first history line; an
  * edit that changes anything lists the fields it changed. Returns the partner as the pages show it.
  */
 export async function savePartner(id, values, admin) {
@@ -175,8 +174,8 @@ export async function savePartner(id, values, admin) {
 }
 
 /**
- * Archive or restore partners (`ids`; a repeated id counts once per mention in `count`, as in the
- * browser version). A partner with a contract sent and still waiting for their answer can't be archived
+ * Archive or restore partners (`ids`; a repeated id counts once per mention in `count`).
+ * A partner with a contract sent and still waiting for their answer can't be archived
  * (IN_USE, naming them). Their rows are locked before their contracts are read, so a contract being sent
  * to them at the same moment is either seen here or refused there. Returns { count }.
  */
@@ -213,7 +212,7 @@ export async function setPartnerArchived(ids, archived, admin) {
 export async function saveContract(id, values, admin) {
   return tx(async (conn) => {
     const existing = id ? await lockedContract(conn, id) : null;
-    if (existing && existing.status !== 'draft') throw new ApiError('LOCKED', 'This contract has been sent and can no longer be edited.');
+    if (existing && existing.status !== 'draft') throw new ApiError('LOCKED', 'This request has been sent and can no longer be edited.');
     const partnerFound = typeof values.partnerId === 'string' && values.partnerId ? await repo.readPartner(conn, values.partnerId) : null;
     const partner = partnerFound && partnerFound.id === values.partnerId ? partnerFound : null;
     const ref = contractRef(values);
@@ -256,8 +255,8 @@ const CHANNEL_WORD = { email: 'email', sms: 'SMS' };
 // The contract's history line for a channel that did not really go out: only logged (no provider yet), or refused
 const undeliveredText = ({ channel, to, status }) =>
   status === 'logged'
-    ? `The ${CHANNEL_WORD[channel]} to ${to} was not sent: no ${CHANNEL_WORD[channel]} service is connected yet, so it was only saved in the outbox. Send the contract yourself (Download as .txt).`
-    : `The ${CHANNEL_WORD[channel]} to ${to} could not be sent. Send it again, or send the contract yourself (Download as .txt).`;
+    ? `The ${CHANNEL_WORD[channel]} to ${to} was not sent: no ${CHANNEL_WORD[channel]} service is connected yet, so it was only saved in the outbox. Send the request yourself (Download as .txt).`
+    : `The ${CHANNEL_WORD[channel]} to ${to} could not be sent. Send it again, or send the request yourself (Download as .txt).`;
 
 /**
  * The note the page shows after a send when a channel did not really go out, e.g. "OUT-2026-0008 is
@@ -299,7 +298,7 @@ async function deliverAll(contract, deliveries, subject) {
 }
 
 /**
- * Send (or send again) a contract to its partner (sendProblem: a draft or an unanswered contract, a
+ * Send (or send again) a request to its partner (sendProblem: a draft or an unanswered request, a
  * partner who is not archived and can be reached, and at least 20 characters of text). The same text
  * goes to every channel the partner has: an email when they have an email address, an SMS when they
  * have a mobile number, both when they have both. Saved first, then sent (see the top of this file).
@@ -316,7 +315,7 @@ export async function sendContract(id, body, admin) {
 
     // One delivery per channel, every one of them carrying the identical text, each with its outbox row
     const at = now();
-    const subject = `Outsourcing contract ${contract.ref} from ${BUSINESS.name}`;
+    const subject = `Outsourcing request ${contract.ref} from ${BUSINESS.name}`;
     const deliveries = contractDeliveries(partner, text, at);
     for (const delivery of deliveries) {
       const { id: outboxId } = await saveToOutbox(

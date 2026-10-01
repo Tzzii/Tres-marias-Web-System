@@ -6,12 +6,12 @@ import { financials } from './money.js';
  * Dashboard and Reports figures that need no stored data: the admin Dashboard's counters and lists, the
  * Reports page's figures and revenue chart for a date range, and the rows of the two saved reports.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (reportService.js) and the API
- * server (apps/api/src/modules/reports, Phase 11) work out the same numbers from the same records with
- * the same money rule (financials() in domain/money.js; docs/backend-development-phases.md §7.8).
+ * Pure (no database, no localStorage, no React): the API server (apps/api/src/modules/reports, Phase 11)
+ * works out the numbers with the same money rule as every page (financials() in domain/money.js;
+ * docs/backend-development-phases.md §7.8), and the Reports page checks a range with it before asking.
  * A refusal comes back as data, { code, message, meta }: the ApiError each service then throws.
  *
- * `data` holds the records in the browser store's shape: { reservations, payments, refunds, customers,
+ * `data` holds the records in the app's record shape: { reservations, payments, refunds, customers,
  * packages }. Reservations are full records; payments and refunds are every booking's (financials() picks
  * each booking's own); customers and packages need only { id, name }, and packages come in the
  * catalogue's order, which "Most booked packages" keeps for packages booked equally often. The API reads
@@ -20,9 +20,8 @@ import { financials } from './money.js';
  * Money in is verified payments, counted in the month they were verified, less refunds, counted in the
  * month they were sent (`sentOn`), so a refund lowers the month it went out, not the month of the payment.
  * Dates are the local calendar: Asia/Manila, the admin's browser and the API server's fixed time zone.
- * Lists sorted by a date or time break ties by ref, so both versions list bookings in one order whatever
- * order their records come in (the browser store keeps the order bookings were added, the API reads them
- * newest first).
+ * Lists sorted by a date or time break ties by ref, so bookings are listed in one order whatever order
+ * their records come in (the API reads them newest first).
  */
 
 /** The ranges the Reports page offers, in its order: this year, the last 12 months, last year, all time. */
