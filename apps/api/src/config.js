@@ -10,6 +10,9 @@ import dotenv from 'dotenv';
  *   from the project root (npm run db:reset, node -e …) read the same file as `npm run dev:api`.
  * - Values already in the shell win over .env (dotenv never replaces them), e.g.
  *   `DB_PORT=3310 npm run db:reset` points one run at another database.
+ * - NODE_ENV=production adds the go-live rules (Phase 12): a long JWT_SECRET, a DB_PASSWORD, real email
+ *   (MAIL_DRIVER=smtp and the business's own MAIL_FROM), a real SMS driver unless ALLOW_SMS_LOG=true,
+ *   and CORS_ORIGINS set to the live portals (no localhost default). Each one stops the start-up.
  * - The process always runs on Manila time, set here before anything reads the clock: "today",
  *   lead-time checks and the reservation ref all depend on the business's local date, and a VPS
  *   usually runs on UTC. It is fixed on purpose, not a setting, so a host's TZ=UTC cannot shift dates.
@@ -55,8 +58,9 @@ export const config = {
   timeZone: BUSINESS_TIME_ZONE,
   apiRoot: API_ROOT,
 
-  // Only these browser origins may call the API (the two portals); never "*"
-  corsOrigins: list('CORS_ORIGINS', ['http://localhost:5173', 'http://localhost:5174']),
+  // Only these browser origins may call the API (the two portals); never "*". The localhost default is
+  // for development only: production must list its own origins (checked below).
+  corsOrigins: list('CORS_ORIGINS', isProduction ? [] : ['http://localhost:5173', 'http://localhost:5174']),
 
   // Passed straight to mysql2 (see src/db.js)
   db: {
@@ -90,7 +94,11 @@ export const config = {
   sms: {
     driver: text('SMS_DRIVER', 'log'),
     apiKey: text('SMS_API_KEY'),
-    senderName: text('SMS_SENDER_NAME')
+    senderName: text('SMS_SENDER_NAME'),
+    // Production refuses SMS_DRIVER=log (checked below) unless this is "true": a deliberate, temporary
+    // choice while no SMS provider is connected yet. No code goes by SMS; outsourcing requests sent by
+    // SMS are then only logged, and the Outsourcing page tells the admin to send them.
+    allowLogInProduction: text('ALLOW_SMS_LOG') === 'true'
   },
 
   storage: {
@@ -113,7 +121,7 @@ export const config = {
 };
 
 // Settings that must be right before real customers use the system
-if (config.corsOrigins.length === 0) problems.push('CORS_ORIGINS must list at least one origin.');
+if (config.corsOrigins.length === 0) problems.push("CORS_ORIGINS must list at least one origin (in production: the two portals' https:// addresses).");
 // Every sign-in signs a token with it, so the API cannot run without one (.env.example has a placeholder for development)
 if (!config.jwtSecret) problems.push('JWT_SECRET must be set (at least 32 random characters in production).');
 // A duration jsonwebtoken understands: a number of seconds, or a number with ms, s, m, h, d, w or y (e.g. 8h, 7d).
@@ -145,6 +153,17 @@ if (isProduction) {
     problems.push('JWT_SECRET must be at least 32 random characters in production.');
   }
   if (!config.db.password) problems.push('DB_PASSWORD must be set in production.');
+  // Phase 12: the live server must really send email. Every sign-in, sign-up and password code goes by
+  // email; with the log driver they would only be printed in the server's log, and nobody could sign in.
+  if (config.mail.driver !== 'smtp') problems.push('MAIL_DRIVER must be "smtp" in production (the log driver only prints the sign-in and sign-up codes).');
+  if (/@example\.(com|org|net)\b/i.test(config.mail.from)) problems.push('MAIL_FROM must be the business\'s own address in production (it is still the example one).');
+  if (config.sms.driver === 'log' && !config.sms.allowLogInProduction) {
+    problems.push('SMS_DRIVER must be a real SMS provider in production. Until one is connected, set ALLOW_SMS_LOG=true to start anyway (texts are then only logged, not sent).');
+  }
+  // The localhost default is development only: the live portals' own https:// addresses must be listed
+  if (config.corsOrigins.some((origin) => origin === '*' || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin))) {
+    problems.push('CORS_ORIGINS must list only the live portals in production (no "*", no localhost).');
+  }
 }
 
 if (problems.length) {

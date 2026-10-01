@@ -55,12 +55,19 @@ export const archivedBody = z.object({ archived: flag('Archived') });
 export const addonBody = z.object({
   name: text(120),
   description: text(2000),
-  hasQuantity: flag('Ask how many').default(false)
+  price: passThrough, // optional; checked by the service (readAddonPrice), blank or null = priced in each quotation
+  hasQuantity: flag('Ask how many').default(false),
+  // A charge with packages (customers pick one); read when the charge is created, kept as it is on an edit
+  hasPackages: flag('With packages').default(false),
+  inventoryItemId: passThrough, // optional; the inventory item a charge without sizes books, checked by the service
+  // optional list of { id?, name, price, description?, inventoryItemId? } (description: what a package
+  // includes); checked by the service (readAddonSizes)
+  sizes: passThrough
 });
 
 export const dishBody = z.object({ name: text(120), category: passThrough });
 
 export const pricePerPlateBody = z.object({ pricePerPlate: passThrough });
 
-// The number is checked by the service (whole pesos in MIN_DOWNPAYMENT_RANGE, with the browser version's message)
+// The number is checked by the service (whole pesos in MIN_DOWNPAYMENT_RANGE, with the admin form's message)
 export const minDownpaymentBody = z.object({ minDownpayment: passThrough });

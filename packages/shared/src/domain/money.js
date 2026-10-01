@@ -5,8 +5,8 @@ import { addDays, daysFromToday, todayISO } from '../utils/format.js';
  * Money rules for a reservation that need no stored data: what is owed, paid and returned, where the
  * booking should stand for what has been paid, and when the downpayment falls due.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (reservationService.js), the
- * pages and the API server (apps/api/src/modules/reservations) work out the same figures
+ * Pure (no database, no localStorage, no React), so the pages and the API server
+ * (apps/api/src/modules/reservations, payments, customers, reports) work out the same figures
  * (docs/backend-development-phases.md §7.8).
  */
 

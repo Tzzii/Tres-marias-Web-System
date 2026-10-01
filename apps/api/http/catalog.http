@@ -5,9 +5,13 @@
 # The admin requests need an admin token: sign in with the two requests below (the code is printed in
 # the API's terminal with MAIL_DRIVER=log, and saved in the outbox table); copy it into @code first.
 # Errors come back as { code, message, meta }; meta.field names the form input the message belongs to.
+# The seeded accounts' passwords are SEED_ADMIN_PASSWORD and SEED_CUSTOMER_PASSWORD in apps/api/.env: type
+# them below on your own computer only (never commit them; the repository is public).
 
 @api = http://localhost:4000/api
 @code = 000000
+@adminPassword =
+@customerPassword =
 
 ### ---------------------------------------------------------------- Sessions
 
@@ -16,7 +20,7 @@
 POST {{api}}/auth/admin/start
 Content-Type: application/json
 
-{ "email": "emmamariaobet@gmail.com", "password": "TresMarias@2026" }
+{ "email": "emmamariaobet@gmail.com", "password": "{{adminPassword}}" }
 
 ### Admin sign-in, step 2: { token, user }
 # @name adminVerify
@@ -30,7 +34,7 @@ Content-Type: application/json
 POST {{api}}/auth/customer/login
 Content-Type: application/json
 
-{ "email": "maria.santos@gmail.com", "password": "Celebrate2026" }
+{ "email": "maria.santos@gmail.com", "password": "{{customerPassword}}" }
 
 ### ---------------------------------------------------------------- Public reads (no token)
 
@@ -144,6 +148,22 @@ Authorization: Bearer {{adminVerify.response.body.token}}
 Content-Type: application/json
 
 { "name": "Photo Booth", "description": "A photo booth with props, prints and an album.", "hasQuantity": true }
+
+### New additional charge with packages: 201. Customers pick one package; each has its own price (blank =
+### set in each quotation) and what it includes. hasPackages is read only here, when the charge is created.
+POST {{api}}/admin/addons
+Authorization: Bearer {{adminVerify.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Photo Booth Set",
+  "description": "A photo booth with props, in two sizes of package.",
+  "hasPackages": true,
+  "sizes": [
+    { "name": "2 hours", "price": 3000, "description": "Unlimited shots\nPrinted 4R photos" },
+    { "name": "4 hours", "price": null, "description": "Unlimited shots\nPrinted 4R photos\nA guest album" }
+  ]
+}
 
 ### Archive or restore an additional charge
 PATCH {{api}}/admin/addons/{{newAddon.response.body.id}}/archived

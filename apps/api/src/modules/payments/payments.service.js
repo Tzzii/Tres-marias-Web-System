@@ -16,9 +16,10 @@ import * as reservationsRepo from '../reservations/reservations.repo.js';
 import * as repo from './payments.repo.js';
 
 /**
- * Payments and refunds on the server (Phase 8, docs/backend-development-phases.md): the same rules,
- * messages, audit-trail entries and chat messages as the browser version (paymentService.js), which the
- * test script compares step by step.
+ * Payments and refunds on the server (Phase 8, docs/backend-development-phases.md): the rules,
+ * messages, audit-trail entries and chat messages of bank transfers, cash, the GCash QR (Phase 8B) and
+ * refunds. Until Phase 12 a browser copy of these rules existed, and the Phase 8 tests compared the two
+ * step by step; the shared rules now live in @tm/shared/src/domain/payment.js and money.js.
  *
  * Three ways to pay (owner's decision, 2026-09-30): a bank transfer the customer sends with its reference
  * number and a photo of the receipt (verified here by the admin), cash the admin records, and the GCash /
@@ -58,13 +59,13 @@ const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
 const clockText = (ms) => new Date(ms).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: config.timeZone });
 const invalid = (message, field) => new ApiError('INVALID', message, field ? { field } : {});
 
-// Payment plus event name/date, customer name and readable method label (enrich in paymentService.js)
+// Payment plus event name/date, customer name and readable method label (what the payment lists show)
 const enrich = ({ payment, eventName, eventDate, customerName }) => ({ ...payment, eventName, eventDate, customerName, methodLabel: PAYMENT_METHODS[payment.method] });
 
 // Refund plus event name/date, customer name and method label ('' for a refund of ₱0, which was never sent)
 const enrichRefund = ({ refund, eventName, eventDate, customerName }) => ({ ...refund, eventName, eventDate, customerName, methodLabel: REFUND_METHODS[refund.method] || '' });
 
-// A booking's payments in the order they were made (pay-0001 before pay-0002), as the browser store keeps them
+// A booking's payments in the order they were made (pay-0001 before pay-0002)
 const inMadeOrder = (payments) => [...payments].sort((a, b) => Number(a.id.slice(4)) - Number(b.id.slice(4)) || a.id.localeCompare(b.id));
 
 // Reservations by event date; the same date in the order they were requested
@@ -150,8 +151,8 @@ export async function getProof(id, { customerId } = {}) {
 
 /**
  * Customer sends a bank transfer: { ref, method: 'bank', amount, referenceNo, proofName } and the file
- * (multer's req.file). The checks and messages are the browser version's, in its order; the file is
- * checked where the browser checks proofName, by its first bytes. The file is saved only after every
+ * (multer's req.file). The checks and messages are the Payments page's, in its order; the file is
+ * checked where the page checks proofName, by its first bytes. The file is saved only after every
  * check passes, under a random name in uploads/proofs, and removed again if the transaction then fails,
  * so no file is left without its payment. Returns the payment with names and method label.
  */
@@ -402,8 +403,8 @@ export async function sendPaymentReminder(ref, admin) {
 /* ============================ Refunds ============================ */
 
 /**
- * Admin: record money returned to the customer after it was sent outside the system (recordRefund in
- * paymentService.js, same rules and texts): { amount, method, referenceNo, sentOn, reason }.
+ * Admin: record money returned to the customer after it was sent outside the system (the admin's
+ * RefundDialog): { amount, method, referenceNo, sentOn, reason }.
  * A cancellation refund (cancelled or declined booking) is ₱0 up to what is due, with a reason when
  * part is kept; an overpayment refund is the whole overpayment. A refund of ₱0 sends nothing: saved with
  * method '', no reference and today's date. One transaction saves it (rf-####), adds the audit entry and

@@ -18,6 +18,7 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import LocalBarOutlinedIcon from '@mui/icons-material/LocalBarOutlined';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
+import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import { BUSINESS, RULES, cancelWindowText, catalogApi, feedbackApi, isRentalPackage, peso, tokens, useDocumentTitle, useResource } from '@tm/shared';
 import { useAuth } from '../../auth.js';
@@ -79,7 +80,7 @@ const faqList = (minimum) => [
   ['What is on the buffet?', `One pork dish, one chicken dish, one fish dish and one vegetable dish, all picked by you from our menu, with water and juice for every guest. It is served plated by our team and charged per person, so you know your food cost the moment you enter your guest count.`],
   ['What time can our event start?', `Any time, any day. We run 24 hours a day, Monday to Sunday, so an event can start at six in the morning or at midnight. Pick the hour that suits your celebration and that is when our team arrives.`],
   ['Can I use any package for my event?', 'Yes. Packages are not tied to an occasion, so you can book any package for a wedding, birthday, corporate event or anything else.'],
-  ['How many guests can you serve?', `Each package lists how many guests its tableware and chairs cover. If you have more guests than that, you can still book it and we add the extra charges to your quotation, from ${RULES.minGuests} up to ${RULES.maxGuests.toLocaleString('en-PH')} guests.`]
+  ['How many guests can you serve?', `From ${RULES.minGuests} up to ${RULES.maxGuests.toLocaleString('en-PH')} guests. Each package shows its default guest count, so you can pick the one closest to yours, and we follow the guest count you give us.`]
 ];
 
 // Soft light background of each gallery box (keyed by event folder), seen while its cover photo loads.
@@ -110,7 +111,7 @@ export default function HomePage() {
   const testimonials = useResource(() => feedbackApi.listPublished({ limit: 3 }), []);
   // Whether the hero text is on screen (drives its fade-up)
   const [heroRef, heroShown] = useInView();
-  // The minimum downpayment the admin has set. A catalogue read brings it up to date on the API
+  // The minimum downpayment the admin has set. A catalogue read brings it up to date from the API
   // (remote/catalog.js), so it is only read once the packages have loaded; until then (null) the
   // payment texts leave the amount out.
   const minimum = packages.data ? catalogApi.minDownpayment() : null;
@@ -174,6 +175,9 @@ export default function HomePage() {
   // One run of the rolling strip: the published reviews repeated until there are at least six cards,
   // so even a single review fills the width. The track below shows this run twice (see reviewRoll).
   const reviewRun = reviews.length ? Array.from({ length: Math.ceil(6 / reviews.length) }, () => reviews).flat() : [];
+  // "No reviews yet" only once the reviews have loaded and there are none: not while they load, and
+  // not when they could not be loaded
+  const noReviews = !testimonials.loading && !testimonials.error && reviews.length === 0;
 
   return (
     <Box sx={{ backgroundColor: site.ivory, color: site.ink, minHeight: '100vh' }}>
@@ -317,6 +321,18 @@ export default function HomePage() {
               </Reveal>
             ))}
           </Box>
+
+          {/* No published reviews yet: one card in the review style, with five empty stars and the label */}
+          {noReviews && (
+            <Paper elevation={0} sx={{ mt: 6, mx: 'auto', maxWidth: 364, p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard, textAlign: 'center' }}>
+              <Box aria-hidden="true" sx={{ display: 'flex', justifyContent: 'center', color: site.gold, mb: 1.5 }}>
+                {Array.from({ length: 5 }, (_, star) => (
+                  <StarBorderRoundedIcon key={star} sx={{ fontSize: 17 }} />
+                ))}
+              </Box>
+              <Typography sx={{ fontFamily: site.fontSerif, fontSize: 16.5, fontStyle: 'italic', color: site.inkSoft }}>No reviews yet</Typography>
+            </Paper>
+          )}
 
           {/* Customer reviews under the gallery (only if there are any) */}
           {reviews.length > 0 && (

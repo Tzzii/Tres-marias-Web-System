@@ -1,13 +1,19 @@
-# Phase 3 checks for sign-in, sign-up, password reset and the /me routes (VS Code REST Client:
-# click "Send Request" above a block). Start the API first (npm run dev:api) and load the sample data
-# (npm run seed:api). With MAIL_DRIVER=log and SMS_DRIVER=log, emailed and texted codes are printed in
-# the API's terminal (and saved in the outbox table): copy them into @code below.
+# Checks for sign-in, sign-up, password reset and the /me routes (VS Code REST Client: click "Send Request"
+# above a block). Start the API first (npm run dev:api) and load the sample data (npm run seed:api). With
+# MAIL_DRIVER=log every code is printed in the API's terminal (and saved in the outbox table) instead of
+# being emailed: copy it into @code below. Every customer code goes by email, never by SMS (Phase 12).
+#
+# The seeded accounts' passwords are SEED_CUSTOMER_PASSWORD and SEED_ADMIN_PASSWORD in apps/api/.env. They
+# are never written in this file (the repository is public): type them below on your own computer only.
 #
 # Rate limit: each /api/auth route allows 5 requests a minute per IP address; the 6th gets 429.
 # Lockout: 5 wrong passwords lock an account for 5 minutes (5 wrong codes: 2 minutes), in the database.
+# At most 5 code emails an hour go to one customer address (sign-up, reset and change together): 429 after.
 
 @api = http://localhost:4000/api
 @code = 000000
+@customerPassword =
+@adminPassword =
 
 ### ---------------------------------------------------------------- Customers
 
@@ -16,19 +22,13 @@
 POST {{api}}/auth/customer/login
 Content-Type: application/json
 
-{ "email": "maria.santos@gmail.com", "password": "Celebrate2026" }
+{ "email": "maria.santos@gmail.com", "password": "{{customerPassword}}" }
 
 ### Wrong password: 401 INVALID_CREDENTIALS with meta.remaining (the 5th in a row: 423 LOCKED with meta.lockedUntil)
 POST {{api}}/auth/customer/login
 Content-Type: application/json
 
 { "email": "maria.santos@gmail.com", "password": "not-the-password1" }
-
-### Sign up: 201 { token, user }. The same email again: 409 EMAIL_TAKEN (meta.field "email")
-POST {{api}}/auth/customer/register
-Content-Type: application/json
-
-{ "firstName": "Juan", "middleName": "", "lastName": "Dela Cruz", "email": "juan.delacruz@gmail.com", "mobile": "0917 555 1234", "password": "Masaya2026" }
 
 ### My profile (the account comes from the token; a customerId in the URL is ignored): 200
 GET {{api}}/me?customerId=cus-002
@@ -41,19 +41,54 @@ Content-Type: application/json
 
 { "name": "Maria Santos", "mobile": "0917 123 4567", "company": "" }
 
-### Change password: 200 { ok, token }. Every other session of this customer ends; use the new token from here on.
+### No token: 401 UNAUTHENTICATED
+GET {{api}}/me
+
+### ---------------------------------------------------------------- Sign up (code by email, Phase 12)
+
+### Step 1, the form: 200 { challengeId, maskedEmail, expiresAt, resendAt }; NO account yet, the code is emailed.
+### The email of an existing account: 409 EMAIL_TAKEN (meta.field "email")
+# @name signup
+POST {{api}}/auth/customer/register
+Content-Type: application/json
+
+{ "firstName": "Juan", "middleName": "", "lastName": "Dela Cruz", "email": "juan.delacruz@example.test", "mobile": "0917 555 1234", "password": "Masaya-2026" }
+
+### Resend (after 45 s, otherwise 422 TOO_SOON): 200 { expiresAt, resendAt }, a new code
+POST {{api}}/auth/customer/register/{{signup.response.body.challengeId}}/resend
+
+### Step 2, the emailed code: 201 { token, user }: the account is made and signed in. Wrong: 401 INVALID_CODE;
+### the 5th wrong: 423 LOCKED; the same code again after it worked: 410 CHALLENGE_EXPIRED
+POST {{api}}/auth/customer/register/{{signup.response.body.challengeId}}/verify
+Content-Type: application/json
+
+{ "code": "{{code}}" }
+
+### ---------------------------------------------------------------- Change password in My profile (current password + code by email)
+
+### Step 1: 200 { challengeId, maskedEmail, expiresAt, resendAt }; nothing changes yet, the code is emailed.
+### A wrong current password: 401 INVALID_CREDENTIALS (meta.field "current"); 5 in a row: 423 LOCKED
+# @name change
 POST {{api}}/me/password
 Authorization: Bearer {{customerLogin.response.body.token}}
 Content-Type: application/json
 
-{ "current": "Celebrate2026", "next": "Bagong2026" }
+{ "current": "{{customerPassword}}", "next": "New-Password-2026" }
 
-### No token: 401 UNAUTHENTICATED
-GET {{api}}/me
+### Resend (after 45 s)
+POST {{api}}/me/password/{{change.response.body.challengeId}}/resend
+Authorization: Bearer {{customerLogin.response.body.token}}
 
-### ---------------------------------------------------------------- Forgot password (code by SMS)
+### Step 2, the emailed code: 200 { ok, token }. Every other session of this customer ends; use the new token from here on.
+POST {{api}}/me/password/{{change.response.body.challengeId}}/confirm
+Authorization: Bearer {{customerLogin.response.body.token}}
+Content-Type: application/json
 
-### Step 1: 200 { challengeId, maskedMobile, expiresAt, resendAt }; the code is texted (API terminal). Unknown email: 404
+{ "code": "{{code}}" }
+
+### ---------------------------------------------------------------- Forgot password (code by email)
+
+### Step 1: 200 { challengeId, maskedEmail, expiresAt, resendAt }; the code is emailed (API terminal). Unknown email: 404
 # @name reset
 POST {{api}}/auth/customer/password-reset
 Content-Type: application/json
@@ -63,17 +98,19 @@ Content-Type: application/json
 ### Resend (after 45 s, otherwise 422 TOO_SOON): 200 { expiresAt, resendAt }, a new code
 POST {{api}}/auth/customer/password-reset/{{reset.response.body.challengeId}}/resend
 
-### Step 2, the texted code: 200 { ok: true }. Wrong: 401 INVALID_CODE; the 5th wrong: 423 LOCKED
+### Step 2, the emailed code: 200 { ok: true }. Wrong: 401 INVALID_CODE; the 5th wrong: 423 LOCKED
 POST {{api}}/auth/customer/password-reset/{{reset.response.body.challengeId}}/verify
 Content-Type: application/json
 
 { "code": "{{code}}" }
 
-### Step 3, the new password: 200 { ok: true, email }; sessions made before this stop working
+### Step 3, the new password: 200 { ok: true, email }; sessions made before this stop working.
+### Sent with this customer's token (My profile, "Forgot your current password?"), the answer also has a
+### new `token` for that session.
 POST {{api}}/auth/customer/password-reset/{{reset.response.body.challengeId}}/complete
 Content-Type: application/json
 
-{ "password": "Celebrate2026" }
+{ "password": "{{customerPassword}}" }
 
 ### ---------------------------------------------------------------- Admin sign-in (code by email)
 
@@ -82,7 +119,7 @@ Content-Type: application/json
 POST {{api}}/auth/admin/start
 Content-Type: application/json
 
-{ "email": "emmamariaobet@gmail.com", "password": "TresMarias@2026" }
+{ "email": "emmamariaobet@gmail.com", "password": "{{adminPassword}}" }
 
 ### Resend (after 45 s): 200 { expiresAt, resendAt }, a new code
 POST {{api}}/auth/admin/resend
@@ -112,7 +149,7 @@ PATCH {{api}}/admin/me
 Authorization: Bearer {{adminVerify.response.body.token}}
 Content-Type: application/json
 
-{ "name": "Teresa Marquez" }
+{ "name": "Wilma W. Cabiscuelas" }
 
 ### Email / mobile change, step 1 (current password; the code goes to the new email, or to the email on file for a mobile change)
 # @name contact
@@ -120,7 +157,7 @@ POST {{api}}/admin/me/contact/start
 Authorization: Bearer {{adminVerify.response.body.token}}
 Content-Type: application/json
 
-{ "field": "mobile", "value": "0999 111 2222", "password": "TresMarias@2026" }
+{ "field": "mobile", "value": "0999 111 2222", "password": "{{adminPassword}}" }
 
 ### Resend (after 45 s)
 POST {{api}}/admin/me/contact/resend
@@ -141,4 +178,4 @@ POST {{api}}/admin/me/password
 Authorization: Bearer {{adminVerify.response.body.token}}
 Content-Type: application/json
 
-{ "current": "TresMarias@2026", "next": "Bagong@Pass2026" }
+{ "current": "{{adminPassword}}", "next": "New-Admin-Pass-2026" }

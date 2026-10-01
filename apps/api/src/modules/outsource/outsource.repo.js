@@ -3,8 +3,8 @@ import { parseJson, toJson } from '../../lib/json.js';
 /**
  * SQL for outsourcing: partners, their contracts, each contract's deliveries, and both histories
  * (docs §7.1: the repo holds SQL only; the rules are in outsource.service.js and
- * @tm/shared/src/domain/outsource.js). Records come back in the browser store's shape
- * (outsourceService.js), the way the seeder saves them and scripts/db-roundtrip.js reads them:
+ * @tm/shared/src/domain/outsource.js). Records come back in the shape domain/outsource.js works
+ * with, the way the seeder saves them and scripts/db-roundtrip.js reads them:
  *   partner   { id, name, service, contactPerson, email, mobile, address, notes, archived, history }
  *   contract  { id, ref, partnerId, reservationRef, items, needBy, amount, notes, status, body,
  *               deliveries: [{ channel, to, at, body }], createdAt, sentAt, answeredAt, answerNote, history }

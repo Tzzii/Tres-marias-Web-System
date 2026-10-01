@@ -6,9 +6,9 @@ import { RULES, isRental } from '../services/config.js';
  * Availability rules that need no stored data: which reservations take a date's event slots, the
  * availability map built from them, and why a date or a start time cannot be reserved.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (calendarService.js), the
- * portals' API version (services/remote/calendar.js) and the API server (apps/api/src/modules/calendar)
- * give the same answers (docs/backend-development-phases.md §7.8).
+ * Pure (no database, no localStorage, no React), so the portals (services/remote/calendar.js and the
+ * date pickers) and the API server (apps/api/src/modules/calendar) give the same answers
+ * (docs/backend-development-phases.md §7.8).
  *
  * The availability map ("snapshot") that every check below takes:
  *   { capacity: 2,                                         events allowed per date

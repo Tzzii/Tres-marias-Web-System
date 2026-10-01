@@ -2,9 +2,9 @@ import { ApiError } from './errors.js';
 import { emitChange, emitSignedOut } from './events.js';
 
 /**
- * The API client used by the services' API versions (services/remote/*) and the change poller
- * (services/poller.js). Only services switched on in VITE_API_SERVICES call it (see backend.js; `auth`
- * since Phase 3); the rest use the browser store.
+ * The API client: every service (services/remote/*, the xxxApi objects of @tm/shared) and the change
+ * poller (services/poller.js) call the API through it. Since Phase 12 it is the only data source: the
+ * browser data store and the VITE_API_SERVICES switchboard are gone.
  */
 
 // Where the API lives, from each app's .env.local; without a trailing slash so paths join cleanly
@@ -70,8 +70,8 @@ function failure(res, data, path, sentToken, fallback = { code: 'SERVER_ERROR', 
 }
 
 /**
- * One call to the API. Errors come back as ApiError with the server's code, so pages keep
- * handling them exactly as they did with the browser store. Successful writes emit a change
+ * One call to the API. Errors come back as ApiError with the server's code, message and meta, so
+ * pages handle them in one way (by `code`). Successful writes emit a change
  * event, which quietly reloads every live useResource on the page, unless `quiet` is set: the
  * caller then emits it itself when ready (e.g. after saving a renewed token, so the reloads
  * carry the new one). A 204 returns null.

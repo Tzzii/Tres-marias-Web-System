@@ -1,14 +1,20 @@
-import { addDays, formatDate, todayISO } from '../utils/format.js';
-import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, RENTAL_SERVICE } from './config.js';
+import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, RENTAL_SERVICE } from '@tm/shared/src/services/config.js';
+import { computeQuote } from '@tm/shared/src/services/pricing.js';
+import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
+import { addDays, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
 import { buildInventorySeed } from './inventorySeed.js';
 import { buildOutsourceSeed } from './outsourceSeed.js';
-import { computeQuote } from './pricing.js';
-import { makeReservationRef } from './reservationRef.js';
 
 /**
- * Initial records for the front-end data store. Event dates are laid out
- * relative to today so the dashboards always have a current picture: events
- * today, requests waiting, payments to verify and a year of completed events.
+ * The sample data the API seeder loads (src/seed.js): `npm run seed:api` loads all of it, and
+ * `npm run seed:starter` keeps only the real business data (the catalog, settings and inventory).
+ * Event dates are laid out relative to today so the dashboards always have a current picture:
+ * events today, requests waiting, payments to verify and a year of completed events.
+ *
+ * Moved here from packages/shared in Phase 12, when the browser data store was removed: the
+ * website no longer ships any sample customer. No password is written here either (the repository
+ * is public): the seeder takes the accounts' passwords from apps/api/.env (SEED_ADMIN_PASSWORD,
+ * SEED_CUSTOMER_PASSWORD), so these records carry none.
  */
 
 // Items included in a package as [quantity, name]; quantity is null for items without a count (e.g. "Buffet Table")
@@ -20,7 +26,7 @@ const BUFFET_BASE = [
   [null, 'Buffet Backdrop']
 ];
 
-// Tableware, tables and chairs for a catering package covering `guests`
+// Tableware, tables and chairs for a catering package set up for `guests` (its default guest count)
 const cateringItems = ({ guests, warmers, warmerName, tables, pitchers, jugs, waiters }) =>
   items([
     ...BUFFET_BASE,
@@ -52,7 +58,8 @@ const WEDDING_EXTRAS = [
  * Packages from the Tres Marias price lists. A package is equipment and service only:
  * food is cooked to the customer's request and priced by the admin in the quotation.
  * Packages are not tied to an occasion; any package can be booked for any event.
- * `guests` is how many guests the tableware and chairs cover. Any package can be booked as a
+ * `guests` is the package's default guest count: it helps the customer pick a package, and the
+ * booking follows the customer's own count at the same package price. Any package can be booked as a
  * Buffet (food cooked, charged per person) or as Catering only (the equipment on its own).
  *
  * The last one, Equipment Rental (`kind: 'rental'`), has no price, guests or items of its own: the
@@ -195,21 +202,84 @@ const PACKAGES = [
 ].map((pkg) => ({ kind: 'package', icon: 'restaurant', featured: false, visible: true, archived: false, ...pkg }));
 
 /**
- * Additional charges a customer can tick on the reservation form. They have no fixed
- * price: the admin prices each one in the quotation.
+ * Additional charges a customer can tick on the reservation form. They start with no price of
+ * their own (`price: null`), so each is priced in the quotation until the admin gives it one on
+ * the Packages page (Additional charges tab).
+ * The Tent comes in sizes: each size is a row of its own pointing at the Tent (`parentId`), counted
+ * by the piece, and the customer books the sizes (nestAddons in domain/catalog.js). Sounds and lights
+ * and Photographer and videographer are charges with packages (`hasPackages`, "Additional charges with
+ * packages" on the admin's Packages page): their packages are rows stored the same way, but the customer
+ * picks one, booked once, and each one's description says what it includes. Sizes and packages come
+ * last, after every charge, so a charge is always saved before the rows that point at it.
+ * The sound packages and their starting prices (the low end of the market price ranges the owner
+ * shared on 2026-10-01) are estimates for the owner to confirm; the grand setup and the
+ * photo and video packages have no price yet, so they are set in each quotation until the admin adds one.
  */
 const ADDONS = [
   { id: 'add-stage', name: 'Stage decoration', description: 'Backdrop and styling for the stage or program area.' },
   { id: 'add-balloons', name: 'Balloon decoration', description: 'Balloon arches, garlands or columns in your motif.' },
   { id: 'add-tent', name: 'Tent', description: 'A tent over the dining area for outdoor venues.' },
-  { id: 'add-sounds-lights', name: 'Sounds and lights', description: 'Speakers, microphones and event lighting for the program.' },
+  { id: 'add-sounds-lights', name: 'Sounds and lights', description: 'Speakers, microphones and event lighting for the program.', hasPackages: true },
   { id: 'add-host', name: 'Host', description: 'A host or emcee to run the program.' },
   { id: 'add-clown', name: 'Clown', description: 'A clown with games and balloon art for children.' },
-  { id: 'add-photographer', name: 'Photographer', description: 'Event photographer with edited photos after the event.' },
-  { id: 'add-videographer', name: 'Videographer', description: 'Event videographer with an edited highlights video.' },
+  // One charge for both (merged 2026-10-01; there was a separate Videographer before)
+  { id: 'add-photographer', name: 'Photographer and videographer', description: 'Event photographer and videographer, with edited photos and a highlights video after the event.', hasPackages: true },
   // The only charge counted by the piece: the customer says how many, and the admin prices one of them
-  { id: 'add-waiters', name: 'Waiter/Dishwasher', description: 'Extra waiters or dishwashers on top of what your package includes.', hasQuantity: true }
-].map((addon) => ({ hasQuantity: false, archived: false, ...addon }));
+  { id: 'add-waiters', name: 'Waiter/Dishwasher', description: 'Extra waiters or dishwashers on top of what your package includes.', hasQuantity: true },
+  // The Tent's sizes, priced per piece once the admin sets them
+  // Each books its tent in the inventory (inventorySeed.js ADDON_LINKS), so a booking holds it on the date
+  { id: 'add-tent-10x10', parentId: 'add-tent', name: '10 × 10', description: '', hasQuantity: true },
+  { id: 'add-tent-10x20', parentId: 'add-tent', name: '10 × 20', description: '', hasQuantity: true },
+  { id: 'add-tent-20x20', parentId: 'add-tent', name: '20 × 20', description: '', hasQuantity: true },
+  { id: 'add-tent-20x40', parentId: 'add-tent', name: '20 × 40', description: '', hasQuantity: true },
+  // The sound packages, smallest first
+  {
+    id: 'add-sound-basic',
+    parentId: 'add-sounds-lights',
+    name: 'Basic sound system',
+    price: 3500,
+    description: '2 active speakers with stands\nAudio mixer\nLaptop or music player\n2 microphones (wired or wireless)'
+  },
+  {
+    id: 'add-sound-lights',
+    parentId: 'add-sounds-lights',
+    name: 'Basic lights and sounds',
+    price: 5000,
+    description: '2 powered speakers\n8 to 12 stage or backdrop lights on T-bar stands\nAudio mixer and 2 microphones\nAn operator for 4 to 5 hours'
+  },
+  {
+    id: 'add-sound-full',
+    parentId: 'add-sounds-lights',
+    name: 'Medium / full package',
+    price: 8000,
+    description: 'Everything in Basic lights and sounds\nSubwoofers and moving head lights\nDMX lighting controller\nFog or smoke machine\nAn on-site technician'
+  },
+  {
+    id: 'add-sound-grand',
+    parentId: 'add-sounds-lights',
+    name: 'Grand / corporate / wedding setup',
+    description: 'For large venues: full band equipment, heavy trusses, LED walls and a large generator'
+  },
+  // The photo and video packages
+  {
+    id: 'add-photo-only',
+    parentId: 'add-photographer',
+    name: 'Photos only',
+    description: 'A photographer for the whole event\nAll edited photos, sent online after the event'
+  },
+  {
+    id: 'add-video-only',
+    parentId: 'add-photographer',
+    name: 'Video only',
+    description: 'A videographer for the whole event\nA 3 to 5 minute highlights video after the event'
+  },
+  {
+    id: 'add-photo-video',
+    parentId: 'add-photographer',
+    name: 'Photos and video',
+    description: 'A photographer and a videographer for the whole event\nAll edited photos and a highlights video after the event'
+  }
+].map((addon) => ({ parentId: null, price: null, hasQuantity: false, hasPackages: false, archived: false, ...addon }));
 
 /**
  * The dishes the admin offers, grouped by the four categories a buffet menu is built from.
@@ -311,10 +381,10 @@ const SERVICE_ONLY = new Set(['lim-thanksgiving', 'mendoza-outing', 'paolo-engag
 /** What a Catering only customer wrote instead of a menu. */
 const SERVICE_ONLY_NOTE = 'We are cooking the food ourselves. We only need the equipment and the setup.';
 
-/** How many of a by-the-piece additional charge a row asked for, e.g. four extra waiters. */
-const ADDON_QTY = { 'villanueva-yearend': { 'add-waiters': 4 } };
+/** How many of a by-the-piece additional charge a row asked for, e.g. four extra waiters or two 10 × 20 tents. */
+const ADDON_QTY = { 'villanueva-yearend': { 'add-tent-10x20': 2, 'add-waiters': 4 }, 'villanueva-townhall': { 'add-tent-10x10': 2 } };
 
-// Customers as [id, name, email, mobile, days since joining, password (optional, default Celebrate2026)]
+// Customers as [id, name, email, mobile, days since joining]. Their password is SEED_CUSTOMER_PASSWORD (src/seed.js).
 const CUSTOMERS = [
   ['cus-001', 'Maria Santos', 'maria.santos@gmail.com', '09171234567', 420],
   ['cus-002', 'Jose Ramos', 'jose.ramos@yahoo.com', '09182345678', 400],
@@ -324,8 +394,8 @@ const CUSTOMERS = [
   ['cus-006', 'Carlo Mendoza', 'carlo.mendoza@outlook.com', '09226789012', 130],
   ['cus-007', 'Rhea Bautista', 'rhea.bautista@gmail.com', '09237890123', 360],
   ['cus-008', 'Daniel Aquino', 'daniel.aquino@gmail.com', '09248901234', 240],
-  // Demo account: one customer with every reservation, payment, chat and review situation (own password)
-  ['cus-009', 'Jherson Gabrial Tabra', 'jherson.tabra@gmail.com', '09259012345', 330, 'Litmatchlover2005']
+  // Demo account: one customer with every reservation, payment, chat and review situation
+  ['cus-009', 'Jherson Gabrial Tabra', 'jherson.tabra@gmail.com', '09259012345', 330]
 ];
 
 /** Build the complete starting data set. All dates are relative to today. */
@@ -342,39 +412,36 @@ export function buildSeed() {
   const pkgById = Object.fromEntries(PACKAGES.map((p) => [p.id, p]));
 
   // Prices the admin put on each additional charge in the sample quotations.
-  // 'add-waiters' is counted by the piece, so its amount is the price of ONE waiter.
+  // 'add-waiters' and the tent sizes are counted by the piece, so their amount is the price of ONE.
   const ADDON_PRICES = {
     'add-stage': 8000,
     'add-balloons': 4500,
-    'add-tent': 7000,
+    'add-tent-10x10': 4500,
+    'add-tent-10x20': 7000,
     'add-sounds-lights': 12000,
     'add-host': 6000,
     'add-clown': 4000,
-    'add-photographer': 9500,
-    'add-videographer': 14000,
+    'add-photographer': 23500,
     'add-waiters': 800
   };
-  // Charge per guest above what the package covers, used for the sample quotations
-  const EXTRA_GUEST_CHARGE = 60;
 
-  // Every customer uses Celebrate2026 unless their row gives their own password
-  const customers = CUSTOMERS.map(([id, name, email, mobile, joinedDaysAgo, password = 'Celebrate2026']) => ({
+  // The sample customers, without passwords (the seeder gives each one SEED_CUSTOMER_PASSWORD)
+  const customers = CUSTOMERS.map(([id, name, email, mobile, joinedDaysAgo]) => ({
     id,
     name,
     email,
     mobile,
-    password,
     createdAt: at(-joinedDaysAgo, 9),
     company: id === 'cus-004' ? 'Villanueva Logistics Inc.' : ''
   }));
 
+  // The owner's admin account, without a password (the seeder gives it SEED_ADMIN_PASSWORD)
   const admins = [
     {
       id: 'adm-001',
-      name: 'Teresa Marquez',
+      name: 'Wilma W. Cabiscuelas',
       email: 'emmamariaobet@gmail.com',
       mobile: '09515621060',
-      password: 'TresMarias@2026',
       role: 'Administrator',
       createdAt: at(-420, 9),
       passwordChangedAt: at(-60, 10)
@@ -448,7 +515,7 @@ export function buildSeed() {
       ['add-balloons'], ['Fernwood Gardens', 'Commonwealth Avenue', 'Quezon City'],
       'Still deciding. We would like Filipino favourites for the mains and two desserts.', {}],
     ['villanueva-yearend', 'cus-004', 'Villanueva Logistics Year-End Party', 'Corporate', 95, '19:00', 300, 'pkg-3-waiters', 'pending', 0,
-      ['add-tent', 'add-waiters'], ['Villanueva Logistics Warehouse Hall', '12 Sampaguita Road, Parañaque', 'Parañaque City'],
+      ['add-tent-10x20', 'add-waiters'], ['Villanueva Logistics Warehouse Hall', '12 Sampaguita Road, Parañaque', 'Parañaque City'],
       'Crispy pata, kare-kare, chicken inasal, pancit canton, rice, leche flan and iced tea.', {}],
     ['liam-christening', 'cus-005', "Baby Liam's Christening", 'Christening', 12, '12:00', 60, 'pkg-mini', 'approved', -9,
       [], ['San Antonio de Padua Parish Hall', 'Forbes Park', 'Makati City'],
@@ -472,7 +539,7 @@ export function buildSeed() {
       [], ['Ramos Ancestral House', '14 General Luna Street', 'Marikina City'],
       'Lechon kawali, kare-kare, pancit canton, rice and leche flan.', { paidFull: true, accessNotes: true }],
     ['villanueva-townhall', 'cus-004', 'Villanueva Logistics Q2 Town Hall', 'Corporate', -150, '09:00', 250, 'pkg-3-waiters', 'completed', -190,
-      ['add-tent'], ['Villanueva Logistics Warehouse Hall', '12 Sampaguita Road, Parañaque', 'Parañaque City'],
+      ['add-tent-10x10'], ['Villanueva Logistics Warehouse Hall', '12 Sampaguita Road, Parañaque', 'Parañaque City'],
       'Breakfast: tapsilog and longsilog. Lunch: chicken inasal, pancit, rice. Coffee station all day.', { paidFull: true, accessNotes: true }],
     ['aquino-anniversary', 'cus-008', 'Aquino 10th Wedding Anniversary', 'Anniversary', -200, '18:00', 110, 'pkg-2', 'completed', -240,
       ['add-stage'], ['Blue Leaf Pavilion', 'McKinley Hill', 'Taguig City'],
@@ -550,17 +617,14 @@ export function buildSeed() {
       const estimate = computeQuote(quoteBase);
       const hasQuote = extra.quoted || !['pending', 'declined'].includes(status);
       const discount = status === 'completed' && guests >= 150 ? 2000 : 0;
-      // Guests above what the package covers are charged under "Other charges"
-      const over = Math.max(0, guests - pkg.guests);
       const quotation = hasQuote
         ? {
             ...computeQuote({
               ...quoteBase,
               addonPrices: ADDON_PRICES,
-              otherCharges: over * EXTRA_GUEST_CHARGE,
               discount
             }),
-            otherLabel: over ? `${over} guests above the package` : '',
+            otherLabel: '',
             sentAt: at(createdOffset + 1, 15),
             note: ''
           }
@@ -569,12 +633,12 @@ export function buildSeed() {
       const customer = customers.find((c) => c.id === customerId);
 
       const activity = [{ at: at(createdOffset, 20, 15), actor: customer.name, text: 'Submitted the reservation request.' }];
-      if (quotation) activity.push({ at: quotation.sentAt, actor: 'Teresa Marquez', text: `Sent the quotation (${'₱' + total.toLocaleString('en-PH')}).` });
+      if (quotation) activity.push({ at: quotation.sentAt, actor: 'Wilma W. Cabiscuelas', text: `Sent the quotation (${'₱' + total.toLocaleString('en-PH')}).` });
       if (!['pending', 'declined'].includes(status)) {
-        activity.push({ at: at(createdOffset + 1, 15, 30), actor: 'Teresa Marquez', text: 'Approved the reservation.' });
+        activity.push({ at: at(createdOffset + 1, 15, 30), actor: 'Wilma W. Cabiscuelas', text: 'Approved the reservation.' });
       }
       if (status === 'declined') {
-        activity.push({ at: at(createdOffset + 1, 11), actor: 'Teresa Marquez', text: 'Declined the reservation.' });
+        activity.push({ at: at(createdOffset + 1, 11), actor: 'Wilma W. Cabiscuelas', text: 'Declined the reservation.' });
       }
 
       const downpaymentDue =
@@ -588,7 +652,7 @@ export function buildSeed() {
       if (extra.rejected) {
         const { method, offset, reason } = extra.rejected;
         pay(ref, customerId, Math.round(total / 2), 'downpayment', method, offset, 'rejected', { rejectReason: reason });
-        activity.push({ at: at(offset + 1, 10, 5), actor: 'Teresa Marquez', text: `Rejected a payment of ₱${Math.round(total / 2).toLocaleString('en-PH')}. Reason: ${reason}` });
+        activity.push({ at: at(offset + 1, 10, 5), actor: 'Wilma W. Cabiscuelas', text: `Rejected a payment of ₱${Math.round(total / 2).toLocaleString('en-PH')}. Reason: ${reason}` });
       }
       if (extra.paidFull) {
         pay(ref, customerId, Math.round(total / 2), 'downpayment', 'qrph', createdOffset + 4);
@@ -605,13 +669,13 @@ export function buildSeed() {
       const myPayments = payments.filter((p) => p.ref === ref && p.status === 'verified');
       // A GCash QR payment is confirmed by PayMongo, everything else by the admin
       myPayments.forEach((p) =>
-        activity.push({ at: p.verifiedAt, actor: p.method === 'qrph' ? 'PayMongo' : 'Teresa Marquez', text: `Verified a ${p.kind} payment of ₱${p.amount.toLocaleString('en-PH')} (${p.receiptNo}).` })
+        activity.push({ at: p.verifiedAt, actor: p.method === 'qrph' ? 'PayMongo' : 'Wilma W. Cabiscuelas', text: `Verified a ${p.kind} payment of ₱${p.amount.toLocaleString('en-PH')} (${p.receiptNo}).` })
       );
       if (['confirmed', 'completed'].includes(status)) {
-        activity.push({ at: at(createdOffset + 7, 9, 40), actor: 'Teresa Marquez', text: 'Confirmed the booking.' });
+        activity.push({ at: at(createdOffset + 7, 9, 40), actor: 'Wilma W. Cabiscuelas', text: 'Confirmed the booking.' });
       }
       if (status === 'completed') {
-        activity.push({ at: at(dateOffset, 23, 0), actor: 'Teresa Marquez', text: 'Marked the event as completed.' });
+        activity.push({ at: at(dateOffset, 23, 0), actor: 'Wilma W. Cabiscuelas', text: 'Marked the event as completed.' });
       }
       if (status === 'cancelled') {
         activity.push({ at: at(createdOffset + 6, 19, 10), actor: customer.name, text: `Cancelled the reservation. Reason: ${extra.cancelReason}` });
@@ -644,7 +708,7 @@ export function buildSeed() {
         // When the admin marked "Started preparing" (none in the seed)
         preparingAt: null,
         // Admin's private notes: from the row, or the sample note on the Santos wedding
-        notes: extra.notes || (status === 'pending' && key === 'santos-wedding' ? 'Couple asked for a vegetarian option for 12 guests. 10 guests above what Wedding Package 2 covers: added as other charges.' : ''),
+        notes: extra.notes || (status === 'pending' && key === 'santos-wedding' ? 'Couple asked for a vegetarian option for 12 guests.' : ''),
         declineReason: extra.declineReason || '',
         cancelReason: extra.cancelReason || '',
         // Who cancelled: the seeded cancellation is the customer's own
@@ -687,12 +751,12 @@ export function buildSeed() {
       ref: REF['santos-wedding'],
       messages: [
         msg('customer', 'Maria Santos', 'Hi! We just sent our reservation for the wedding reception. Is it possible to add a vegetarian option for around 12 guests?', -2, 9, 12),
-        msg('admin', 'Teresa Marquez', 'Congratulations, Maria! Yes, we can cook a vegetarian dish for those guests. We are reviewing your request now.', -2, 9, 20),
-        msg('admin', 'Teresa Marquez', 'Here is your quotation. Once you confirm, we will approve the reservation and send the downpayment instructions.', -1, 9, 41, {
+        msg('admin', 'Wilma W. Cabiscuelas', 'Congratulations, Maria! Yes, we can cook a vegetarian dish for those guests. We are reviewing your request now.', -2, 9, 20),
+        msg('admin', 'Wilma W. Cabiscuelas', 'Here is your quotation. Once you confirm, we will approve the reservation and send the downpayment instructions.', -1, 9, 41, {
           readByCustomer: false,
           attachment: { name: `Quotation-${REF['santos-wedding']}.pdf`, kind: 'quotation', ref: REF['santos-wedding'] }
         }),
-        msg('admin', 'Teresa Marquez', 'Also, the complimentary food tasting for Wedding package bookings can be scheduled any weekday afternoon. Let us know what works for you.', -1, 9, 44, { readByCustomer: false })
+        msg('admin', 'Wilma W. Cabiscuelas', 'Also, the complimentary food tasting for Wedding package bookings can be scheduled any weekday afternoon. Let us know what works for you.', -1, 9, 44, { readByCustomer: false })
       ]
     },
     {
@@ -700,15 +764,15 @@ export function buildSeed() {
       ref: null,
       messages: [
         msg('customer', 'Maria Santos', "Good afternoon. I sent the balance for Lola Carmen's birthday through bank transfer.", -2, 15, 5, { ref: REF['lola-carmen'] }),
-        msg('admin', 'Teresa Marquez', 'Received and verified, thank you! Your official receipt is now in Documents.', -1, 10, 10, { ref: REF['lola-carmen'] })
+        msg('admin', 'Wilma W. Cabiscuelas', 'Received and verified, thank you! Your official receipt is now in Documents.', -1, 10, 10, { ref: REF['lola-carmen'] })
       ]
     },
     {
       customerId: 'cus-001',
       ref: REF['lola-carmen'],
       messages: [
-        msg('admin', 'Teresa Marquez', 'Good morning, Maria! We arrive at 7:00 am for setup. We will use the side gate as discussed.', 0, 6, 45),
-        msg('customer', 'Maria Santos', 'Perfect, thank you Teresa. See you!', 0, 6, 52)
+        msg('admin', 'Wilma W. Cabiscuelas', 'Good morning, Maria! We arrive at 7:00 am for setup. We will use the side gate as discussed.', 0, 6, 45),
+        msg('customer', 'Maria Santos', 'Perfect, thank you Wilma. See you!', 0, 6, 52)
       ]
     },
     {
@@ -730,7 +794,7 @@ export function buildSeed() {
       ref: REF['sofia-debut'],
       messages: [
         msg('customer', 'Jose Ramos', 'Hi, just confirming the stage decoration will be set up by 4 pm for the debut rehearsal.', -1, 11, 0),
-        msg('admin', 'Teresa Marquez', 'Confirmed, Jose. The stage will be ready by 3:30 pm.', -1, 11, 18)
+        msg('admin', 'Wilma W. Cabiscuelas', 'Confirmed, Jose. The stage will be ready by 3:30 pm.', -1, 11, 18)
       ]
     },
     // Jherson Gabrial Tabra (demo account): billing with a rejected and re-sent payment, a receipt and a reminder,
@@ -740,14 +804,14 @@ export function buildSeed() {
       ref: null,
       messages: [
         msg('customer', 'Jherson Gabrial Tabra', 'Good afternoon po. I sent the downpayment for the team building lunch through BDO.', -4, 14, 40, { ref: REF['tabra-teambuilding'] }),
-        msg('admin', 'Teresa Marquez', `We could not verify your payment of ₱${tabraRejected.amount.toLocaleString('en-PH')} for Tabra Printing Co. Team Building Lunch. ${tabraRejected.rejectReason} Please submit it again from Payments.`, -3, 10, 5, { ref: REF['tabra-teambuilding'] }),
+        msg('admin', 'Wilma W. Cabiscuelas', `We could not verify your payment of ₱${tabraRejected.amount.toLocaleString('en-PH')} for Tabra Printing Co. Team Building Lunch. ${tabraRejected.rejectReason} Please submit it again from Payments.`, -3, 10, 5, { ref: REF['tabra-teambuilding'] }),
         msg('customer', 'Jherson Gabrial Tabra', 'Sorry po, I typed the wrong reference number. I will send it again.', -3, 10, 30, { ref: REF['tabra-teambuilding'] }),
-        msg('admin', 'Teresa Marquez', `We received your payment of ₱${tabraGradBalance.amount.toLocaleString('en-PH')} for Jherson's College Graduation Party. Receipt ${tabraGradBalance.receiptNo} is now in Documents.`, -2, 10, 6, {
+        msg('admin', 'Wilma W. Cabiscuelas', `We received your payment of ₱${tabraGradBalance.amount.toLocaleString('en-PH')} for Jherson's College Graduation Party. Receipt ${tabraGradBalance.receiptNo} is now in Documents.`, -2, 10, 6, {
           ref: REF['tabra-graduation'],
           attachment: { name: `Receipt-${tabraGradBalance.receiptNo}.pdf`, kind: 'receipt', ref: REF['tabra-graduation'], paymentId: tabraGradBalance.id }
         }),
         msg('customer', 'Jherson Gabrial Tabra', 'Uploaded the new BDO receipt with the correct reference number. Thank you!', -1, 14, 25, { readByAdmin: false, ref: REF['tabra-teambuilding'] }),
-        msg('admin', 'Teresa Marquez', `A friendly reminder for Tabra Family Reunion: a downpayment of at least ₱${tabraReunionDown.toLocaleString('en-PH')} was due on ${formatDate(day(-2))}. Please pay from Payments so we can keep your date reserved.`, 0, 8, 30, { readByCustomer: false, ref: REF['tabra-reunion'] })
+        msg('admin', 'Wilma W. Cabiscuelas', `A friendly reminder for Tabra Family Reunion: a downpayment of at least ₱${tabraReunionDown.toLocaleString('en-PH')} was due on ${formatDate(day(-2))}. Please pay from Payments so we can keep your date reserved.`, 0, 8, 30, { readByCustomer: false, ref: REF['tabra-reunion'] })
       ]
     },
     {
@@ -755,14 +819,14 @@ export function buildSeed() {
       ref: REF['tabra-birthday'],
       messages: [
         msg('customer', 'Jherson Gabrial Tabra', 'Hi! Can the balloon setup be a photo corner near the entrance? Thank you po.', -1, 20, 20),
-        msg('admin', 'Teresa Marquez', 'Hi Jherson! Yes, we can set it up as a photo corner. We are reviewing your request and will send the quotation within the day.', 0, 9, 10, { readByCustomer: false })
+        msg('admin', 'Wilma W. Cabiscuelas', 'Hi Jherson! Yes, we can set it up as a photo corner. We are reviewing your request and will send the quotation within the day.', 0, 9, 10, { readByCustomer: false })
       ]
     },
     {
       customerId: 'cus-009',
       ref: REF['tabra-anniversary'],
       messages: [
-        msg('admin', 'Teresa Marquez', "Mama and Papa Tabra's 25th Anniversary is now confirmed. Your contract is available in Documents.", -23, 9, 40, {
+        msg('admin', 'Wilma W. Cabiscuelas', "Mama and Papa Tabra's 25th Anniversary is now confirmed. Your contract is available in Documents.", -23, 9, 40, {
           attachment: { name: `Contract-${REF['tabra-anniversary']}.pdf`, kind: 'contract', ref: REF['tabra-anniversary'] }
         }),
         msg('customer', 'Jherson Gabrial Tabra', 'Thank you! We will prepare the balance for the event day.', -23, 12, 15)
@@ -772,7 +836,7 @@ export function buildSeed() {
       customerId: 'cus-009',
       ref: REF['tabra-graduation'],
       messages: [
-        msg('admin', 'Teresa Marquez', 'Hi Jherson! Our crew arrives at 2:00 pm on the day for setup. Please keep the garage clear for the van.', -1, 16, 0),
+        msg('admin', 'Wilma W. Cabiscuelas', 'Hi Jherson! Our crew arrives at 2:00 pm on the day for setup. Please keep the garage clear for the van.', -1, 16, 0),
         msg('customer', 'Jherson Gabrial Tabra', 'Noted po, thank you!', -1, 16, 12)
       ]
     }
@@ -845,7 +909,7 @@ export function buildSeed() {
     archived: Boolean(state.archived),
     readByAdmin: state.unread !== true,
     // The admin's answer, sent the morning after the review came in
-    reply: state.reply ? { body: state.reply, at: at(daysAgo + 1, 9, 30), by: 'Teresa Marquez' } : null
+    reply: state.reply ? { body: state.reply, at: at(daysAgo + 1, 9, 30), by: 'Wilma W. Cabiscuelas' } : null
   }));
 
   // Equipment inventory (items and the counter for new item codes); some pieces are out at today's two events
@@ -901,7 +965,7 @@ export function buildSeed() {
   const outsourcing = buildOutsourceSeed(REF, reservations);
 
   return {
-    version: 16,
+    // The day the dates were counted from (the seeder prints it)
     seededOn: T,
     // Settings the admin edits in the app: the buffet price per person and the minimum downpayment
     settings: { pricePerPlate: DEFAULT_PRICE_PER_PLATE, minDownpayment: DEFAULT_MIN_DOWNPAYMENT },

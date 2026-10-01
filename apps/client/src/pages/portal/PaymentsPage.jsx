@@ -331,7 +331,7 @@ export default function PaymentsPage() {
     setBusy(true);
     try {
       // Whether it counts as downpayment, full or balance is worked out by the payment service from the amount.
-      // The API version uploads `file`; the browser store keeps only its name.
+      // `file` (the receipt photo) is uploaded with the payment; the server checks its real type.
       await paymentApi.submitPayment(user.id, {
         ref: selected.ref,
         method,

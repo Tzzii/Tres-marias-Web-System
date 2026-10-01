@@ -9,10 +9,16 @@ import { EMAIL_RE } from '../utils/validation.js';
  * send and a status change need, the lines written to the histories and to a reservation's audit
  * trail, what the pages show of a partner and a contract, and the contract text.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (outsourceService.js), the
- * seed (outsourceSeed.js) and the API server (apps/api/src/modules/outsource) all use this one copy
- * instead of each keeping its own (docs/backend-development-phases.md §7.8). A refusal comes back as
+ * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/outsource), its
+ * seed (apps/api/src/seedData/outsourceSeed.js) and the admin page all use this one copy instead of each
+ * keeping its own (docs/backend-development-phases.md §7.8). A refusal comes back as
  * data, { code, message, meta }: the ApiError each service then throws.
+ *
+ * A "contract" in this code is the stored record of an outsourcing REQUEST (the table, the functions and
+ * the ids keep that name). Tres Marias does not send a partner a contract: the partner's own rates and
+ * terms are what the admin follows, and the text that goes out only asks whether they can supply the
+ * items for the event, answered by text or call to the business number. So every text the admin or a
+ * partner reads says "request".
  */
 
 // Value used on a contract that is not tied to a reservation (e.g. topping up stock)
@@ -29,7 +35,7 @@ export const NEXT_STATUS = {
   cancelled: []
 };
 
-// The most a contract's agreed amount may be, in whole pesos
+// The most a request's outsource price may be, in whole pesos
 const MAX_AMOUNT = 10000000;
 
 // A refusal as data: the ApiError a service throws
@@ -48,7 +54,7 @@ const contactOf = (values) => ({ email: (values.email || '').trim().toLowerCase(
  * What is wrong with a partner's details, or null: the partner dialog's rules, in its order. A name of
  * 2+ characters not already used (any case; `names` are the other partners' names, archived ones
  * included), a service from OUTSOURCE_SERVICES, and a way to reach them: an email address, a mobile
- * number or both (a partner with neither could never be sent a contract), each well formed.
+ * number or both (a partner with neither could never be sent a request), each well formed.
  */
 export function partnerProblem(values, { names = [] } = {}) {
   const name = (values.name || '').trim();
@@ -56,7 +62,7 @@ export function partnerProblem(values, { names = [] } = {}) {
   if (names.some((other) => other.toLowerCase() === name.toLowerCase())) return refuse('NAME_TAKEN', `"${name}" is already a partner.`, { field: 'name' });
   if (!OUTSOURCE_SERVICES.includes(values.service)) return invalid('Choose what they supply.', { field: 'service' });
   const { email, mobile } = contactOf(values);
-  if (!email && !mobile) return invalid('Give an email address or a mobile number so contracts can reach them.', { field: 'email' });
+  if (!email && !mobile) return invalid('Give an email address or a mobile number so requests can reach them.', { field: 'email' });
   if (email && !EMAIL_RE.test(email)) return invalid('Enter a valid email address.', { field: 'email' });
   if (mobile && !/^(09\d{9}|\+639\d{9})$/.test(mobile)) return invalid('Enter a valid mobile number, e.g. 0917 123 4567.', { field: 'mobile' });
   return null;
@@ -85,10 +91,10 @@ export function partnerEditText(partner, fields) {
 export const PARTNER_ADDED_TEXT = 'Added as an outsourcing partner.';
 export const archiveText = (archived) => (archived ? 'Archived.' : 'Restored from the archive.');
 
-/** Partners that can't be archived because a contract sent to them waits for their answer (IN_USE), or null. */
+/** Partners that can't be archived because a request sent to them waits for their reply (IN_USE), or null. */
 export function partnerArchiveProblem(partners, archived, hasOpenContract) {
   const busy = archived ? partners.filter((partner) => hasOpenContract(partner.id)) : [];
-  return busy.length ? refuse('IN_USE', `Close their open contracts first: ${busy.map((partner) => partner.name).join(', ')}.`) : null;
+  return busy.length ? refuse('IN_USE', `Close their open requests first: ${busy.map((partner) => partner.name).join(', ')}.`) : null;
 }
 
 /**
@@ -123,17 +129,17 @@ export const contractItems = (items) =>
 /** The reservation a contract is for: its ref, or NO_EVENT when none is chosen. */
 export const contractRef = (values) => (values.reservationRef && values.reservationRef !== NO_EVENT ? values.reservationRef : NO_EVENT);
 
-/** The agreed amount as saved: a number of pesos, 0 when left blank. */
+/** The outsource price as saved: a number of pesos, 0 when left blank. */
 export const contractAmount = (values) => Number(values.amount || 0);
 
 /**
- * What is wrong with a new or edited draft, or null: the contract dialog's rules, in its order.
+ * What is wrong with a new or edited draft, or null: the request dialog's rules, in its order.
  * `partner` is the partner the contract names (null when there is none: NOT_FOUND), and it must not be
  * archived; at least one item, each with a name and a quantity of 1 to 100,000 (meta.row is the row
  * among the item lines kept, see contractItems); the date needed, today or later (`today` is
  * "YYYY-MM-DD"); for a reservation, one that is approved to confirmed (`refStatus` is the status of the
- * reservation named exactly, null when there is none); and an agreed amount in whole pesos, 0 to
- * ₱10,000,000 (a contract is only edited while it is a draft, so its date is always checked).
+ * reservation named exactly, null when there is none); and an outsource price in whole pesos, 0 to
+ * ₱10,000,000 (a request is only edited while it is a draft, so its date is always checked).
  */
 export function contractProblem(values, { partner, refStatus, today }) {
   if (!partner) return refuse('NOT_FOUND', 'Partner not found.');
@@ -147,27 +153,27 @@ export function contractProblem(values, { partner, refStatus, today }) {
   if (contractRef(values) !== NO_EVENT && !HOLDS_DATE.includes(refStatus)) return invalid('Choose an approved or confirmed reservation.', { field: 'reservationRef' });
   const amount = contractAmount(values);
   if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT) {
-    return invalid(`Enter the agreed amount in whole pesos, up to ${peso(MAX_AMOUNT)}.`, { field: 'amount' });
+    return invalid(`Enter the outsource price in whole pesos, up to ${peso(MAX_AMOUNT)}.`, { field: 'amount' });
   }
   return null;
 }
 
 /** The history lines of a draft: when it is written, and when it is changed. */
-export const DRAFTED_TEXT = 'Drafted the contract.';
+export const DRAFTED_TEXT = 'Drafted the request.';
 export const EDITED_TEXT = 'Edited the draft.';
 
 /**
- * What stops a contract from being sent, or null: it must be a draft or sent and still unanswered
+ * What stops a request from being sent, or null: it must be a draft or sent and still unanswered
  * (LOCKED otherwise), its partner must exist, must not be archived (an archived partner is given no new
  * contracts; restore them first) and must have an email address or a mobile number (NO_CHANNEL), and
  * the text (`text`, already trimmed) must be at least 20 characters.
  */
 export function sendProblem(contract, partner, text) {
-  if (!['draft', 'sent'].includes(contract.status)) return refuse('LOCKED', 'Only a draft or an unanswered contract can be sent.');
+  if (!['draft', 'sent'].includes(contract.status)) return refuse('LOCKED', 'Only a draft or an unanswered request can be sent.');
   if (!partner) return refuse('NOT_FOUND', 'Partner not found.');
   if (partner.archived) return invalid('That partner is archived. Restore them first.', { field: 'partner' });
   if (!channelsOf(partner).length) return refuse('NO_CHANNEL', `${partner.name} has no email address or mobile number. Add one first.`, { field: 'partner' });
-  if (text.length < 20) return invalid('The contract text is too short to send.', { field: 'body' });
+  if (text.length < 20) return invalid('The request text is too short to send.', { field: 'body' });
   return null;
 }
 
@@ -181,32 +187,32 @@ export const contractDeliveries = (partner, text, at) =>
 // "email" or "SMS", as the history lines name a channel
 const channelWord = (channel) => (channel === 'email' ? 'email' : 'SMS');
 
-/** The contract's history line of a send, with where it went, e.g. "Sent the contract by email (a@b.ph) and SMS (09171112233)." */
-export const sentText = (deliveries) => `Sent the contract by ${deliveries.map((d) => `${channelWord(d.channel)} (${d.to})`).join(' and ')}.`;
+/** The request's history line of a send, with where it went, e.g. "Sent the request by email (a@b.ph) and SMS (09171112233)." */
+export const sentText = (deliveries) => `Sent the request by ${deliveries.map((d) => `${channelWord(d.channel)} (${d.to})`).join(' and ')}.`;
 
 /**
- * The same send in the reservation's audit trail, e.g. "Sent the contract by email and SMS.": the
+ * The same send in the reservation's audit trail, e.g. "Sent the request by email and SMS.": the
  * customer sees that trail too, so it names the channels only, never the partner's email address or
  * mobile number.
  */
-export const sentActivityText = (deliveries) => `Sent the contract by ${deliveries.map((d) => channelWord(d.channel)).join(' and ')}.`;
+export const sentActivityText = (deliveries) => `Sent the request by ${deliveries.map((d) => channelWord(d.channel)).join(' and ')}.`;
 
 /** What is wrong with a status change, or null: a move NEXT_STATUS allows, and a reason of 5+ characters for a decline or a cancellation. */
 export function statusProblem(contract, status, reason) {
-  if (!NEXT_STATUS[contract.status].includes(status)) return invalid(`A ${contract.status} contract cannot be marked ${status}.`);
+  if (!NEXT_STATUS[contract.status].includes(status)) return invalid(`A ${contract.status} request cannot be marked ${status}.`);
   if (['declined', 'cancelled'].includes(status) && reason.length < 5) return invalid('Give a short reason.', { field: 'note' });
   return null;
 }
 
 // The history line of each status change
 const STATUS_TEXT = {
-  accepted: 'Partner accepted the contract.',
-  declined: 'Partner declined the contract.',
+  accepted: 'Partner accepted the request.',
+  declined: 'Partner declined the request.',
   completed: 'Marked delivered and completed.',
-  cancelled: 'Cancelled the contract.'
+  cancelled: 'Cancelled the request.'
 };
 
-/** The history line of a status change, with the reason when one was given, e.g. "Partner declined the contract. Reason: Fully booked." */
+/** The history line of a status change, with the reason when one was given, e.g. "Partner declined the request. Reason: Fully booked." */
 export const statusText = (status, reason) => `${STATUS_TEXT[status]}${reason ? ` Reason: ${reason}` : ''}`;
 
 /**
@@ -223,7 +229,7 @@ export function statusChanges(status, reason, at) {
 
 /**
  * A line of a reservation's audit trail about one of its contracts, e.g. "Outsourcing · Batangas Party
- * Rentals: Drafted the contract." `who` is the partner's name (the contract's ref when there is none).
+ * Rentals: Drafted the request." `who` is the partner's name (the contract's ref when there is none).
  */
 export const outsourceActivity = (who, text) => `Outsourcing · ${who}: ${text}`;
 
@@ -250,7 +256,11 @@ export function contractView(contract, partner, reservation) {
 }
 
 /**
- * The contract text, built once and sent unchanged to email and SMS.
+ * The request text, built once and sent unchanged to email and SMS. It is not a contract: it asks the
+ * partner whether they can supply these items for the event. The last line tells them to text or call the
+ * business number to confirm (a reply to an SMS sender name goes nowhere, so the text never asks them to
+ * "reply"); the admin hears the answer on that phone and records it. The price is the partner's own, the
+ * one the admin follows.
  * A pure function, so the compose dialog can show the admin exactly what will go out and their
  * edits to it are what both channels carry.
  */
@@ -258,7 +268,7 @@ export function composeContractText({ ref, partner, items = [], needBy, eventNam
   const greeting = partner.contactPerson ? `Hi ${partner.contactPerson} (${partner.name}),` : `Hi ${partner.name},`;
   const forEvent = eventName ? ` for ${eventName}${eventDate ? ` on ${formatDate(eventDate)}` : ''}` : '';
   const lines = [
-    `${BUSINESS.name} · Outsourcing contract ${ref}`,
+    `${BUSINESS.name} · Outsourcing request ${ref}`,
     '',
     greeting,
     '',
@@ -269,6 +279,6 @@ export function composeContractText({ ref, partner, items = [], needBy, eventNam
   if (needBy) lines.push(`Needed on ${formatDate(needBy)}${venue ? ` at ${venue}` : ''}.`);
   if (Number(amount) > 0) lines.push(`Agreed amount: ${peso(amount)}.`);
   if (notes && notes.trim()) lines.push(notes.trim());
-  lines.push('', 'Please reply YES to accept or NO if you cannot supply this.', `${BUSINESS.name} · ${BUSINESS.phone}`);
+  lines.push('', `Please text or call ${BUSINESS.phone} to confirm.`);
   return lines.join('\n');
 }

@@ -2,17 +2,14 @@ import { ApiError } from '../errors.js';
 import { http, sessionSide } from '../http.js';
 
 /**
- * The message (chat) service on the API (apps/api/src/modules/messages, endpoint map in
- * docs/backend-development-phases.md §9.5). Same function names, arguments, return shapes and
- * ApiError codes as the browser version (messageService.js), so no page changes when
- * VITE_API_SERVICES includes "messages" (see facade/message.js).
+ * The chat (messageApi in @tm/shared; apps/api/src/modules/messages, endpoint map in
+ * docs/backend-development-phases.md §9.5).
  *
  * - `side` picks the address: /threads for the customer, /admin/threads for the admin. The server takes
  *   the customer and the sender's name from the session, so the page's `customerId` and `senderName`
  *   are not sent (the admin's `customerId` still names whose conversation to open).
- * - openThread() has no side of its own, so it goes by the portal that is signed in. Like the browser
- *   version, it only reads when the conversation exists (no change event), and writes only to start one.
- * - unreadCount() is not used by any page (the badges come from listThreads) and answers 0.
+ * - openThread() has no side of its own, so it goes by the portal that is signed in. It only reads when
+ *   the conversation exists (no change event), and writes only to start one.
  * Messages written in the other portal show up through the change poller (services/poller.js).
  */
 
@@ -53,6 +50,3 @@ export async function openThread({ customerId } = {}) {
   if (existing.length) return { id: existing[0].id };
   return http.post(base(side), side === 'admin' ? { customerId } : {});
 }
-
-/** @deprecated No page reads it: the badges come from listThreads. Always 0 on the API. */
-export const unreadCount = () => 0;

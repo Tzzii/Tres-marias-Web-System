@@ -40,7 +40,7 @@ export default function BookingBar({ onAvailable }) {
   };
 
   // Validate the four fields, then ask the calendar whether the date and start time are free.
-  // On the API the check itself can fail (no connection, too many requests): its message is shown instead.
+  // The check itself can fail (no connection, too many requests): its message is shown instead.
   const submit = async (event) => {
     event.preventDefault();
     const next = {};

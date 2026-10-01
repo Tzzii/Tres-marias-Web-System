@@ -14,7 +14,7 @@ export async function findCustomerNames(db) {
 
 /**
  * Every package's { id, name }, hidden and archived ones too, in the catalogue's order (sort_order, then
- * id: the browser store's array order), so "Most booked packages" lists every package and keeps that
+ * id: the order the admin's lists show), so "Most booked packages" lists every package and keeps that
  * order for packages booked equally often.
  */
 export async function findPackageNames(db) {

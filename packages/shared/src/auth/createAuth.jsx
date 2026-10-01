@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { usesApi } from '../services/backend.js';
 import { RULES } from '../services/config.js';
 import { onSignedOut, onTokenRenewed } from '../services/events.js';
 import { startChangePolling } from '../services/poller.js';
@@ -12,9 +11,9 @@ import { startChangePolling } from '../services/poller.js';
  * - "Remember me" keeps the session in localStorage; otherwise it lives in
  *   sessionStorage and ends when the browser tab closes.
  * - Sessions end after RULES.idleMinutes without activity.
- * - With the API (VITE_API_SERVICES includes "auth"), the session also ends when the server rejects
- *   its token (expired, edited, or older than a password change): the login page then says why
- *   (?reason=expired). A token the server replaces (after a customer's password change) is saved here.
+ * - The session also ends when the API rejects its token (expired, edited, or older than a password
+ *   change): the login page then says why (?reason=expired). A token the server replaces (after a
+ *   customer changes or resets the password in My profile) is saved here.
  *   While signed in, the portal also polls for changes made elsewhere (services/poller.js), so pages
  *   show the other portal's writes within about 15 seconds.
  * - <RequireAuth> sends signed-out visitors to the login page and brings them
@@ -151,11 +150,11 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath }) {
     // The API rejected this session's token (services/http.js): end the session and say why on the login page
     useEffect(() => onSignedOut(() => signOut('expired')), [signOut]);
 
-    // Signed in on the API: watch for changes made elsewhere until sign-out (services/poller.js)
+    // Signed in: watch for changes made elsewhere until sign-out (services/poller.js)
     const signedIn = Boolean(session);
-    useEffect(() => (signedIn && usesApi('auth') ? startChangePolling() : undefined), [signedIn]);
+    useEffect(() => (signedIn ? startChangePolling() : undefined), [signedIn]);
 
-    // The API replaced the token (a customer changed their password; older tokens stopped working).
+    // The API replaced the token (a customer changed or reset their password; older tokens stopped working).
     // Saved to storage right away, not in a state updater that React may run later: the API client
     // reads the token from storage, and the reloads that follow must already carry the new one.
     useEffect(

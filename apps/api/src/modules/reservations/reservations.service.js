@@ -1,7 +1,10 @@
 import { dateUnavailableReason, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
 import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
+import { addonPriceMap, bookableAddons, flattenAddons, packagePickProblem } from '@tm/shared/src/domain/catalog.js';
 import { downpaymentDueFor, dueAfterMove, financials, statusForPayments } from '@tm/shared/src/domain/money.js';
 import {
+  addonShortfall,
+  addonStockProblem,
   approvalMessage,
   menuDishes,
   quotationStale,
@@ -43,29 +46,27 @@ import * as repo from './reservations.repo.js';
  * and the detail page, the booking form (an event or an equipment rental), the customer's cancellation
  * and change request (Phase 6A), and the admin's actions and edits: quotation, approve, decline,
  * confirm, complete, cancel, "Started preparing" and its undo, logistics, menu, notes and rented items
- * (Phase 6B). Same return shapes, error codes, messages and meta.field as the browser version
- * (reservationService.js), whose checks are repeated here in the same order because the server never
- * trusts the page (§3 rule 3). The rules that need no stored data (money and the due date after a
+ * (Phase 6B), with the return shapes, error codes, messages and meta.field the pages expect; the
+ * booking form's checks are repeated here in the same order because the server never trusts the page
+ * (§3 rule 3). The rules that need no stored data (money and the due date after a
  * move, an out-of-date quotation, rental stock and a rental's total after an edit, availability,
  * online cancellation, the approval message) come from @tm/shared/src/domain, the same code the
  * portals run.
  *
- * Differences from the browser version, on purpose:
+ * On purpose:
  * - The customer is always the signed-in one (from the token), and every answer to a customer leaves
  *   out the admin's private `notes`. The admin's name in the activity log and in chat messages is the
  *   signed-in admin's (req.user.name).
  * - The date must be a real "YYYY-MM-DD" day, the start time "HH:MM", the occasion one of OCCASIONS,
  *   and required text is checked after trimming (spaces alone are not an event name or a venue).
  * - A quotation's amounts must be whole pesos from 0 to MAX_AMOUNT, and a logistics edit needs the
- *   venue, city and address (the browser version takes the page's amounts as they are, and its
- *   logistics card never saves without the venue).
+ *   venue, city and address (the admin page never sends less, but the server never trusts the page).
  * - A booking, an approval, a logistics edit and a rented-items edit read the availability map and
  *   the rental stock from the database inside their own transaction, after taking the availability
  *   lock (lockAvailability), so two of them never pass the same check at once.
- * - Refunds (Phase 8) are taken off what was paid, from the refunds table, like the browser version.
+ * - Refunds (Phase 8) are taken off what was paid, from the refunds table.
  * - A GCash QR that is still open (Phase 8B, server only) shows in the summary as `openQr` and stops the
  *   customer's and the admin's cancellation until it is paid or expires: its payment may still arrive.
- *   The browser store has no QRs (its `openQr` is always null).
  * The automatic chat messages (thank-you, change request, refund notice, quotation, approval …) are
  * saved in the same transaction as the change they are about; the chat (modules/messages, Phase 7)
  * shows them.
@@ -82,7 +83,7 @@ const invalid = (message, field) => new ApiError('INVALID', message, field ? { f
 // Text sent by the page, trimmed; anything that is not text counts as empty. A lone half of an emoji
 // (possible only in a hand-made request) becomes "�", since MySQL refuses it inside a JSON column (the menu).
 const clean = (value) => (typeof value === 'string' ? value.toWellFormed().trim() : '');
-// Text cut to `max` characters as the browser version counts them, without splitting an emoji in two
+// Text cut to `max` characters as the pages count them, without splitting an emoji in two
 const cut = (text, max) => {
   const part = text.slice(0, max);
   return part.isWellFormed() ? part : part.slice(0, -1);
@@ -93,8 +94,8 @@ const toNumber = (value) => (typeof value === 'number' ? value : typeof value ==
 const plainObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 
 // True when the booking found is the ref as written. The column's collation (utf8mb4_unicode_ci) ignores
-// case and trailing spaces, so "res-2026-1020-01 " would find RES-2026-1020-01; the browser version
-// finds only the exact ref, and writes must use the stored spelling or their rows would not group with it.
+// case and trailing spaces, so "res-2026-1020-01 " would find RES-2026-1020-01; only the exact ref
+// counts, and writes must use the stored spelling or their rows would not group with it.
 const sameRef = (found, ref) => found.ref === ref;
 
 // The admin's private notes never reach the customer (schema.sql: "never shown to the customer")
@@ -104,8 +105,8 @@ const withoutNotes = ({ notes, ...rest }) => rest;
 const viewFor = (customerId) => (customerId ? withoutNotes : (answer) => answer);
 
 /**
- * Reservation plus package name, customer contact and money figures (refunds taken off), for lists: the
- * browser version's summarize(), with the same `cancelDeadline` and `onlineCancel` (whether the customer
+ * Reservation plus package name, customer contact and money figures (refunds taken off), for lists,
+ * with `cancelDeadline` and `onlineCancel` (whether the customer
  * can cancel online now, domain/cancellation.js, which also counts the pieces checked out for it and an
  * open GCash QR), and `openQr`: the open GCash QR { id, amount, expiresAt } or null, so the Payments page
  * shows it again. `row` is one entry of repo.findReservations().
@@ -159,7 +160,8 @@ export async function getReservation(ref, { customerId } = {}) {
       ...summarize(row),
       package: pkg,
       menuDishes: menuDishes(reservation),
-      addons: addons.filter((addon) => reservation.addonIds.includes(addon.id)),
+      // Charges and sizes alike (a size named in full, "Tent 10 × 10"), archived ones too
+      addons: flattenAddons(addons).filter((addon) => reservation.addonIds.includes(addon.id)),
       payments: row.payments,
       refunds: row.refunds,
       customer:
@@ -175,7 +177,7 @@ export async function getReservation(ref, { customerId } = {}) {
 /**
  * How many of each rentable item are free on a date, for the rental form and the admin's edit dialog:
  * { itemId: { left, status } } (rentalAvailability in @tm/shared/src/domain/reservation.js). No date
- * gives {} like the browser version; a date that is not a real "YYYY-MM-DD" day is INVALID.
+ * gives {}; a date that is not a real "YYYY-MM-DD" day is INVALID.
  * `excludeRef` leaves one booking's own pieces free; the route passes it for an admin only.
  */
 export async function getRentalAvailability(date, { excludeRef } = {}) {
@@ -188,7 +190,7 @@ export async function getRentalAvailability(date, { excludeRef } = {}) {
 /* ============================ Booking ============================ */
 
 // The start time as sent: '' when missing (timeUnavailableReason then answers "Choose a start time",
-// as in the browser version); anything else must be "HH:MM", so e.g. "18:00:00" never reaches the CHAR(5) column
+// as the booking form does); anything else must be "HH:MM", so e.g. "18:00:00" never reaches the CHAR(5) column
 function startTimeOf(form) {
   const value = form.startTime ?? '';
   if (value === '') return '';
@@ -197,11 +199,13 @@ function startTimeOf(form) {
 }
 
 /**
- * A Buffet and Catering or Catering only booking of an ordinary package (the browser version's
- * createReservation checks, in the same order). Because a buffet is charged per person, the estimate
+ * A Buffet and Catering or Catering only booking of an ordinary package (the booking form's checks,
+ * in the same order). Because a buffet is charged per person, the estimate
  * is a real figure: package + guests x the price per person today, which is copied onto the booking so
- * a later price rise never changes it. Only the add-on prices are still missing (set in the quotation).
- * The minimum downpayment in force today is copied the same way.
+ * a later price rise never changes it. An add-on with its own price is counted at today's price (copied
+ * into the estimate's addonPrices); one without a price stays 0 until the quotation prices it.
+ * The minimum downpayment in force today is copied the same way. A stock-tracked charge (a tent size)
+ * needs its pieces free on the date (addonStockProblem), though the pending request holds none yet.
  * Returns the booking's fields, its rental lines (none), and its activity and thank-you texts.
  */
 async function eventBooking(conn, pkg, form) {
@@ -215,7 +219,7 @@ async function eventBooking(conn, pkg, form) {
   const timeReason = timeUnavailableReason(date, startTime, map);
   if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `That start time is not available (${timeReason.toLowerCase()}). Please pick another time.`, { field: 'startTime' });
 
-  // May be above what the package covers: the admin adds charges for that in the quotation
+  // The customer's own count; it may differ from the package's default guest count at no extra charge
   const guests = toNumber(form.guests);
   if (!Number.isInteger(guests) || guests < RULES.minGuests || guests > RULES.maxGuests) {
     throw invalid(`Guests must be between ${RULES.minGuests} and ${RULES.maxGuests}.`, 'guests');
@@ -237,10 +241,14 @@ async function eventBooking(conn, pkg, form) {
   }
 
   // Add-ons archived while the form was open (or never offered) are dropped without an error; the rest
-  // keep the order they were ticked in. Those counted by the piece need a how-many, 1 to 99.
-  const offered = await catalogRepo.listAddons({}, conn);
+  // keep the order they were ticked in. Those counted by the piece need a how-many, 1 to 99. A charge
+  // with sizes is booked by its sizes (each counted by the piece), never by itself, and a charge with
+  // packages by one of its packages (booked once), never two (packagePickProblem).
+  const offered = bookableAddons(await catalogRepo.listAddons({}, conn));
   const ticked = [...new Set(Array.isArray(form.addonIds) ? form.addonIds : [])];
   const addons = ticked.map((id) => offered.find((addon) => addon.id === id)).filter(Boolean);
+  const pickProblem = packagePickProblem(addons);
+  if (pickProblem) throw invalid(pickProblem.message, pickProblem.field);
   const quantities = plainObject(form.addonQty);
   const addonQty = {};
   addons.forEach((addon) => {
@@ -250,6 +258,10 @@ async function eventBooking(conn, pkg, form) {
     addonQty[addon.id] = many;
   });
   const addonIds = addons.map((addon) => addon.id);
+  // Stock-tracked charges (a tent size) need enough pieces free on the date. A pending request holds
+  // none yet, so approval checks again.
+  const stockProblem = addonStockProblem(await repo.rentalStockInputs(conn, date), { addonIds, addonQty }, date, addons);
+  if (stockProblem) throw invalid(stockProblem.message, stockProblem.field);
 
   const eventName = clean(form.eventName);
   const occasion = clean(form.occasion);
@@ -263,7 +275,8 @@ async function eventBooking(conn, pkg, form) {
     fields: {
       eventName, occasion, date, startTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), pricePerPlate,
       minDownpayment: await currentMinDownpayment(conn), venue, addonIds, addonQty,
-      estimate: computeQuote({ pkg, serviceType, guests, pricePerPlate, addonIds, addonQty })
+      // An add-on with its own price is counted at today's price; the quotation starts from it
+      estimate: computeQuote({ pkg, serviceType, guests, pricePerPlate, addonIds, addonQty, addonPrices: addonPriceMap(addons) })
     },
     lines: [],
     activity: 'Submitted the reservation request.',
@@ -309,7 +322,7 @@ function rentalLines(stockData, wanted, date, { excludeRef, current = [] } = {})
 }
 
 /**
- * An Equipment rental request (the browser version's createRental checks, in the same order). The
+ * An Equipment rental request (the rental form's checks, in the same order). The
  * date only needs the usual notice and must not be blocked (a rental takes no event slot), and the
  * time is when the items are picked up or delivered, on the hour or half hour. Pick-up is at
  * RENTAL.pickupPlace and costs nothing; delivery adds the standard fee, which the admin may change in
@@ -423,7 +436,7 @@ export async function createReservation(customer, form) {
 
 /**
  * The customer cancels their own reservation online, when onlineCancellation (domain/cancellation.js,
- * the browser version's rule) allows it: an unpaid booking any time before the event day; a paid one
+ * the rule the pages show too) allows it: an unpaid booking any time before the event day; a paid one
  * only until its cancel deadline and before "Started preparing"; never while pieces are checked out
  * for it (inventory_allocations: an event's equipment or a rental's items), while a payment is being
  * verified (so that payment can't be verified after the cancellation) or while a GCash QR for it is open
@@ -462,7 +475,7 @@ export async function cancelReservation(ref, customer, reason) {
 
 /**
  * The customer asks for a change: "Change request: …" in their chat with the admin (tagged with the
- * reservation, unread for the admin) and an activity entry. Any status, as in the browser version.
+ * reservation, unread for the admin) and an activity entry. Any status.
  * The booking's row is locked before the chat is touched, the same order as cancelReservation (and
  * every write that posts a chat message: the booking first, then the conversation), so a cancel and a
  * change request sent at the same moment wait for each other instead of deadlocking.
@@ -539,7 +552,7 @@ function adminWrite(ref, action, { availability = false } = {}) {
 
 /**
  * Admin: price the add-ons and any other charges, apply a discount, and send the quotation to the
- * customer's chat (the browser version's sendQuotation). The food is never typed: a buffet is guests x
+ * customer's chat. The food is never typed: a buffet is guests x
  * the rate stored on the booking (never today's), and a rental is its items at the prices they were
  * booked at plus any damage charges, with `deliveryFee` for a delivered rental (the standard fee when
  * left out). `values` is { addonPrices: { addonId: price of one }, otherCharges, otherLabel, discount,
@@ -619,8 +632,9 @@ export async function sendQuotation(ref, values, admin) {
  * Admin: approve a pending request and set the downpayment due date. The quotation must be sent first
  * (NO_QUOTATION); the date must not have passed or be blocked. Then an event needs a slot under the
  * daily capacity (CAPACITY) and a start time clear of the events already approved that day
- * (TIME_UNAVAILABLE; pending requests hold no time), while an equipment rental, which takes no slot,
- * needs enough of every item still free that day (OUT_OF_STOCK). It runs under the availability lock,
+ * (TIME_UNAVAILABLE; pending requests hold no time) and its stock-tracked charges (a tent size) still
+ * free that day (OUT_OF_STOCK), while an equipment rental, which takes no slot, needs enough of every
+ * item still free that day (OUT_OF_STOCK). It runs under the availability lock,
  * so two approvals for the last slot never both pass. The chat message (approvalMessage) comes with the
  * quotation. Returns the booking's summary.
  */
@@ -645,6 +659,10 @@ export async function approveReservation(ref, admin) {
       } else {
         // The events already holding the date (this pending one holds none yet; rentals never do)
         if ((map.booked[date] || 0) >= map.capacity) throw new ApiError('CAPACITY', `${formatDate(date)} is already at the daily capacity of ${map.capacity} events.`);
+        // Its stock-tracked charges (a tent size) must still be free: other approvals may have taken them
+        const stockData = await repo.rentalStockInputs(conn, date);
+        const short = addonShortfall(stockData, reservation, date, ref);
+        if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}. Move the event to another date before approving.`);
         // The start time must be clear of the events approved that day, with the setup buffer around them
         const timeReason = timeUnavailableReason(date, reservation.startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) });
         if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason} on ${formatDate(date)}. Change the start time before approving.`);
@@ -771,20 +789,21 @@ export async function undoPreparing(ref, admin) {
 }
 
 /**
- * Admin: edit an event's date, start time, guests and venue (the browser version's updateLogistics); an
+ * Admin: edit an event's date, start time, guests and venue (the logistics card); an
  * equipment rental goes to updateRentalLogistics. `patch` is the logistics card's fields: { date,
  * startTime, guests, venueName, venueAddress, city, accessNotes } (and fulfilment for a rental).
  *
- * A new date must not be past, blocked or full (the admin may move an event inside the lead time), and a
- * new date or start time must be clear of the other events that day (this one left out). Moving an
+ * A new date must not be past, blocked or full (the admin may move an event inside the lead time) and must
+ * have the event's stock-tracked charges (a tent size) free (OUT_OF_STOCK), and a new date or start time
+ * must be clear of the other events that day (this one left out). Moving an
  * approved booking earlier pulls its downpayment due date in (dueAfterMove). The audit trail lists what
  * changed, old value and new.
  *
  * A buffet is charged per person, so a new guest count changes what the booking costs. The sent
  * quotation is never edited: the customer is told in their chat straight away (old and new food total),
  * the booking shows as out of date (quotationStale), and the new amount only counts once the admin
- * re-sends the quotation. Before any quotation an event's estimate stays as booked, like the browser
- * version. Runs under the availability lock. Returns { changed }: how many things changed.
+ * re-sends the quotation. Before any quotation an event's estimate stays as booked (an open question
+ * for the owner, docs §4.1). Runs under the availability lock. Returns { changed }: how many things changed.
  */
 export async function updateLogistics(ref, patch, admin) {
   const values = plainObject(patch);
@@ -806,6 +825,10 @@ export async function updateLogistics(ref, patch, admin) {
         if (daysFromToday(date) < 0) throw invalid('An event cannot be moved to a past date.', 'date');
         const reason = dateUnavailableReason(date, map, { enforceLeadTime: false });
         if (reason) throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, { field: 'date' });
+        // Its stock-tracked charges (a tent size) must be free on the new date too
+        const stockData = await repo.rentalStockInputs(conn, date);
+        const short = addonShortfall(stockData, reservation, date, ref);
+        if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`, { field: 'date' });
       }
       // A new date or start time: within booking hours, on the hour or half hour, and clear of the other
       // events that day (this event is left out of its own check)

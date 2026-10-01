@@ -1,7 +1,7 @@
 /**
  * SQL for the admin's customer directory (docs §7.1: the repo holds SQL only; the rules are in
- * customers.service.js). A customer comes back with the fields the Customers page shows, in the
- * browser store's names: { id, name, email, mobile, company, createdAt }. The password hash, the
+ * customers.service.js). A customer comes back with the fields the Customers page shows, by the
+ * names the pages use: { id, name, email, mobile, company, createdAt }. The password hash, the
  * name parts and the sign-in data are never read here (they belong to the auth module).
  *
  * The bookings, payments and refunds behind a customer's figures come from findReservations() in

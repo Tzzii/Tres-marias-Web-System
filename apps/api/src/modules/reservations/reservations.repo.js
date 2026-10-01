@@ -4,12 +4,12 @@ import { toJson, parseJson } from '../../lib/json.js';
 
 /**
  * SQL for reservations (docs §7.1: the repo holds SQL only; the rules are in reservations.service.js).
- * Records come back in the browser store's shape (reservationService.js), built the way
+ * Records come back in the shape the pages and the shared rules use, built the way
  * scripts/db-roundtrip.js reads them back and checks them against the seed:
  * - `venue` from four columns; `addonIds` in sort_order; `addonQty` for add-ons counted by the piece
  *   (has_quantity; the others are stored as 1 and left out), and for any add-on asked for more than
  *   once, so a count survives the admin switching "counted by the piece" off after the booking (the
- *   browser version keeps the count it booked, and the quotation charges it);
+ *   booking keeps the count it was made with, and the quotation charges it);
  * - `rentalItems`, `fulfilment` and `damageCharges` on an equipment rental only (not even empty on
  *   other bookings); damage lines have no sort_order, so they come by item id;
  * - `minDownpayment` (copied at booking), `preparingAt` (the "Started preparing" time or null) and
@@ -112,7 +112,7 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
 }
 
 /**
- * refunds row (with the recording admin's name as admin_name) -> refund record. The browser store keeps
+ * refunds row (with the recording admin's name as admin_name) -> refund record. A refund record keeps
  * the admin's name in recordedBy, and the admin page shows it ("recorded by …"), so the id stays here.
  */
 export const toRefund = (row) => ({
@@ -293,7 +293,7 @@ export async function lockOwner(conn, ref) {
  * The bookings that hold their date (HOLDS_DATE: approved to confirmed), soonest event first, for the
  * inventory's check-out and the outsourcing contract dialogs (Phase 10): [{ ref, eventName, date, guests,
  * serviceType, venue: { name, city } }]. Bookings on the same date come in the order they were requested
- * (created_at, then ref), the browser store's order.
+ * (created_at, then ref).
  */
 export async function listHeldBookings(db) {
   const [rows] = await db.query(
@@ -325,8 +325,8 @@ export async function refsWithPrefix(conn, prefix) {
  *                 rentalItems: [{ itemId, qty }]
  */
 export async function rentalStockInputs(db, date) {
-  const [[items], [held], [lines], [allocations]] = await Promise.all([
-    db.query('SELECT id, name, total, damaged, low_stock_at, rentable, archived, rent_price, damage_fee FROM inventory_items ORDER BY code'),
+  const [[items], [held], [lines], [allocations], [addonLinks]] = await Promise.all([
+    db.query('SELECT id, name, total, damaged, low_stock_at, rentable, archived, rent_price, damage_fee, addon_id FROM inventory_items ORDER BY code'),
     db.query('SELECT ref, date, status, service_type FROM reservations WHERE date = ? AND status IN (?)', [date, HOLDS_DATE]),
     db.query(
       `SELECT l.reservation_ref, l.item_id, l.qty FROM reservation_rental_items l JOIN reservations r ON r.ref = l.reservation_ref
@@ -337,9 +337,16 @@ export async function rentalStockInputs(db, date) {
       `SELECT a.item_id, a.reservation_ref, a.qty FROM inventory_allocations a JOIN reservations r ON r.ref = a.reservation_ref
         WHERE r.date = ? AND r.status IN (?)`,
       [date, HOLDS_DATE]
+    ),
+    // The additional charges of those bookings, for the pieces of stock-tracked ones (a tent size)
+    db.query(
+      `SELECT ra.reservation_ref, ra.addon_id, ra.qty FROM reservation_addons ra JOIN reservations r ON r.ref = ra.reservation_ref
+        WHERE r.date = ? AND r.status IN (?)`,
+      [date, HOLDS_DATE]
     )
   ]);
   const linesByRef = groupBy(lines, 'reservation_ref');
+  const addonsByRef = groupBy(addonLinks, 'reservation_ref');
   const allocationsByItem = groupBy(allocations, 'item_id');
   return {
     inventory: items.map((item) => ({
@@ -352,6 +359,7 @@ export async function rentalStockInputs(db, date) {
       archived: Boolean(item.archived),
       rentPrice: item.rent_price,
       damageFee: item.damage_fee,
+      addonId: item.addon_id, // the charge or size that books it, or null
       allocations: Object.fromEntries((allocationsByItem.get(item.id) || []).map((a) => [a.reservation_ref, a.qty]))
     })),
     reservations: held.map((r) => ({
@@ -359,7 +367,9 @@ export async function rentalStockInputs(db, date) {
       date: r.date,
       status: r.status,
       serviceType: r.service_type,
-      rentalItems: (linesByRef.get(r.ref) || []).map((line) => ({ itemId: line.item_id, qty: line.qty }))
+      rentalItems: (linesByRef.get(r.ref) || []).map((line) => ({ itemId: line.item_id, qty: line.qty })),
+      addonIds: (addonsByRef.get(r.ref) || []).map((a) => a.addon_id),
+      addonQty: Object.fromEntries((addonsByRef.get(r.ref) || []).map((a) => [a.addon_id, a.qty]))
     }))
   };
 }

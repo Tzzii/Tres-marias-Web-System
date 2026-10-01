@@ -6,14 +6,14 @@ import { financials } from './money.js';
  * bookings a customer made (all, upcoming, completed), the balance they still owe, what they have
  * spent, and their booking history.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (customerService.js) and the
- * API server (apps/api/src/modules/customers) work out the same figures with the same money rules
- * (financials() in domain/money.js; docs/backend-development-phases.md §7.8).
+ * Pure (no database, no localStorage, no React): the API server (apps/api/src/modules/customers) works
+ * out the figures with the same money rules as every page (financials() in domain/money.js;
+ * docs/backend-development-phases.md §7.8).
  *
  * `bookings` are reservations as { reservation, payments, refunds, packageName }: `payments` and
  * `refunds` may also hold other bookings' records (financials() keeps the booking's own), and
  * `packageName` is the booked package's name. The API's reservations.repo.js findReservations() rows
- * have this shape; the browser version builds it from its store. Only the customer's own bookings
+ * have this shape. Only the customer's own bookings
  * (reservation.customerId) are counted, whatever else is passed.
  */
 
@@ -71,7 +71,7 @@ export function customerBookings(customerId, bookings) {
 
 /**
  * Every customer's summary (customerSummary()), by name; customers with the same name by sign-up
- * time, then id, so both versions list them in one order.
+ * time, then id, so the list keeps one order whatever order the records come in.
  */
 export function customerDirectory(customers, bookings) {
   // Each customer's bookings, found once instead of once per customer

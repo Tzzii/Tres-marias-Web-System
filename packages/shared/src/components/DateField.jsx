@@ -12,7 +12,8 @@ import FocusTrap from '@mui/material/Unstable_TrapFocus';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { keyframes } from '@mui/material/styles';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import { availabilitySnapshot, dateUnavailableReason, daySchedule } from '../services/facade/calendar.js';
+import { dateUnavailableReason, daySchedule } from '../domain/availability.js';
+import { availabilitySnapshot } from '../services/remote/calendar.js';
 import { RULES } from '../services/config.js';
 import { useStoreVersion } from '../hooks/useResource.js';
 import { tokens } from '../theme/tokens.js';
@@ -58,7 +59,7 @@ const POPUP_MODIFIERS = [
  * `rental` is for an equipment rental: it takes no event slot, so only too-soon and blocked
  * dates are greyed out. The gold dots and the booked event times still show, the same as
  * every other customer calendar, but a rental has no start times to choose around them.
- * When the calendar runs on the API, the availability map arrives a moment after the page opens:
+ * The availability map comes from the API a moment after the page opens:
  * until then no booking day can be picked and the note under the calendar says "Loading available dates…".
  * The schedule slides open and closed, and its content fades in when the date changes
  * (both off when the device asks for reduced motion).
@@ -69,12 +70,12 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   const [preview, setPreview] = useState(''); // date tapped in the popup whose booked times are shown (booking mode)
   const buttonRef = useRef(null); // the input-looking button, so the focus can go back to it
   const paperRef = useRef(null); // the popup card, which takes the focus when it opens
-  const version = useStoreVersion(); // changes whenever the data changes (browser store or API)
+  const version = useStoreVersion(); // changes on every change event (services/events.js), e.g. a booking saved or the map loaded
   const booking = mode === 'booking';
   // Blocked/booked dates and event times (booking mode only: the admin's 'any' mode never reads them);
   // read again when data changes or the popup opens
   const snapshot = useMemo(() => (booking ? availabilitySnapshot() : null), [version, anchor, booking]); // eslint-disable-line react-hooks/exhaustive-deps
-  // On the API, the map has not arrived yet: no day can be picked until it does (never true on the browser store)
+  // The map has not arrived from the API yet: no day can be picked until it does
   const loadingDates = booking && Boolean(snapshot.loading);
 
   // Month shown in the calendar: the selected date's month, or this month

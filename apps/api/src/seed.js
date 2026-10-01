@@ -1,27 +1,36 @@
 // First import on purpose: config.js sets the process time zone (Asia/Manila) before the other modules run
 import { config } from './config.js';
+import { addedText } from '@tm/shared/src/domain/inventory.js';
 import { NO_EVENT } from '@tm/shared/src/domain/outsource.js';
 import { DEFAULT_MIN_DOWNPAYMENT } from '@tm/shared/src/services/config.js';
-import { buildSeed } from '@tm/shared/src/services/seed.js';
 import { closePool, dbErrorHint, pool, tx } from './db.js';
 import { toJson } from './lib/json.js';
 import { hashSecret } from './lib/passwords.js';
+import { seedPasswords } from './seedData/passwords.js';
+import { buildSeed } from './seedData/seed.js';
 
 /**
- * `npm run seed:api` — fill the database with the sample data the two portals show today from the
- * browser store: buildSeed() from @tm/shared (the same function, not a copy), flattened into the
- * tables of schema.sql. Replaces every row, so it refuses to run when NODE_ENV is production unless
- * --force is given. Run `npm run db:reset` first whenever schema.sql has changed.
+ * Fill the database from buildSeed() (src/seedData/seed.js), flattened into the tables of schema.sql.
+ * Two modes:
+ * - `npm run seed:api` — the demo data: sample customers with their reservations, payments, chat,
+ *   reviews and outsourcing, for development and testing.
+ * - `npm run seed:starter` (--starter) — the fresh start for go-live: only the real business data,
+ *   with no customers and every inventory piece on the shelf (see starterData()).
+ * Either one replaces every row, so it refuses to run when NODE_ENV is production unless --force is
+ * given. Run `npm run db:reset` first whenever schema.sql has changed.
  *
  * - Everything happens in one transaction: every table is emptied with DELETE (TRUNCATE would commit
  *   on its own), children first, then the rows go in parents first. Foreign keys stay checked the
  *   whole time, so a sample row that points at a missing record stops the run, and the rollback
  *   leaves the database exactly as it was before.
- * - Passwords are hashed before the transaction starts, so it stays short, with the API's own
- *   hashSecret() (lib/passwords.js): the sample accounts get the same bcrypt cost as real sign-ups.
- * - Sample dates count from today in Manila time. The browser builds its copy the same way, so the
- *   reservation refs match only when both sides were seeded on the same day (§1, step 6).
- * - Prints the row count of every table and the counters, read back after the commit.
+ * - The passwords come from apps/api/.env, never from the code (Phase 12; the repository is public):
+ *   SEED_ADMIN_PASSWORD for the admin account and, for the demo data, SEED_CUSTOMER_PASSWORD for every
+ *   sample customer (seedData/passwords.js). A missing or weak one stops the run before anything changes.
+ *   They are hashed before the transaction starts, so it stays short, with the API's own hashSecret()
+ *   (lib/passwords.js): the accounts get the same bcrypt cost as real sign-ups.
+ * - Sample dates count from today in Manila time, so seeding again another day moves them.
+ * - Prints the row count of every table and the counters, read back after the commit, and for the
+ *   starter data the inventory totals (pieces, in use, damaged).
  */
 
 // Every table in schema.sql, in its CREATE TABLE order: each comes after the tables it points to.
@@ -37,13 +46,56 @@ const TABLES = [
   'reservation_rental_items', 'reservation_damage_charges',
   'outbox',
   'outsource_partners', 'outsource_partner_history', 'outsource_contracts', 'outsource_deliveries', 'outsource_contract_history',
-  'counters', 'login_attempts', 'auth_challenges', 'password_resets'
+  'counters', 'login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes'
 ];
+
+// --starter: load the fresh start (starterData()) instead of the demo data
+const STARTER = process.argv.includes('--starter');
+
+// The fresh start's first receipt number, OR-1001 (chosen by the owner 2026-10-01)
+const FIRST_RECEIPT = 1001;
+
+/**
+ * The starter data (--starter): the fresh start the live server opens with, as if the website were
+ * going up for the first time. Built from buildSeed(), so the real business data is not copied:
+ * - Kept: the admin account, the packages, add-ons and dishes, the price per person and minimum
+ *   downpayment, the daily capacity, and the 48 inventory items (codes, totals, low-stock levels,
+ *   rent prices and damage fees, and the tent sizes that book them).
+ * - Inventory: every piece is on the shelf (nothing checked out, nothing damaged), and each item's
+ *   history starts with one line dated `now`, the one the app writes when the admin adds an item.
+ * - Gone: the sample customers and everything made for them (reservations, payments, refunds, chat,
+ *   reviews), the sample blocked dates, and every outsourcing partner and contract. The partners are
+ *   made up, and after go-live a contract really goes out by SMS and email; the admin adds the real ones.
+ * - Counters start again (pay-0001, OUT-YYYY-0001, rf-0001), except inventory, so the next item added
+ *   is EQ-0049, and receipt, so the first receipt is OR-1001. As in buildSeed(), `receipt` is the NEXT
+ *   number here; toRows() stores the last one used.
+ */
+function starterData(data, now) {
+  const actor = data.admins[0].name;
+  return {
+    ...data,
+    customers: [],
+    reservations: [],
+    payments: [],
+    refunds: [],
+    threads: [],
+    testimonials: [],
+    calendar: { ...data.calendar, blocked: [] },
+    inventory: data.inventory.map((item) => ({
+      ...item,
+      allocations: {},
+      damaged: 0,
+      history: [{ at: now, actor, text: addedText(item.total, item) }]
+    })),
+    outsourcing: { partners: [], contracts: [] },
+    counters: { receipt: FIRST_RECEIPT, payment: 0, inventory: data.counters.inventory, outsource: 0, refund: 0 }
+  };
+}
 
 /**
  * The seed as table rows: { table: [row, …] }, each row an object keyed by column name.
  * Tables left out (qr_payments, webhook_events, outbox, login_attempts, auth_challenges,
- * password_resets) have no sample data and stay empty. Columns left out take their schema.sql
+ * password_resets, signup_requests, password_changes) have no sample data and stay empty. Columns left out take their schema.sql
  * default, e.g. the admin's sign-in history and a delivery's outbox_id.
  * `hashes` maps each account id to its bcrypt hash; `now` stamps the two settings rows.
  */
@@ -78,7 +130,7 @@ function toRows(data, hashes, now) {
       created_at: c.createdAt,
       password_changed_at: c.passwordChangedAt ?? null
     })),
-    // sort_order keeps each catalogue list in the seed's order (the browser store's array order)
+    // sort_order keeps each catalogue list in the seed's order
     packages: data.packages.map((p, index) => ({
       id: p.id,
       slug: p.slug,
@@ -97,9 +149,12 @@ function toRows(data, hashes, now) {
     })),
     addons: data.addons.map((a, index) => ({
       id: a.id,
+      parent_id: a.parentId ?? null, // a size's or package's charge; the seed lists every charge before them
       name: a.name,
       description: a.description,
+      price: a.price ?? null,
       has_quantity: a.hasQuantity,
+      has_packages: Boolean(a.hasPackages), // a charge with packages (Sounds and lights)
       archived: a.archived,
       sort_order: index
     })),
@@ -168,7 +223,7 @@ function toRows(data, hashes, now) {
       receipt_no: p.receiptNo || null,
       reject_reason: p.rejectReason || ''
     })),
-    // The seed has none today; the admin who recorded one is found by name (the browser keeps the name)
+    // The seed has none today; the admin who recorded one is found by name (a refund record keeps the name the pages show)
     refunds: data.refunds.map((r) => ({
       id: r.id,
       ref: r.ref,
@@ -237,7 +292,8 @@ function toRows(data, hashes, now) {
       rent_price: i.rentPrice,
       damage_fee: i.damageFee,
       notes: i.notes || '',
-      archived: i.archived
+      archived: i.archived,
+      addon_id: i.addonId ?? null // the Tent size that books it (addons come before inventory_items)
     })),
     // One row per entry of the item's allocations object: { reservation ref or 'none': qty }
     inventory_allocations: inventory.flatMap((i) =>
@@ -348,14 +404,25 @@ async function schemaProblem() {
   return null;
 }
 
+/**
+ * Run the seed: the demo data, or the starter data with --starter (the fresh start for go-live).
+ * Returns the exit code: 0 when every row went in, 1 when nothing changed.
+ */
 async function main() {
+  const what = STARTER ? 'the starter data: no customers, every inventory piece available' : 'the sample data';
   if (config.isProduction && !process.argv.includes('--force')) {
-    console.error('Refusing to seed: NODE_ENV is production and this replaces every row with sample data. Add --force only if that is really what you want.');
+    console.error(`Refusing to seed: NODE_ENV is production and this replaces every row with ${what}. Add --force only if that is really what you want.`);
+    return 1;
+  }
+  // The accounts' passwords, from apps/api/.env (checked before anything changes)
+  const passwords = seedPasswords({ customers: !STARTER });
+  if (passwords.problems.length) {
+    console.error(`Refusing to seed:\n- ${passwords.problems.join('\n- ')}`);
     return 1;
   }
 
   const { host, port, user, database } = config.db;
-  console.log(`Seeding database "${database}" on ${host}:${port} as ${user} (every row is replaced with the sample data)...`);
+  console.log(`Seeding database "${database}" on ${host}:${port} as ${user} (every row is replaced with ${what})...`);
 
   try {
     const problem = await schemaProblem();
@@ -364,13 +431,16 @@ async function main() {
       return 1;
     }
 
-    const data = buildSeed();
-    const accounts = [...data.admins, ...data.customers];
-    const hashes = new Map(await Promise.all(accounts.map(async (a) => [a.id, await hashSecret(a.password)])));
-    const rows = toRows(data, hashes, Date.now());
+    const now = Date.now();
+    const data = STARTER ? starterData(buildSeed(), now) : buildSeed();
+    // Every admin gets SEED_ADMIN_PASSWORD and every sample customer SEED_CUSTOMER_PASSWORD, each with its own salt
+    const accounts = [...data.admins.map((a) => [a.id, passwords.admin]), ...data.customers.map((c) => [c.id, passwords.customer])];
+    const hashes = new Map(await Promise.all(accounts.map(async ([id, password]) => [id, await hashSecret(password)])));
+    const rows = toRows(data, hashes, now);
 
     await tx(async (conn) => {
-      for (const table of [...TABLES].reverse()) await conn.query('DELETE FROM ??', [table]);
+      // A size points at its charge in the same table (addons.parent_id), so sizes are deleted first
+      for (const table of [...TABLES].reverse()) await conn.query(table === 'addons' ? 'DELETE FROM addons ORDER BY parent_id IS NULL' : 'DELETE FROM ??', [table]);
       for (const table of TABLES) await insertRows(conn, table, rows[table] || []);
     });
 
@@ -387,7 +457,13 @@ async function main() {
     console.log('Done. Rows per table:');
     counts.forEach(([table, total]) => console.log(`  ${table.padEnd(width)}  ${total}`));
     console.log(`Counters (last number used): receipt ${counter.receipt} (next OR-${counter.receipt + 1}) · payment ${counter.payment} · inventory ${counter.inventory} · outsource ${counter.outsource} · refund ${counter.refund}`);
-    console.log(`Sample dates count from ${data.seededOn}. Clear the browser's site data on the same day so both sides show the same reservation refs.`);
+    if (STARTER) {
+      const [[stock]] = await pool.query('SELECT COUNT(*) AS items, COALESCE(SUM(total), 0) AS pcs, COALESCE(SUM(damaged), 0) AS damaged FROM inventory_items');
+      const [[out]] = await pool.query('SELECT COALESCE(SUM(qty), 0) AS pcs FROM inventory_allocations');
+      console.log(`Fresh start: ${stock.items} inventory items, ${Number(stock.pcs).toLocaleString('en-PH')} pcs (${Number(out.pcs)} in use, ${Number(stock.damaged)} damaged). The first customer to sign up starts the records.`);
+    } else {
+      console.log(`Sample dates count from ${data.seededOn}; seed again on another day to move them.`);
+    }
     return 0;
   } catch (err) {
     console.error(`Seed failed: ${err.message}`);

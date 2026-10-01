@@ -6,15 +6,14 @@ import * as repo from './reports.repo.js';
 
 /**
  * The admin Dashboard and the Reports page on the server (docs/backend-development-phases.md Phase 11,
- * §9.11): the dashboard summary, the figures for a date range and the two saved reports. Same return
- * shapes, error codes and messages as the browser version (reportService.js), because both work the
- * figures out with @tm/shared/src/domain/reports.js (and financials() in domain/money.js, so the money
+ * §9.11): the dashboard summary, the figures for a date range and the two saved reports. The
+ * figures are worked out with @tm/shared/src/domain/reports.js (and financials() in domain/money.js, so the money
  * matches the Customers and Payments pages): revenue net of refunds, the decline rate, the average per
  * event, bookings per package, outstanding balances. Only the computed figures leave the server, never the
  * raw records behind them (apart from today's events, which the dashboard shows in full).
  *
  * The plan's first idea was GROUP BY in SQL; the figures are computed by the shared rules instead (§4.1),
- * so they cannot drift from the browser version or from financials(), and the SQL only reads the records.
+ * so they cannot drift from financials() (the money rule every page uses), and the SQL only reads the records.
  * Admin only: the routes sit behind the admin router's guard. Reads only: nothing is written or locked.
  */
 
@@ -22,7 +21,7 @@ import * as repo from './reports.repo.js';
 const toError = ({ code, message, meta }) => new ApiError(code, message, meta);
 
 /**
- * Every record the figures are worked out from, in the browser store's shape ({ reservations, payments,
+ * Every record the figures are worked out from, in the shape domain/reports.js reads ({ reservations, payments,
  * refunds, customers, packages }), read in one transaction so they form one consistent snapshot (a
  * payment verified halfway through is either in every figure or in none). Every payment and refund
  * belongs to a reservation (foreign keys), so the bookings' own lists hold them all.
@@ -56,7 +55,7 @@ export async function getReport(range = 'this_year') {
 
 /**
  * Admin: a saved report's rows for a range (savedReport): monthly_sales or outstanding. The range is checked
- * first, then the report's name (INVALID "Unknown report."), as in the browser version.
+ * first, then the report's name (INVALID "Unknown report.").
  */
 export async function runSavedReport(kind, range = 'this_year') {
   const problem = rangeProblem(range) || savedReportProblem(kind);

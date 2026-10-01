@@ -4,8 +4,8 @@ import { pool } from '../../db.js';
 /**
  * SQL for the calendar: blocked dates, the one calendar_settings row, and the reservations that can
  * hold a date (docs §7.1: the repo holds SQL only; the rules are in calendar.service.js and
- * @tm/shared/src/domain/availability.js). Rows come back as camelCase records shaped like the
- * browser store's, so domain/availability.js reads either the same way.
+ * @tm/shared/src/domain/availability.js). Rows come back as camelCase records in the shape
+ * domain/availability.js reads.
  *
  * The write helpers take the transaction's connection (calendar.service.js runs them in tx()). The
  * reads use the pool unless given a connection (`db`), so a reservation write can read the calendar

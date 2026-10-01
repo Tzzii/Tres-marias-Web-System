@@ -1,6 +1,8 @@
 /**
- * Business rules shared by both portals. When the real backend arrives these
- * move server-side; the front-end keeps reading them from here.
+ * Business rules and settings shared by both portals and the API server, which imports this same
+ * file: a form and the server check the same rule with the same numbers, and the server's check is
+ * the one that counts (docs §3 rule 3). Settings the admin changes in the app (the buffet price per
+ * person, the minimum downpayment, the daily capacity) live in the database instead.
  */
 // Company contact and payment details shown on the site, footer and payment page. There is no GCash
 // number: customers pay GCash through the PayMongo QR only (Phase 8B); the bank account is for transfers.
@@ -10,7 +12,7 @@ export const BUSINESS = {
   phone: '0951 562 1060',
   email: 'emmamariaobet@gmail.com',
   serviceArea: 'Malvar, Batangas and nearby towns',
-  address: '48 Kalayaan Avenue, Diliman, Quezon City',
+  address: 'Magapi, Malvar, Batangas',
   hours: 'Open 24/7 · Monday to Sunday',
   bankName: 'BPI',
   bankAccountName: 'Tres Marias Catering Services',
@@ -46,7 +48,8 @@ export const RULES = {
   /** Failed password attempts before a lockout, and its length. */
   maxLoginAttempts: 5,
   loginLockMinutes: 5,
-  /** Admin verification code: length, attempts, lockout, resend cooldown, validity. */
+  /** One-time codes, all sent by email (the admin's sign-in and contact-change codes and, since Phase 12, the
+   *  customer's sign-up, password-reset and password-change codes): length, attempts, lockout, resend cooldown, validity. */
   codeLength: 6,
   maxCodeAttempts: 5,
   codeLockMinutes: 2,
@@ -148,6 +151,12 @@ export const DEFAULT_MIN_DOWNPAYMENT = 3000;
 
 /** The range the admin's minimum downpayment has to stay inside (whole pesos). */
 export const MIN_DOWNPAYMENT_RANGE = { min: 1000, max: 100000 };
+
+/**
+ * The range an additional charge's own price has to stay inside (whole pesos; for a charge counted by
+ * the piece, the price of one). The price is optional: a charge without one is priced in each quotation.
+ */
+export const ADDON_PRICE_RANGE = { min: 1, max: 1000000 };
 
 // Reasons an admin can pick when blocking dates. "Holiday" is not one: catering is allowed on holidays.
 export const BLOCK_REASONS = ['Fully booked', 'Private event', 'Maintenance'];

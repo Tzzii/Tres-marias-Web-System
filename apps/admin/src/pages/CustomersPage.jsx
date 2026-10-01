@@ -113,7 +113,16 @@ export default function CustomersPage() {
               <FilterTabs value={filter} onChange={setFilter} options={FILTERS.map(([value, label]) => ({ value, label, count: loading ? undefined : counts[value] }))} />
               <SearchField id="customer-search" value={query} onChange={setQuery} placeholder="Search name, email or mobile" />
             </Box>
-            <DataTable loading={loading} columns={columns} rows={filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)} rowKey={(c) => c.id} onRowClick={(c) => setParams({ open: c.id })} minWidth={820} empty={<EmptyState compact title="No customers match" description="Try another filter or search." />} />
+            {/* Empty table: "No customers yet" until the first sign-up, then "No customers match" for a filter or search that finds no one */}
+            <DataTable
+              loading={loading}
+              columns={columns}
+              rows={filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)}
+              rowKey={(c) => c.id}
+              onRowClick={(c) => setParams({ open: c.id })}
+              minWidth={820}
+              empty={rows.length ? <EmptyState compact title="No customers match" description="Try another filter or search." /> : <EmptyState compact title="No customers yet" description="Customers appear here once they sign up on the website." />}
+            />
             {!loading && filtered.length > 0 && <Pager page={current} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}
           </>
         )}

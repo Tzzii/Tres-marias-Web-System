@@ -9,18 +9,18 @@ import * as repo from './customers.repo.js';
 /**
  * The admin's customer directory on the server (docs/backend-development-phases.md Phase 9, §9.7):
  * every customer with their figures, one customer with their bookings, and the admin's correction of
- * a customer's email and mobile number. Same return shapes, error codes and messages as the browser
- * version (customerService.js). Admin only: the routes sit behind the admin router's guard, since this
+ * a customer's email and mobile number, with the return shapes, error codes and messages the Customers
+ * page expects. Admin only: the routes sit behind the admin router's guard, since this
  * is personal information (Data Privacy Act, RA 10173).
  *
  * The figures (booking counts, balance owed, total spend net of refunds) and the booking history come
- * from @tm/shared/src/domain/customer.js, the code the browser version runs, over the bookings read by
+ * from @tm/shared/src/domain/customer.js (the money rule every page uses), over the bookings read by
  * reservations.repo.js findReservations() (with their payments and refunds). Each answer is read in one
  * transaction, so its customers, bookings, payments and refunds are one consistent snapshot.
  *
- * Differences from the browser version, on purpose: a customer id must be spelled exactly as stored
- * (the column's collation ignores case and trailing spaces; the browser version finds only the exact
- * id), and an email another customer uses with different accents also counts as taken (the database's
+ * On purpose: a customer id must be spelled exactly as stored (the column's collation ignores case
+ * and trailing spaces, so the service compares the id itself), and an email another customer uses
+ * with different accents also counts as taken (the database's
  * UNIQUE email index compares emails that way).
  */
 
@@ -53,7 +53,7 @@ export async function getCustomer(customerId) {
 
 /**
  * Admin: correct a customer's email and mobile number (the customer owns the rest of their profile).
- * Same order as the browser version: the email's format, then the mobile number's (INVALID with
+ * In this order: the email's format, then the mobile number's (INVALID with
  * meta.field), then the customer (NOT_FOUND), then that no other customer uses the email
  * (EMAIL_TAKEN). The email is saved trimmed and in lower case, the mobile number without spaces or
  * dashes (domain/account.js). The customer's row is locked while it changes. Returns the summary.

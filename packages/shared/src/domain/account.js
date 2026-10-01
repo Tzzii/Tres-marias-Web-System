@@ -3,8 +3,8 @@
  * cleaned before they are compared or saved, the full-name check of the profile forms, and the
  * short device label shown in the admin's sign-in activity.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (authService.js) and the
- * API server (apps/api/src/modules/auth) apply the same rules with the same messages
+ * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/auth) and the
+ * portals (their forms and services/remote/auth.js) apply the same rules with the same messages
  * (docs/backend-development-phases.md §7.8). Format checks (validateEmail, validateMobile,
  * validatePassword, validateAdminPassword) live in utils/validation.js and are shared the same way.
  */

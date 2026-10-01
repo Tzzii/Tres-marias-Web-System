@@ -2,23 +2,21 @@ import { ApiError } from '../errors.js';
 import { http } from '../http.js';
 
 /**
- * Outsourcing on the API (apps/api/src/modules/outsource, endpoint map in
- * docs/backend-development-phases.md §9.10). Same function names, arguments, return shapes and ApiError
- * codes as the browser version (outsourceService.js), so no page changes when VITE_API_SERVICES includes
- * "outsource" (see facade/outsource.js). Admin only: every address is under /api/admin/outsource.
+ * Outsourcing (outsourceApi in @tm/shared; apps/api/src/modules/outsource, endpoint map in
+ * docs/backend-development-phases.md §9.10). Admin only: every address is under /api/admin/outsource.
  *
  * - Every write is one request, which emits one change event (http.js), so the page and the sidebar's
  *   "awaiting reply" badge reload.
  * - sendContract really sends: the server emails and texts the partner (integrations/mailer and sms). Its
  *   answer carries `deliveryNote` when a channel did not really go out (no provider connected yet, or the
  *   provider refused it); the page shows it.
- * - Without a contract id there is nothing to send: those calls answer as the browser version would (the
- *   contract is not found). A partner with no id is a new partner, as in the browser version.
+ * - Without a contract id there is nothing to send: those calls answer as the server would (the
+ *   contract is not found). A partner with no id is a new partner.
  */
 
 // A partner or contract id in a URL path (never trust a path segment)
 const segment = (id) => encodeURIComponent(String(id || ''));
-const contractNotFound = () => new ApiError('NOT_FOUND', 'Contract not found.');
+const contractNotFound = () => new ApiError('NOT_FOUND', 'Request not found.');
 
 /** Every partner (archived ones only when asked), by service order then name, with how they are reached and their contract counts. */
 export const listPartners = ({ includeArchived = false } = {}) => http.get(`/admin/outsource/partners${includeArchived ? '?includeArchived=true' : ''}`);
@@ -50,5 +48,5 @@ export async function setContractStatus(id, status, { note = '' } = {}) {
   return http.post(`/admin/outsource/contracts/${segment(id)}/status`, { status, note });
 }
 
-// Constants and pure helpers: the same on both sides (domain/outsource.js, which the server uses too)
+// Constants and pure helpers: the same code the server uses (domain/outsource.js)
 export { NO_EVENT, CONTRACT_STATUSES, channelsOf, composeContractText } from '../../domain/outsource.js';

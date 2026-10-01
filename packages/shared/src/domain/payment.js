@@ -2,9 +2,8 @@
  * Rules of the payment and refund forms that need no stored data: what a payment is for, whether an
  * amount may be paid, and what a reference number looks like.
  *
- * Pure (no store.js, no localStorage, no React), so the browser service (paymentService.js), the API
- * server (apps/api/src/modules/payments), the QR payments of Phase 8B and the pages give the same
- * answer (docs/backend-development-phases.md §7.8). `money` is financials() from domain/money.js.
+ * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/payments, the
+ * QR payments of Phase 8B included) and the pages give the same answer (docs/backend-development-phases.md §7.8). `money` is financials() from domain/money.js.
  */
 
 // "₱1,200"

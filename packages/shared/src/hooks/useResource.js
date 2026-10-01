@@ -52,7 +52,7 @@ export function useResource(loader, deps = [], { live = true } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  // Live mode: reload quietly on every change event (a browser-store write, another tab, or an API write)
+  // Live mode: reload quietly on every change event (an API write in this tab, or a change the poller saw)
   useEffect(() => {
     if (!live) return undefined;
     return subscribe(() => run(true));

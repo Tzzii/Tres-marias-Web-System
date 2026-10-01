@@ -1,24 +1,25 @@
-// config.js first: it fixes the time zone (Asia/Manila) before the shared seed works out its dates
+// config.js first: it fixes the time zone (Asia/Manila) before the seed works out its dates
 import { config } from '../src/config.js';
 import bcrypt from 'bcrypt';
-import { buildSeed } from '@tm/shared/src/services/seed.js';
 import { closePool, dbErrorHint, pool } from '../src/db.js';
 import { parseJson } from '../src/lib/json.js';
+import { seedPasswords } from '../src/seedData/passwords.js';
+import { buildSeed } from '../src/seedData/seed.js';
 
 /**
  * `npm run db:roundtrip` — run right after `npm run seed:api`, on the same day. Reads every table back,
- * rebuilds each collection in the record shape of the browser store (buildSeed() in
- * packages/shared/src/services/seed.js) and deep-compares it with a fresh buildSeed(). Exits with 1 on any
- * difference and lists them.
+ * rebuilds each collection in the record shape of buildSeed() (src/seedData/seed.js) and deep-compares it
+ * with a fresh buildSeed(). Exits with 1 on any difference and lists them.
  *
  * It is also the tested reference for reading records out of the database (database -> record), which the
  * module repos need from Phase 6 on: e.g. a reservation's `venue` object from four columns, `addonIds` in
  * sort_order, `addonQty` only for add-ons counted by the piece, and `rentalItems` / `fulfilment` /
  * `damageCharges` only on an equipment rental.
  *
- * Allowed differences: a password against its bcrypt hash, receiptNo '' against NULL, counters.receipt
- * minus one (stored as the last number used), version/seededOn, JSON key order, messages in time order,
- * and message ids (random in the browser seed, so they are left out). Anything done in the app after
+ * Allowed differences: receiptNo '' against NULL, counters.receipt minus one (stored as the last number
+ * used), seededOn, JSON key order, messages in time order, and message ids (random in the seed, so they are
+ * left out). Passwords are not in the seed records (Phase 12): each account's hash is checked against
+ * SEED_ADMIN_PASSWORD or SEED_CUSTOMER_PASSWORD from apps/api/.env instead. Anything done in the app after
  * seeding (a sign-in, a booking) and a seed made on another day also show up as differences.
  *
  * Read-only, apart from one emoji message written inside a transaction and rolled back.
@@ -88,16 +89,18 @@ async function check() {
   const seed = buildSeed();
   console.log(`DB ${config.db.database} on ${config.db.host}:${config.db.port}; fresh buildSeed() dated ${seed.seededOn}, TZ ${process.env.TZ}`);
 
-  // ---- accounts (passwords checked with bcrypt, then treated as equal) ----
+  // ---- accounts (each password hash checked with bcrypt against the seed passwords in .env) ----
+  const passwords = seedPasswords({ customers: true });
+  passwords.problems.forEach(fail);
   const adminRows = await q('SELECT * FROM admins ORDER BY id');
   const admins = [];
   for (const a of adminRows) {
     const s = seed.admins.find((x) => x.id === a.id);
-    const ok = s && (await bcrypt.compare(s.password, a.password_hash));
-    const wrong = s && (await bcrypt.compare(s.password + 'x', a.password_hash));
+    const ok = s && (await bcrypt.compare(passwords.admin, a.password_hash));
+    const wrong = s && (await bcrypt.compare(passwords.admin + 'x', a.password_hash));
     if (!ok || wrong) fail(`admins[${a.id}]: bcrypt check failed (right ${ok}, wrong accepted ${wrong})`);
     if (!/^\$2[aby]\$10\$/.test(a.password_hash)) fail(`admins[${a.id}]: hash is not bcrypt cost 10`);
-    const r = { id: a.id, name: a.name, email: a.email, mobile: a.mobile, password: ok ? s.password : '(hash mismatch)', role: a.role, createdAt: a.created_at };
+    const r = { id: a.id, name: a.name, email: a.email, mobile: a.mobile, role: a.role, createdAt: a.created_at };
     if (a.password_changed_at !== null) r.passwordChangedAt = a.password_changed_at;
     if (a.last_sign_in_at !== null) r.lastSignInAt = a.last_sign_in_at;
     if (a.last_sign_in_device !== '') r.lastSignInDevice = a.last_sign_in_device;
@@ -112,9 +115,9 @@ async function check() {
   const customers = [];
   for (const c of customerRows) {
     const s = seed.customers.find((x) => x.id === c.id);
-    const ok = s && (await bcrypt.compare(s.password, c.password_hash));
+    const ok = s && (await bcrypt.compare(passwords.customer, c.password_hash));
     if (!ok) fail(`customers[${c.id}]: bcrypt check failed`);
-    const r = { id: c.id, name: c.name, email: c.email, mobile: c.mobile, password: ok ? s.password : '(hash mismatch)', createdAt: c.created_at, company: c.company };
+    const r = { id: c.id, name: c.name, email: c.email, mobile: c.mobile, createdAt: c.created_at, company: c.company };
     if (c.first_name) r.firstName = c.first_name;
     if (c.middle_name) r.middleName = c.middle_name;
     if (c.last_name) r.lastName = c.last_name;
@@ -130,7 +133,10 @@ async function check() {
   }));
   compare('packages', packages, seed.packages);
   const addonRows = await q('SELECT * FROM addons ORDER BY sort_order, id');
-  const addons = addonRows.map((a) => ({ id: a.id, name: a.name, description: a.description, hasQuantity: bool(a.has_quantity), archived: bool(a.archived) }));
+  const addons = addonRows.map((a) => ({
+    id: a.id, parentId: a.parent_id, name: a.name, description: a.description, price: a.price,
+    hasQuantity: bool(a.has_quantity), hasPackages: bool(a.has_packages), archived: bool(a.archived)
+  }));
   compare('addons', addons, seed.addons);
   const dishes = (await q('SELECT * FROM dishes ORDER BY sort_order, id')).map((d) => ({ id: d.id, category: d.category, name: d.name, archived: bool(d.archived) }));
   compare('dishes', dishes, seed.dishes);
@@ -237,7 +243,7 @@ async function check() {
   const inventory = (await q('SELECT * FROM inventory_items')).map((i) => ({
     id: i.id, code: i.code, name: i.name, category: i.category, total: i.total, lowStockAt: i.low_stock_at,
     allocations: Object.fromEntries((allocs.get(i.id) || []).map((a) => [a.reservation_ref, a.qty])),
-    damaged: i.damaged, rentable: bool(i.rentable), rentPrice: i.rent_price, damageFee: i.damage_fee, notes: i.notes, archived: bool(i.archived),
+    damaged: i.damaged, rentable: bool(i.rentable), rentPrice: i.rent_price, damageFee: i.damage_fee, notes: i.notes, archived: bool(i.archived), addonId: i.addon_id,
     history: (invHistory.get(i.id) || []).map((h) => ({ at: h.at, actor: h.actor, text: h.text, ...(h.ref === null ? {} : { ref: h.ref }) }))
   }));
   compareKeyed('inventory', inventory, seed.inventory, 'id');
@@ -270,7 +276,7 @@ async function check() {
   console.log('counters in db:', counterRows.map((c) => `${c.name}=${c.value}`).join(' '), `| seed.counters.receipt=${seed.counters.receipt}`);
 
   // ---- tables the seed leaves empty (sign-ins, codes and deliveries fill them) ----
-  for (const t of ['login_attempts', 'auth_challenges', 'password_resets', 'outbox', 'qr_payments', 'webhook_events']) {
+  for (const t of ['login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes', 'outbox', 'qr_payments', 'webhook_events']) {
     const [{ n }] = await q(`SELECT COUNT(*) AS n FROM ${t}`);
     if (n !== 0) fail(`${t} has ${n} rows`);
   }
@@ -344,7 +350,7 @@ async function check() {
     if (problems.length > 60) console.log(`  … and ${problems.length - 60} more`);
     return 1;
   }
-  console.log('\nROUND TRIP: every record and field matches (allowed differences only: password vs hash, receiptNo \'\' vs NULL, counters.receipt - 1, version/seededOn, key order, message order and ids).');
+  console.log('\nROUND TRIP: every record and field matches (allowed differences only: receiptNo \'\' vs NULL, counters.receipt - 1, seededOn, key order, message order and ids; passwords checked against .env).');
   return 0;
 }
 

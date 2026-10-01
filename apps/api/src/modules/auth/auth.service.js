@@ -1,6 +1,6 @@
 import { RULES } from '@tm/shared/src/services/config.js';
 import { cleanMobile, cleanName, describeDevice, fullNameProblem, normaliseEmail } from '@tm/shared/src/domain/account.js';
-import { maskEmail, maskMobile } from '@tm/shared/src/utils/format.js';
+import { maskEmail } from '@tm/shared/src/utils/format.js';
 import { validateAdminPassword, validateEmail, validateMobile, validatePassword } from '@tm/shared/src/utils/validation.js';
 import { config } from '../../config.js';
 import { tx } from '../../db.js';
@@ -14,26 +14,26 @@ import * as repo from './auth.repo.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
 
 /**
- * Authentication for both portals, on the server. The same 18 functions as the browser version
- * (packages/shared/src/services/authService.js), with the same return shapes, messages and ApiError
- * codes, so a page cannot tell which one answered. What changes on the server:
- * - a session is a signed JWT (lib/tokens.js) instead of a random string;
+ * Authentication for both portals (docs/backend-development-phases.md §9.1):
+ * - a session is a signed JWT (lib/tokens.js), sent by the page as a Bearer token;
  * - passwords and codes are stored only as bcrypt hashes (lib/passwords.js);
  * - failed attempts and lockouts live in the database (lockout.js), so clearing the browser's data
  *   unlocks nothing;
- * - codes are 6 random digits, emailed to admins and texted to customers (auth.messages.js), and
- *   never appear in a response;
+ * - codes are 6 random digits sent by EMAIL, never by SMS (auth.messages.js), and never appear in a
+ *   response. Since Phase 12 that includes every customer code: a customer account is created only
+ *   after the code emailed to its address comes back, a forgotten password is reset with an emailed
+ *   code, and a password changed in My profile needs the current password AND an emailed code;
  * - the signed-in account always comes from the token (req.user, passed in by auth.routes.js),
  *   never from an id the page sends.
- * Pure rules (email/mobile/name cleaning, the field checks, device names) come from @tm/shared,
- * the same files the browser version uses (§7.8).
+ * Pure rules (email/mobile/name cleaning, the field checks, device names) come from @tm/shared, the
+ * same files the pages use for their form checks (§7.8), so a form and the server say the same thing.
  */
 
 const minutes = (n) => n * 60000;
 
-// A code request (sign-in, contact change, password reset) can be resent and used for at most this
-// long after it was made; then the user starts again. The browser version kept the request in the
-// tab's sessionStorage, so it ended with the tab; a request in the database needs an end of its own.
+// A code request (admin sign-in, contact change, and the customer's sign-up, password reset and
+// password change) can be resent and used for at most this long after it was made; then the user
+// starts again. Each code itself expires sooner (RULES.codeValidMinutes); a resend gives a new one.
 const REQUEST_LIFETIME = minutes(30);
 
 // When a code sent at `at` expires, and when another may be requested
@@ -42,8 +42,8 @@ const codeTimes = (at) => ({ expiresAt: at + minutes(RULES.codeValidMinutes), re
 // True when a code request can no longer be used: missing, already spent, or older than REQUEST_LIFETIME
 const isDead = (request, at) => !request || Boolean(request.usedAt) || request.createdAt + REQUEST_LIFETIME < at;
 
-// Customer details safe to send to the page (never the password hash). Same shape as authService.publicCustomer:
-// firstName / middleName / lastName are '' for accounts whose parts were never saved or were cleared by a name edit.
+// Customer details safe to send to the page (never the password hash). firstName / middleName /
+// lastName are '' for accounts whose parts were never saved or were cleared by a name edit.
 const publicCustomer = (c) => ({
   id: c.id,
   name: c.name,
@@ -116,17 +116,21 @@ export async function customerLogin({ email, password, remember = false }) {
   return customerSession(customer, remember);
 }
 
+/* ---------------- Sign-up: form → code emailed to the new address → account ---------------- */
+
 /**
- * Create a customer account (email must be unused) and sign them in.
- * First name, last name, email and mobile are required; middle name is optional.
- * The parts are saved separately, and `name` ("First Middle Last") is built from them
- * because the rest of the system (admin lists, reservations, profile) displays `name`.
+ * Sign-up, step 1 (Phase 12): check the form (the same checks as the page: first and last name
+ * required, email and mobile format, password rules), make sure no account uses the email, then save
+ * the request and email a 6-digit code to that address. No account exists yet: confirmSignUp creates
+ * it once the code comes back, which proves the customer owns the address. The password is kept only
+ * as a hash. A newer request for the same email replaces an older one, and at most 5 code emails an
+ * hour go to one address (code-email), so the form cannot be used to flood someone's inbox.
+ * Returns what the code step needs: { challengeId, maskedEmail, expiresAt, resendAt }.
  */
-export async function customerRegister({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '' }) {
+export async function startSignUp({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '' }) {
   const first = firstName.trim();
   const middle = middleName.trim();
   const last = lastName.trim();
-  // Same checks as the form (required fields, email and mobile format, password rules)
   if (!first) throw new ApiError('INVALID', 'First name is required.', { field: 'firstName' });
   if (!last) throw new ApiError('INVALID', 'Last name is required.', { field: 'lastName' });
   const address = normaliseEmail(email);
@@ -135,38 +139,110 @@ export async function customerRegister({ firstName = '', middleName = '', lastNa
     (validateMobile(mobile) && { field: 'mobile', message: validateMobile(mobile) }) ||
     (validatePassword(password) && { field: 'password', message: validatePassword(password) });
   if (problem) throw new ApiError('INVALID', problem.message, { field: problem.field });
+  if (await repo.findCustomerByEmail(address)) throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
+  await reserveAttempt('code-email', address);
 
-  const taken = new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
-  if (await repo.findCustomerByEmail(address)) throw taken;
-  const customer = {
-    id: newId('cus'),
+  const at = now();
+  const code = newCode(RULES.codeLength);
+  const request = {
+    id: newId('sgn'),
+    email: address,
     firstName: first,
     middleName: middle,
     lastName: last,
-    name: [first, middle, last].filter(Boolean).join(' '),
-    email: address,
     mobile: cleanMobile(mobile),
+    passwordHash: await hashSecret(password),
+    codeHash: await hashSecret(code),
+    ...codeTimes(at),
+    createdAt: at
+  };
+  await repo.deleteSignupsFor(address);
+  await repo.insertSignup(request);
+  try {
+    await messages.sendSignUpCode(request, code);
+  } catch (err) {
+    await repo.deleteSignup(request.id); // nobody received this code
+    throw err;
+  }
+  return { challengeId: request.id, maskedEmail: maskEmail(address), expiresAt: request.expiresAt, resendAt: request.resendAt };
+}
+
+/** Sign-up: email a new code (only after the resend cooldown). The old code stops working, and the expiry and resend timers restart. */
+export async function resendSignUpCode(challengeId) {
+  const at = now();
+  const request = await repo.findSignup(challengeId);
+  if (isDead(request, at)) throw new ApiError('CHALLENGE_EXPIRED', 'Your sign-up request expired. Please start again.');
+  if (request.resendAt > at) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
+  await reserveAttempt('code-email', request.email);
+
+  const code = newCode(RULES.codeLength);
+  const times = codeTimes(at);
+  await repo.replaceSignupCode(request.id, { codeHash: await hashSecret(code), ...times });
+  try {
+    await messages.sendSignUpCode(request, code);
+  } catch (err) {
+    await repo.setSignupResendAt(request.id, at); // let the customer ask again at once
+    throw err;
+  }
+  return times;
+}
+
+/**
+ * Sign-up, step 2: check the emailed code, then create the account and sign the customer in.
+ * Wrong codes count toward a short lockout (5 in a row, then a pause), like every other code. The
+ * request is spent and the account made in one transaction; someone else may have signed up with the
+ * same email while the code was on its way, so the UNIQUE email index is the last guard (EMAIL_TAKEN).
+ * The account's `name` ("First Middle Last") is built from the parts, because the rest of the system
+ * (admin lists, reservations, profile) displays `name`. Returns the session { token, user }.
+ */
+export async function confirmSignUp({ challengeId, code }) {
+  const at = now();
+  const expired = new ApiError('CHALLENGE_EXPIRED', 'Your sign-up request expired. Please start again.');
+  const request = await repo.findSignup(challengeId);
+  if (isDead(request, at)) throw expired;
+  await assertNotLocked('signup-code', request.email);
+  if (request.expiresAt < at) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
+
+  const attempt = await reserveAttempt('signup-code', request.email);
+  if (!(await checkSecret(code, request.codeHash))) {
+    await repo.addSignupAttempt(request.id);
+    throw wrongAnswer('signup-code', attempt, new ApiError('INVALID_CODE', 'That code is incorrect.'));
+  }
+  await clearAttempts('signup-code', request.email);
+
+  const customer = {
+    id: newId('cus'),
+    firstName: request.firstName,
+    middleName: request.middleName,
+    lastName: request.lastName,
+    name: [request.firstName, request.middleName, request.lastName].filter(Boolean).join(' '),
+    email: request.email,
+    mobile: request.mobile,
     company: '',
-    createdAt: now(),
+    createdAt: at,
     passwordChangedAt: null
   };
   try {
-    await repo.insertCustomer({ ...customer, passwordHash: await hashSecret(password) });
+    await tx(async (conn) => {
+      if (!(await repo.markSignupUsed(conn, request.id, at))) throw expired;
+      await repo.insertCustomer({ ...customer, passwordHash: request.passwordHash }, conn);
+    });
   } catch (err) {
-    // Two sign-ups with the same email at the same moment: the UNIQUE email index stops the second
-    if (err.code === 'ER_DUP_ENTRY') throw taken;
+    if (err.code === 'ER_DUP_ENTRY') throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
     throw err;
   }
+  await clearAttempts('code-email', request.email);
   return customerSession(customer);
 }
 
-/* ---------------- Forgot password: email → code sent by SMS → new password ---------------- */
+/* ---------------- Forgot password: email → code emailed → new password ---------------- */
 
 /**
- * Step 1: check that an account uses this email, then text a 6-digit code to the mobile number on
- * that account. Returns the request ID and the masked number to show. Saying that no account uses
- * the email is the owner's choice; the strict per-IP rate limit on this route (5 a minute) keeps it
- * from being used to test long lists of emails, and at most 5 texts in a row go to one account.
+ * Step 1: check that an account uses this email, then email a 6-digit code to it (Phase 12; before,
+ * it was texted to the account's mobile). Returns the request ID and the masked address to show.
+ * Saying that no account uses the email is the owner's choice; the strict per-IP rate limit on this
+ * route (5 a minute) keeps it from being used to test long lists of emails, and at most 5 code emails
+ * an hour go to one address (code-email).
  */
 export async function startPasswordReset({ email }) {
   const address = normaliseEmail(email);
@@ -174,8 +250,7 @@ export async function startPasswordReset({ email }) {
   if (emailError) throw new ApiError('INVALID', emailError, { field: 'email' });
   const customer = await repo.findCustomerByEmail(address);
   if (!customer) throw new ApiError('NOT_FOUND', 'We could not find an account with this email.', { field: 'email' });
-  if (!customer.mobile) throw new ApiError('NO_MOBILE', 'This account has no mobile number. Please message us to reset your password.', { field: 'email' });
-  await reserveAttempt('reset-sms', customer.id);
+  await reserveAttempt('code-email', address);
 
   // A new request replaces any earlier one, so only the newest code works
   const at = now();
@@ -189,10 +264,10 @@ export async function startPasswordReset({ email }) {
     await repo.deleteReset(reset.id); // nobody received this code
     throw err;
   }
-  return { challengeId: reset.id, maskedMobile: maskMobile(customer.mobile), expiresAt: reset.expiresAt, resendAt: reset.resendAt };
+  return { challengeId: reset.id, maskedEmail: maskEmail(customer.email), expiresAt: reset.expiresAt, resendAt: reset.resendAt };
 }
 
-/** Text a new code (only after the resend cooldown): the old code stops working, and the expiry and resend timers restart. */
+/** Email a new code (only after the resend cooldown): the old code stops working, and the expiry and resend timers restart. */
 export async function resendPasswordResetCode(challengeId) {
   const at = now();
   const expired = new ApiError('CHALLENGE_EXPIRED', 'Your reset request expired. Please start again.');
@@ -200,8 +275,8 @@ export async function resendPasswordResetCode(challengeId) {
   if (isDead(reset, at)) throw expired;
   if (reset.resendAt > at) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
   const customer = await repo.findCustomerById(reset.customerId);
-  if (!customer || !customer.mobile) throw expired;
-  await reserveAttempt('reset-sms', customer.id);
+  if (!customer) throw expired;
+  await reserveAttempt('code-email', normaliseEmail(customer.email));
 
   const code = newCode(RULES.codeLength);
   const times = codeTimes(at);
@@ -215,7 +290,7 @@ export async function resendPasswordResetCode(challengeId) {
   return times;
 }
 
-/** Step 2: check the texted code. Wrong codes count toward a short lockout, like the admin code. */
+/** Step 2: check the emailed code. Wrong codes count toward a short lockout, like the admin code. */
 export async function verifyPasswordResetCode({ challengeId, code }) {
   const at = now();
   const expired = new ApiError('CHALLENGE_EXPIRED', 'Your reset request expired. Please start again.');
@@ -239,10 +314,16 @@ export async function verifyPasswordResetCode({ challengeId, code }) {
 
 /**
  * Step 3: save the new password (only after the code was verified). The request is used up, every
- * session made before it ends (password_changed_at moves), and any login lockout on the account is
- * lifted so the customer can log in right away.
+ * session made before it ends (password_changed_at moves), the customer's other waiting resets and
+ * password changes are removed (a code sent for the old password must not set one later), and any
+ * login lockout on the account is lifted so the customer can log in right away.
+ *
+ * `user` is req.user when the request carries a valid session (the route reads the token without
+ * requiring one). When it is this same customer — "Forgot your current password?" in My profile —
+ * the answer also carries `token`, a new token for that session that expires when the old one
+ * would have, so the page stays signed in, like after a password change. Returns { ok, email[, token] }.
  */
-export async function completePasswordReset({ challengeId, password }) {
+export async function completePasswordReset({ challengeId, password }, user = null) {
   const at = now();
   const expired = new ApiError('CHALLENGE_EXPIRED', 'Your reset request expired. Please start again.');
   const reset = await repo.findReset(challengeId);
@@ -257,10 +338,15 @@ export async function completePasswordReset({ challengeId, password }) {
     // Spent by a request sent at the same moment: this one must not change the password again
     if (!(await repo.markResetUsed(conn, reset.id, at))) throw expired;
     await repo.updateCustomerPassword(customer.id, passwordHash, at, conn);
+    await repo.deleteWaitingPasswordRequests(customer.id, conn);
   });
   await clearAttempts('customer', customer.email);
-  await clearAttempts('reset-sms', customer.id);
-  return { ok: true, email: customer.email };
+  await clearAttempts('code-email', normaliseEmail(customer.email));
+  const result = { ok: true, email: customer.email };
+  if (user && user.role === 'customer' && user.id === customer.id) {
+    result.token = signToken({ id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: at }, { expiresAt: user.exp });
+  }
+  return result;
 }
 
 /** Latest profile details for a customer (the signed-in one: the route passes req.user.id). */
@@ -298,23 +384,99 @@ export async function updateCustomerProfile(customerId, { name = '', mobile = ''
   return publicCustomer(saved);
 }
 
+/* ---------------- Change password in My profile: current and new password → emailed code ---------------- */
+
 /**
- * Change password: the current password first (wrong guesses count toward a lockout, like the
+ * Step 1 (Phase 12): the current password first (wrong guesses count toward a lockout, like the
  * admin's), then the customer password rules, and the new one must differ from the current one.
- * Every other session of the customer ends; this one goes on with a new token (returned as
- * `token`, which the page's API client swaps in) that expires when the old one would have.
- * `user` is req.user: the signed-in customer and the expiry of their current token.
+ * The new password is kept as a hash with the request, and a code is emailed to the account's
+ * address: the password changes only when that code comes back, so someone at a computer left
+ * signed in cannot change it without the customer's email. A newer request replaces an older one;
+ * at most 5 code emails an hour go to one address (code-email).
+ * Returns { challengeId, maskedEmail, expiresAt, resendAt }.
  */
-export async function changeCustomerPassword(user, { current, next }) {
-  const customer = await repo.findCustomerById(user.id);
+export async function startPasswordChange(customerId, { current, next }) {
+  const customer = await repo.findCustomerById(customerId);
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
   await assertCurrentPassword('customer-reauth', customer, current);
   const problem = validatePassword(next);
   if (problem) throw new ApiError('INVALID', problem, { field: 'next' });
   if (next === current) throw new ApiError('INVALID', 'Choose a password different from the current one.', { field: 'next' });
+  await reserveAttempt('code-email', normaliseEmail(customer.email));
 
   const at = now();
-  await repo.updateCustomerPassword(customer.id, await hashSecret(next), at);
+  const code = newCode(RULES.codeLength);
+  const change = { id: newId('pwc'), customerId: customer.id, newPasswordHash: await hashSecret(next), codeHash: await hashSecret(code), ...codeTimes(at), createdAt: at };
+  await repo.deleteChangesFor(customer.id);
+  await repo.insertChange(change);
+  try {
+    await messages.sendPasswordChangeCode(customer, code, change.id);
+  } catch (err) {
+    await repo.deleteChange(change.id); // nobody received this code
+    throw err;
+  }
+  return { challengeId: change.id, maskedEmail: maskEmail(customer.email), expiresAt: change.expiresAt, resendAt: change.resendAt };
+}
+
+// The customer's own live password-change request, or CHALLENGE_EXPIRED. Another customer's request
+// counts as expired too, so a request id seen elsewhere cannot be used from this account.
+async function ownPasswordChange(customerId, challengeId, at) {
+  const change = await repo.findChange(challengeId);
+  if (isDead(change, at) || change.customerId !== customerId) throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
+  return change;
+}
+
+/** Password change: email a new code (only after the resend cooldown; the old code stops working, the timers restart). */
+export async function resendPasswordChangeCode(customerId, challengeId) {
+  const at = now();
+  const change = await ownPasswordChange(customerId, challengeId, at);
+  if (change.resendAt > at) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
+  const customer = await repo.findCustomerById(customerId);
+  if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
+  await reserveAttempt('code-email', normaliseEmail(customer.email));
+
+  const code = newCode(RULES.codeLength);
+  const times = codeTimes(at);
+  await repo.replaceChangeCode(change.id, { codeHash: await hashSecret(code), ...times });
+  try {
+    await messages.sendPasswordChangeCode(customer, code, change.id);
+  } catch (err) {
+    await repo.setChangeResendAt(change.id, at); // let the customer ask again at once
+    throw err;
+  }
+  return times;
+}
+
+/**
+ * Step 2: check the emailed code (wrong codes count toward a short lockout), then save the new
+ * password. The request is spent, the password saved and the customer's other waiting resets and
+ * changes removed in one transaction. Every other session of the customer ends; this one goes on with
+ * a new token (returned as `token`, which the page's API client swaps in) that expires when the old
+ * one would have. `user` is req.user: the signed-in customer and the expiry of their current token.
+ */
+export async function confirmPasswordChange(user, { challengeId, code }) {
+  const at = now();
+  const expired = new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
+  const change = await ownPasswordChange(user.id, challengeId, at);
+  await assertNotLocked('change-code', user.id);
+  if (change.expiresAt < at) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
+
+  const attempt = await reserveAttempt('change-code', user.id);
+  if (!(await checkSecret(code, change.codeHash))) {
+    await repo.addChangeAttempt(change.id);
+    throw wrongAnswer('change-code', attempt, new ApiError('INVALID_CODE', 'That code is incorrect.'));
+  }
+  await clearAttempts('change-code', user.id);
+  const customer = await repo.findCustomerById(user.id);
+  if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
+
+  await tx(async (conn) => {
+    // Spent by a request sent at the same moment: this one must not change the password again
+    if (!(await repo.markChangeUsed(conn, change.id, at))) throw expired;
+    await repo.updateCustomerPassword(customer.id, change.newPasswordHash, at, conn);
+    await repo.deleteWaitingPasswordRequests(customer.id, conn);
+  });
+  await clearAttempts('code-email', normaliseEmail(customer.email));
   const token = signToken({ id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: at }, { expiresAt: user.exp });
   return { ok: true, token };
 }

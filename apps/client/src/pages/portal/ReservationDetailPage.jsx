@@ -101,7 +101,7 @@ export default function ReservationDetailPage() {
   // Online cancellation: allowed now, or the reason why not (checked again when cancelling)
   const online = r.onlineCancel || { allowed: false, reason: '', deadline: r.cancelDeadline };
   const closed = ['cancelled', 'declined', 'completed'].includes(r.status);
-  // What was returned so far on this booking, newest first (none on the API before Phase 8)
+  // What was returned so far on this booking, newest first
   const refunds = r.refunds || [];
   const refunded = r.refunded || 0;
   // Can pay when approved or later, money is owed, and no payment is already waiting for verification
@@ -218,7 +218,7 @@ export default function ReservationDetailPage() {
               <RentalItemsCard r={r} />
             ) : (
             <DashCard>
-              <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · covers ${r.package.guests} guests`}>{r.serviceType}</CardTitle>
+              <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`}>{r.serviceType}</CardTitle>
               <Field label="Package includes">{r.package.items.map(formatPackageItem).join(', ')}</Field>
               <Divider sx={{ my: 2 }} />
               {/* A buffet lists the dish chosen for each category; catering only has no menu */}
@@ -261,7 +261,7 @@ export default function ReservationDetailPage() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
-              <CardTitle subtitle={r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'Package price only until your quotation prices the food and additional charges'}>Payment summary</CardTitle>
+              <CardTitle subtitle={r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment summary</CardTitle>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
               <DetailRow label="Minimum downpayment">{peso(r.downpayment)}</DetailRow>
               {/* Paid = what was received; money given back shows on its own row */}

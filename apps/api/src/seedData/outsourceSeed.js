@@ -1,14 +1,14 @@
-import { NO_EVENT, channelsOf, composeContractText } from '../domain/outsource.js';
-import { addDays, todayISO } from '../utils/format.js';
+import { DRAFTED_TEXT, NO_EVENT, channelsOf, composeContractText, sentText, statusText } from '@tm/shared/src/domain/outsource.js';
+import { addDays, todayISO } from '@tm/shared/src/utils/format.js';
 
 /**
- * Starting outsourcing partners and contracts, used by seed.js.
+ * Starting outsourcing partners and requests ("contracts" in the code), used by seed.js.
  *
  * The partners differ on purpose in how they can be reached — some have both an email address and a
- * mobile number, some only one — because a contract is sent to whatever channels a partner has, with
+ * mobile number, some only one — because a request is sent to whatever channels a partner has, with
  * the same text in each. `composeContractText` and `channelsOf` come from domain/outsource.js, the
- * same rules the service uses, so seeded contracts read exactly like the ones the admin sends.
- * Nothing here touches the browser store, so the API seeder (apps/api/src/seed.js) runs it in Node.
+ * same rules the service uses, so seeded requests read exactly like the ones the admin sends.
+ * It only builds records (no database), and the API seeder (apps/api/src/seed.js) writes them.
  */
 
 // Partners as [id, name, service, contact person, email, mobile, address, notes]
@@ -44,7 +44,7 @@ const CONTRACTS = [
  * (the REF map in seed.js); `events` is the reservation list, for the event name, date and venue that
  * go into each contract's text. Timestamps are relative to today.
  */
-export function buildOutsourceSeed(refs, events, actor = 'Teresa Marquez') {
+export function buildOutsourceSeed(refs, events, actor = 'Wilma W. Cabiscuelas') {
   const today = todayISO();
   // Timestamp `offset` days from today at a given hour
   const at = (offset, hour) => {
@@ -96,14 +96,12 @@ export function buildOutsourceSeed(refs, events, actor = 'Teresa Marquez') {
     // Answered the day after it was sent (accepted, declined and completed contracts only)
     const answeredAt = ['accepted', 'declined', 'completed'].includes(status) ? sentAt + 86400000 : null;
 
-    const history = [{ at: createdAt, actor, text: 'Drafted the contract.' }];
-    if (sentAt) {
-      const where = deliveries.map((d) => `${d.channel === 'email' ? 'email' : 'SMS'} (${d.to})`).join(' and ');
-      history.push({ at: sentAt, actor, text: `Sent the contract by ${where}.` });
-    }
-    if (status === 'accepted' || status === 'completed') history.push({ at: answeredAt, actor, text: 'Partner accepted the contract.' });
-    if (status === 'declined') history.push({ at: answeredAt, actor, text: `Partner declined the contract.${note ? ` Reason: ${note}` : ''}` });
-    if (status === 'completed') history.push({ at: at(needByOffset, 18), actor, text: 'Marked delivered and completed.' });
+    // The history lines are the domain's own, so a seeded request reads like one the admin made
+    const history = [{ at: createdAt, actor, text: DRAFTED_TEXT }];
+    if (sentAt) history.push({ at: sentAt, actor, text: sentText(deliveries) });
+    if (status === 'accepted' || status === 'completed') history.push({ at: answeredAt, actor, text: statusText('accepted', '') });
+    if (status === 'declined') history.push({ at: answeredAt, actor, text: statusText('declined', note) });
+    if (status === 'completed') history.push({ at: at(needByOffset, 18), actor, text: statusText('completed', '') });
 
     return {
       id,

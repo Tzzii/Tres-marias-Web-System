@@ -8,9 +8,13 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node src/seed.js",
+    "seed:starter": "node src/seed.js --starter",
     "db:reset": "node scripts/db-reset.js",
+    "db:migrate": "node scripts/db-migrate.js",
     "db:ping": "node scripts/db-ping.js",
-    "db:roundtrip": "node scripts/db-roundtrip.js"
+    "db:roundtrip": "node scripts/db-roundtrip.js",
+    "audit:routes": "node scripts/route-audit.js",
+    "test:security": "node scripts/security-tests.js"
   },
   "dependencies": {
     "@tm/shared": "*",

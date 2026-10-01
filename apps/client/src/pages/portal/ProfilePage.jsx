@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import {
   AlertBanner,
@@ -26,8 +27,15 @@ import {
   validatePassword
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
+import { EmailCodeDialog } from '../../components/EmailCode.jsx';
+import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
 
-/** My profile: contact details and password. */
+/**
+ * My profile: contact details and password. Changing the password takes the current one and a code
+ * emailed to the account (Phase 12); "Forgot your current password?" resets it with an emailed code
+ * instead. Either way this device stays signed in (the server renews its token) and every other one
+ * is signed out.
+ */
 export default function ProfilePage() {
   useDocumentTitle('My profile');
   const notify = useNotify();
@@ -39,10 +47,12 @@ export default function ProfilePage() {
   const [profileErrors, setProfileErrors] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Change password form
+  // Change password form, its emailed-code step (open while `challenge` is set) and the forgot-password dialog
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
   const [pwErrors, setPwErrors] = useState({});
   const [savingPw, setSavingPw] = useState(false);
+  const [challenge, setChallenge] = useState(null);
+  const [resetOpen, setResetOpen] = useState(false);
 
   // Pick up the latest details (in case they changed elsewhere)
   useEffect(() => {
@@ -75,7 +85,7 @@ export default function ProfilePage() {
     }
   };
 
-  // Validate the three password fields, change the password, and clear the form
+  // Validate the three password fields, then ask the server to check the current password and email a code
   const savePassword = async (e) => {
     e.preventDefault();
     const found = collectErrors(pw, {
@@ -87,15 +97,23 @@ export default function ProfilePage() {
     if (Object.keys(found).length) return;
     setSavingPw(true);
     try {
-      await authApi.changeCustomerPassword(user.id, pw);
-      setPw({ current: '', next: '', confirm: '' });
-      notify('Password changed.');
+      setChallenge(await authApi.startPasswordChange({ current: pw.current, next: pw.next }));
     } catch (err) {
-      if (err.meta && err.meta.field) setPwErrors({ [err.meta.field]: err.message });
+      // A wrong current password says how many tries are left before a 5-minute pause
+      const left = err.code === 'INVALID_CREDENTIALS' && err.meta.remaining ? ` ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.` : '';
+      if (err.meta && err.meta.field) setPwErrors({ [err.meta.field]: err.message + left });
       else notify(err.message, 'error');
     } finally {
       setSavingPw(false);
     }
+  };
+
+  // The emailed code was right: the new password is saved and this device stays signed in
+  const confirmCode = async (code) => {
+    await authApi.confirmPasswordChange({ challengeId: challenge.challengeId, code });
+    setChallenge(null);
+    setPw({ current: '', next: '', confirm: '' });
+    notify('Password changed. Other devices were signed out.');
   };
 
   return (
@@ -128,9 +146,15 @@ export default function ProfilePage() {
           <DashCard component="form" noValidate onSubmit={savePassword}>
             <CardTitle subtitle="8 characters or more, with a number">Change password</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <PasswordField id="pw-current" label="Current password" autoComplete="current-password" value={pw.current} onChange={(e) => { setPw((p) => ({ ...p, current: e.target.value })); setPwErrors({}); }} error={pwErrors.current} />
+              <Box>
+                <PasswordField id="pw-current" label="Current password" autoComplete="current-password" value={pw.current} onChange={(e) => { setPw((p) => ({ ...p, current: e.target.value })); setPwErrors({}); }} error={pwErrors.current} />
+                <Link component="button" type="button" onClick={() => setResetOpen(true)} sx={{ mt: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.goldDark }}>
+                  Forgot your current password?
+                </Link>
+              </Box>
               <PasswordField id="pw-next" label="New password" autoComplete="new-password" value={pw.next} onChange={(e) => { setPw((p) => ({ ...p, next: e.target.value })); setPwErrors({}); }} error={pwErrors.next} />
               <PasswordField id="pw-confirm" label="Confirm new password" autoComplete="new-password" value={pw.confirm} onChange={(e) => { setPw((p) => ({ ...p, confirm: e.target.value })); setPwErrors({}); }} error={pwErrors.confirm} />
+              <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>We email you a code to confirm the change before the new password is saved.</Typography>
               <Box>
                 <BusyButton type="submit" busy={savingPw}>
                   Update password
@@ -152,6 +176,33 @@ export default function ProfilePage() {
           </DashCard>
         </Box>
       </Box>
+
+      {/* Step 2 of the password change: the code emailed to the account */}
+      <EmailCodeDialog
+        challenge={challenge}
+        title="Confirm your new password"
+        actionLabel="Change password"
+        onVerify={confirmCode}
+        onResend={() => authApi.resendPasswordChangeCode(challenge.challengeId)}
+        onRestart={(message) => {
+          setChallenge(null);
+          notify(message, 'error');
+        }}
+        onClose={() => setChallenge(null)}
+      />
+
+      {/* Forgot the current password: a reset by emailed code, without signing out */}
+      <PasswordResetDialog
+        open={resetOpen}
+        accountEmail={user.email}
+        onClose={() => setResetOpen(false)}
+        onDone={() => {
+          setResetOpen(false);
+          setPw({ current: '', next: '', confirm: '' });
+          setPwErrors({});
+          notify('Password changed. Other devices were signed out.');
+        }}
+      />
     </>
   );
 }

@@ -60,7 +60,7 @@ import { downloadTxt, textTable } from '../lib/txt.js';
 const PAGE_SIZE = 10;
 const NO_EVENT = outsourceApi.NO_EVENT;
 
-// Name and chip colours for each contract status
+// Name and chip colours for each request status
 const STATUS = {
   draft: { label: 'Draft', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
   sent: { label: 'Awaiting reply', bg: 'rgba(245, 158, 11, 0.14)', fg: '#b45309' },
@@ -81,7 +81,7 @@ const STATUS_FILTERS = [
   ['cancelled', 'Cancelled', (c) => c.status === 'cancelled']
 ];
 
-// Event-date filter options as [key, label, test]; contracts with no event only show under "All"
+// Event-date filter options as [key, label, test]; requests with no event only show under "All"
 const DATE_FILTERS = [
   ['all', 'Event date: All', () => true],
   ['upcoming', 'Upcoming events', (c) => c.eventDate && c.eventDate >= todayISO()],
@@ -95,14 +95,14 @@ const OPTIONAL_COLUMNS = [
   ['event', 'Assigned event'],
   ['eventDate', 'Event date'],
   ['needBy', 'Date needed'],
-  ['amount', 'Amount'],
+  ['amount', 'Outsource price'],
   ['sentTo', 'Sent to']
 ];
 const COLUMNS_KEY = 'tm.admin.outsource.columns'; // this browser remembers the admin's column choice
 
 // Tabs of this page as [key, label]
 const TABS = [
-  ['contracts', 'Contracts'],
+  ['contracts', 'Requests'],
   ['partners', 'Partners']
 ];
 
@@ -126,16 +126,19 @@ function ChannelChips({ channels, size = 'sm' }) {
 }
 
 /**
- * Outsourcing: the partners Tres Marias rents from when its own stock runs short, and the contracts sent to them.
- * Top: four summary cards (click one to filter). Contracts tab: search, Service, Event date and Status filters,
- * "Filter columns", then a paged table with checkboxes (bulk download) and a ⋮ menu per contract
+ * Outsourcing: the partners Tres Marias rents from when its own stock runs short, and the requests sent to them.
+ * A request is not a contract: it only asks whether the partner can supply the items for the event (they answer
+ * text or call the business number, and the admin records the answer); the partner's own price and terms are
+ * what the admin follows.
+ * Top: four summary cards (click one to filter). Requests tab: search, Service, Event date and Status filters,
+ * "Filter columns", then a paged table with checkboxes (bulk download) and a ⋮ menu per request
  * (open, send, record the reply, cancel). Partners tab: the same table shape for the partner list.
  *
- * A contract is written once and sent to every channel its partner has — an email when they have an email
+ * A request is written once and sent to every channel its partner has — an email when they have an email
  * address, an SMS when they have a mobile number, both when they have both — with the same text in each.
- * If a channel did not really go out (on the API: no email or SMS service connected yet, or the provider
- * refused it), a warning says so and the contract opens, so the admin can download it and send it themselves.
- * Contracts for a reservation also appear in that reservation's audit trail.
+ * If a channel did not really go out (no email or SMS service connected yet, or the provider
+ * refused it), a warning says so and the request opens, so the admin can download it and send it themselves.
+ * Requests for a reservation also appear in that reservation's audit trail.
  */
 export default function OutsourcePage() {
   useDocumentTitle('Outsourcing', 'Tres Marias Admin');
@@ -187,7 +190,7 @@ export default function OutsourcePage() {
   }, [query, service, when, status, showArchived, tab]);
 
   // Opened from the inventory's "Request from a partner" (/outsource?item=Monobloc+chair&qty=40):
-  // start a contract with that item already filled in, then clear it from the URL
+  // start a request with that item already filled in, then clear it from the URL
   useEffect(() => {
     const item = params.get('item');
     if (!item || !data) return;
@@ -252,41 +255,41 @@ export default function OutsourcePage() {
     else setAnswer({ id: contract.id, status: action });
   };
 
-  // Save one contract as a .txt file: its details, then the exact text the partner was sent
+  // Save one request as a .txt file: its details, then the exact text the partner was sent
   const downloadContract = (contract) => {
     const lines = [
-      `Contract: ${contract.ref}`,
+      `Request: ${contract.ref}`,
       `Partner: ${contract.partnerName}${contract.contactPerson ? ` (${contract.contactPerson})` : ''}`,
       `Supplies: ${contract.service}`,
       `Event: ${contract.eventName || 'No event linked'}${contract.eventDate ? ` · ${formatDate(contract.eventDate)}` : ''}`,
       `Needed on: ${formatDate(contract.needBy)}`,
       `Items: ${contract.itemsSummary}`,
-      `Amount: ${peso(contract.amount)}`,
+      `Outsource price: ${peso(contract.amount)}`,
       `Status: ${STATUS[contract.status].label}`,
       contract.sentAt ? `Sent: ${formatDateTime(contract.sentAt)} by ${contract.deliveries.map((d) => (d.channel === 'email' ? `email (${d.to})` : `SMS (${d.to})`)).join(' and ')}` : 'Not sent yet',
       '',
-      contract.body || '(the contract text is written when it is sent)'
+      contract.body || '(the request text is written when it is sent)'
     ];
     downloadTxt(`${contract.ref}.txt`, lines.join('\n'));
     notify(`${contract.ref} downloaded.`);
   };
 
-  // Save the ticked contracts as one .txt table
+  // Save the ticked requests as one .txt table
   const downloadTicked = () => {
     const rowsOut = ticked.map((c) => ({
-      Contract: c.ref,
+      Request: c.ref,
       Partner: c.partnerName,
       Event: c.eventName || '—',
       'Event date': c.eventDate ? formatDate(c.eventDate) : '—',
       Items: c.itemsSummary,
-      Amount: c.amount,
+      'Outsource price': c.amount,
       Status: STATUS[c.status].label
     }));
-    downloadTxt(`outsourcing-contracts-${todayISO()}.txt`, textTable(rowsOut, ['Amount']));
-    notify(`${ticked.length} contracts downloaded.`);
+    downloadTxt(`outsourcing-requests-${todayISO()}.txt`, textTable(rowsOut, ['Outsource price']));
+    notify(`${ticked.length} request${ticked.length === 1 ? '' : 's'} downloaded.`);
   };
 
-  // Table columns for the Contracts tab; optional ones follow the "Filter columns" choice
+  // Table columns for the Requests tab; optional ones follow the "Filter columns" choice
   const contractColumns = [
     {
       key: 'select',
@@ -315,9 +318,9 @@ export default function OutsourcePage() {
     columns.event && { key: 'event', label: 'Assigned event', render: (c) => c.eventName || <Box component="span" sx={{ color: tokens.textMuted }}>No event linked</Box> },
     columns.eventDate && { key: 'eventDate', label: 'Event date', render: (c) => (c.eventDate ? formatDate(c.eventDate) : '—') },
     columns.needBy && { key: 'needBy', label: 'Date needed', render: (c) => formatDate(c.needBy) },
-    columns.amount && { key: 'amount', label: 'Amount', align: 'right', render: (c) => (c.amount > 0 ? peso(c.amount) : '—') },
-    { key: 'ref', label: 'Contract Ref #', render: (c) => <Typography sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{c.ref}</Typography> },
-    { key: 'status', label: 'Contract status', render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} /> },
+    columns.amount && { key: 'amount', label: 'Outsource price', align: 'right', render: (c) => (c.amount > 0 ? peso(c.amount) : '—') },
+    { key: 'ref', label: 'Request Ref #', render: (c) => <Typography sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{c.ref}</Typography> },
+    { key: 'status', label: 'Request status', render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} /> },
     // Where it went: the channels it was actually sent to, or how it will be sent once it is
     columns.sentTo && {
       key: 'sentTo',
@@ -354,7 +357,7 @@ export default function OutsourcePage() {
     { key: 'service', label: 'Supplies', render: (p) => p.service },
     {
       key: 'contact',
-      label: 'Contract goes to',
+      label: 'Request goes to',
       render: (p) => (
         <Box>
           <ChannelChips channels={p.channels} />
@@ -362,7 +365,7 @@ export default function OutsourcePage() {
         </Box>
       )
     },
-    { key: 'contracts', label: 'Contracts', align: 'right', render: (p) => p.contractCount },
+    { key: 'contracts', label: 'Requests', align: 'right', render: (p) => p.contractCount },
     { key: 'open', label: 'Awaiting reply', align: 'right', render: (p) => (p.openCount > 0 ? <Pill size="sm" label={String(p.openCount)} bg="rgba(245, 158, 11, 0.14)" fg="#b45309" /> : '—') },
     {
       key: 'actions',
@@ -388,16 +391,16 @@ export default function OutsourcePage() {
     <>
       <PageHeader
         title="Outsourcing"
-        subtitle="Rent what your own stock can't cover, and send the contract to the partner by email, SMS or both."
+        subtitle="Rent what your own stock can't cover. Ask a partner by email, SMS or both if they can supply it for an event."
         actions={
           <>
             <Button variant="outlined" startIcon={<StorefrontOutlinedIcon />} onClick={() => setPartnerForm({})}>Add partner</Button>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} disabled={!activePartners.length} onClick={() => setEditing({ prefill: {} })}>New contract</Button>
+            <Button variant="contained" startIcon={<AddRoundedIcon />} disabled={!activePartners.length} onClick={() => setEditing({ prefill: {} })}>New request</Button>
           </>
         }
       />
 
-      {/* Summary cards; clicking one opens the matching contract filter. Two per row on phones and tablets. */}
+      {/* Summary cards; clicking one opens the matching request filter. Two per row on phones and tablets. */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
         <StatCard
           icon={StorefrontOutlinedIcon}
@@ -443,13 +446,13 @@ export default function OutsourcePage() {
         value={tab}
         onChange={(next) => setParams({ tab: next })}
         options={[
-          { value: 'contracts', label: 'Contracts', badge: totals.sent },
+          { value: 'contracts', label: 'Requests', badge: totals.sent },
           { value: 'partners', label: 'Partners' }
         ]}
       />
 
       <DashCard>
-        {/* Toolbar: search, Service, Event date, Status and Filter columns (the last three are for contracts) */}
+        {/* Toolbar: search, Service, Event date, Status and Filter columns (the last three are for requests) */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', mb: 2 }}>
           <SearchField
             id="outsource-search"
@@ -493,7 +496,7 @@ export default function OutsourcePage() {
           )}
         </Box>
 
-        {/* Bulk bar, shown when contracts are ticked */}
+        {/* Bulk bar, shown when requests are ticked */}
         {ticked.length > 0 && (
           <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
             <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{ticked.length} selected</Typography>
@@ -510,7 +513,7 @@ export default function OutsourcePage() {
             rowKey={(c) => c.id}
             onRowClick={(c) => setDetailsId(c.id)}
             minWidth={980}
-            empty={<EmptyState compact title="No contracts match" description={contracts.length ? 'Try another search, category, date or status.' : 'Start one with "New contract" once you have a partner.'} />}
+            empty={<EmptyState compact title="No requests match" description={contracts.length ? 'Try another search, category, date or status.' : 'Start one with "New request" once you have a partner.'} />}
           />
         ) : (
           <DataTable
@@ -531,10 +534,10 @@ export default function OutsourcePage() {
         )}
         {!loading && rows.length > 0 && <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />}
 
-        {/* ⋮ menu for one contract; the options depend on its status */}
+        {/* ⋮ menu for one request; the options depend on its status */}
         <Menu anchorEl={rowMenu && rowMenu.anchor} open={Boolean(rowMenu)} onClose={() => setRowMenu(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
           {menuContract && [
-            <MenuItem key="details" onClick={() => openAction('details', menuContract)}>Open contract</MenuItem>,
+            <MenuItem key="details" onClick={() => openAction('details', menuContract)}>Open request</MenuItem>,
             ...(menuContract.status === 'draft'
               ? [
                   <MenuItem key="edit" onClick={() => openAction('edit', menuContract)}>Edit draft</MenuItem>,
@@ -552,7 +555,7 @@ export default function OutsourcePage() {
             <Divider key="d1" />,
             <MenuItem key="download" onClick={() => openAction('download', menuContract)}>Download as .txt</MenuItem>,
             ...(['draft', 'sent', 'accepted'].includes(menuContract.status)
-              ? [<MenuItem key="cancelled" onClick={() => openAction('cancelled', menuContract)} sx={{ color: tokens.redPress }}>Cancel contract</MenuItem>]
+              ? [<MenuItem key="cancelled" onClick={() => openAction('cancelled', menuContract)} sx={{ color: tokens.redPress }}>Cancel request</MenuItem>]
               : [])
           ]}
         </Menu>
@@ -563,7 +566,7 @@ export default function OutsourcePage() {
             <MenuItem key="edit" onClick={() => { setPartnerMenu(null); setPartnerForm({ id: menuPartner.id }); }}>Edit details</MenuItem>,
             ...(menuPartner.archived
               ? []
-              : [<MenuItem key="new" onClick={() => { setPartnerMenu(null); setEditing({ prefill: { partnerId: menuPartner.id } }); }}>New contract for them</MenuItem>]),
+              : [<MenuItem key="new" onClick={() => { setPartnerMenu(null); setEditing({ prefill: { partnerId: menuPartner.id } }); }}>New request for them</MenuItem>]),
             <Divider key="d1" />,
             menuPartner.archived ? (
               <MenuItem key="restore" onClick={() => { setPartnerMenu(null); setArchive({ ids: [menuPartner.id], archived: false }); }}>Restore partner</MenuItem>
@@ -620,7 +623,7 @@ export default function OutsourcePage() {
 
       <DetailsDialog contract={contractById(detailsId)} onClose={() => setDetailsId(null)} onAction={openAction} />
 
-      {/* Record the partner's reply, mark a contract delivered, or cancel it */}
+      {/* Record the partner's reply, mark a request delivered, or cancel it */}
       <ConfirmDialog
         open={Boolean(answer)}
         onClose={() => setAnswer(null)}
@@ -630,15 +633,15 @@ export default function OutsourcePage() {
             : ''
         }
         description={
-          answer && { accepted: 'The contract becomes active and counts under Accepted / active.', declined: 'The contract closes as declined. Draft a new one for another partner if you still need the items.', completed: 'The items arrived and the contract is closed.', cancelled: 'The contract closes. Let the partner know separately if it was already sent.' }[answer.status]
+          answer && { accepted: 'The partner can supply this. It counts under Accepted / active.', declined: 'The request closes as declined. Make a new request for another partner if you still need the items.', completed: 'The items arrived and the request is closed.', cancelled: 'The request closes. Let the partner know separately if it was already sent.' }[answer.status]
         }
-        confirmLabel={answer ? { accepted: 'Record acceptance', declined: 'Record decline', completed: 'Mark delivered', cancelled: 'Cancel contract' }[answer.status] : ''}
+        confirmLabel={answer ? { accepted: 'Record acceptance', declined: 'Record decline', completed: 'Mark delivered', cancelled: 'Cancel request' }[answer.status] : ''}
         tone={answer && ['declined', 'cancelled'].includes(answer.status) ? 'danger' : 'primary'}
         reasonLabel={answer && ['declined', 'cancelled'].includes(answer.status) ? 'Reason' : undefined}
         reasonPlaceholder="e.g. Fully booked for that date"
         onConfirm={async (note) => {
           await outsourceApi.setContractStatus(answer.id, answer.status, { note });
-          const done = { accepted: 'Acceptance recorded.', declined: 'Decline recorded.', completed: 'Contract completed.', cancelled: 'Contract cancelled.' }[answer.status];
+          const done = { accepted: 'Acceptance recorded.', declined: 'Decline recorded.', completed: 'Request completed.', cancelled: 'Request cancelled.' }[answer.status];
           setAnswer(null);
           setSelected([]);
           notify(done);
@@ -651,8 +654,8 @@ export default function OutsourcePage() {
         title={archive ? `${archive.archived ? 'Archive' : 'Restore'} ${(partners.find((p) => p.id === archive.ids[0]) || {}).name}?` : ''}
         description={
           archive && archive.archived
-            ? 'Archived partners leave the list and cannot be given new contracts. Their past contracts are kept.'
-            : 'The partner returns to the list and can be given contracts again.'
+            ? 'Archived partners leave the list and cannot be given new requests. Their past requests are kept.'
+            : 'The partner returns to the list and can be given requests again.'
         }
         confirmLabel={archive && archive.archived ? 'Archive' : 'Restore'}
         tone={archive && archive.archived ? 'danger' : 'primary'}
@@ -666,15 +669,15 @@ export default function OutsourcePage() {
   );
 }
 
-// A blank item row in the contract dialog. `custom` is true once the admin chooses "Other item…",
+// A blank item row in the request dialog. `custom` is true once the admin chooses "Other item…",
 // which swaps the dropdown for a box they can type an item name into.
 const blankItem = () => ({ name: '', qty: '', custom: false });
 // Value used in the item dropdown for something that is not in the inventory
 const OTHER_ITEM = '__other__';
 
 /**
- * Write a contract, or edit one that is still a draft: partner, the event it is for, the items and
- * how many, the date they are needed, the agreed amount and any extra line for the partner.
+ * Write a request, or edit one that is still a draft: partner, the event it is for, the items and
+ * how many, the date they are needed, the partner's price and any extra line for the partner.
  * Saving a new one opens the send dialog next.
  */
 function ContractDialog({ open, contract, prefill, partners, events, inventory, onClose, onSaved }) {
@@ -737,8 +740,8 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
       busy={busy}
       maxWidth="md"
       fullScreenOnMobile
-      title={id ? 'Edit draft contract' : 'New contract'}
-      description="Say what you need and when. The contract text is written for you on the next step, and you can edit it before it goes out."
+      title={id ? 'Edit draft request' : 'New request'}
+      description="Say what you need and when. The request text is written for you on the next step, and you can edit it before it goes out."
       actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{id ? 'Save draft' : 'Save and review'}</BusyButton></>}
     >
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
@@ -750,7 +753,7 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
           value={values.partnerId}
           onChange={set('partnerId')}
           error={errors.partnerId}
-          hint={partner ? `Reached by ${channelText(partner.channels).toLowerCase()}.` : 'Only partners with contact details can be sent a contract.'}
+          hint={partner ? `Reached by ${channelText(partner.channels).toLowerCase()}.` : 'Only partners with contact details can be sent a request.'}
           options={partnerChoices.map((p) => ({ value: p.id, label: `${p.name} · ${p.service}${p.archived ? ' (archived)' : ''}` }))}
         />
         <SelectField
@@ -835,13 +838,13 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
         />
         <FormField
           id="contract-amount"
-          label="Agreed amount"
+          label="Outsource price"
           optional
           type="number"
           value={values.amount}
           onChange={set('amount')}
           error={errors.amount}
-          hint="Leave blank if the price is not settled yet."
+          hint="The partner's own price for these items. Leave blank if you don't know it yet."
           inputProps={{ min: 0, step: 100 }}
         />
       </Box>
@@ -863,7 +866,7 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
 }
 
 /**
- * Add a partner or edit one. Either an email address or a mobile number is enough: the contract is
+ * Add a partner or edit one. Either an email address or a mobile number is enough: the request is
  * sent to whichever of the two is on file, so a partner who only texts still receives it.
  */
 function PartnerDialog({ open, partner, onClose, onSaved }) {
@@ -910,7 +913,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
       maxWidth="sm"
       fullScreenOnMobile
       title={id ? 'Edit partner' : 'Add partner'}
-      description="Contracts go to the email address and the mobile number on file. One of the two is enough."
+      description="Requests go to the email address and the mobile number on file. One of the two is enough."
       actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{id ? 'Save partner' : 'Add partner'}</BusyButton></>}
     >
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
@@ -925,7 +928,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           value={values.email}
           onChange={set('email')}
           error={errors.email}
-          hint="Where the contract is emailed."
+          hint="Where the request is emailed."
           placeholder="name@example.com"
         />
         <FormField
@@ -934,19 +937,19 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           value={values.mobile}
           onChange={set('mobile')}
           error={errors.mobile}
-          hint="Where the contract is texted."
+          hint="Where the request is texted."
           placeholder="0917 123 4567"
         />
       </Box>
       <FormField id="partner-notes" label="Notes" optional multiline minRows={2} value={values.notes} onChange={set('notes')} error={errors.notes} inputProps={{ maxLength: 300 }} placeholder="Delivery terms, rates, how far ahead they need to be booked…" sx={{ mt: 1.75 }} />
-      {/* Tells the admin, before saving, which way a contract will reach this partner */}
+      {/* Tells the admin, before saving, which way a request will reach this partner */}
       <Box sx={{ mt: 1.75 }}>
         {channels.length ? (
-          <AlertBanner tone="info" title={`Contracts go out by ${channelText(channels).toLowerCase()}`}>
+          <AlertBanner tone="info" title={`Requests go out by ${channelText(channels).toLowerCase()}`}>
             {channels.length === 2 ? 'Both get the same text.' : 'The other channel is used once you add it.'}
           </AlertBanner>
         ) : (
-          <AlertBanner tone="locked" title="No way to reach them yet">Add an email address or a mobile number, or contracts can't be sent.</AlertBanner>
+          <AlertBanner tone="locked" title="No way to reach them yet">Add an email address or a mobile number, or requests can't be sent.</AlertBanner>
         )}
       </Box>
     </AppDialog>
@@ -954,7 +957,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
 }
 
 /**
- * Review and send a contract. The text is written from the contract's own details and can be edited;
+ * Review and send a request. The text is written from the request's own details and can be edited;
  * whatever is here is what goes out — the same words to the email address and to the mobile number,
  * so a partner who only has a number is told exactly what an emailed partner is told.
  */
@@ -1010,7 +1013,7 @@ function SendDialog({ contract, onClose, onSent }) {
       fullScreenOnMobile
       title={`Send ${contract.ref}`}
       description={`To ${contract.partnerName} · ${contract.itemsSummary}`}
-      actions={<><Button onClick={onClose} disabled={busy}>Close</Button><BusyButton busy={busy} disabled={!canSend} startIcon={<SendRoundedIcon />} onClick={send}>{contract.sentAt ? 'Send again' : 'Send contract'}</BusyButton></>}
+      actions={<><Button onClick={onClose} disabled={busy}>Close</Button><BusyButton busy={busy} disabled={!canSend} startIcon={<SendRoundedIcon />} onClick={send}>{contract.sentAt ? 'Send again' : 'Send request'}</BusyButton></>}
     >
       {/* Where it goes, and the promise that both channels carry the same words */}
       {canSend ? (
@@ -1041,7 +1044,7 @@ function SendDialog({ contract, onClose, onSent }) {
 
       <FormField
         id="send-body"
-        label="Contract text"
+        label="Request text"
         required
         multiline
         minRows={12}
@@ -1060,7 +1063,7 @@ function SendDialog({ contract, onClose, onSent }) {
   );
 }
 
-/** One contract in full: its details, the text that was sent, where it went, and its history. */
+/** One request in full: its details, the text that was sent, where it went, and its history. */
 function DetailsDialog({ contract, onClose, onAction }) {
   if (!contract) return <AppDialog open={false} onClose={onClose} title="" />;
   const chip = STATUS[contract.status];
@@ -1090,7 +1093,7 @@ function DetailsDialog({ contract, onClose, onAction }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.75, mb: 2 }}>
         <Field label="Status"><Pill size="sm" label={chip.label} bg={chip.bg} fg={chip.fg} /></Field>
         <Field label="Items">{contract.itemsSummary}</Field>
-        <Field label="Amount">{contract.amount > 0 ? peso(contract.amount) : 'Not settled'}</Field>
+        <Field label="Outsource price">{contract.amount > 0 ? peso(contract.amount) : 'Not settled'}</Field>
         <Field label="Event">{contract.eventName || 'No event linked'}</Field>
         <Field label="Event date">{contract.eventDate ? formatDate(contract.eventDate) : '—'}</Field>
         <Field label="Date needed">{formatDate(contract.needBy)}</Field>
@@ -1121,7 +1124,7 @@ function DetailsDialog({ contract, onClose, onAction }) {
           </Box>
         </>
       ) : (
-        <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>The contract text is written when you send it, and both the email and the SMS carry it word for word.</Typography>
+        <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>The request text is written when you send it, and both the email and the SMS carry it word for word.</Typography>
       )}
 
       <Divider sx={{ my: 2 }} />

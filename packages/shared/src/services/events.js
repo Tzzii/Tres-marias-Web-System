@@ -1,11 +1,11 @@
 /**
- * App-wide events, shared by the browser store (store.js) and the API client (http.js):
- *   change         some record changed (a store write, another tab, or a successful API write);
+ * App-wide events, sent by the API client (http.js), the services and the change poller (poller.js):
+ *   change         some record changed (a successful API write here, or a change the poller saw);
  *                  every live useResource reloads quietly, so badges and lists stay current.
  *   signed out     the API rejected the session token (401); the portal ends its session.
- *   token renewed  the API replaced the session token (after the customer changed their password,
- *                  every older token stops working); the portal saves the new one and stays signed in.
- * Kept apart from store.js so they outlive it: the store is removed in Phase 12.
+ *   token renewed  the API replaced the session token (after the customer changed or reset their password
+ *                  in My profile, every older token stops working); the portal saves the new one and stays signed in.
+ * (Until Phase 12 the browser data store sent them too; it was removed then.)
  */
 
 const changeListeners = new Set(); // functions to call whenever data changes

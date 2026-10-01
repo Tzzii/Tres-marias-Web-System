@@ -33,6 +33,8 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS password_changes;
+DROP TABLE IF EXISTS signup_requests;
 DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS auth_challenges;
 DROP TABLE IF EXISTS login_attempts;
@@ -70,7 +72,7 @@ DROP TABLE IF EXISTS admins;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================================
--- Accounts (authService, Phase 3)
+-- Accounts (modules/auth, Phase 3)
 -- ============================================================================
 
 -- Admin accounts: two-stage sign-in (password, then an emailed code) and the
@@ -94,15 +96,15 @@ CREATE TABLE admins (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Customer accounts (sign-up, log-in, profile, password reset). The admin directory
--- (customerService, Phase 9) reads the same rows.
+-- (modules/customers, Phase 9) reads the same rows.
 CREATE TABLE customers (
   id                  VARCHAR(40)     NOT NULL,             -- cus-…
   first_name          VARCHAR(60)     NOT NULL DEFAULT '',  -- the three parts exist only for accounts made with the
   middle_name         VARCHAR(60)     NOT NULL DEFAULT '',  -- split sign-up form; the profile form clears them when
-  last_name           VARCHAR(60)     NOT NULL DEFAULT '',  -- the full name is edited (authService.updateCustomerProfile)
+  last_name           VARCHAR(60)     NOT NULL DEFAULT '',  -- the full name is edited (auth.service.js, updateCustomerProfile)
   name                VARCHAR(200)    NOT NULL,             -- full name, shown everywhere
   email               VARCHAR(254)    NOT NULL,             -- stored lower-case; unique
-  mobile              VARCHAR(20)     NOT NULL DEFAULT '',  -- receives the password-reset code by SMS
+  mobile              VARCHAR(20)     NOT NULL DEFAULT '',  -- for event-day texts; codes go to the email (Phase 12)
   password_hash       VARCHAR(255)    NOT NULL,
   company             VARCHAR(160)    NOT NULL DEFAULT '',
   created_at          BIGINT UNSIGNED NOT NULL,
@@ -112,16 +114,17 @@ CREATE TABLE customers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Catalog (catalogService, Phase 4)
+-- Catalog (modules/catalog, Phase 4)
 -- ============================================================================
 
--- Flat-priced equipment packages. `guests` is how many guests the tableware and chairs cover.
+-- Flat-priced equipment packages. `guests` is the package's default guest count, shown to help
+-- customers choose; each booking carries the customer's own count.
 -- A package carries no service type: any of them can be booked as a Buffet (food cooked by us,
 -- charged per person) or as Catering only (the equipment on its own). Archived, never deleted.
 -- kind 'rental' is the Equipment Rental package: price 0, guests 0, no items; its customer picks
 -- rentable inventory items (inventory_items.rentable) and pays each one's rent_price per piece.
 -- sort_order is the order every list shows (ORDER BY sort_order, id): the seed's order, and each new
--- package after the rest, like the browser store's array (Phase 4). The same goes for addons and dishes.
+-- package after the rest (Phase 4). The same goes for addons and dishes.
 CREATE TABLE packages (
   id          VARCHAR(40)  NOT NULL,                     -- pkg-…
   slug        VARCHAR(120) NOT NULL,                     -- URL name made from the name, e.g. package-1-with-waiters
@@ -145,18 +148,38 @@ CREATE TABLE packages (
   CONSTRAINT chk_packages_guests CHECK (guests >= 0)             -- 0 only for the rental package
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Additional charges a customer can tick on the booking form. No price column:
--- the admin prices each one in the quotation (reservations.quotation.addonPrices).
+-- Additional charges a customer can tick on the booking form. Each may have its own price; the
+-- quotation holds the final amount for each booking (reservations.quotation.addonPrices).
+-- A charge can come in sizes (e.g. Tent: 10 × 10, 10 × 20). Each size is a row of its own pointing
+-- at its charge (parent_id), with its own price, always counted by the piece; the customer books
+-- sizes, never the charge itself. A size is archived, never deleted, when the admin removes it.
+-- A charge with packages (has_packages, e.g. Sounds and lights) has packages instead of sizes, stored
+-- the same way: the customer picks one package, booked once, and its description says what it includes.
+-- A charge or size can book an inventory item (inventory_items.addon_id), so its pieces are held.
 CREATE TABLE addons (
   id           VARCHAR(40)  NOT NULL,            -- add-…
-  name         VARCHAR(120) NOT NULL,            -- unique regardless of case
-  description  TEXT         NOT NULL,
+  parent_id    VARCHAR(40)  NULL,                -- a size or package: its charge; NULL for a charge
+  name         VARCHAR(120) NOT NULL,            -- a size's or package's own name ("10 × 10"); unique regardless
+                                                 -- of case among the charges, and among one charge's sizes
+  description  TEXT         NOT NULL,            -- a package: what it includes; a size: '' (its charge's is shown)
+  -- The admin's own price in whole pesos (ADDON_PRICE_RANGE in the shared config); for a charge counted
+  -- by the piece, the price of one. NULL: no price of its own, so it is priced in each quotation.
+  -- A booking copies it into its estimate, and the quotation starts from that amount.
+  price        INT          NULL,
   -- On: the booking form asks how many (reservation_addons.qty) and the quotation prices ONE of them
   has_quantity BOOLEAN      NOT NULL DEFAULT 0,
+  -- On (a charge only): its child rows are packages, the customer picks one, and the admin's Packages
+  -- page lists it under "Additional charges with packages". Set when the charge is created.
+  has_packages BOOLEAN      NOT NULL DEFAULT 0,
   archived     BOOLEAN      NOT NULL DEFAULT 0,
-  sort_order   INT          NOT NULL DEFAULT 0,  -- list position, as for packages
+  sort_order   INT          NOT NULL DEFAULT 0,  -- list position, as for packages (a size: among its charge's sizes)
+  -- '' for a charge, the charge's id for a size, so the name index below covers both kinds
+  parent_key   VARCHAR(40)  AS (COALESCE(parent_id, '')) STORED,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_addons_name (name)
+  UNIQUE KEY uq_addons_name (parent_key, name),
+  KEY idx_addons_parent (parent_id),
+  CONSTRAINT fk_addons_parent FOREIGN KEY (parent_id) REFERENCES addons (id),
+  CONSTRAINT chk_addons_price CHECK (price IS NULL OR price BETWEEN 1 AND 1000000)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- The dishes suggested under each menu box on the booking form. Customers write their own menu
@@ -191,7 +214,7 @@ CREATE TABLE catalog_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Reservations (reservationService, Phase 6)
+-- Reservations (modules/reservations, Phase 6)
 -- ============================================================================
 
 -- One booking request and where it stands in the pipeline:
@@ -204,7 +227,7 @@ CREATE TABLE reservations (
   occasion        VARCHAR(40)     NOT NULL,             -- one of OCCASIONS in the shared config
   date            DATE            NOT NULL,             -- event date
   start_time      CHAR(5)         NOT NULL,             -- 'HH:MM', on the hour or half hour
-  guests          INT             NOT NULL,             -- may be above what the package covers (charged as other charges); 0 for a rental
+  guests          INT             NOT NULL,             -- the customer's count, which may differ from the package's default; 0 for a rental
   package_id      VARCHAR(40)     NOT NULL,
   -- What the customer booked. 'Buffet and Catering' = our food, charged per person; 'Catering only' =
   -- a package's equipment alone; 'Equipment rental' = items picked one by one (reservation_rental_items).
@@ -285,7 +308,7 @@ CREATE TABLE reservation_activity (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Payments (paymentService, Phase 8 and 8B)
+-- Payments (modules/payments, Phase 8 and 8B)
 -- ============================================================================
 
 -- Money received for a reservation: bank transfers sent by the customer with a photo of the receipt,
@@ -324,7 +347,7 @@ CREATE TABLE payments (
   CONSTRAINT chk_payments_status CHECK (status IN ('awaiting', 'verified', 'rejected'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Money returned to a customer (paymentService recordRefund, Phase 8), after the admin sent it outside
+-- Money returned to a customer (payments.service.js recordRefund, Phase 8), after the admin sent it outside
 -- the system: a cancellation refund on a cancelled or declined booking (₱0 up to what is due, with a
 -- reason when part is kept; a ₱0 one records that everything is kept and sends nothing, so it has no
 -- method or reference and sent_on is the day it was recorded), or an overpayment refund (always the
@@ -398,7 +421,7 @@ CREATE TABLE webhook_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Chat (messageService, Phase 7)
+-- Chat (modules/messages, Phase 7)
 -- ============================================================================
 
 -- One conversation per customer with the Tres Marias admin (created on first use).
@@ -433,7 +456,7 @@ CREATE TABLE messages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Feedback (feedbackService, Phase 9)
+-- Feedback (modules/feedback, Phase 9)
 -- ============================================================================
 
 -- One review per completed event (UNIQUE ref) and the admin's moderation of it.
@@ -471,7 +494,7 @@ CREATE TABLE testimonials (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Calendar (calendarService, Phase 5)
+-- Calendar (modules/calendar, Phase 5)
 -- ============================================================================
 
 -- Dates the admin closed for booking (the record's calendar.blocked array).
@@ -493,7 +516,7 @@ CREATE TABLE calendar_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Inventory (inventoryService, Phase 10)
+-- Inventory (modules/inventory, Phase 10)
 -- ============================================================================
 
 -- Equipment Tres Marias owns. In use = sum of the item's allocations;
@@ -511,9 +534,15 @@ CREATE TABLE inventory_items (
   damage_fee   INT          NOT NULL DEFAULT 0,             -- per piece that comes back damaged or missing
   notes        TEXT         NOT NULL,
   archived     BOOLEAN      NOT NULL DEFAULT 0,
+  -- The additional charge (or size) that books this item, e.g. Tent 10x10 for the Tent's 10 × 10 size:
+  -- an event booking it holds that many pieces on its date (rentalStock), and customers see how many
+  -- are left. Set from the charge's Edit window on the Packages page. NULL: not booked that way.
+  addon_id     VARCHAR(40)  NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_inventory_items_code (code),
   UNIQUE KEY uq_inventory_items_name (name),
+  UNIQUE KEY uq_inventory_items_addon (addon_id),           -- one item per charge or size
+  CONSTRAINT fk_inventory_items_addon FOREIGN KEY (addon_id) REFERENCES addons (id),
   CONSTRAINT chk_inventory_items_counts CHECK (total >= 0 AND low_stock_at >= 0 AND damaged >= 0 AND rent_price >= 0 AND damage_fee >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -547,7 +576,7 @@ CREATE TABLE inventory_history (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- The rental tables of a reservation live here, after inventory_items, because their rows point
--- at both a reservation and an inventory item (reservationService, Phase 6; inventoryService, Phase 10).
+-- at both a reservation and an inventory item (modules/reservations, Phase 6; modules/inventory, Phase 10).
 
 -- The items an equipment rental asks for (the record's `rentalItems` array). The name and both prices
 -- are copied when the line is booked, so a later price change in the inventory never moves it.
@@ -606,7 +635,7 @@ CREATE TABLE outbox (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Outsourcing (outsourceService, Phase 10)
+-- Outsourcing (modules/outsource, Phase 10)
 -- ============================================================================
 
 -- Partners Tres Marias rents from. Each needs an email, a mobile number or both
@@ -716,16 +745,18 @@ CREATE TABLE counters (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- Sign-in protection (authService, Phase 3) — replaces what the browser kept in
--- localStorage / sessionStorage (tm.auth.attempts, tm.auth.challenge,
--- tm.auth.contactChallenge, tm.auth.resetChallenge)
+-- Sign-in protection (modules/auth, Phase 3): failed attempts, lockouts and the emailed
+-- one-time codes (admin sign-in and contact change; since Phase 12 also every customer code:
+-- sign-up, forgot password and password change)
 -- ============================================================================
 
 -- Failed attempts and lockouts, one row per scope and account (src/modules/auth/lockout.js).
--- Scopes: 'customer', 'admin' (password, keyed by email), 'admin-code', 'reset-code' (codes,
--- keyed by email), 'customer-reauth', 'admin-reauth' (current password before a change, keyed by
--- account id), 'admin-contact' (contact-change code, keyed by admin id) and 'reset-sms' (password-
--- reset texts sent to one customer, keyed by customer id: 5 in a row, then an hour's pause).
+-- Scopes: 'customer', 'admin' (password, keyed by email), 'admin-code', 'reset-code', 'signup-code'
+-- (codes, keyed by email), 'change-code' (password-change code, keyed by customer id),
+-- 'customer-reauth', 'admin-reauth' (current password before a change, keyed by account id),
+-- 'admin-contact' (contact-change code, keyed by admin id) and 'code-email' (codes emailed to one
+-- customer address for sign-up, reset or password change, keyed by email: 5 in a row, then an
+-- hour's pause; it replaced 'reset-sms' in Phase 12, when customer codes moved from SMS to email).
 CREATE TABLE login_attempts (
   scope        VARCHAR(20)     NOT NULL,
   identifier   VARCHAR(254)    NOT NULL,                    -- lower-case email or account id, per scope
@@ -756,8 +787,8 @@ CREATE TABLE auth_challenges (
   CONSTRAINT chk_auth_challenges_field CHECK (field IS NULL OR field IN ('email', 'mobile'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Customer forgot-password requests: a 6-digit code texted to the mobile on the account,
--- then the new password. Only a hash of the code is kept.
+-- Customer forgot-password requests: a 6-digit code emailed to the account's address (Phase 12;
+-- texted to the mobile before), then the new password. Only a hash of the code is kept.
 CREATE TABLE password_resets (
   id          VARCHAR(40)     NOT NULL,                     -- handed to the browser as challengeId
   customer_id VARCHAR(40)     NOT NULL,
@@ -771,6 +802,45 @@ CREATE TABLE password_resets (
   PRIMARY KEY (id),
   KEY idx_password_resets_customer (customer_id),
   CONSTRAINT fk_password_resets_customer FOREIGN KEY (customer_id) REFERENCES customers (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Sign-ups waiting for their emailed code (Phase 12): the customer account is created only when the
+-- 6-digit code sent to the new address is entered, so every account's email is proven. Only hashes
+-- are kept (the chosen password and the code). A newer request for the same email replaces the older.
+CREATE TABLE signup_requests (
+  id            VARCHAR(40)     NOT NULL,                   -- sgn-…, handed to the browser as challengeId
+  email         VARCHAR(254)    NOT NULL,                   -- lower-case; checked against customers again when the code is right
+  first_name    VARCHAR(60)     NOT NULL,
+  middle_name   VARCHAR(60)     NOT NULL DEFAULT '',
+  last_name     VARCHAR(60)     NOT NULL,
+  mobile        VARCHAR(20)     NOT NULL,
+  password_hash VARCHAR(255)    NOT NULL,                   -- bcrypt of the password typed on the sign-up form
+  code_hash     VARCHAR(255)    NOT NULL,
+  expires_at    BIGINT UNSIGNED NOT NULL,                   -- a resend moves expires_at and resend_at
+  resend_at     BIGINT UNSIGNED NOT NULL,
+  attempts      INT             NOT NULL DEFAULT 0,
+  used_at       BIGINT UNSIGNED NULL,                       -- set when the account was created; a used request is dead
+  created_at    BIGINT UNSIGNED NOT NULL,                   -- a request is usable for 30 minutes from here
+  PRIMARY KEY (id),
+  KEY idx_signup_requests_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A signed-in customer's password change waiting for its emailed code (Phase 12, My profile): the
+-- current password was checked first, and the new one is saved only when the code is right. Only
+-- hashes are kept. Any finished password change or reset removes the customer's waiting ones.
+CREATE TABLE password_changes (
+  id                VARCHAR(40)     NOT NULL,               -- pwc-…, handed to the browser as challengeId
+  customer_id       VARCHAR(40)     NOT NULL,
+  new_password_hash VARCHAR(255)    NOT NULL,               -- bcrypt of the new password, saved to customers when the code is right
+  code_hash         VARCHAR(255)    NOT NULL,
+  expires_at        BIGINT UNSIGNED NOT NULL,
+  resend_at         BIGINT UNSIGNED NOT NULL,
+  attempts          INT             NOT NULL DEFAULT 0,
+  used_at           BIGINT UNSIGNED NULL,                   -- the password was changed; the request is spent
+  created_at        BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_password_changes_customer (customer_id),
+  CONSTRAINT fk_password_changes_customer FOREIGN KEY (customer_id) REFERENCES customers (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

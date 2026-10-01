@@ -3,8 +3,8 @@ import { config } from '../config.js';
 
 /**
  * Session tokens (docs/backend-development-phases.md §7.3): a JWT signed with JWT_SECRET (HS256),
- * sent by the portals as "Authorization: Bearer <token>" and kept by createAuth in the same
- * { token, user } session the browser store used.
+ * sent by the portals as "Authorization: Bearer <token>" and kept by createAuth (packages/shared) in
+ * the portal's { token, user } session.
  *
  * Payload: { sub: account id, role: 'customer' | 'admin', name, pwv, iat, exp }.
  * - role is the kind of account, not the admin's job title (that is admins.role, e.g. "Administrator").

@@ -1,4 +1,4 @@
-import { addDays, todayISO } from '../utils/format.js';
+import { addDays, todayISO } from '@tm/shared/src/utils/format.js';
 
 /**
  * Starting equipment list for the inventory, used by seed.js.
@@ -10,33 +10,34 @@ import { addDays, todayISO } from '../utils/format.js';
  *
  * Rental prices are per piece for one event, set from 2026 Philippine rental price lists (Manila rental
  * shops, a little lower for Batangas). The damage fee is what the customer pays for each piece that comes
- * back damaged or not at all, close to what a new one costs.
+ * back damaged or not at all. Set by the owner 2026-10-01 (as in the local admin): never more than ₱200
+ * over the rent price, rent + ₱100 for most items and rent + ₱200 for items renting at ₱500 and up.
  */
 
 // [name, category, total, low-stock alert level, { seed reservation key: quantity out }, damaged, rental]
 // `rental` is [rent per piece, damage fee per piece] for items customers can rent, or null for items
-// only our team uses (kitchen equipment, the stage and the presidential table set).
+// only our team uses (kitchen equipment, the stage, and the 10x10 and 10x20 tents until priced).
 // The keys are the ones in seed.js's RES table; buildInventorySeed swaps them for the real RES-YYYY-MMDD-NN references.
 const ITEMS = [
-  ['Monobloc chair', 'Furniture', 400, 60, { 'lola-carmen': 80, 'sofia-debut': 150 }, 6, [15, 400]],
-  ['Tiffany chair', 'Furniture', 150, 20, {}, 3, [90, 3000]],
-  ['Round table (10 seats)', 'Furniture', 60, 8, { 'lola-carmen': 8, 'sofia-debut': 15 }, 0, [150, 3500]],
-  ['Rectangular buffet table', 'Furniture', 12, 3, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [180, 3500]],
-  ['Cocktail table', 'Furniture', 15, 3, {}, 1, [150, 2500]],
-  ['Cake table', 'Furniture', 2, 0, {}, 0, [300, 3500]],
-  ['Water table', 'Furniture', 2, 0, {}, 0, [300, 3500]],
-  ['Presidential table set', 'Furniture', 2, 0, {}, 0, null],
-  ['Round tablecloth', 'Linens', 60, 10, { 'lola-carmen': 8, 'sofia-debut': 15 }, 2, [80, 500]],
+  ['Monobloc chair', 'Furniture', 400, 60, { 'lola-carmen': 80, 'sofia-debut': 150 }, 6, [15, 40]],
+  ['Tiffany chair', 'Furniture', 150, 20, {}, 3, [90, 150]],
+  ['Round table (10 seats)', 'Furniture', 60, 8, { 'lola-carmen': 8, 'sofia-debut': 15 }, 0, [150, 250]],
+  ['Rectangular buffet table', 'Furniture', 12, 3, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [180, 250]],
+  ['Cocktail table', 'Furniture', 15, 3, {}, 1, [150, 250]],
+  ['Cake table', 'Furniture', 2, 0, {}, 0, [300, 500]],
+  ['Water table', 'Furniture', 2, 0, {}, 0, [300, 400]],
+  ['Presidential table set', 'Furniture', 2, 0, {}, 0, [500, 600]],
+  ['Round tablecloth', 'Linens', 60, 10, { 'lola-carmen': 8, 'sofia-debut': 15 }, 2, [80, 180]],
   ['Chair cover', 'Linens', 400, 50, { 'sofia-debut': 150 }, 12, [15, 150]],
-  ['Table skirting', 'Linens', 20, 4, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [500, 2000]],
+  ['Table skirting', 'Linens', 20, 4, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [500, 700]],
   ['Table napkin', 'Linens', 300, 50, { 'lola-carmen': 80, 'sofia-debut': 150 }, 0, [10, 60]],
-  ['Food warmer', 'Serving ware', 15, 3, { 'lola-carmen': 6 }, 1, [250, 2500]],
-  ['Elegant food warmer', 'Serving ware', 15, 3, { 'sofia-debut': 5 }, 0, [450, 5000]],
-  ['Serving tray', 'Serving ware', 40, 8, { 'lola-carmen': 6, 'sofia-debut': 10 }, 0, [20, 300]],
-  ['Beverage dispenser', 'Serving ware', 10, 2, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [150, 1500]],
-  ['Soup tureen', 'Serving ware', 20, 4, {}, 0, [200, 1500]],
-  ['Stainless pitcher', 'Serving ware', 30, 6, { 'lola-carmen': 4, 'sofia-debut': 4 }, 0, [25, 400]],
-  ['Water jug', 'Serving ware', 5, 1, { 'lola-carmen': 1, 'sofia-debut': 1 }, 0, [100, 800]],
+  ['Food warmer', 'Serving ware', 15, 3, { 'lola-carmen': 6 }, 1, [250, 350]],
+  ['Elegant food warmer', 'Serving ware', 15, 3, { 'sofia-debut': 5 }, 0, [450, 550]],
+  ['Serving tray', 'Serving ware', 40, 8, { 'lola-carmen': 6, 'sofia-debut': 10 }, 0, [20, 120]],
+  ['Beverage dispenser', 'Serving ware', 10, 2, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [150, 250]],
+  ['Soup tureen', 'Serving ware', 20, 4, {}, 0, [200, 300]],
+  ['Stainless pitcher', 'Serving ware', 30, 6, { 'lola-carmen': 4, 'sofia-debut': 4 }, 0, [25, 125]],
+  ['Water jug', 'Serving ware', 5, 1, { 'lola-carmen': 1, 'sofia-debut': 1 }, 0, [100, 200]],
   ['Dinner plate', 'Tableware', 600, 100, { 'lola-carmen': 90, 'sofia-debut': 165 }, 14, [5, 80]],
   ['Dessert plate', 'Tableware', 500, 80, { 'lola-carmen': 90, 'sofia-debut': 165 }, 0, [3, 50]],
   ['Drinking glass', 'Tableware', 600, 100, { 'lola-carmen': 90, 'sofia-debut': 165 }, 21, [3, 40]],
@@ -47,32 +48,46 @@ const ITEMS = [
   ['Gas burner', 'Kitchen', 6, 2, { 'sofia-debut': 2 }, 1, null],
   ['LPG tank', 'Kitchen', 8, 2, { 'sofia-debut': 2 }, 0, null],
   ['Large cooking pot', 'Kitchen', 12, 3, { 'sofia-debut': 3 }, 0, null],
-  ['Ice cooler', 'Kitchen', 10, 2, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [150, 2000]],
-  ['Tent 20x20', 'Tents and stage', 5, 1, {}, 0, [3500, 30000]],
-  ['Tent 20x40', 'Tents and stage', 3, 0, {}, 0, [6500, 55000]],
+  ['Ice cooler', 'Kitchen', 10, 2, { 'lola-carmen': 2, 'sofia-debut': 3 }, 0, [150, 250]],
+  ['Tent 20x20', 'Tents and stage', 2, 1, {}, 0, [3500, 3700]],
+  ['Tent 20x40', 'Tents and stage', 4, 0, {}, 0, [6500, 6700]],
   ['Stage', 'Tents and stage', 1, 0, {}, 0, null],
-  ['Arc', 'Tents and stage', 2, 0, {}, 0, [1500, 6000]],
-  ['Centrepiece vase', 'Decor', 40, 8, { 'sofia-debut': 15 }, 2, [50, 300]],
-  ['Backdrop frame', 'Decor', 5, 1, { 'sofia-debut': 1 }, 0, [800, 5000]],
+  ['Arc', 'Tents and stage', 2, 0, {}, 0, [1500, 1700]],
+  ['Centrepiece vase', 'Decor', 40, 8, { 'sofia-debut': 15 }, 2, [50, 150]],
+  ['Backdrop frame', 'Decor', 5, 1, { 'sofia-debut': 1 }, 0, [800, 1000]],
   // The ten styling pieces Filipino caterers are asked for most, rentable on their own
-  ['Artificial flower centerpiece', 'Decor', 40, 8, {}, 0, [150, 600]],
-  ['Flower stand with artificial flowers', 'Decor', 10, 2, {}, 0, [350, 1500]],
-  ['Flower wall panel', 'Decor', 6, 1, {}, 0, [800, 3500]],
-  ['Ceiling drape', 'Decor', 20, 4, {}, 0, [250, 1200]],
+  ['Artificial flower centerpiece', 'Decor', 40, 8, {}, 0, [150, 250]],
+  ['Flower stand with artificial flowers', 'Decor', 10, 2, {}, 0, [350, 450]],
+  ['Flower wall panel', 'Decor', 6, 1, {}, 0, [800, 1000]],
+  ['Ceiling drape', 'Decor', 20, 4, {}, 0, [250, 350]],
   ['Chair ribbon', 'Decor', 300, 50, {}, 0, [10, 40]],
-  ['Table runner', 'Decor', 60, 10, {}, 0, [40, 250]],
-  ['Red aisle carpet', 'Decor', 2, 0, {}, 0, [900, 4000]],
-  ['Three-tier cake stand', 'Decor', 4, 1, {}, 0, [250, 1200]],
-  ["Celebrant's chair", 'Decor', 2, 0, {}, 0, [1000, 6000]],
-  ['Welcome sign easel', 'Decor', 4, 1, {}, 0, [150, 800]]
+  ['Table runner', 'Decor', 60, 10, {}, 0, [40, 140]],
+  ['Red aisle carpet', 'Decor', 2, 0, {}, 0, [900, 1100]],
+  ['Three-tier cake stand', 'Decor', 4, 1, {}, 0, [250, 350]],
+  ["Celebrant's chair", 'Decor', 2, 0, {}, 0, [1000, 1200]],
+  ['Welcome sign easel', 'Decor', 4, 1, {}, 0, [150, 250]],
+  // Added 2026-10-01 for the Tent additional charge's sizes. Kept at the end so every earlier item keeps
+  // its code (these are EQ-0047 and EQ-0048, as in the live inventory). Not for rent until priced.
+  ['Tent 10x10', 'Tents and stage', 2, 0, {}, 0, null],
+  ['Tent 10x20', 'Tents and stage', 2, 0, {}, 0, null]
 ];
+
+// The additional charge (here, a size of the Tent) that books each item: an event booking that size
+// holds the item's pieces on its date (rentalStock in domain/reservation.js). Item name -> add-on id.
+const ADDON_LINKS = {
+  'Tent 10x10': 'add-tent-10x10',
+  'Tent 10x20': 'add-tent-10x20',
+  'Tent 20x20': 'add-tent-20x20',
+  'Tent 20x40': 'add-tent-20x40'
+};
 
 /**
  * Build the inventory items and the next item-code number. Timestamps are relative to today.
  * `refs` maps each seed reservation key to its reference, e.g. { 'lola-carmen': 'RES-2026-0915-01' } (the REF map in seed.js).
- * Each item carries `rentable`, `rentPrice` and `damageFee` for the Equipment Rental package.
+ * Each item carries `rentable`, `rentPrice` and `damageFee` for the Equipment Rental package, and
+ * `addonId`: the additional charge or size that books it (ADDON_LINKS), or null.
  */
-export function buildInventorySeed(refs, actor = 'Teresa Marquez') {
+export function buildInventorySeed(refs, actor = 'Wilma W. Cabiscuelas') {
   const today = todayISO();
   // Timestamp `offset` days from today at a given hour
   const at = (offset, hour) => {
@@ -101,6 +116,7 @@ export function buildInventorySeed(refs, actor = 'Teresa Marquez') {
       damageFee: rental ? rental[1] : 0,
       notes: '',
       archived: false,
+      addonId: ADDON_LINKS[name] || null,
       history
     };
   });

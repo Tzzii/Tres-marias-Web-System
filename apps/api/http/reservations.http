@@ -124,7 +124,7 @@ POST {{api}}/admin/reservations/{{ref}}/quotation
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
-{ "addonPrices": { "add-waiters": 800 }, "otherCharges": 2000, "otherLabel": "20 extra guests", "discount": 500, "note": "Thank you for booking with us." }
+{ "addonPrices": { "add-waiters": 800 }, "otherCharges": 2000, "otherLabel": "2 extra hours", "discount": 500, "note": "Thank you for booking with us." }
 
 ### Approve a pending request (needs a quotation: 409 NO_QUOTATION). A full date: 409 CAPACITY; a clashing start
 ### time: 409 TIME_UNAVAILABLE; a rental with too few pieces free: 409 OUT_OF_STOCK; a blocked date: 409 DATE_UNAVAILABLE

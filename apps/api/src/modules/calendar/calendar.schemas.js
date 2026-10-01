@@ -4,8 +4,8 @@ import { z } from 'zod';
  * Request shapes for the calendar routes (zod), checked by middleware/validate.js before a service runs.
  *
  * Every field here is one calendar.service.js checks itself (a real date, an "HH:MM" time, a known
- * reason, a capacity from 1 to 10), so a missing or odd value gets the same message as the browser
- * version rather than zod's own. What these schemas add is the list of keys a route reads: any other
+ * reason, a capacity from 1 to 10), so a missing or odd value gets the same message as the calendar
+ * page shows rather than zod's own. What these schemas add is the list of keys a route reads: any other
  * key in the request is dropped before it reaches the service.
  */
 

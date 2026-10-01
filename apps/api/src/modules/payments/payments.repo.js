@@ -2,7 +2,7 @@ import { toPayment, toRefund } from '../reservations/reservations.repo.js';
 
 /**
  * SQL for payments and refunds (docs §7.1: the repo holds SQL only; the rules are in payments.service.js).
- * Records come back in the browser store's shape (paymentService.js); the reservation, its payments and
+ * Records come back in the shape the pages use; the reservation, its payments and
  * its refunds for the money figures come from reservations.repo.js (findReservations).
  *
  * The proof file's storage columns (proof_key, proof_mime, proof_size) are read only by findProof, for
@@ -27,8 +27,8 @@ const withNames = (row) => ({
 });
 
 /**
- * Payments with their event and customer names, newest first (ties in the order they were made, like
- * the browser store): every one, one customer's (`customerId`), or one payment (`id`).
+ * Payments with their event and customer names, newest first (ties in the order they were made):
+ * every one, one customer's (`customerId`), or one payment (`id`).
  */
 export async function findPayments(db, { customerId, id } = {}) {
   const conditions = [];

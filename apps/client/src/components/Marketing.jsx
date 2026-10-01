@@ -247,7 +247,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
         <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: site.inkSoft }}>{pkg.description}</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 12.5, color: site.inkMuted }}>
           <GroupsOutlinedIcon sx={{ fontSize: 16, color: site.gold }} />
-          {rental ? 'Rent only what you need' : `Covers ${pkg.guests} guests`}
+          {rental ? 'Rent only what you need' : `Default: ${pkg.guests} guests`}
         </Box>
         {/* Flat package price; food is cooked to the customer's request and quoted separately.
             A rental is priced item by item instead. */}
