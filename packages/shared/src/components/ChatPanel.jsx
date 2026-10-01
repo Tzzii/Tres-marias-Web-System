@@ -17,7 +17,7 @@ import { LightSurface } from './Surface.jsx';
 import { formatClock, formatDate, formatRelative, initials, parseISODate, toISODate, todayISO } from '../utils/format.js';
 
 /**
- * Messaging UI shared by the customer Chat page (1l) and the admin inbox. The admin gets two
+ * Messaging UI shared by the customer Chat page (1l) and the admin Messages page. The admin gets two
  * panes (one conversation per customer, then the messages); on phones it shows the list, then
  * the conversation with a back button.
  *
@@ -26,7 +26,7 @@ import { formatClock, formatDate, formatRelative, initials, parseISODate, toISOD
  * A message about a reservation shows the event's name as a small tag above it.
  * `single` shows only the open conversation (the customer has just one), with no list or back button.
  * `composeTag` ({ label }) shows what the next message is about above the text box; `onClearComposeTag` removes it.
- * `embedded` fills its parent (e.g. the admin chat window) instead of sizing itself to the page.
+ * `embedded` fills its parent (e.g. a pop-up chat window) instead of sizing itself to the page.
  * On a page (not embedded), phones and small tablets fit the card between its top edge and the
  * bottom tab bar, so the text box is always on screen without scrolling the page.
  * `compact` always uses the one-pane phone layout, for narrow windows on any screen size.

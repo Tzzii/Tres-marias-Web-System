@@ -25,8 +25,10 @@ capstone website #2/
 │   │       ├── main.jsx, App.jsx    # Routes: /, /packages/:slug, /login, /signup, /portal/*
 │   │       ├── auth.js              # Customer session (own storage key)
 │   │       ├── layouts/             # PortalLayout: sidebar, bottom tabs, notifications
-│   │       ├── components/          # SiteNav, SiteFooter, BookingBar, AuthGate, AuthLayout, ...
+│   │       ├── assets/              # Package illustrations; gallery/ = event photos (see its README)
+│   │       ├── components/          # SiteNav, SiteFooter, BookingBar, GalleryDialog, AuthGate, ...
 │   │       ├── lib/booking.js       # Booking picked while browsing + form drafts
+│   │       ├── lib/gallery.js       # Gallery boxes and photos, read from assets/gallery
 │   │       └── pages/
 │   │           ├── public/          # 1a Home, 1b Package detail (1c gate), 1d Sign up, 1e Log in
 │   │           └── portal/          # 1g Dashboard, 1h/1i Reservations, 1f Book, 1j Calendar,
@@ -39,18 +41,17 @@ capstone website #2/
 │   │       ├── auth.js              # Admin session (own storage key)
 │   │       ├── layouts/AdminLayout.jsx
 │   │       ├── components/SectionTabs.jsx  # Tabs that switch sections inside one page
-│   │       ├── components/MessagesWidget.jsx  # Top-bar chat window (small / full screen)
 │   │       ├── lib/txt.js           # Plain-text (.txt) exports
 │   │       └── pages/               # 1q Login, 1r Dashboard, Reservation & Calendar, 1t Reservation detail,
-│   │           │                    # 1u Packages, Inventory, 1x Customers, 1y Reports, Outsourcing,
-│   │           │                    # Feedbacks, My account
+│   │           │                    # 1u Packages, Inventory, 1x Customers, Messages, 1y Reports,
+│   │           │                    # Outsourcing, Feedbacks, My account
 │   │           ├── reservations/    # Tabs of Reservation & Calendar: 1s Requests, All reservations, 1v Calendar
 │   │           └── reports/         # Tab of Reports: 1w Payments and balances
 │   └── api/                         # API (Express 5 + MySQL 8), port 4000
 │       ├── schema.sql               # Every table (npm run db:reset)
 │       ├── http/                    # Saved requests per module (VS Code REST Client)
 │       └── src/                     # server.js, app.js, config.js, db.js, seed.js, lib/, middleware/,
-│                                    # integrations/ (mail, SMS, storage), modules/ (auth so far)
+│                                    # integrations/ (mail, SMS, storage, PayMongo), modules/ (one per service)
 ├── packages/
 │   └── shared/                      # SHARED BY BOTH APPS (imported as @tm/shared)
 │       ├── public/images/           # Logo and event theme icons (served by both apps)
@@ -61,7 +62,7 @@ capstone website #2/
 │           │                        # StatusPipeline, ChatPanel, DocumentDialog, ...
 │           ├── hooks/               # useResource, useCountdown, useNotify, useDocumentTitle
 │           ├── auth/createAuth.jsx  # Session provider, idle timeout, route guard
-│           ├── domain/              # Pure rules the API imports too (account, outsource)
+│           ├── domain/              # Pure rules the API imports too (money, reservation, inventory, outsource, …)
 │           ├── services/            # The data layer both apps call (see "Connecting the backend")
 │           └── utils/               # Formatting, status pipeline, validation
 ├── scripts/vite-run.mjs             # Runs Vite (handles the "#" in the folder name)
@@ -91,12 +92,18 @@ Each can also run alone: `npm run dev:api`, `npm run dev:client`, `npm run dev:a
 the account pages run on the API, and since Phase 4 so does the catalogue (packages, additional
 charges, buffet dishes, the buffet price per person and the rental price list). Since Phase 8 the
 calendar (blocked dates, daily capacity, the date pickers), reservations (lists, details, booking,
-cancelling, the admin's actions and edits), the chat and payments do too:
-`VITE_API_SERVICES=auth,catalog,calendar,reservations,messages,payments` in each portal's
-`.env.local`. While signed in, each portal asks the API every 15 seconds (only while the tab is
+cancelling, the admin's actions and edits), the chat and payments do too, and since Phase 11 every
+other page as well: the customer directory and the reviews (Phase 9), the inventory and outsourcing
+(Phase 10) and the Dashboard and Reports (Phase 11: the figures are worked out on the server, net of
+refunds; the TXT exports are still made in the browser):
+`VITE_API_SERVICES=auth,catalog,calendar,reservations,messages,payments,customers,feedback,inventory,outsource,reports`
+in each portal's `.env.local`, so every page shows the server's data and no page keeps data in the
+browser any more. While signed in, each portal asks the API every 15 seconds (only while the tab is
 visible) whether anything changed, and reloads what it shows, so one portal's changes show in the
-other without a refresh. The Dashboard, Reports, Customers, Feedback, Inventory and Outsourcing
-pages still use the browser store until Phase 11, so they don't show bookings made on the server yet.
+other without a refresh. On the API, sending an outsourcing
+contract really goes through the mail and SMS ports: with `MAIL_DRIVER=log` and `SMS_DRIVER=log`
+nothing leaves the server, and the Outsourcing page says so, so the admin downloads the contract
+(.txt) and sends it themselves.
 
 **Payments.** Customers pay three ways: **GCash / e-wallet by QR only** (PayMongo QR Ph, confirmed
 automatically), **bank transfer** (the reference number and a photo of the receipt, which the admin
@@ -182,11 +189,13 @@ them; `npm run seed:api` does (it reloads the sample data).
 
 **Resetting the data:** `npm run seed:api` puts the database back to the sample data. When
 `apps/api/schema.sql` has changed (e.g. Phase 4 gave packages, additional charges and dishes a
-`sort_order` column), run `npm run db:reset` first, then `npm run seed:api`. Pages that
-still use the browser store keep their records in each site's `localStorage` under `tm.data.v15`:
+`sort_order` column), run `npm run db:reset` first, then `npm run seed:api`. Since Phase 11 no
+page uses the browser store; until Phase 12 removes it, a portal run with a shorter
+`VITE_API_SERVICES` keeps those services' records in its own `localStorage` under `tm.data.v16`:
 clear site data in the browser (DevTools → Application → Storage → Clear site data) to start over.
-Sample event dates are placed relative to the day the data is created, so reset both on the same
-day to keep the reservation references matching; after a few days "events today" drifts.
+Sample event dates are placed relative to the day the data is created, so after a few days
+"events today" drifts: run `npm run seed:api` again (and, for the browser store, clear site data
+the same day, so both keep matching reservation references).
 
 ---
 

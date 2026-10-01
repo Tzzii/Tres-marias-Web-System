@@ -1,16 +1,28 @@
-import { FEEDBACK_CATEGORIES } from './config.js';
+import {
+  FEEDBACK_STATUSES,
+  flagReasonProblem,
+  publicReview,
+  replyProblem,
+  replyText,
+  reviewCategories,
+  reviewProblem
+} from '../domain/feedback.js';
 import { postAdminMessage } from './reservationService.js';
 import { ApiError, clone, latency, read, uid, write } from './store.js';
 
 /**
  * Customer feedback: the review a customer writes after a completed event
  * (the customer portal calls them testimonials) and everything the admin does
- * with it on the Feedbacks page.
+ * with it on the Feedbacks page. This is the browser-store version; the API has
+ * the same functions (apps/api/src/modules/feedback, Phase 9).
  *
  * One review per completed reservation: an overall star rating, a short text and
  * a rating for each part of the service (see FEEDBACK_CATEGORIES). Both portals
  * read the same records, so a review written in the portal is the same record the
  * admin moderates, and the admin's reply comes back to the customer as a message.
+ * The rules that need no stored data (star ratings, what a new review, a reply and
+ * a flag's reason need, what the website may show) are in domain/feedback.js, shared
+ * with the API.
  *
  * Moderation state on a review:
  *   status      'hidden'  new reviews start here — not on the public website yet
@@ -39,9 +51,6 @@ function findOrThrow(data, id) {
   return feedback;
 }
 
-/** A rating is a whole number of stars from 1 to 5. */
-const validStars = (value) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 5;
-
 /**
  * One feedback with the names the pages show: who wrote it and which event it is about.
  * `admin` adds the details only the admin sees (contact number, flag reason).
@@ -69,12 +78,8 @@ function shape(feedback, data, { admin = false } = {}) {
   return { ...shaped, customerMobile: customer ? customer.mobile : '' };
 }
 
-/** Average of the category ratings, or 0 when none were given. */
-export function categoryAverage(categories = {}) {
-  const values = FEEDBACK_CATEGORIES.map(({ key }) => Number(categories[key])).filter(validStars);
-  if (!values.length) return 0;
-  return values.reduce((sum, v) => sum + v, 0) / values.length;
-}
+/** Average of the category ratings, or 0 when none were given (the shared rule, kept here for older imports). */
+export { categoryAverage } from '../domain/feedback.js';
 
 /**
  * Admin: every feedback, newest first. With `customerId` (customer portal) it
@@ -91,14 +96,16 @@ export async function listFeedbacks({ customerId } = {}) {
 
 /**
  * Public website: the reviews the admin published, featured ones first, then newest.
- * Flagged and archived reviews never appear here.
+ * Flagged and archived reviews never appear here. Each review carries only what the
+ * website may show (publicReview: stars, text, the reviewer's and the event's names),
+ * never the customer's email, mobile number, id or reservation ref.
  */
 export async function listPublished({ limit = 3 } = {}) {
   await latency(150, 350);
   const data = read();
   return data.testimonials
     .filter((t) => t.status === 'published' && !t.archived && !t.flagged)
-    .map((t) => shape(t, data))
+    .map((t) => publicReview(shape(t, data)))
     .sort((a, b) => Number(b.featured) - Number(a.featured) || b.createdAt - a.createdAt)
     .slice(0, limit);
 }
@@ -111,8 +118,9 @@ export async function unreadFeedbackCount() {
 
 /**
  * Customer: review a completed event. One review per event, 1–5 stars overall,
- * a rating for every category and at least 20 characters of text. It reaches the
- * admin's Feedbacks page unread and stays off the website until the admin publishes it.
+ * a rating for every category and at least 20 characters of text (reviewProblem).
+ * It reaches the admin's Feedbacks page unread and stays off the website until the
+ * admin publishes it.
  */
 export async function createFeedback(customerId, { ref, rating, categories = {}, body }) {
   await latency(400, 700);
@@ -123,19 +131,15 @@ export async function createFeedback(customerId, { ref, rating, categories = {},
       throw new ApiError('INVALID_STATE', 'Feedback opens once an event is completed.');
     }
     if (data.testimonials.some((t) => t.ref === ref)) throw new ApiError('INVALID_STATE', 'You already reviewed this event.');
-    if (!validStars(rating)) throw new ApiError('INVALID', 'Choose an overall rating from 1 to 5 stars.', { field: 'rating' });
-    // Every category has to be rated, so the admin's category ratings mean something
-    const missing = FEEDBACK_CATEGORIES.filter(({ key }) => !validStars(categories[key]));
-    if (missing.length) {
-      throw new ApiError('INVALID', `Please rate ${missing.map((c) => c.label.toLowerCase()).join(', ')}.`, { field: 'categories' });
-    }
-    if (!body || body.trim().length < 20) throw new ApiError('INVALID', 'Tell us a little more (at least 20 characters).', { field: 'body' });
+    // The overall rating, every category (so the admin's category ratings mean something) and the text
+    const problem = reviewProblem({ rating, categories, body });
+    if (problem) throw new ApiError('INVALID', problem.message, { field: problem.field });
     const feedback = {
       id: uid('tst'),
       customerId,
       ref,
       rating: Number(rating),
-      categories: Object.fromEntries(FEEDBACK_CATEGORIES.map(({ key }) => [key, Number(categories[key])])),
+      categories: reviewCategories(categories),
       body: body.trim(),
       createdAt: Date.now(),
       status: 'hidden',
@@ -175,7 +179,7 @@ export async function markAllFeedbackRead() {
 /** Admin: show a feedback on the website ('published') or take it off ('hidden'). */
 export async function setFeedbackStatus(id, status) {
   await latency(300, 550);
-  if (!['published', 'hidden'].includes(status)) throw new ApiError('INVALID', 'A feedback is either published or hidden.');
+  if (!FEEDBACK_STATUSES.includes(status)) throw new ApiError('INVALID', 'A feedback is either published or hidden.');
   return write((data) => {
     const feedback = findOrThrow(data, id);
     if (status === 'published' && feedback.flagged) throw new ApiError('INVALID_STATE', 'Remove the flag before publishing this feedback.');
@@ -205,12 +209,14 @@ export async function setFeedbackFeatured(id, featured) {
 }
 
 /**
- * Admin: flag a feedback for a reason (it comes off the website while it is flagged),
- * or clear the flag. Clearing leaves it hidden until the admin publishes it again.
+ * Admin: flag a feedback for a reason of at least 5 characters (flagReasonProblem; it comes
+ * off the website while it is flagged), or clear the flag. Clearing leaves it hidden until
+ * the admin publishes it again.
  */
 export async function setFeedbackFlag(id, { flagged, reason = '' }) {
   await latency(300, 550);
-  if (flagged && reason.trim().length < 5) throw new ApiError('INVALID', 'Give a short reason for the flag (at least 5 characters).', { field: 'reason' });
+  const problem = flagged ? flagReasonProblem(reason) : '';
+  if (problem) throw new ApiError('INVALID', problem, { field: 'reason' });
   return write((data) => {
     const feedback = findOrThrow(data, id);
     feedback.flagged = Boolean(flagged);
@@ -240,16 +246,16 @@ export async function setFeedbackArchived(id, archived) {
 }
 
 /**
- * Admin: answer a feedback (5–1,000 characters). The answer is kept on the feedback,
- * so the customer sees it under their review, and is also sent to the customer's chat
- * (tagged with the event), so it arrives as a message in the customer portal. Replying
+ * Admin: answer a feedback (5–1,000 characters, replyProblem). The answer is kept on the
+ * feedback, so the customer sees it under their review, and is also sent to the customer's
+ * chat (tagged with the event), so it arrives as a message in the customer portal. Replying
  * again replaces the answer and sends the new one.
  */
 export async function replyToFeedback(id, body) {
   await latency(400, 700);
-  const text = String(body || '').trim();
-  if (text.length < 5) throw new ApiError('INVALID', 'Write a reply first (at least 5 characters).', { field: 'body' });
-  if (text.length > 1000) throw new ApiError('INVALID', 'Replies can be up to 1,000 characters.', { field: 'body' });
+  const text = replyText(body);
+  const problem = replyProblem(text);
+  if (problem) throw new ApiError('INVALID', problem, { field: 'body' });
   return write((data) => {
     const feedback = findOrThrow(data, id);
     feedback.reply = { body: text, at: Date.now(), by: ADMIN_NAME() };

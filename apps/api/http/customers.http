@@ -1,0 +1,33 @@
+# Phase 9 checks for the admin's customer directory (VS Code REST Client: click "Send Request" above a block).
+# Start the API first (npm run dev:api) and load the sample data (npm run seed:api). A contact correction
+# made here stays in the database: run npm run seed:api again afterwards.
+#
+# Every request needs an admin token: get one with the sign-in requests at the top of catalog.http and
+# paste it into @adminToken below. A customer's token gets 403 FORBIDDEN, no token 401 UNAUTHENTICATED.
+# Errors come back as { code, message, meta }.
+
+@api = http://localhost:4000/api
+@adminToken = paste-an-admin-token
+@customerToken = paste-a-customer-token
+@customer = cus-009
+
+### Every customer with their summary (reservationCount, upcomingCount, completedCount, balance, totalSpend), by name
+GET {{api}}/admin/customers
+Authorization: Bearer {{adminToken}}
+
+### One customer's summary and their reservations (newest event date first, each with its money figures)
+### An unknown id, or one spelled differently (CUS-009): 404 "Customer not found."
+GET {{api}}/admin/customers/{{customer}}
+Authorization: Bearer {{adminToken}}
+
+### Correct the email and mobile number -> the customer's summary. Saved as "new.address@example.com" and "09175551234".
+### A bad email or mobile: 400 INVALID with meta.field; another customer's email: 409 EMAIL_TAKEN
+PATCH {{api}}/admin/customers/{{customer}}/contact
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "email": "  New.Address@Example.COM ", "mobile": "0917-555 1234" }
+
+### A customer's token on the directory: 403 FORBIDDEN (personal information, admin only)
+GET {{api}}/admin/customers
+Authorization: Bearer {{customerToken}}

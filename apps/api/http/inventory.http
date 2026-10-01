@@ -1,0 +1,121 @@
+# Phase 10 checks for the equipment inventory (VS Code REST Client: click "Send Request" above a block).
+# Start the API first (npm run dev:api) and load the sample data (npm run seed:api). Changes made here stay in
+# the database: run npm run seed:api again afterwards.
+#
+# Every request needs an admin token: get one with the sign-in requests at the top of catalog.http and paste it
+# into @adminToken below. A customer's token gets 403 FORBIDDEN, no token 401 UNAUTHENTICATED.
+# Errors come back as { code, message, meta }; a form error names its box in meta.field (and meta.row for a row
+# of Add item(s)). The sample refs move with today's date: copy them from GET {{api}}/admin/reservations.
+
+@api = http://localhost:4000/api
+@adminToken = paste-an-admin-token
+@customerToken = paste-a-customer-token
+@item = inv-001
+@event = paste-the-ref-of-Lola-Carmens-80th-Birthday
+@rental = paste-the-ref-of-the-equipment-rental
+
+### Every item with its counts (inUse, available, stock 'ok' | 'low' | 'out') and where its pieces are (out: soonest event first)
+GET {{api}}/admin/inventory
+Authorization: Bearer {{adminToken}}
+
+### The same, archived items too
+GET {{api}}/admin/inventory?includeArchived=true
+Authorization: Bearer {{adminToken}}
+
+### The bookings equipment can be checked out for (approved to confirmed), soonest first
+GET {{api}}/admin/inventory/checkout-events
+Authorization: Bearer {{adminToken}}
+
+### Add item(s) -> 201 with the new items (EQ- codes in order). Every row is checked first: a bad row is 400 with meta.row
+POST {{api}}/admin/inventory
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "items": [
+  { "name": "Folding table", "category": "Furniture", "total": 12, "lowStockAt": 1 },
+  { "name": "Bamboo chair", "category": "Furniture", "total": 40, "lowStockAt": 4, "rentable": true, "rentPrice": 25, "damageFee": 300 }
+] }
+
+### A name already used (any case, or only an accent apart): 409 NAME_TAKEN, meta { field: 'name', row: 0 }
+POST {{api}}/admin/inventory
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "items": [{ "name": "MONOBLOC CHAIR", "category": "Furniture", "total": 10, "lowStockAt": 1 }] }
+
+### Edit an item -> the item. The history keeps old and new values; the total can't go below in use + damaged (400)
+PATCH {{api}}/admin/inventory/{{item}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "Monobloc chair", "category": "Furniture", "total": 420, "lowStockAt": 60, "rentable": true, "rentPrice": 15, "damageFee": 400, "notes": "Stacked by 10" }
+
+### Check out 5 pieces for an approved to confirmed booking -> the item (also a line in the booking's audit trail)
+POST {{api}}/admin/inventory/{{item}}/movements
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "action": "checkout", "qty": 5, "ref": "{{event}}", "note": "" }
+
+### Check out without an event (ref "none")
+POST {{api}}/admin/inventory/{{item}}/movements
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "action": "checkout", "qty": 2, "ref": "none", "note": "Lent to the parish" }
+
+### Return: 4 good, 1 damaged (damaged pieces from an equipment rental are charged to its customer)
+POST {{api}}/admin/inventory/{{item}}/movements
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "action": "return", "ref": "{{event}}", "qty": 4, "damagedQty": 1, "note": "" }
+
+### Report damage (a reason is required), repair, dispose (a reason is required; never every piece)
+POST {{api}}/admin/inventory/{{item}}/movements
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "action": "damage", "qty": 2, "note": "Cracked legs" }
+
+###
+POST {{api}}/admin/inventory/{{item}}/movements
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "action": "repair", "qty": 1 }
+
+###
+POST {{api}}/admin/inventory/{{item}}/movements
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "action": "dispose", "qty": 1, "note": "Beyond repair" }
+
+### Archive or restore -> { count }. Items with pieces still out: 409 IN_USE naming them
+POST {{api}}/admin/inventory/archive
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "ids": ["{{item}}"], "archived": true }
+
+### An equipment rental: what is out for it -> { itemId: pieces }
+GET {{api}}/admin/inventory/rentals/{{rental}}
+Authorization: Bearer {{adminToken}}
+
+### Check out everything an approved rental still needs -> { lines }. A pending rental: 409 INVALID_STATE
+POST {{api}}/admin/inventory/rentals/{{rental}}/check-out
+Authorization: Bearer {{adminToken}}
+
+### Record the rental coming back -> { pieces, damaged }. Damaged or missing pieces are charged at their damage fee:
+### a damage line, the old and new total in the audit trail, a message in the customer's chat, and the quotation
+### shows as out of date until it is re-sent (it is never edited)
+POST {{api}}/admin/inventory/rentals/{{rental}}/return
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "returns": [{ "itemId": "inv-001", "good": 97, "damaged": 3 }] }
+
+### A customer's token on the inventory: 403 FORBIDDEN
+GET {{api}}/admin/inventory
+Authorization: Bearer {{customerToken}}

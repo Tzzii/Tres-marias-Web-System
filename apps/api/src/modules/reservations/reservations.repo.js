@@ -289,6 +289,27 @@ export async function lockOwner(conn, ref) {
   return row && { ref: row.ref, customerId: row.customer_id, status: row.status };
 }
 
+/**
+ * The bookings that hold their date (HOLDS_DATE: approved to confirmed), soonest event first, for the
+ * inventory's check-out and the outsourcing contract dialogs (Phase 10): [{ ref, eventName, date, guests,
+ * serviceType, venue: { name, city } }]. Bookings on the same date come in the order they were requested
+ * (created_at, then ref), the browser store's order.
+ */
+export async function listHeldBookings(db) {
+  const [rows] = await db.query(
+    'SELECT ref, event_name, date, guests, service_type, venue_name, city FROM reservations WHERE status IN (?) ORDER BY date, created_at, ref',
+    [HOLDS_DATE]
+  );
+  return rows.map((row) => ({
+    ref: row.ref,
+    eventName: row.event_name,
+    date: row.date,
+    guests: row.guests,
+    serviceType: row.service_type,
+    venue: { name: row.venue_name, city: row.city }
+  }));
+}
+
 /** Every ref already given out that starts with `prefix` (e.g. "RES-2026-1020-"), declined and cancelled ones included. */
 export async function refsWithPrefix(conn, prefix) {
   const [rows] = await conn.query('SELECT ref FROM reservations WHERE ref LIKE ?', [`${prefix}%`]);
@@ -386,6 +407,19 @@ export async function insertRentalLines(conn, ref, lines) {
 export async function replaceRentalLines(conn, ref, lines) {
   await conn.query('DELETE FROM reservation_rental_items WHERE reservation_ref = ?', [ref]);
   await insertRentalLines(conn, ref, lines);
+}
+
+/**
+ * Swap a rental's damage lines for a new list ([{ itemId, name, qty, fee }], one line per item): the
+ * return of damaged or missing pieces (inventory, Phase 10). They reach what the customer owes only
+ * through a re-sent quotation.
+ */
+export async function replaceDamageCharges(conn, ref, lines) {
+  await conn.query('DELETE FROM reservation_damage_charges WHERE reservation_ref = ?', [ref]);
+  if (!lines.length) return;
+  await conn.query('INSERT INTO reservation_damage_charges (reservation_ref, item_id, name, qty, fee) VALUES ?', [
+    lines.map((line) => [ref, line.itemId, line.name, line.qty, line.fee])
+  ]);
 }
 
 // Record fields updateReservation may change -> [column, how the value is stored]

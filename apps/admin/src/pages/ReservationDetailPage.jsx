@@ -61,7 +61,6 @@ import {
   useNotify,
   useResource
 } from '@tm/shared';
-import { useMessenger } from '../components/MessagesWidget.jsx';
 import RefundDialog, { refundRecordedText } from '../components/RefundDialog.jsx';
 
 // Statuses where the booking is finished and can no longer be edited
@@ -82,7 +81,6 @@ export default function ReservationDetailPage() {
   const { ref } = useParams();
   const navigate = useNavigate();
   const notify = useNotify();
-  const { openMessages } = useMessenger();
   // Load the reservation with its package, food request, add-ons and payments
   const { data: r, loading, error, reload } = useResource(() => reservationApi.getReservation(ref), [ref]);
   useDocumentTitle(r ? `${r.ref} · ${r.eventName}` : 'Reservation', 'Tres Marias Admin');
@@ -124,11 +122,11 @@ export default function ReservationDetailPage() {
     }
   };
 
-  // Open (or create) the chat with this reservation's customer in the chat window
+  // Open (or create) the chat with this reservation's customer on the Messages page
   const messageCustomer = async () => {
     try {
       const { id } = await messageApi.openThread({ customerId: r.customerId });
-      openMessages(id);
+      navigate(`/messages?thread=${encodeURIComponent(id)}`);
     } catch (e) {
       notify(e.message, 'error');
     }

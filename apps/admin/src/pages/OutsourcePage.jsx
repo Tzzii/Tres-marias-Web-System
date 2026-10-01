@@ -133,6 +133,8 @@ function ChannelChips({ channels, size = 'sm' }) {
  *
  * A contract is written once and sent to every channel its partner has — an email when they have an email
  * address, an SMS when they have a mobile number, both when they have both — with the same text in each.
+ * If a channel did not really go out (on the API: no email or SMS service connected yet, or the provider
+ * refused it), a warning says so and the contract opens, so the admin can download it and send it themselves.
  * Contracts for a reservation also appear in that reservation's audit trail.
  */
 export default function OutsourcePage() {
@@ -601,8 +603,16 @@ export default function OutsourcePage() {
       <SendDialog
         contract={contractById(sendingId)}
         onClose={() => setSendingId(null)}
+        // When a channel did not really go out (no email or SMS service connected yet, or the provider
+        // refused it), the API says so in deliveryNote: warn, and open the contract, whose history says
+        // which channel and whose "Download .txt" lets the admin send it themselves
         onSent={(contract) => {
           setSendingId(null);
+          if (contract.deliveryNote) {
+            setDetailsId(contract.id);
+            notify(contract.deliveryNote, 'warning');
+            return;
+          }
           const where = [...new Set(contract.deliveries.map((d) => d.channel))].map((c) => (c === 'email' ? 'email' : 'SMS')).join(' and ');
           notify(`${contract.ref} sent to ${contract.partnerName} by ${where}.`);
         }}

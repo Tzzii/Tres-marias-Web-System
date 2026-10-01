@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
@@ -13,25 +14,14 @@ import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import { PortalShell, authApi, feedbackApi, formatDate, messageApi, outsourceApi, paymentApi, peso, reservationApi, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
-import { MessagesButton, MessengerProvider, useMessenger } from '../components/MessagesWidget.jsx';
 
 /**
  * The admin frame (top bar, sidebar on desktop, bottom tabs on phones) around every admin screen
- * (1r–1y), with the chat window on every page.
+ * (1r–1y), with the notifications and the sidebar badge counts.
  */
 export default function AdminLayout() {
-  return (
-    <MessengerProvider>
-      <AdminChrome />
-    </MessengerProvider>
-  );
-}
-
-/** Top bar, sidebar and notifications. Messages live in the top bar (next to the bell), not the sidebar. */
-function AdminChrome() {
   const navigate = useNavigate();
   const { user, signOut, updateUser } = useAuth();
-  const { openMessages, closeMessages } = useMessenger();
 
   // The session keeps a copy of the admin's details from sign-in. Compare it with the account record
   // (re-checked whenever data changes) so the top bar and pages never show an old name, email or mobile.
@@ -50,8 +40,8 @@ function AdminChrome() {
   }, [account.data, account.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load reservations, payments, the admin's message threads, the outsourcing contracts and the
-  // customer feedback at the same time. They feed the notification bell, the Messages icon badge
-  // and the red badge counts in the sidebar.
+  // customer feedback at the same time. They feed the notification bell and the red badge counts in
+  // the sidebar (Messages included) and the phone tabs.
   const { data } = useResource(async () => {
     const [reservations, payments, threads, contracts, feedbacks] = await Promise.all([
       reservationApi.listReservations(),
@@ -84,11 +74,11 @@ function AdminChrome() {
     unreadFeedback.forEach((f) =>
       list.push({ id: `fbk:${f.id}`, title: 'New customer feedback', body: `${f.customerName} rated ${f.eventName} ${f.rating} of 5 stars.`, at: f.createdAt, to: '/feedbacks?tab=unread' })
     );
-    // Count unread messages and add a notification for each thread with new messages (clicking opens the chat window)
+    // Count unread messages and add a notification for each thread with new messages (clicking opens it on the Messages page)
     let unreadCount = 0;
     data.threads.forEach((t) => {
       unreadCount += t.unread;
-      if (t.unread && t.lastMessage) list.push({ id: `msg:${t.lastMessage.id}`, title: `Message from ${t.customerName}`, body: t.lastMessage.body, at: t.lastMessage.at, onClick: () => openMessages(t.id) });
+      if (t.unread && t.lastMessage) list.push({ id: `msg:${t.lastMessage.id}`, title: `Message from ${t.customerName}`, body: t.lastMessage.body, at: t.lastMessage.at, to: `/messages?thread=${encodeURIComponent(t.id)}` });
     });
     // Newest first, and keep only the latest 25
     list.sort((a, b) => b.at - a.at);
@@ -101,14 +91,14 @@ function AdminChrome() {
       awaitingReply: data.contracts.filter((c) => c.status === 'sent').length,
       newFeedback: unreadFeedback.length
     };
-  }, [data, openMessages]);
+  }, [data]);
 
   // Sidebar links, in the order they appear. `badge` shows a count bubble next to the link.
   // Reservation & Calendar holds requests, all reservations and the calendar (badge = pending requests);
   // Outsource sits under Inventory, since it covers what the inventory can't (badge = contracts still
-  // waiting for a reply); Reports holds the payments tab (badge = payment proofs to verify);
+  // waiting for a reply); Messages sits under Customers, one conversation per customer (badge = unread
+  // messages); Reports holds the payments tab (badge = payment proofs to verify);
   // Feedbacks holds the reviews customers wrote (badge = reviews the admin has not read).
-  // Messages is not here: it is the chat icon in the top bar.
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
     { key: 'reservations', label: 'Reservation & Calendar', icon: EventNoteOutlinedIcon, to: '/reservations', badge: pending },
@@ -116,18 +106,19 @@ function AdminChrome() {
     { key: 'inventory', label: 'Inventory', icon: Inventory2OutlinedIcon, to: '/inventory' },
     { key: 'outsource', label: 'Outsource', icon: HandshakeOutlinedIcon, to: '/outsource', badge: awaitingReply },
     { key: 'customers', label: 'Customers', icon: GroupsOutlinedIcon, to: '/customers' },
+    { key: 'messages', label: 'Messages', icon: ChatBubbleOutlineRoundedIcon, to: '/messages', badge: unread },
     { key: 'reports', label: 'Reports', icon: AssessmentOutlinedIcon, to: '/reports', badge: awaiting },
     { key: 'feedbacks', label: 'Feedbacks', icon: RateReviewOutlinedIcon, to: '/feedbacks', badge: newFeedback }
   ];
 
   // Phone bottom tabs: the pages used most on the go. Payments opens the Payments tab of Reports
-  // (and stays lit on the Overview tab). "More" opens the full menu; its badge adds up the pages
-  // it hides that are waiting on the admin (partner replies and new feedback).
+  // (and stays lit on the Overview tab). "More" opens the full menu (Inventory is there); its badge
+  // adds up the pages it hides that are waiting on the admin (partner replies and new feedback).
   const bottomNav = [
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
     { key: 'reservations', label: 'Reservations', icon: EventNoteOutlinedIcon, to: '/reservations', badge: pending },
     { key: 'payments', label: 'Payments', icon: PaymentsOutlinedIcon, to: '/reports?tab=payments', match: ['/reports'], badge: awaiting },
-    { key: 'inventory', label: 'Inventory', icon: Inventory2OutlinedIcon, to: '/inventory' },
+    { key: 'messages', label: 'Messages', icon: ChatBubbleOutlineRoundedIcon, to: '/messages', badge: unread },
     { key: 'more', label: 'More', icon: MoreHorizRoundedIcon, drawer: true, badge: awaitingReply + newFeedback }
   ];
 
@@ -142,10 +133,6 @@ function AdminChrome() {
       // The top search bar sends the admin to the All reservations tab filtered by what they typed
       search={{ placeholder: 'Search reservations or customers', onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`) }}
       notifications={notifications}
-      // Opening the notification list closes the messages window so they don't stack on top of each other
-      onNotificationsOpen={closeMessages}
-      // Chat icon to the right of the bell; opens the messages dropdown window under it
-      headerActions={<MessagesButton unread={unread} />}
       // Go to the login page first, then clear the session
       onLogout={() => {
         navigate('/login', { replace: true });

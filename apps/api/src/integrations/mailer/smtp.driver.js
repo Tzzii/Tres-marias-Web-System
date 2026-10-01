@@ -22,13 +22,23 @@ function getTransport() {
   return transport;
 }
 
-/** Mail driver that sends through SMTP (MAIL_DRIVER=smtp). Same send() shape as the log driver. */
+/**
+ * Send the message from config.mail.from. Returns { status: 'sent', providerId: the SMTP message id };
+ * throws when the server refuses it.
+ */
+async function deliver({ to, subject, text, html }) {
+  const info = await getTransport().sendMail({ from: config.mail.from, to, subject, text, html });
+  return { status: 'sent', providerId: info.messageId };
+}
+
+/** Mail driver that sends through SMTP (MAIL_DRIVER=smtp). Same shape as the log driver. */
 export default {
   name: 'smtp',
+  deliver,
 
-  /** Send the message from config.mail.from. Takes the same { to, subject, text, html, meta } as the log driver; meta is not sent. */
+  /** Send the message. Takes the same { to, subject, text, html, meta } as the log driver; meta is not sent. */
   async send({ to, subject, text, html }) {
-    const info = await getTransport().sendMail({ from: config.mail.from, to, subject, text, html });
-    return { id: info.messageId, provider: 'smtp', at: now() };
+    const { providerId } = await deliver({ to, subject, text, html });
+    return { id: providerId, provider: 'smtp', at: now() };
   }
 };
