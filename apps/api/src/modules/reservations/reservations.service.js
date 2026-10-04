@@ -1,4 +1,4 @@
-import { dateUnavailableReason, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
+import { dateUnavailableReason, endTimeProblem, eventHours, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
 import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
 import { addonPriceMap, bookableAddons, flattenAddons, packagePickProblem } from '@tm/shared/src/domain/catalog.js';
 import { downpaymentDueFor, dueAfterMove, financials, statusForPayments } from '@tm/shared/src/domain/money.js';
@@ -27,6 +27,7 @@ import {
   includesFood,
   isRental
 } from '@tm/shared/src/services/config.js';
+import { TERMS_VERSION } from '@tm/shared/src/legal/terms.js';
 import { computeQuote } from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
 import { daysFromToday, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
@@ -199,6 +200,26 @@ function startTimeOf(form) {
 }
 
 /**
+ * An event's start and end time, checked against the day's other events (the booking form's checks, in
+ * the same order): the start must be open (another event's window, or too little time before the next one,
+ * TIME_UNAVAILABLE on startTime), the end must be 2 to 6 hours after it, on the hour or half hour (INVALID on
+ * endTime; an end at or before the start is the next day), and the event must not run into the next one
+ * (TIME_UNAVAILABLE on endTime). `map` is the availability map, with the booking being edited already left
+ * out of its events. Returns { startTime, endTime }.
+ */
+function eventTimesOf(form, date, map) {
+  const startTime = startTimeOf(form);
+  const startReason = timeUnavailableReason(date, startTime, map);
+  if (startReason) throw new ApiError('TIME_UNAVAILABLE', `That start time is not available (${startReason.toLowerCase()}). Please pick another time.`, { field: 'startTime' });
+  const endTime = typeof form.endTime === 'string' ? form.endTime : '';
+  const endProblem = endTimeProblem(startTime, endTime);
+  if (endProblem) throw invalid(`${endProblem}.`, 'endTime');
+  const endReason = timeUnavailableReason(date, startTime, map, eventHours(startTime, endTime));
+  if (endReason) throw new ApiError('TIME_UNAVAILABLE', `${endReason}.`, { field: 'endTime' });
+  return { startTime, endTime };
+}
+
+/**
  * A Buffet and Catering or Catering only booking of an ordinary package (the booking form's checks,
  * in the same order). Because a buffet is charged per person, the estimate
  * is a real figure: package + guests x the price per person today, which is copied onto the booking so
@@ -214,10 +235,9 @@ async function eventBooking(conn, pkg, form) {
   const map = await availabilityMap(conn);
   const reason = dateUnavailableReason(date, map);
   if (reason) throw new ApiError('DATE_UNAVAILABLE', `That date is not available (${reason.toLowerCase()}). Please pick another date.`, { field: 'date' });
-  // The start time must not overlap another event that day (pending requests hold no time)
-  const startTime = startTimeOf(form);
-  const timeReason = timeUnavailableReason(date, startTime, map);
-  if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `That start time is not available (${timeReason.toLowerCase()}). Please pick another time.`, { field: 'startTime' });
+  // The start and end times must not overlap another event that day (pending requests hold no time),
+  // and the event runs 2 to 6 hours
+  const { startTime, endTime } = eventTimesOf(form, date, map);
 
   // The customer's own count; it may differ from the package's default guest count at no extra charge
   const guests = toNumber(form.guests);
@@ -273,7 +293,7 @@ async function eventBooking(conn, pkg, form) {
   const pricePerPlate = Number(await catalogRepo.getPricePerPlate(conn)) || DEFAULT_PRICE_PER_PLATE;
   return {
     fields: {
-      eventName, occasion, date, startTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), pricePerPlate,
+      eventName, occasion, date, startTime, endTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), pricePerPlate,
       minDownpayment: await currentMinDownpayment(conn), venue, addonIds, addonQty,
       // An add-on with its own price is counted at today's price; the quotation starts from it
       estimate: computeQuote({ pkg, serviceType, guests, pricePerPlate, addonIds, addonQty, addonPrices: addonPriceMap(addons) })
@@ -353,7 +373,7 @@ async function rentalBooking(conn, pkg, form) {
   const lines = rentalLines(await repo.rentalStockInputs(conn, date), form.rentalItems, date);
   return {
     fields: {
-      eventName, occasion, date, startTime, guests: 0, packageId: pkg.id, serviceType: RENTAL_SERVICE, menu: null, foodNotes: '', pricePerPlate: 0,
+      eventName, occasion, date, startTime, endTime: null, guests: 0, packageId: pkg.id, serviceType: RENTAL_SERVICE, menu: null, foodNotes: '', pricePerPlate: 0,
       minDownpayment: await currentMinDownpayment(conn), rentalItems: lines, fulfilment, damageCharges: [],
       venue: fulfilment === 'delivery' ? { ...place, accessNotes: clean(form.accessNotes) } : { ...RENTAL.pickupPlace, accessNotes: '' },
       addonIds: [], addonQty: {},
@@ -379,10 +399,13 @@ const isRefTaken = (err) => Boolean(err) && err.code === 'ER_DUP_ENTRY' && Strin
 /**
  * One booking, inside its transaction: take the availability lock, check the form, give it the next
  * ref for its event date, and save it with its add-ons or rental lines, its first activity entry and
- * the thank-you in the customer's chat. Returns the customer's view of its summary.
+ * the thank-you in the customer's chat. The customer must have ticked "I agree to the Terms of Service"
+ * (`agreeTerms: true`); the version they agreed to (TERMS_VERSION) is saved on the booking.
+ * Returns the customer's view of its summary.
  */
 async function book(conn, customer, form) {
   await lockAvailability(conn); // first, before any other row: bookings and calendar writes run one at a time
+  if (form.agreeTerms !== true) throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');
   const pkg = typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null;
   if (!pkg || !pkg.visible || pkg.archived) throw invalid('Please choose an available package.', 'packageId');
   const booking = pkg.kind === 'rental' ? await rentalBooking(conn, pkg, form) : await eventBooking(conn, pkg, form);
@@ -402,7 +425,8 @@ async function book(conn, customer, form) {
     declineReason: '',
     cancelReason: '',
     cancelledBy: null,
-    createdAt: at
+    createdAt: at,
+    termsVersion: TERMS_VERSION
   };
   await repo.insertReservation(conn, reservation);
   await repo.insertAddons(conn, ref, reservation.addonIds, reservation.addonQty);
@@ -663,9 +687,10 @@ export async function approveReservation(ref, admin) {
         const stockData = await repo.rentalStockInputs(conn, date);
         const short = addonShortfall(stockData, reservation, date, ref);
         if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}. Move the event to another date before approving.`);
-        // The start time must be clear of the events approved that day, with the setup buffer around them
-        const timeReason = timeUnavailableReason(date, reservation.startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) });
-        if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason} on ${formatDate(date)}. Change the start time before approving.`);
+        // Its whole time (start to end, or RULES.defaultEventHours for an old booking with no end time) must
+        // be clear of the events approved that day, with the setup and tear-down buffer around them
+        const timeReason = timeUnavailableReason(date, reservation.startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) }, eventHours(reservation.startTime, reservation.endTime));
+        if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason} on ${formatDate(date)}. Change the time before approving.`);
       }
 
       // Due in RULES.downpaymentDueDays, but no later than 3 days before the event (and never before today)
@@ -789,13 +814,15 @@ export async function undoPreparing(ref, admin) {
 }
 
 /**
- * Admin: edit an event's date, start time, guests and venue (the logistics card); an
+ * Admin: edit an event's date, start and end time, guests and venue (the logistics card); an
  * equipment rental goes to updateRentalLogistics. `patch` is the logistics card's fields: { date,
- * startTime, guests, venueName, venueAddress, city, accessNotes } (and fulfilment for a rental).
+ * startTime, endTime, guests, venueName, venueAddress, city, accessNotes } (and fulfilment for a rental).
  *
  * A new date must not be past, blocked or full (the admin may move an event inside the lead time) and must
- * have the event's stock-tracked charges (a tent size) free (OUT_OF_STOCK), and a new date or start time
- * must be clear of the other events that day (this one left out). Moving an
+ * have the event's stock-tracked charges (a tent size) free (OUT_OF_STOCK), and a new date, start or end
+ * time must be clear of the other events that day (this one left out). The end time is 2 to 6 hours after
+ * the start; a booking made before end times existed may keep none (it then counts as
+ * RULES.defaultEventHours long), but once it has one it can't be emptied. Moving an
  * approved booking earlier pulls its downpayment due date in (dueAfterMove). The audit trail lists what
  * changed, old value and new.
  *
@@ -820,6 +847,12 @@ export async function updateLogistics(ref, patch, admin) {
       const { date } = values;
       if (!isISODate(date)) throw invalid('Choose the event date.', 'date');
       const startTime = startTimeOf(values);
+      // null: an old booking that has no end time and still gets none; '' (cleared) is refused below
+      const endTime = typeof values.endTime === 'string' && values.endTime ? values.endTime : reservation.endTime ? '' : null;
+      if (endTime !== null) {
+        const endProblem = endTimeProblem(startTime, endTime);
+        if (endProblem) throw invalid(`${endProblem}.`, 'endTime');
+      }
       const map = await availabilityMap(conn);
       if (date !== reservation.date) {
         if (daysFromToday(date) < 0) throw invalid('An event cannot be moved to a past date.', 'date');
@@ -830,11 +863,15 @@ export async function updateLogistics(ref, patch, admin) {
         const short = addonShortfall(stockData, reservation, date, ref);
         if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`, { field: 'date' });
       }
-      // A new date or start time: within booking hours, on the hour or half hour, and clear of the other
-      // events that day (this event is left out of its own check)
-      if (date !== reservation.date || startTime !== reservation.startTime) {
-        const timeReason = timeUnavailableReason(date, startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) });
-        if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason}.`, { field: 'startTime' });
+      // A new date, start or end time: within booking hours, on the hour or half hour, and clear of the
+      // other events that day (this event is left out of its own check): the start may not fall in another
+      // event's window, and the event may not run into the next one
+      if (date !== reservation.date || startTime !== reservation.startTime || endTime !== reservation.endTime) {
+        const others = { ...map, events: map.events.filter((e) => e.ref !== ref) };
+        const startReason = timeUnavailableReason(date, startTime, others);
+        if (startReason) throw new ApiError('TIME_UNAVAILABLE', `${startReason}.`, { field: 'startTime' });
+        const endReason = timeUnavailableReason(date, startTime, others, eventHours(startTime, endTime));
+        if (endReason) throw new ApiError('TIME_UNAVAILABLE', `${endReason}.`, { field: endTime ? 'endTime' : 'startTime' });
       }
       const venue = { name: clean(values.venueName), address: clean(values.venueAddress), city: clean(values.city), accessNotes: clean(values.accessNotes) };
       if (!venue.name || !venue.address || !venue.city) throw invalid('Enter the venue, city and address.', 'venueName');
@@ -843,12 +880,13 @@ export async function updateLogistics(ref, patch, admin) {
       const changes = [];
       if (date !== reservation.date) changes.push(`date from ${formatDate(reservation.date)} to ${formatDate(date)}`);
       if (startTime !== reservation.startTime) changes.push(`start time from ${reservation.startTime} to ${startTime}`);
+      if (endTime !== reservation.endTime) changes.push(`end time from ${reservation.endTime || 'none'} to ${endTime}`);
       if (guests !== reservation.guests) changes.push(`guests from ${reservation.guests} to ${guests}`);
       if (venue.name !== reservation.venue.name || venue.address !== reservation.venue.address || venue.city !== reservation.venue.city) changes.push('venue');
       const { due, moved } = dueAfterMove(reservation, date);
       if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
 
-      await repo.updateReservation(conn, ref, { date, startTime, guests, venue, downpaymentDue: due });
+      await repo.updateReservation(conn, ref, { date, startTime, endTime, guests, venue, downpaymentDue: due });
       if (changes.length) await logAdmin(conn, ref, admin, `Updated ${changes.join(', ')}.`);
       // The guest count moved on a quoted buffet: tell the customer what it does to their total before
       // anyone re-sends anything, so a change can never pass unnoticed

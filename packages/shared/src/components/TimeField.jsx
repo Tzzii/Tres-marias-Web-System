@@ -3,9 +3,10 @@ import Box from '@mui/material/Box';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { endTimeOptions } from '../domain/availability.js';
 import { tokens } from '../theme/tokens.js';
 import { formatTime } from '../utils/format.js';
-import { FieldLabel } from './FormField.jsx';
+import { FieldLabel, SelectField } from './FormField.jsx';
 
 const pad = (n) => String(n).padStart(2, '0');
 // Hour dropdown entries in counting order: 01, 02 … 12
@@ -124,5 +125,39 @@ export function TimeField({ id, label, required, optional, error, hint, value, o
         <Typography sx={{ mt: 0.75, fontSize: 12, color: error ? tokens.redPress : tokens.textMuted }}>{error || hint || rangeHint}</Typography>
       )}
     </Box>
+  );
+}
+
+// 4.5 -> "4½ hours", 2 -> "2 hours"
+const hoursText = (hours) => `${Math.floor(hours)}${hours % 1 ? '½' : ''} hours`;
+
+/**
+ * End-time dropdown that goes with a start time: one entry every 30 minutes from RULES.minEventHours to
+ * RULES.maxEventHours after `startTime` (2 to 6 hours), each saying how long the event runs and whether it
+ * ends the next day, e.g. "10:00 pm · 4 hours" or "1:00 am, next day · 3 hours". So only allowed end times
+ * can be picked, including ones past midnight (which a plain time field can't show). `value` and `onChange`
+ * use 24-hour "HH:MM"; without a start time the field is disabled and asks for one first.
+ */
+export function EndTimeField({ id, label = 'End time', required, error, hint, startTime, value, onChange, disabled = false, sx }) {
+  const options = endTimeOptions(startTime).map((o) => ({
+    value: o.value,
+    label: `${formatTime(o.value)}${o.nextDay ? ', next day' : ''} · ${hoursText(o.hours)}`
+  }));
+  // A saved end time that no longer fits the start (e.g. an old booking) stays readable instead of blank
+  const known = !value || options.some((o) => o.value === value);
+  return (
+    <SelectField
+      id={id}
+      label={label}
+      required={required}
+      placeholder={startTime ? 'Choose an end time' : 'Choose the start time first'}
+      options={known ? options : [{ value, label: formatTime(value) }, ...options]}
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      error={error}
+      hint={hint}
+      disabled={disabled || !startTime}
+      sx={sx}
+    />
   );
 }

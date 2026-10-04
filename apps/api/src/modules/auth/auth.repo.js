@@ -22,7 +22,10 @@ const toCustomer = (row) =>
     passwordHash: row.password_hash,
     company: row.company,
     createdAt: row.created_at,
-    passwordChangedAt: row.password_changed_at
+    passwordChangedAt: row.password_changed_at,
+    // The Terms version the customer last agreed to ('' = not yet), and when
+    termsVersion: row.terms_version || '',
+    termsAcceptedAt: row.terms_accepted_at ?? null
   };
 
 // admins row -> admin record (null stays null)
@@ -58,10 +61,16 @@ export const findCustomerById = async (id) => toCustomer(first(await pool.query(
  */
 export async function insertCustomer(c, conn = pool) {
   await conn.query(
-    `INSERT INTO customers (id, first_name, middle_name, last_name, name, email, mobile, password_hash, company, created_at, password_changed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    [c.id, c.firstName, c.middleName, c.lastName, c.name, c.email, c.mobile, c.passwordHash, c.company, c.createdAt]
+    `INSERT INTO customers (id, first_name, middle_name, last_name, name, email, mobile, password_hash, company, created_at, password_changed_at,
+                            terms_version, terms_accepted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    [c.id, c.firstName, c.middleName, c.lastName, c.name, c.email, c.mobile, c.passwordHash, c.company, c.createdAt, c.termsVersion || '', c.termsAcceptedAt ?? null]
   );
+}
+
+/** Record that a customer agreed to a Terms version (the sign-up tick, or the "We updated our terms" prompt). */
+export async function setCustomerTerms(id, version, at) {
+  await pool.query('UPDATE customers SET terms_version = ?, terms_accepted_at = ? WHERE id = ?', [version, at, id]);
 }
 
 /** Save the profile form: name (and its three parts), mobile and company. */

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,9 +12,11 @@ import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlin
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import PercentRoundedIcon from '@mui/icons-material/PercentRounded';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import {
   AppDialog,
+  BUSINESS,
   BarChart,
   CardTitle,
   DashCard,
@@ -27,6 +30,7 @@ import {
   formatDate,
   peso,
   reportApi,
+  saveElementAsPdf,
   todayISO,
   tokens,
   useDocumentTitle,
@@ -36,6 +40,7 @@ import {
 import { SectionTabs } from '../components/SectionTabs.jsx';
 import { downloadTxt, textTable } from '../lib/txt.js';
 import PaymentsSection from './reports/PaymentsSection.jsx';
+import ReportSheet from './reports/ReportSheet.jsx';
 
 // Tabs of this page as [key, label]
 const TABS = [
@@ -65,6 +70,8 @@ const shortPeso = (v) => (v < 0 ? `−${shortPeso(-v)}` : v >= 1000000 ? `₱${(
  * refunds: revenue is net of the refunds sent in the range, which also show as their own figure) and
  * Payments and balances. The open tab lives in the URL (?tab=overview|payments); a payment
  * link with ?verify= or ?filter= opens the Payments tab even without ?tab=.
+ * The Overview's Print and Save PDF both use the same formatted A4 report (ReportSheet), not the
+ * dashboard itself: Print prints it, Save PDF downloads it as tres-marias-report-<range>-<date>.pdf.
  */
 export default function ReportsPage() {
   useDocumentTitle('Reports', 'Tres Marias Admin');
@@ -78,6 +85,33 @@ export default function ReportsPage() {
   const [saved, setSaved] = useState(null); // result of a saved report, shown in a dialog
   const [running, setRunning] = useState(null); // key of the saved report currently running
   const rangeLabel = RANGES.find(([k]) => k === range)[1];
+  const sheetRef = useRef(null); // the formatted report that Print prints and Save PDF draws
+  const [savingPdf, setSavingPdf] = useState(false); // true while the PDF is being made
+  const [stampedAt, setStampedAt] = useState(() => Date.now()); // the "Generated" time on the report
+
+  // Stamp the report with the moment it is printed, from the Print button or Ctrl+P. flushSync puts
+  // the new time on the sheet before the browser lays out the printout.
+  useEffect(() => {
+    const stamp = () => flushSync(() => setStampedAt(Date.now()));
+    window.addEventListener('beforeprint', stamp);
+    return () => window.removeEventListener('beforeprint', stamp);
+  }, []);
+
+  // Save the formatted report as a PDF, stamped with the time it is saved (the "Save as" window first, where
+  // the browser has one; Cancel saves nothing). If the browser can't make one, Print still can ("Save as PDF"
+  // in the print window).
+  const savePdf = async () => {
+    flushSync(() => setStampedAt(Date.now()));
+    setSavingPdf(true);
+    try {
+      const saved = await saveElementAsPdf(sheetRef.current, `tres-marias-report-${range}-${todayISO()}.pdf`, { title: `${BUSINESS.name} report, ${rangeLabel}`, footer: `${BUSINESS.name} · Business report · ${rangeLabel}` });
+      if (saved) notify('Report saved as PDF.');
+    } catch (e) {
+      notify("Couldn't create the PDF. Use Print and choose Save as PDF instead.", 'error');
+    } finally {
+      setSavingPdf(false);
+    }
+  };
 
   // Run one of the saved reports for the current range and open the results dialog
   const run = async (kind) => {
@@ -97,7 +131,8 @@ export default function ReportsPage() {
 
   // Export the summary numbers, revenue per month (or year) and package counts as one TXT file,
   // with a heading and a lined-up table for each section. Revenue is net of refunds; the refunds are listed too.
-  const exportSummary = () => {
+  // Months are written in full with their year ("October 2025"), as the "Last 12 months" range spans two years.
+  const exportSummary = async () => {
     if (!data) return;
     const text = [
       'TRES MARIAS - REPORT',
@@ -114,25 +149,25 @@ export default function ReportsPage() {
       ]),
       '',
       byYear ? 'REVENUE BY YEAR (PAYMENTS LESS REFUNDS)' : 'REVENUE BY MONTH (PAYMENTS LESS REFUNDS)',
-      textTable(data.revenueChart.map((m) => ({ [byYear ? 'Year' : 'Month']: m.label, Revenue: m.value })), ['Revenue']),
+      textTable(data.revenueChart.map((m) => ({ [byYear ? 'Year' : 'Month']: m.title || m.label, Revenue: m.value })), ['Revenue']),
       '',
       'BOOKINGS BY PACKAGE',
       textTable(data.packageCounts.map((p) => ({ Package: p.name, Bookings: p.count })))
     ].join('\n');
-    if (downloadTxt(`tres-marias-report-${range}-${todayISO()}.txt`, text)) notify('Report exported.');
+    if (await downloadTxt(`tres-marias-report-${range}-${todayISO()}.txt`, text)) notify('Report exported.');
   };
 
   // Export the open saved report (title, range and its table) as a TXT file
-  const exportSaved = () => {
+  const exportSaved = async () => {
     const text = [saved.title.toUpperCase(), `Range: ${rangeLabel}`, `Generated: ${formatDate(todayISO())}`, '', textTable(saved.rows, saved.money)].join('\n');
-    if (downloadTxt(`${saved.title.toLowerCase().replace(/\s+/g, '-')}-${todayISO()}.txt`, text)) notify('Report exported.');
+    if (await downloadTxt(`${saved.title.toLowerCase().replace(/\s+/g, '-')}-${todayISO()}.txt`, text)) notify('Report exported.');
   };
 
   return (
     <>
       <PageHeader
         title="Reports"
-        // The range, export and print controls belong to the Overview tab only
+        // The range, export, print and PDF controls belong to the Overview tab only; Print and Save PDF wait for the figures
         subtitle={tab === 'overview' ? `${rangeLabel} · updates automatically as bookings are completed and payments verified` : undefined}
         actions={
           tab === 'overview' && (
@@ -141,7 +176,10 @@ export default function ReportsPage() {
                 {RANGES.map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
               </TextField>
               <Button variant="outlined" startIcon={<FileDownloadOutlinedIcon />} onClick={exportSummary} disabled={!data} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>Export TXT</Button>
-              <Button variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>Print</Button>
+              <Button variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()} disabled={!data || loading} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>Print</Button>
+              <Button variant="outlined" startIcon={<PictureAsPdfOutlinedIcon />} onClick={savePdf} disabled={!data || loading || savingPdf} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
+                {savingPdf ? 'Saving…' : 'Save PDF'}
+              </Button>
             </Box>
           )
         }
@@ -152,6 +190,9 @@ export default function ReportsPage() {
       </Box>
 
       {tab === 'payments' && <PaymentsSection />}
+
+      {/* The formatted report for Print and Save PDF; it stays off screen */}
+      {tab === 'overview' && data && <ReportSheet data={data} rangeLabel={RANGES.find(([k]) => k === data.range)?.[1] || rangeLabel} generatedAt={stampedAt} format={shortPeso} sheetRef={sheetRef} />}
 
       {tab === 'overview' && error && <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>}
 

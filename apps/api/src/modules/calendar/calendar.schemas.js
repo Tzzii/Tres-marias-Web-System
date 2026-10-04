@@ -13,11 +13,11 @@ import { z } from 'zod';
 // and a missing one would be a 400 with zod's own wording instead of the service's message.
 const passThrough = z.unknown().optional();
 
-// GET /api/calendar/check?date=YYYY-MM-DD&time=HH:MM (time optional)
-export const checkQuery = z.object({ date: passThrough, time: passThrough });
+// GET /api/calendar/check?date=YYYY-MM-DD&time=HH:MM&end=HH:MM (time and end optional)
+export const checkQuery = z.object({ date: passThrough, time: passThrough, end: passThrough });
 
-// POST /api/admin/calendar/blocks { from, to, reason }
-export const blockBody = z.object({ from: passThrough, to: passThrough, reason: passThrough });
+// POST /api/admin/calendar/blocks { from, to, reason, note } (note optional, for customers)
+export const blockBody = z.object({ from: passThrough, to: passThrough, reason: passThrough, note: passThrough });
 
 // DELETE /api/admin/calendar/blocks/:date (Express always gives text)
 export const dateParams = z.object({ date: z.string() });

@@ -109,6 +109,10 @@ CREATE TABLE customers (
   company             VARCHAR(160)    NOT NULL DEFAULT '',
   created_at          BIGINT UNSIGNED NOT NULL,
   password_changed_at BIGINT UNSIGNED NULL,                 -- tokens made before this are refused (a reset or change signs out old sessions)
+  -- The Terms of Service and Privacy Policy version (TERMS_VERSION) this customer last agreed to, and when;
+  -- '' / NULL until they agree. A newer version is shown to them once, at their next visit, to accept.
+  terms_version       VARCHAR(20)     NOT NULL DEFAULT '',
+  terms_accepted_at   BIGINT UNSIGNED NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_customers_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -227,6 +231,11 @@ CREATE TABLE reservations (
   occasion        VARCHAR(40)     NOT NULL,             -- one of OCCASIONS in the shared config
   date            DATE            NOT NULL,             -- event date
   start_time      CHAR(5)         NOT NULL,             -- 'HH:MM', on the hour or half hour
+  -- When the event ends, 'HH:MM' on the hour or half hour, 2 to 6 hours after start_time (RULES.minEventHours
+  -- and maxEventHours); an end at or before the start is on the next day (22:00 -> 02:00). NULL for an
+  -- equipment rental (start_time is its pick-up or delivery time) and for bookings made before 2026-10-03,
+  -- which count as RULES.defaultEventHours long.
+  end_time        CHAR(5)         NULL,
   guests          INT             NOT NULL,             -- the customer's count, which may differ from the package's default; 0 for a rental
   package_id      VARCHAR(40)     NOT NULL,
   -- What the customer booked. 'Buffet and Catering' = our food, charged per person; 'Catering only' =
@@ -263,6 +272,9 @@ CREATE TABLE reservations (
   cancel_reason   TEXT            NOT NULL,
   cancelled_by    VARCHAR(10)     NULL,                 -- who cancelled: 'customer' or 'admin'; NULL unless cancelled
   created_at      BIGINT UNSIGNED NOT NULL,
+  -- The Terms of Service version (TERMS_VERSION, e.g. '2026-10-03') the customer agreed to when sending this
+  -- request; '' for bookings made before the booking form asked.
+  terms_version   VARCHAR(20)     NOT NULL DEFAULT '',
   PRIMARY KEY (ref),
   KEY idx_reservations_date_status (date, status),       -- availability and calendar queries
   KEY idx_reservations_customer (customer_id),
@@ -501,6 +513,7 @@ CREATE TABLE testimonials (
 CREATE TABLE calendar_blocks (
   date   DATE        NOT NULL,
   reason VARCHAR(60) NOT NULL,                              -- one of BLOCK_REASONS, e.g. 'Fully booked'
+  note   VARCHAR(120) NOT NULL DEFAULT '',                  -- the admin's note for customers, e.g. 'Staff outing'; '' when none
   PRIMARY KEY (date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

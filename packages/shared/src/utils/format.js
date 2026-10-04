@@ -93,6 +93,19 @@ export const formatTime = (hhmm) => {
   return `${hour}:${pad(m)} ${suffix}`;
 };
 
+/**
+ * A reservation's time for lists, pages and documents: "6:00 pm – 10:00 pm", or "10:00 pm – 2:00 am (next day)"
+ * when it runs past midnight. Only the start for an equipment rental (its pick-up or delivery time) and for a
+ * booking saved before end times existed (no endTime).
+ */
+export const formatEventTime = (reservation) => {
+  if (!reservation || !reservation.startTime) return '—';
+  const { startTime, endTime } = reservation;
+  if (!endTime || reservation.serviceType === 'Equipment rental') return formatTime(startTime);
+  // "HH:MM" text sorts like the clock, so an end at or before the start is on the next day
+  return `${formatTime(startTime)} – ${formatTime(endTime)}${endTime <= startTime ? ' (next day)' : ''}`;
+};
+
 /** Timestamp (ms or ISO) -> "12 Dec 2025, 9:41 am" */
 export const formatDateTime = (value) => {
   if (!value) return '—';

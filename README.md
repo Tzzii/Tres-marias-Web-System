@@ -51,7 +51,7 @@ capstone website #2/
 │   │           ├── reservations/    # Tabs of Reservation & Calendar: 1s Requests, All reservations, 1v Calendar
 │   │           └── reports/         # Tab of Reports: 1w Payments and balances
 │   └── api/                         # API (Express 5 + MySQL 8), port 4000
-│       ├── schema.sql               # Every table (npm run db:reset; npm run db:migrate adds new ones)
+│       ├── schema.sql               # Every table (npm run db:reset; npm run db:migrate adds new tables and columns)
 │       ├── http/                    # Saved requests per module (VS Code REST Client)
 │       ├── scripts/                 # db-reset, db-migrate, db-ping, db-roundtrip, and the security
 │       │                            # checks: route-audit.js, security-tests.js (lib/ = their helpers)
@@ -67,7 +67,7 @@ capstone website #2/
 │           │                        # ConfirmDialog, MonthCalendar, DateField, DataTable, BarChart,
 │           │                        # StatusPipeline, ChatPanel, DocumentDialog, ...
 │           ├── hooks/               # useResource, useCountdown, useNotify, useDocumentTitle
-│           ├── auth/createAuth.jsx  # Session provider, idle timeout, route guard, change polling
+│           ├── auth/createAuth.jsx  # Session provider, idle timeout (admin: screen lock), route guard, change polling
 │           ├── domain/              # Pure rules the API imports too (money, reservation, inventory, outsource, …)
 │           ├── services/            # The data layer: remote/* (one function per API call), http.js,
 │           │                        # poller.js, events.js, config.js (business rules and settings)
@@ -104,10 +104,11 @@ only asks a partner if they can supply the items for an event; it is not a contr
 mail and SMS ports: with `MAIL_DRIVER=log` and `SMS_DRIVER=log` nothing leaves the server, and the
 Outsourcing page says so, so the admin downloads the request (.txt) and sends it themselves.
 
-**Payments.** Customers pay three ways: **GCash / e-wallet by QR only** (PayMongo QR Ph, confirmed
-automatically), **bank transfer** (the reference number and a photo of the receipt, which the admin
-verifies under Reports → Payments) or **cash on site** (recorded by the admin). Uploaded receipts are
-kept in `apps/api/uploads/proofs` (git-ignored), never in a public folder. The GCash option stays
+**Payments.** Customers pay three ways: **QR Ph** (a PayMongo QR Ph code that GCash, Maya or a bank app
+scans, confirmed automatically), **bank transfer** (the reference number and a photo of the receipt,
+JPG, PNG or WebP up to 20 MB (`MAX_UPLOAD_MB`), which the admin verifies under Reports → Payments) or
+**cash on site** (recorded by the admin). Uploaded receipts are
+kept in `apps/api/uploads/proofs` (git-ignored), never in a public folder. The QR Ph option stays
 greyed out until `apps/api/.env` has both `PAYMONGO_SECRET_KEY` (a `sk_test_…` key while developing;
 the `sk_live_…` key goes on the live server only) and `PAYMONGO_WEBHOOK_SECRET` (the `whsk_…`
 secret of the webhook created in the PayMongo dashboard, pointing at `/api/webhooks/paymongo`
@@ -124,9 +125,10 @@ The API needs MySQL 8. First time only:
 3. `npm run db:reset` (creates the tables), then `npm run seed:api` (loads the sample data below)
    or `npm run seed:starter` (the fresh start with no customers, see "Resetting the data").
 
-When an update adds a table (Phase 12 added `signup_requests` and `password_changes`), a database that
-already holds data gets it with `npm run db:migrate`: it creates the tables `schema.sql` has and the
-database lacks, and changes nothing else.
+When an update adds a table (Phase 12 added `signup_requests` and `password_changes`) or a column (the
+3 October 2026 revisions added `reservations.end_time`, `calendar_blocks.note` and the `terms_version`
+columns), a database that already holds data gets it with `npm run db:migrate`: it creates the tables
+and adds the columns `schema.sql` has and the database lacks, and changes nothing else.
 
 Each portal reads `VITE_API_URL` (where the API is) from its own `.env.local` (copy its `.env.example`).
 The full backend plan is in `docs/backend-development-phases.md`.

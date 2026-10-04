@@ -8,9 +8,12 @@ import { createAuth } from '@tm/shared';
 //  - AuthProvider: wraps the app and keeps the session
 //  - useAuth: hook that gives pages the current user, signIn and signOut
 //  - RequireAuth: guard that redirects to /login when no one is signed in
-//    (after a 15-minute idle timeout it goes to the "/" logo screen instead)
+//    (after 15 minutes without activity the screen LOCKS instead: /locked asks for the password only,
+//    no emailed code, until the sign-in session itself runs out; owner's rule, 2026-10-03)
 export const { AuthProvider, useAuth, RequireAuth } = createAuth({
   storageKey: 'tm.admin.session',
   loginPath: '/login',
-  idlePath: '/'
+  idlePath: '/',
+  lockOnIdle: true,
+  lockPath: '/locked'
 });

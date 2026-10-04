@@ -28,25 +28,26 @@ export async function getDailyCapacity(db = pool) {
   return row.daily_capacity;
 }
 
-/** Blocked dates, earliest first: [{ date: 'YYYY-MM-DD', reason }]. */
+/** Blocked dates, earliest first: [{ date: 'YYYY-MM-DD', reason, note }] (note: the admin's words for customers, '' when none). */
 export async function listBlocks(db = pool) {
-  const [rows] = await db.query('SELECT date, reason FROM calendar_blocks ORDER BY date');
-  return rows.map((row) => ({ date: row.date, reason: row.reason }));
+  const [rows] = await db.query('SELECT date, reason, note FROM calendar_blocks ORDER BY date');
+  return rows.map((row) => ({ date: row.date, reason: row.reason, note: row.note }));
 }
 
 /**
  * Reservations in a status that holds a date (HOLDS_DATE: approved to confirmed), as
- * { ref, date, startTime, status, serviceType }, by date and start time. buildSnapshot() still
+ * { ref, date, startTime, endTime, status, serviceType }, by date and start time (endTime null when the
+ * booking has none: a rental, or one made before end times existed). buildSnapshot() still
  * decides which of them take a slot (an equipment rental never does); this filter only keeps the
  * others (pending, declined, cancelled, completed) from being read at all. Uses the
  * idx_reservations_date_status index.
  */
 export async function listSlotHolders(db = pool) {
   const [rows] = await db.query(
-    'SELECT ref, date, start_time, status, service_type FROM reservations WHERE status IN (?) ORDER BY date, start_time, ref',
+    'SELECT ref, date, start_time, end_time, status, service_type FROM reservations WHERE status IN (?) ORDER BY date, start_time, ref',
     [HOLDS_DATE]
   );
-  return rows.map((row) => ({ ref: row.ref, date: row.date, startTime: row.start_time, status: row.status, serviceType: row.service_type }));
+  return rows.map((row) => ({ ref: row.ref, date: row.date, startTime: row.start_time, endTime: row.end_time ?? null, status: row.status, serviceType: row.service_type }));
 }
 
 /* ============================ Writes (inside a transaction) ============================ */
@@ -79,9 +80,12 @@ export async function countBlocked(conn, from, to) {
   return Number(row.n);
 }
 
-/** Block every date in `dates` with this reason, in one statement; a date already blocked gets the new reason. */
-export async function upsertBlocks(conn, dates, reason) {
-  await conn.query('INSERT INTO calendar_blocks (date, reason) VALUES ? ON DUPLICATE KEY UPDATE reason = ?', [dates.map((date) => [date, reason]), reason]);
+/** Block every date in `dates` with this reason and note, in one statement; a date already blocked gets the new reason and note. */
+export async function upsertBlocks(conn, dates, reason, note = '') {
+  // `AS fresh` names the new row (MySQL 8.0.19+), instead of the deprecated VALUES(reason) form
+  await conn.query('INSERT INTO calendar_blocks (date, reason, note) VALUES ? AS fresh ON DUPLICATE KEY UPDATE reason = fresh.reason, note = fresh.note', [
+    dates.map((date) => [date, reason, note])
+  ]);
 }
 
 /** Open a blocked date again (nothing to delete when it was not blocked). */

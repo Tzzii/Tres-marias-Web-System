@@ -39,8 +39,10 @@ import * as repo from './payments.repo.js';
 const PAYABLE = ['approved', 'downpayment_paid', 'confirmed', 'completed'];
 // The statuses in which the customer can pay online (a completed event is settled on site)
 const CUSTOMER_PAYABLE = ['approved', 'downpayment_paid', 'confirmed'];
-// Proof files the form accepts, by what their first bytes say they are (never by the name or the browser's word)
-const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+// Proof files the form accepts, by what their first bytes say they are (never by the name or the browser's word).
+// Photos only since 2026-10-03 (owner: a customer could tap a document by mistake); PDF receipts sent
+// before then are still stored and shown to the admin as they are.
+const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // A GCash QR still counts as open this long after PayMongo's expiry: a payment started in its last
 // seconds may still be on its way, so no other payment or new QR may start before it is settled
@@ -84,8 +86,8 @@ async function lockedReservation(conn, ref, message) {
 }
 
 /**
- * What an uploaded file really is, from its first bytes: { mime, ext } for a JPG, PNG, WebP or PDF, or
- * null for anything else (an .exe renamed .jpg included).
+ * What an uploaded file really is, from its first bytes: { mime, ext } for a JPG, PNG or WebP photo, or
+ * null for anything else (a PDF or other document, or an .exe renamed .jpg).
  */
 function detectProof(buffer) {
   if (!buffer || buffer.length < 12) return null;
@@ -93,7 +95,6 @@ function detectProof(buffer) {
   if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
   if (buffer[0] === 0x89 && ascii(1, 4) === 'PNG') return { mime: 'image/png', ext: 'png' };
   if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return { mime: 'image/webp', ext: 'webp' };
-  if (ascii(0, 4) === '%PDF') return { mime: 'application/pdf', ext: 'pdf' };
   return null;
 }
 
@@ -166,7 +167,7 @@ export async function submitPayment(customer, { ref, method, amount, referenceNo
       const reservation = row.reservation;
       if (!CUSTOMER_PAYABLE.includes(reservation.status)) throw new ApiError('INVALID_STATE', 'Payments open once your reservation is approved.');
       if (method === 'cash') throw invalid('Cash payments are paid on site and recorded by Tres Marias.');
-      if (method === 'gcash') throw invalid('GCash is paid by scanning the QR code.', 'method');
+      if (method === 'gcash') throw invalid('GCash, Maya and bank apps pay by scanning the QR Ph code.', 'method');
       if (method !== 'bank') throw invalid('Choose how you paid.', 'method');
       // Only one payment can wait for verification at a time, and it can't go over the balance
       const money = financials(reservation, row.payments, row.refunds);
@@ -184,7 +185,7 @@ export async function submitPayment(customer, { ref, method, amount, referenceNo
       }
       if (!file) throw invalid('Upload a photo or screenshot of your bank receipt.', 'proof');
       const type = PROOF_TYPES.includes(file.mimetype) ? detectProof(file.buffer) : null;
-      if (!type) throw invalid('Upload a JPG, PNG, WebP or PDF file.', 'proof');
+      if (!type) throw invalid('Upload a photo or screenshot of your receipt (JPG, PNG or WebP).', 'proof');
       const fileName = proofFileName(proofName || file.originalname) || `receipt.${type.ext}`;
 
       const kind = kindOf(money, value);
@@ -530,8 +531,8 @@ export function openQrIn(pendingQrs = [], at = now()) {
  */
 export function openQrError(open, side) {
   return side === 'admin'
-    ? new ApiError('PENDING_PAYMENT', `The customer has a GCash QR payment open until ${clockText(open.expiresAt)}. Try again after it expires.`, { expiresAt: open.expiresAt })
-    : new ApiError('PENDING_PAYMENT', `Your GCash QR payment of ${pesoText(open.amount)} is still open. Pay it, or wait until it expires at ${clockText(open.expiresAt)}.`, { expiresAt: open.expiresAt });
+    ? new ApiError('PENDING_PAYMENT', `The customer has a QR Ph payment open until ${clockText(open.expiresAt)}. Try again after it expires.`, { expiresAt: open.expiresAt })
+    : new ApiError('PENDING_PAYMENT', `Your QR Ph payment of ${pesoText(open.amount)} is still open. Pay it, or wait until it expires at ${clockText(open.expiresAt)}.`, { expiresAt: open.expiresAt });
 }
 
 /** The booking's open GCash QR, or null (a bank transfer, cash or a new QR waits until it is settled). */
@@ -641,8 +642,8 @@ async function closeQr(qr, status, { reason = '', event = null } = {}) {
       at: now(),
       actor: PAYMONGO_NAME,
       text: status === 'expired'
-        ? `The GCash QR payment of ${pesoText(qr.amount)} expired without being paid.`
-        : `The GCash QR payment of ${pesoText(qr.amount)} did not go through${reason ? `: ${reason}` : '.'}`
+        ? `The QR Ph payment of ${pesoText(qr.amount)} expired without being paid.`
+        : `The QR Ph payment of ${pesoText(qr.amount)} did not go through${reason ? `: ${reason}` : '.'}`
     });
     closed = true;
   });
@@ -692,7 +693,7 @@ async function qrRules(db, customer, ref, value, { lock = false } = {}) {
   const open = await openQrOf(db, ref);
   if (open) {
     if (open.amount === value) return { existing: open };
-    throw new ApiError('PENDING_PAYMENT', `You have a GCash QR for ${pesoText(open.amount)} open until ${clockText(open.expiresAt)}. Pay that one, or wait until it expires to choose another amount.`, { field: 'amount', expiresAt: open.expiresAt });
+    throw new ApiError('PENDING_PAYMENT', `You have a QR Ph code for ${pesoText(open.amount)} open until ${clockText(open.expiresAt)}. Pay that one, or wait until it expires to choose another amount.`, { field: 'amount', expiresAt: open.expiresAt });
   }
   const problem = paymentAmountProblem(money, value);
   if (problem) throw invalid(problem, 'amount');
@@ -710,7 +711,7 @@ async function qrRules(db, customer, ref, value, { lock = false } = {}) {
  * one is given back and the new PayMongo QR is left unused to expire.
  */
 export async function startQrPayment(customer, { ref, amount }) {
-  if (!qrReady()) throw new ApiError('INVALID_STATE', 'GCash QR payments are not available right now.');
+  if (!qrReady()) throw new ApiError('INVALID_STATE', 'QR Ph payments are not available right now.');
   const value = Math.round(Number(amount));
   // The customer's own booking only; its QRs past their time are settled with PayMongo before the rules look at them
   const [own] = await reservationsRepo.findReservations(pool, { ref });
@@ -727,7 +728,7 @@ export async function startQrPayment(customer, { ref, amount }) {
     if (again.existing) return { existingId: again.existing.id };
     const qr = { id: newId('qr'), ref, customerId: customer.id, amount: value, intentId: made.intentId, qrImage: made.qrImage, expiresAt: made.expiresAt, createdAt: now() };
     await repo.insertQr(conn, qr);
-    await reservationsRepo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Opened a GCash QR payment of ${pesoText(value)}.` });
+    await reservationsRepo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Opened a QR Ph payment of ${pesoText(value)}.` });
     return qrView({ ...qr, status: 'pending', receiptNo: '' });
   });
   if (answer.existingId) return qrView(await repo.findQr(pool, answer.existingId, { image: true }));

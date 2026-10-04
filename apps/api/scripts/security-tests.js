@@ -148,7 +148,7 @@ async function fixtures(call) {
   const book = async (who, extra = {}) => {
     const res = await call('POST', '/reservations', {
       token: who.token,
-      body: { packageId: rentalPackage.id, eventName: `Security test ${who.name.slice(-1)}`, occasion: OCCASIONS[0], date, startTime: '10:00', fulfilment: 'pickup', rentalItems: [{ itemId: item.id, qty: 1 }], ...extra }
+      body: { packageId: rentalPackage.id, eventName: `Security test ${who.name.slice(-1)}`, occasion: OCCASIONS[0], date, startTime: '10:00', fulfilment: 'pickup', rentalItems: [{ itemId: item.id, qty: 1 }], agreeTerms: true, ...extra }
     });
     if (res.status !== 201) throw new Error(`Booking for ${who.name} failed: ${res.status} ${res.text}`);
     return res.body;
@@ -312,7 +312,7 @@ async function runTests(call, fx) {
     ok(pays.status === 200 && !pays.body.some((p) => p.customerId === B.id), "GET /api/payments?customerId=<B>: none of B's payments");
     const made = await call('POST', '/reservations', {
       token: A.token,
-      body: { customerId: B.id, packageId: fx.rentalPackage.id, eventName: 'Booked for someone else?', occasion: OCCASIONS[0], date: fx.date, startTime: '11:00', fulfilment: 'pickup', rentalItems: [{ itemId: fx.item.id, qty: 1 }] }
+      body: { customerId: B.id, packageId: fx.rentalPackage.id, eventName: 'Booked for someone else?', occasion: OCCASIONS[0], date: fx.date, startTime: '11:00', fulfilment: 'pickup', rentalItems: [{ itemId: fx.item.id, qty: 1 }], agreeTerms: true }
     });
     ok(made.status === 201 && made.body.customerId === A.id, `POST /api/reservations with customerId <B>: ${said(made)}, saved for ${made.body && made.body.customerId === A.id ? 'A (the signed-in customer)' : 'someone else!'}`);
     const bList = await call('GET', '/reservations', { token: B.token });
@@ -355,7 +355,7 @@ async function runTests(call, fx) {
 
     // (b) Sign-up: no account exists until the code is right
     const email = `sectest-signup-${random(4)}@example.test`;
-    res = await call('POST', '/auth/customer/register', { ip: nextIp(), body: { firstName: 'Security', lastName: 'Signup', email, mobile: '09170000000', password: 'Signup-Test-2026' } });
+    res = await call('POST', '/auth/customer/register', { ip: nextIp(), body: { firstName: 'Security', lastName: 'Signup', email, mobile: '09170000000', password: 'Signup-Test-2026', agreeTerms: true } });
     ok(res.status === 200 && res.body.challengeId, `Sign-up form: ${said(res)}, code emailed to ${res.body.maskedEmail}`);
     const [[{ made }]] = await pool.query('SELECT COUNT(*) AS made FROM customers WHERE email = ?', [email]);
     ok(made === 0, 'No account exists yet');
@@ -549,14 +549,14 @@ async function runTests(call, fx) {
   await test('E1', 'Sign-up, password reset and password change with the emailed code', 'Works with the right code; each code works once', async (ok) => {
     // Sign-up: the account appears only with the right code, which then can't be used again
     const email = `sectest-new-${random(4)}@example.test`;
-    let res = await call('POST', '/auth/customer/register', { ip: nextIp(), body: { firstName: 'Security', middleName: '', lastName: 'Newcomer', email, mobile: '09171234567', password: 'Newcomer-2026' } });
+    let res = await call('POST', '/auth/customer/register', { ip: nextIp(), body: { firstName: 'Security', middleName: '', lastName: 'Newcomer', email, mobile: '09171234567', password: 'Newcomer-2026', agreeTerms: true } });
     const id = res.body.challengeId;
     const code = codeIn(await lastEmailTo(email));
     res = await call('POST', `/auth/customer/register/${id}/verify`, { ip: nextIp(), body: { code } });
     ok(res.status === 201 && res.body.token && res.body.user.email === email, `Sign-up with the right code: ${said(res)}, account made and signed in`);
     res = await call('POST', `/auth/customer/register/${id}/verify`, { ip: nextIp(), body: { code } });
     ok(res.status === 410, `The same code again: ${said(res)}`);
-    res = await call('POST', '/auth/customer/register', { ip: nextIp(), body: { firstName: 'Security', lastName: 'Again', email, mobile: '09171234567', password: 'Newcomer-2026' } });
+    res = await call('POST', '/auth/customer/register', { ip: nextIp(), body: { firstName: 'Security', lastName: 'Again', email, mobile: '09171234567', password: 'Newcomer-2026', agreeTerms: true } });
     ok(res.status === 409 && res.body.code === 'EMAIL_TAKEN', `Signing up again with that email: ${said(res)}`);
 
     // Forgot password for C (locked out by #9): a finished reset lifts the lock

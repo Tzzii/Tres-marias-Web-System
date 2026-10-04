@@ -11,6 +11,7 @@ import HomePage from './pages/public/HomePage.jsx';
 import PackageDetailPage from './pages/public/PackageDetailPage.jsx';
 import LoginPage from './pages/public/LoginPage.jsx';
 import SignupPage from './pages/public/SignupPage.jsx';
+import LegalPage from './pages/public/LegalPage.jsx';
 
 // Portal pages load on demand so the public site stays light
 const DashboardPage = lazy(() => import('./pages/portal/DashboardPage.jsx'));
@@ -27,7 +28,7 @@ const ProfilePage = lazy(() => import('./pages/portal/ProfilePage.jsx'));
 
 /**
  * Customer Portal routes.
- *   Public:  /  /packages/:slug  /login  /signup  (light website theme, see PublicSite)
+ *   Public:  /  /packages/:slug  /login  /signup  /terms  /privacy  (light website theme, see PublicSite)
  *   Account: /portal/*  (signed-in customers only)
  */
 export default function App() {
@@ -41,6 +42,9 @@ export default function App() {
           <Route path="/packages/:slug" element={<PackageDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          {/* The Terms of Service and Privacy Policy customers agree to (legal/terms.js in @tm/shared) */}
+          <Route path="/terms" element={<LegalPage kind="terms" />} />
+          <Route path="/privacy" element={<LegalPage kind="privacy" />} />
         </Route>
 
         {/* Customer portal: RequireAuth sends signed-out visitors to /login, PortalLayout draws the sidebar */}

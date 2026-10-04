@@ -70,7 +70,7 @@ export function onlineCancellation(reservation, money, { piecesOut = 0, openQrUn
     return refuse('PENDING_PAYMENT', 'A payment for this reservation is still being verified. Please wait until our team checks it, or message us to cancel.');
   }
   if (openQrUntil) {
-    return refuse('PENDING_PAYMENT', 'A GCash QR payment for this reservation is still open. Please wait until it is paid or expires, or message us to cancel.');
+    return refuse('PENDING_PAYMENT', 'A QR Ph payment for this reservation is still open. Please wait until it is paid or expires, or message us to cancel.');
   }
   return { allowed: true, deadline, reason: '', code: '' };
 }

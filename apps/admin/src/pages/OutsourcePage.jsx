@@ -256,7 +256,7 @@ export default function OutsourcePage() {
   };
 
   // Save one request as a .txt file: its details, then the exact text the partner was sent
-  const downloadContract = (contract) => {
+  const downloadContract = async (contract) => {
     const lines = [
       `Request: ${contract.ref}`,
       `Partner: ${contract.partnerName}${contract.contactPerson ? ` (${contract.contactPerson})` : ''}`,
@@ -270,12 +270,11 @@ export default function OutsourcePage() {
       '',
       contract.body || '(the request text is written when it is sent)'
     ];
-    downloadTxt(`${contract.ref}.txt`, lines.join('\n'));
-    notify(`${contract.ref} downloaded.`);
+    if (await downloadTxt(`${contract.ref}.txt`, lines.join('\n'))) notify(`${contract.ref} downloaded.`);
   };
 
   // Save the ticked requests as one .txt table
-  const downloadTicked = () => {
+  const downloadTicked = async () => {
     const rowsOut = ticked.map((c) => ({
       Request: c.ref,
       Partner: c.partnerName,
@@ -285,8 +284,7 @@ export default function OutsourcePage() {
       'Outsource price': c.amount,
       Status: STATUS[c.status].label
     }));
-    downloadTxt(`outsourcing-requests-${todayISO()}.txt`, textTable(rowsOut, ['Outsource price']));
-    notify(`${ticked.length} request${ticked.length === 1 ? '' : 's'} downloaded.`);
+    if (await downloadTxt(`outsourcing-requests-${todayISO()}.txt`, textTable(rowsOut, ['Outsource price']))) notify(`${ticked.length} request${ticked.length === 1 ? '' : 's'} downloaded.`);
   };
 
   // Table columns for the Requests tab; optional ones follow the "Filter columns" choice

@@ -25,11 +25,11 @@ export const listPayments = () => http.get(isAdmin() ? '/admin/payments' : '/pay
 /** Admin: one row per booking with money attached (not pending, declined or cancelled), by event date, with its payments. */
 export const listBalances = () => http.get('/admin/balances');
 
-/** What the Payments page can offer: { qr } is whether the GCash / e-wallet QR can be used (true once PayMongo's keys are set on the server). */
+/** What the Payments page can offer: { qr } is whether the QR Ph code (GCash, Maya or a bank app) can be used (true once PayMongo's keys are set on the server). */
 export const paymentOptions = () => http.get('/payments/options');
 
 /**
- * Customer opens a GCash / e-wallet QR for { ref, amount } (Phase 8B): { id, ref, amount, expiresAt,
+ * Customer opens a QR Ph code (GCash, Maya or a bank app) for { ref, amount } (Phase 8B): { id, ref, amount, expiresAt,
  * status, receiptNo, qrImage }. The same amount again, while it is open, gives the same QR back.
  */
 export const startQrPayment = (customerId, { ref, amount } = {}) => http.post('/payments/qr', { ref, amount });

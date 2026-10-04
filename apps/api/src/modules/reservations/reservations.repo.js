@@ -81,6 +81,8 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     occasion: row.occasion,
     date: row.date,
     startTime: row.start_time,
+    // null for an equipment rental and for bookings made before end times existed (2026-10-03)
+    endTime: row.end_time ?? null,
     guests: row.guests,
     packageId: row.package_id,
     serviceType: row.service_type,
@@ -101,7 +103,9 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     cancelReason: row.cancel_reason,
     cancelledBy: row.cancelled_by,
     activity: activity.map((entry) => ({ at: entry.at, actor: entry.actor, text: entry.text })),
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    // The Terms version the customer agreed to when booking ('' for bookings made before the form asked)
+    termsVersion: row.terms_version || ''
   };
   if (row.service_type === RENTAL_SERVICE) {
     record.rentalItems = rentalLines.map((line) => ({ itemId: line.item_id, name: line.name, qty: line.qty, price: line.price, damageFee: line.damage_fee }));
@@ -145,10 +149,10 @@ export const toRefund = (row) => ({
 export async function findReservations(db, filter = {}) {
   const { where, params } = scope(filter);
   const [rows] = await db.query(
-    `SELECT r.ref, r.customer_id, r.event_name, r.occasion, r.date, r.start_time, r.guests, r.package_id, r.service_type,
+    `SELECT r.ref, r.customer_id, r.event_name, r.occasion, r.date, r.start_time, r.end_time, r.guests, r.package_id, r.service_type,
             r.fulfilment, r.menu, r.food_notes, r.price_per_plate, r.min_downpayment, r.venue_name, r.venue_address, r.city, r.access_notes,
             r.status, r.estimate, r.quotation, r.downpayment_due, r.preparing_at, r.notes, r.decline_reason, r.cancel_reason,
-            r.cancelled_by, r.created_at,
+            r.cancelled_by, r.created_at, r.terms_version,
             p.name AS package_name, p.slug AS package_slug, c.name AS customer_name, c.email AS customer_email, c.mobile AS customer_mobile
        FROM reservations r
        LEFT JOIN packages p ON p.id = r.package_id
@@ -378,21 +382,23 @@ export async function rentalStockInputs(db, date) {
 
 /**
  * Save a new booking from its record. `venue` is flattened into four columns; fulfilment is NULL for
- * everything but an equipment rental; `minDownpayment` is the setting copied at booking, and
+ * everything but an equipment rental, and endTime is NULL for a rental; `minDownpayment` is the setting
+ * copied at booking, `termsVersion` the Terms version the customer agreed to ('' when none), and
  * `preparingAt` / `cancelledBy` start empty (NULL). A ref already in use fails with ER_DUP_ENTRY on
  * the primary key.
  */
 export async function insertReservation(conn, r) {
   await conn.query(
-    `INSERT INTO reservations (ref, customer_id, event_name, occasion, date, start_time, guests, package_id, service_type, fulfilment,
+    `INSERT INTO reservations (ref, customer_id, event_name, occasion, date, start_time, end_time, guests, package_id, service_type, fulfilment,
                                menu, food_notes, price_per_plate, min_downpayment, venue_name, venue_address, city, access_notes, status,
-                               estimate, quotation, downpayment_due, preparing_at, notes, decline_reason, cancel_reason, cancelled_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                               estimate, quotation, downpayment_due, preparing_at, notes, decline_reason, cancel_reason, cancelled_by, created_at,
+                               terms_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      r.ref, r.customerId, r.eventName, r.occasion, r.date, r.startTime, r.guests, r.packageId, r.serviceType, r.fulfilment || null,
+      r.ref, r.customerId, r.eventName, r.occasion, r.date, r.startTime, r.endTime || null, r.guests, r.packageId, r.serviceType, r.fulfilment || null,
       toJson(r.menu), r.foodNotes, r.pricePerPlate, r.minDownpayment, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes, r.status,
       toJson(r.estimate), toJson(r.quotation), r.downpaymentDue, r.preparingAt ?? null, r.notes, r.declineReason, r.cancelReason, r.cancelledBy ?? null,
-      r.createdAt
+      r.createdAt, r.termsVersion || ''
     ]
   );
 }
@@ -438,6 +444,7 @@ const COLUMNS = {
   status: ['status', plain],
   date: ['date', plain],
   startTime: ['start_time', plain],
+  endTime: ['end_time', (value) => value || null],
   guests: ['guests', plain],
   serviceType: ['service_type', plain],
   fulfilment: ['fulfilment', plain],

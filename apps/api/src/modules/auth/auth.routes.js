@@ -73,6 +73,10 @@ authRoutes.post('/admin/resend', authLimiter, validate({ body: schemas.adminRese
 authRoutes.post('/admin/verify', authLimiter, validate({ body: schemas.adminVerify }), async (req, res) => {
   res.json(await auth.adminVerifyCode(req.valid.body, req.get('User-Agent') || ''));
 });
+// The screen locked after inactivity: { ticket, password } -> a new session, no emailed code (wrong passwords count as sign-in failures)
+authRoutes.post('/admin/unlock', authLimiter, validate({ body: schemas.adminUnlock }), async (req, res) => {
+  res.json(await auth.adminUnlock(req.valid.body));
+});
 
 /* ============================ /api/me (signed-in customer) ============================ */
 
@@ -83,6 +87,10 @@ customerAccountRoutes.get('/', async (req, res) => {
 });
 customerAccountRoutes.patch('/', validate({ body: schemas.customerProfile }), async (req, res) => {
   res.json(await auth.updateCustomerProfile(req.user.id, req.valid.body));
+});
+// Accept the current Terms of Service and Privacy Policy: { version } -> the customer's details (with termsVersion)
+customerAccountRoutes.post('/terms', validate({ body: schemas.termsBody }), async (req, res) => {
+  res.json(await auth.acceptTerms(req.user.id, req.valid.body));
 });
 
 // Password change (Phase 12): the current and new password (emails a code), resend the code, then the

@@ -37,3 +37,30 @@ export function readToken(token) {
     return null;
   }
 }
+
+/*
+ * The admin's unlock ticket (screen lock after RULES.idleMinutes of inactivity, 2026-10-03). It is handed
+ * out with the admin session at sign-in and kept by the page when the session is locked; with the admin's
+ * password it opens a new session without an emailed code (auth.service.js, adminUnlock). It is signed
+ * with its OWN key, derived from JWT_SECRET, so it can never pass as a session token: readToken (and so
+ * every guarded route) refuses it, and readUnlockTicket refuses a session token.
+ * Payload: { sub: admin id, pwv, kind: 'admin-unlock', exp }: `exp` is the sign-in session's own end, so
+ * unlocking never makes a session last longer than JWT_ADMIN_TTL after the code sign-in, and `pwv` ends
+ * the ticket when the password changes.
+ */
+const unlockKey = () => `${config.jwtSecret}:admin-unlock`;
+
+/** Sign an unlock ticket for an admin, ending at `expiresAt` (seconds since 1970: the session's exp). */
+export function signUnlockTicket({ id, passwordChangedAt }, expiresAt) {
+  return jwt.sign({ sub: id, pwv: Number(passwordChangedAt) || 0, kind: 'admin-unlock', exp: expiresAt }, unlockKey(), { algorithm: ALGORITHM });
+}
+
+/** The payload of an unlock ticket, or null when it is not one (a session token included), was edited, or has expired. */
+export function readUnlockTicket(ticket) {
+  try {
+    const claims = jwt.verify(ticket, unlockKey(), { algorithms: [ALGORITHM] });
+    return claims && claims.kind === 'admin-unlock' ? claims : null;
+  } catch {
+    return null;
+  }
+}

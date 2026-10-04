@@ -52,10 +52,10 @@ const reviewRoll = keyframes`
 // admin has set (`minimum`, in pesos); while it is still loading (null) the amount is left out rather than
 // showing a starting value that may be out of date.
 const servicesList = (minimum) => [
-  [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick one pork, chicken, fish and vegetable dish from our menu, with water and juice for every guest. Served plated by our team, at one price per person.'],
+  [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick one pork, chicken, fish and vegetable dish from our menu, with unlimited water and juice for every guest. Served plated by our team, at one price per person.'],
   [AutoAwesomeOutlinedIcon, 'Event styling', 'Themed table setups, floral centrepieces, backdrops and mood lighting designed around your motif.'],
   [EventAvailableOutlinedIcon, 'Online reservations', 'Check open dates, reserve online and follow every step, from approval to the final headcount.'],
-  [CreditCardOutlinedIcon, 'Flexible payments', `Secure your date with a downpayment${minimum ? ` of at least ${peso(minimum)}` : ''} by GCash QR or bank transfer, then pay the rest in parts or in cash on the day.`],
+  [CreditCardOutlinedIcon, 'Flexible payments', `Secure your date with a downpayment${minimum ? ` of at least ${peso(minimum)}` : ''} by QR Ph (GCash, Maya or your bank app) or bank transfer, then pay the rest in parts or in cash on the day.`],
   [LocalBarOutlinedIcon, 'Food tasting', 'Wedding package bookings include a complimentary tasting for four so you can finalise the menu with confidence.']
 ];
 
@@ -69,7 +69,7 @@ const faqList = (minimum) => [
   ],
   [
     'How can I pay?',
-    'In your account: scan our GCash / e-wallet QR, which is confirmed right away, or pay by bank transfer and upload a photo of the receipt with its reference number; our team verifies it within a day. The balance can also be paid in cash on the event day.'
+    'In your account: scan our QR Ph code with GCash, Maya or your bank app, which is confirmed right away, or pay by bank transfer and upload a photo of the receipt with its reference number; our team verifies it within a day. The balance can also be paid in cash on the event day.'
   ],
   [
     'Can I cancel and get my money back?',
@@ -77,7 +77,7 @@ const faqList = (minimum) => [
   ],
   ['Where do you cater?', `We serve ${BUSINESS.serviceArea}. For venues farther away, send us a message and we will let you know if we can accommodate your event.`],
   ['Is food included in a package?', 'A package covers the equipment: buffet setup, tableware, tables and chairs, and some include waiters. When you reserve, you choose a buffet, where we cook for you and charge per person on top of the package, or catering only, where you get the equipment alone and cook the food yourself.'],
-  ['What is on the buffet?', `One pork dish, one chicken dish, one fish dish and one vegetable dish, all picked by you from our menu, with water and juice for every guest. It is served plated by our team and charged per person, so you know your food cost the moment you enter your guest count.`],
+  ['What is on the buffet?', `One pork dish, one chicken dish, one fish dish and one vegetable dish, all picked by you from our menu, with unlimited water and juice for every guest. It is served plated by our team and charged per person, so you know your food cost the moment you enter your guest count.`],
   ['What time can our event start?', `Any time, any day. We run 24 hours a day, Monday to Sunday, so an event can start at six in the morning or at midnight. Pick the hour that suits your celebration and that is when our team arrives.`],
   ['Can I use any package for my event?', 'Yes. Packages are not tied to an occasion, so you can book any package for a wedding, birthday, corporate event or anything else.'],
   ['How many guests can you serve?', `From ${RULES.minGuests} up to ${RULES.maxGuests.toLocaleString('en-PH')} guests. Each package shows its default guest count, so you can pick the one closest to yours, and we follow the guest count you give us.`]

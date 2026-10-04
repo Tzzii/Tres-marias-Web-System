@@ -38,8 +38,8 @@ import {
   formatDate,
   formatDateLong,
   formatDateTime,
+  formatEventTime,
   formatPackageItem,
-  formatTime,
   includesFood,
   isRental,
   peso,
@@ -207,7 +207,7 @@ export default function ReservationDetailPage() {
                 <ThemeIcon occasion={r.occasion} size={84} />
                 <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
                   <Field label="Date">{formatDateLong(r.date)}</Field>
-                  <Field label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start'}>{formatTime(r.startTime)}</Field>
+                  <Field label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Time'}>{formatEventTime(r)}</Field>
                   <Field label="Occasion">{r.occasion}</Field>
                   {rental ? <Field label="Getting the items">{delivered ? 'Delivery' : 'Pick up'}</Field> : <Field label="Guests">{r.guests}</Field>}
                 </Box>
@@ -235,7 +235,7 @@ export default function ReservationDetailPage() {
               )}
               <Divider sx={{ my: 2 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {includesFood(r.serviceType) && <Field label="Drinks">{BUFFET_DRINKS.join(' and ')} for every guest</Field>}
+                {includesFood(r.serviceType) && <Field label="Drinks">{BUFFET_DRINKS} for every guest</Field>}
                 {/* Charges counted by the piece show how many were asked for */}
                 <Field label="Additional charges">
                   {r.addons.length ? r.addons.map((a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name)).join(', ') : 'None'}

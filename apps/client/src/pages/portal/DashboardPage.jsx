@@ -24,8 +24,8 @@ import {
   firstName,
   formatDate,
   formatDateLong,
+  formatEventTime,
   formatRelative,
-  formatTime,
   headcount,
   messageApi,
   peso,
@@ -171,7 +171,7 @@ export default function DashboardPage() {
                         <StatusChip status={next.status} size="sm" />
                       </Box>
                       <Typography sx={{ mt: 0.5, fontSize: 13.5, color: tokens.textSecondary }}>
-                        {formatDateLong(next.date)} · {formatTime(next.startTime)} · {headcount(next)}
+                        {formatDateLong(next.date)} · {formatEventTime(next)} · {headcount(next)}
                       </Typography>
                       <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
                         {next.venue.name}, {next.venue.city}

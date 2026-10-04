@@ -12,7 +12,7 @@ import FocusTrap from '@mui/material/Unstable_TrapFocus';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { keyframes } from '@mui/material/styles';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import { dateUnavailableReason, daySchedule } from '../domain/availability.js';
+import { blockNote, dateUnavailableReason, daySchedule } from '../domain/availability.js';
 import { availabilitySnapshot } from '../services/remote/calendar.js';
 import { RULES } from '../services/config.js';
 import { useStoreVersion } from '../hooks/useResource.js';
@@ -44,9 +44,10 @@ const POPUP_MODIFIERS = [
 ];
 
 /**
- * Date input backed by the availability calendar: blocked, fully booked and
- * too-soon dates are greyed out and cannot be picked; days that already have an
- * event get a gold dot, and the chosen day shows its booked times and open start times.
+ * Date input backed by the availability calendar: blocked (striped), fully booked (red) and
+ * too-soon (greyed out) dates cannot be picked, but tapping one says why under the calendar, with the
+ * admin's note for a blocked date ("Not available: Private event. Staff outing"); days that already have
+ * an event get a gold dot, and the chosen day shows its booked times and open start times.
  *   default: an input that opens the calendar in a popup; tapping a date shows its
  *            schedule and "Choose this date" confirms it. The popup is not modal: the page
  *            keeps scrolling while it is open (the popup moves with the input), and a tap
@@ -68,6 +69,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   const [anchor, setAnchor] = useState(null); // element the calendar popup opens under (null = closed)
   const [inDialog, setInDialog] = useState(false); // true when the input sits inside a dialog, so the popup must show above it
   const [preview, setPreview] = useState(''); // date tapped in the popup whose booked times are shown (booking mode)
+  const [peek, setPeek] = useState(''); // closed date tapped to see why it can't be booked (booking mode)
   const buttonRef = useRef(null); // the input-looking button, so the focus can go back to it
   const paperRef = useRef(null); // the popup card, which takes the focus when it opens
   const version = useStoreVersion(); // changes on every change event (services/events.js), e.g. a booking saved or the map loaded
@@ -87,6 +89,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
     const base = parseISODate(value || todayISO());
     setView({ year: base.getFullYear(), month: base.getMonth() });
     setPreview(value || '');
+    setPeek('');
     setInDialog(Boolean(event.currentTarget.closest('.MuiModal-root')));
     setAnchor(event.currentTarget);
   };
@@ -104,8 +107,15 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
     close(true);
   };
 
-  // Tapping a day: inline saves it; the booking popup previews it; the admin popup saves and closes
-  const tapDay = (iso) => {
+  // Tapping a day: a closed day only says why it is closed; otherwise inline saves it, the booking popup
+  // previews it and the admin popup saves and closes
+  const tapDay = (iso, info = {}) => {
+    if (info.peek) {
+      setPeek(iso);
+      if (!inline) setPreview('');
+      return;
+    }
+    setPeek('');
     if (inline) onChange(iso);
     else if (booking) setPreview(iso);
     else choose(iso);
@@ -114,6 +124,8 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   // Decide if each day can be picked. Admin mode 'any' only blocks past dates, and 'past' only future ones.
   // Open booking days with events get a dot and say how many events are booked (rentals too, so every
   // customer calendar marks the same days). While the map is loading, no booking day can be picked.
+  // A closed booking day (blocked, fully booked, too soon; not a past one) can be tapped to see why (`peek`),
+  // with the same marks as the customer's Calendar page: striped = blocked by us, red = fully booked.
   const getDay = (iso) => {
     if (mode === 'past') return iso > todayISO() ? { tone: 'disabled', label: 'Future date' } : { tone: 'open' };
     if (!booking) {
@@ -121,13 +133,23 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
     }
     if (loadingDates) return { tone: 'disabled', label: 'Loading available dates…' };
     const reason = dateUnavailableReason(iso, snapshot, { rental });
-    if (reason) return { tone: 'disabled', label: reason };
+    if (reason === 'Past date') return { tone: 'disabled', label: reason };
+    if (reason) {
+      const blocked = snapshot.blocked.some((b) => b.date === iso);
+      const tone = blocked ? 'blocked' : reason === 'Fully booked' ? 'full' : 'disabled';
+      return { tone, label: blocked ? `Not available: ${reason}` : reason, unselectable: true, peek: true };
+    }
     const count = snapshot.booked[iso] || 0;
     return count ? { tone: 'open', label: `Available · ${count} ${count === 1 ? 'event' : 'events'} already booked`, dots: count } : { tone: 'open', label: 'Available' };
   };
 
   // Date whose schedule is shown: the picked date inline, the tapped date in the popup (none while the map is loading)
   const shown = inline ? value : preview;
+  // Why the tapped closed day can't be booked, and the admin's note when we blocked it ('' when none)
+  const peekReason = booking && !loadingDates && peek ? dateUnavailableReason(peek, snapshot, { rental }) : '';
+  const peekNote = peekReason ? blockNote(peek, snapshot) : '';
+  // Closed by the admin (its reason is shown as theirs, even when it is "Fully booked"), not full by itself
+  const peekBlocked = Boolean(peekReason) && snapshot.blocked.some((b) => b.date === peek);
   const schedule = booking && !loadingDates && shown && !dateUnavailableReason(shown, snapshot, { rental }) ? daySchedule(shown, snapshot) : null;
   // Popup only: booked times on the chosen date, repeated under the input once the popup closes
   const valueBooked = booking && !inline && value ? daySchedule(value, snapshot).booked : [];
@@ -148,6 +170,21 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   const calendarBody = (
     <>
       <MonthCalendar size="sm" year={view.year} month={view.month} onMonthChange={(year, month) => setView({ year, month })} getDay={getDay} selected={inline || !booking ? value : preview} onSelect={tapDay} />
+
+      {/* A closed day that was tapped: why it can't be booked, with the admin's note for a blocked date */}
+      {peekReason && (
+        <Box role="status" sx={{ mt: 1.5, p: 1.25, borderRadius: 1.25, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>{formatDateLong(peek)}</Typography>
+          <Typography sx={{ mt: 0.25, fontSize: 12.5, lineHeight: 1.5, color: tokens.textSecondary }}>
+            {peekReason === 'Fully booked' && !peekBlocked
+              ? 'Fully booked. Please choose another date.'
+              : peekReason.startsWith('Needs')
+                ? `Too soon: we need ${RULES.leadDays} days' notice to prepare. Please choose a later date.`
+                : `Not available: ${peekReason}.`}
+          </Typography>
+          {peekNote && <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.5, color: tokens.textPrimary }}>Note from us: {peekNote}</Typography>}
+        </Box>
+      )}
 
       {/* Schedule of the shown date: booked times, start times still open, then (popup only) the confirm button.
           Slides open/closed; the key replays the fade-in whenever a different date is shown. */}
@@ -212,8 +249,8 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
           {loadingDates
             ? 'Loading available dates…'
             : rental
-              ? 'Tap a date to see the times already booked. A gold dot means that day has an event. Greyed-out dates are blocked or too soon to prepare for.'
-              : 'Tap a date to see the times already booked. A gold dot means that day has an event. Greyed-out dates are fully booked, blocked, or too soon to prepare for.'}
+              ? 'Tap a date to see the times already booked. A gold dot means that day has an event. Striped dates are blocked and greyed-out ones are too soon to prepare for: tap one to see why.'
+              : 'Tap a date to see the times already booked. A gold dot means that day has an event. Striped dates are blocked, red ones are fully booked and greyed-out ones are too soon to prepare for: tap one to see why.'}
         </Typography>
       )}
     </>

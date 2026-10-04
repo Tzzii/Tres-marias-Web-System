@@ -1,4 +1,5 @@
 import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, RENTAL_SERVICE } from '@tm/shared/src/services/config.js';
+import { shiftEndTime } from '@tm/shared/src/domain/availability.js';
 import { computeQuote } from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
 import { addDays, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
@@ -689,6 +690,8 @@ export function buildSeed() {
         occasion,
         date: day(dateOffset),
         startTime,
+        // Every sample event runs 4 hours (e.g. 6:00 pm – 10:00 pm); the owner's events run 2 to 6
+        endTime: shiftEndTime('00:00', '04:00', startTime),
         guests,
         packageId,
         serviceType,
@@ -931,6 +934,7 @@ export function buildSeed() {
     occasion: 'Reunion',
     date: day(10),
     startTime: '08:00',
+    endTime: null, // a rental has only its delivery (or pick-up) time
     guests: 0,
     packageId: 'pkg-equipment-rental',
     serviceType: RENTAL_SERVICE,
@@ -981,10 +985,11 @@ export function buildSeed() {
     threads,
     testimonials,
     calendar: {
-      dailyCapacity: 2,
+      // The owner's default (2026-10-03): up to 5 events a day
+      dailyCapacity: 5,
       blocked: [
-        { date: day(21), reason: 'Fully booked' },
-        { date: day(41), reason: 'Private event' }
+        { date: day(21), reason: 'Fully booked', note: '' },
+        { date: day(41), reason: 'Private event', note: 'Our team has a company outing that day.' }
       ]
     },
     inventory: inventory.items,

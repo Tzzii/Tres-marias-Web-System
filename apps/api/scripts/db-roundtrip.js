@@ -122,6 +122,9 @@ async function check() {
     if (c.middle_name) r.middleName = c.middle_name;
     if (c.last_name) r.lastName = c.last_name;
     if (c.password_changed_at !== null) r.passwordChangedAt = c.password_changed_at;
+    // The Terms version agreed to: none on the sample accounts, so only a set one is compared
+    if (c.terms_version) r.termsVersion = c.terms_version;
+    if (c.terms_accepted_at !== null) r.termsAcceptedAt = c.terms_accepted_at;
     customers.push(r);
   }
   compareKeyed('customers', customers, seed.customers, 'id');
@@ -157,6 +160,7 @@ async function check() {
     if (acts.map((a) => a.id).join() !== actsAt.map((a) => a.id).join()) notes.push(`${r.ref}: activity insertion order is not chronological`);
     const out = {
       ref: r.ref, customerId: r.customer_id, eventName: r.event_name, occasion: r.occasion, date: r.date, startTime: r.start_time,
+      endTime: r.end_time,
       guests: r.guests, packageId: r.package_id, serviceType: r.service_type, menu: parseJson(r.menu), foodNotes: r.food_notes,
       pricePerPlate: r.price_per_plate, minDownpayment: r.min_downpayment,
       venue: { name: r.venue_name, address: r.venue_address, city: r.city, accessNotes: r.access_notes },
@@ -168,6 +172,8 @@ async function check() {
       notes: r.notes, declineReason: r.decline_reason, cancelReason: r.cancel_reason, cancelledBy: r.cancelled_by,
       activity: acts.map((a) => ({ at: a.at, actor: a.actor, text: a.text })), createdAt: r.created_at
     };
+    // The Terms version agreed to when booking: none on the sample bookings, so only a set one is compared
+    if (r.terms_version) out.termsVersion = r.terms_version;
     links.filter((l) => !hasQty.has(l.addon_id)).forEach((l) => l.qty !== 1 && fail(`${r.ref}: qty ${l.qty} on an add-on without hasQuantity`));
     // The rental fields exist on an equipment rental only (not even empty on other bookings)
     if (r.service_type === 'Equipment rental') {
@@ -234,7 +240,7 @@ async function check() {
   const settingsRows = [(await q('SELECT COUNT(*) AS n FROM calendar_settings'))[0].n, (await q('SELECT COUNT(*) AS n FROM catalog_settings'))[0].n];
   if (settingsRows.join() !== '1,1' || calSettings.id !== 1 || catSettings.id !== 1) fail(`settings rows: ${settingsRows}`);
   const ageMin = (ms) => ((Date.now() - ms) / 60000).toFixed(1);
-  compare('calendar', { dailyCapacity: calSettings.daily_capacity, blocked: (await q('SELECT * FROM calendar_blocks ORDER BY date')).map((b) => ({ date: b.date, reason: b.reason })) }, seed.calendar);
+  compare('calendar', { dailyCapacity: calSettings.daily_capacity, blocked: (await q('SELECT * FROM calendar_blocks ORDER BY date')).map((b) => ({ date: b.date, reason: b.reason, note: b.note })) }, seed.calendar);
   compare('settings', { pricePerPlate: catSettings.price_per_plate, minDownpayment: catSettings.min_downpayment }, seed.settings);
 
   // ---- inventory ----

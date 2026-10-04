@@ -17,6 +17,7 @@ import {
   ConfirmDialog,
   DashCard,
   DateField,
+  EndTimeField,
   DetailRow,
   DocumentDialog,
   ErrorState,
@@ -55,6 +56,7 @@ import {
   paymentKindLabel,
   peso,
   reservationApi,
+  shiftEndTime,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -226,7 +228,7 @@ export default function ReservationDetailPage() {
               )}
               <Divider sx={{ my: 2 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {includesFood(r.serviceType) && <Field label="Drinks">{BUFFET_DRINKS.join(' and ')} for every guest</Field>}
+                {includesFood(r.serviceType) && <Field label="Drinks">{BUFFET_DRINKS} for every guest</Field>}
                 {/* Charges counted by the piece show how many the customer asked for */}
                 <Field label="Additional charges">
                   {r.addons.length ? r.addons.map((a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name)).join(', ') : 'None'}
@@ -418,7 +420,9 @@ export default function ReservationDetailPage() {
 }
 
 /**
- * Editable event details: date, time, guests, setup, venue and access notes.
+ * Editable event details: date, start and end time, guests, setup, venue and access notes. The end time
+ * is 2 to 6 hours after the start; moving the start keeps the event's length. A booking made before end
+ * times existed shows none (it counts as 4 hours) until the admin picks one.
  * For an equipment rental: the date, the pick-up or delivery time, pick up versus delivery and the
  * delivery address (no guests). Switching between pick up and delivery changes the total, so it
  * is flagged before saving, the same way a new guest count on a buffet is.
@@ -426,11 +430,11 @@ export default function ReservationDetailPage() {
 function LogisticsCard({ r, closed, onSave }) {
   const rental = isRental(r.serviceType);
   // Form values built from the saved reservation
-  const initial = () => ({ date: r.date, startTime: r.startTime, guests: String(r.guests), fulfilment: r.fulfilment || '', venueName: r.venue.name, venueAddress: r.venue.address, city: r.venue.city, accessNotes: r.venue.accessNotes });
+  const initial = () => ({ date: r.date, startTime: r.startTime, endTime: r.endTime || '', guests: String(r.guests), fulfilment: r.fulfilment || '', venueName: r.venue.name, venueAddress: r.venue.address, city: r.venue.city, accessNotes: r.venue.accessNotes });
   const [values, setValues] = useState(initial);
   const [busy, setBusy] = useState(false);
   // Refill the form when the saved reservation changes
-  useEffect(() => setValues(initial()), [r.date, r.startTime, r.guests, r.fulfilment, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setValues(initial()), [r.date, r.startTime, r.endTime, r.guests, r.fulfilment, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // True when something was changed, so Save/Reset appear enabled
   const dirty = JSON.stringify(values) !== JSON.stringify(initial());
@@ -510,7 +514,8 @@ function LogisticsCard({ r, closed, onSave }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <DateField id="l-date" label="Date" mode="any" value={values.date} onChange={set('date')} disabled={closed} />
         {/* Same hour / minute / AM-PM picker as the customer form: booking hours only, every 30 minutes */}
-        <TimeField id="l-start" label="Start time" value={values.startTime} onChange={set('startTime')} min={RULES.earliestStart} max={RULES.latestStart} step={30} disabled={closed} />
+        <TimeField id="l-start" label="Start time" value={values.startTime} onChange={(v) => setValues((cur) => ({ ...cur, startTime: v, endTime: cur.endTime ? shiftEndTime(cur.startTime, cur.endTime, v) : '' }))} min={RULES.earliestStart} max={RULES.latestStart} step={30} disabled={closed} />
+        <EndTimeField id="l-end" startTime={values.startTime} value={values.endTime} onChange={set('endTime')} disabled={closed} hint={r.endTime ? `Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.` : `Not set: booked before end times existed, so it counts as ${RULES.defaultEventHours} hours.`} />
         <FormField id="l-guests" label="Guests" type="number" value={values.guests} onChange={set('guests')} disabled={closed} />
         <FormField id="l-venue" label="Venue" value={values.venueName} onChange={set('venueName')} disabled={closed} />
         <FormField id="l-city" label="City" value={values.city} onChange={set('city')} disabled={closed} />

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
+import { RULES } from '@tm/shared/src/services/config.js';
 
 /**
  * Settings for the whole API, read once from apps/api/.env and checked here so a bad value
@@ -105,7 +106,8 @@ export const config = {
     driver: text('STORAGE_DRIVER', 'local'),
     // Relative paths are taken from apps/api, wherever the process was started
     uploadDir: path.resolve(API_ROOT, text('UPLOAD_DIR', 'uploads')),
-    maxUploadMb: int('MAX_UPLOAD_MB', 5)
+    // The receipt-photo limit; the Payments page tells customers RULES.proofMaxMb, so keep the two equal
+    maxUploadMb: int('MAX_UPLOAD_MB', RULES.proofMaxMb)
   },
 
   // GCash / e-wallet QR payments (Phase 8B). Both secrets are needed before the Payments page offers the

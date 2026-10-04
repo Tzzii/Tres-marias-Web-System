@@ -27,13 +27,21 @@ export const RULES = {
    *  half hour of the day is offered; 23:30 is simply the last one that starts before midnight. */
   earliestStart: '00:00',
   latestStart: '23:30',
-  /** Hours kept free before every event for setup, and after it for tear-down; no other event can start in them. */
+  /** Hours kept free between two events (tear-down of one, setup of the next); no event may run into them. */
   eventBufferHours: 2,
-  /** How long a booked event runs, for the window it blocks on the calendar (packages don't set their own hours). */
+  /**
+   * How long an event may run: the customer picks an end time from minEventHours to maxEventHours after
+   * the start (the owner's rule, 2026-10-03). An event may end after midnight, e.g. 10:00 pm to 2:00 am.
+   * defaultEventHours is only for bookings made before end times existed (no end time saved).
+   */
+  minEventHours: 2,
+  maxEventHours: 6,
   defaultEventHours: 4,
-  /** Guest counts the venue accepts; forms keep the number inside this range. */
+  /** Guest counts the business accepts (the owner's rule, 2026-10-03); forms keep the number inside this range. */
   minGuests: 50,
-  maxGuests: 2000,
+  maxGuests: 700,
+  /** The largest bank-receipt photo a customer can upload, in MB (the API's MAX_UPLOAD_MB defaults to it). */
+  proofMaxMb: 20,
   /** Days after approval the downpayment (at least the booking's minimum, see DEFAULT_MIN_DOWNPAYMENT) falls due. */
   downpaymentDueDays: 7,
   /**
@@ -53,9 +61,12 @@ export const RULES = {
   codeLength: 6,
   maxCodeAttempts: 5,
   codeLockMinutes: 2,
-  codeResendSeconds: 45,
+  codeResendSeconds: 60,
   codeValidMinutes: 5,
-  /** Sessions end after this much inactivity, then the user is sent back to the logo screen. */
+  /**
+   * After this much inactivity a customer is signed out, and an admin's screen locks: the admin unlocks it
+   * with the password alone (no emailed code) until the session itself runs out (JWT_ADMIN_TTL).
+   */
   idleMinutes: 15
 };
 
@@ -132,8 +143,11 @@ export const DISH_CATEGORIES = [
  */
 export const MENU_LINE_MAX = 200;
 
-/** The drinks served with every buffet. Both are always included; the customer does not choose. */
-export const BUFFET_DRINKS = ['Water', 'Juice'];
+/**
+ * The drinks served with every buffet, as one phrase for every page and document ("Unlimited water and
+ * juice for every guest"). Both are always included and unlimited; the customer does not choose.
+ */
+export const BUFFET_DRINKS = 'Unlimited water and juice';
 
 /** Starting buffet price per person. The admin changes it on the Packages page, and it is stored with the data. */
 export const DEFAULT_PRICE_PER_PLATE = 600;
@@ -159,7 +173,10 @@ export const MIN_DOWNPAYMENT_RANGE = { min: 1000, max: 100000 };
 export const ADDON_PRICE_RANGE = { min: 1, max: 1000000 };
 
 // Reasons an admin can pick when blocking dates. "Holiday" is not one: catering is allowed on holidays.
+// The admin may add a short note for customers too (BLOCK_NOTE_MAX characters), e.g. "Staff outing";
+// customers see the reason and the note when they tap the date.
 export const BLOCK_REASONS = ['Fully booked', 'Private event', 'Maintenance'];
+export const BLOCK_NOTE_MAX = 120;
 
 // Equipment inventory categories, in display order. Lights and sound are not owned: they come
 // from an outsourcing partner (see OUTSOURCE_SERVICES), so they have no category here.

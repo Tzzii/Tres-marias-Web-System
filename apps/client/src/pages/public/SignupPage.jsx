@@ -10,15 +10,16 @@ import Typography from '@mui/material/Typography';
 import {
   AlertBanner,
   AppDialog,
-  BUSINESS,
   BusyButton,
   FormField,
   PasswordField,
+  TERMS_UPDATED,
   authApi,
   catalogApi,
   collectErrors,
-  peso,
+  privacyPolicy,
   required,
+  termsOfService,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -30,6 +31,7 @@ import {
 import { useAuth } from '../../auth.js';
 import AuthLayout, { BookingIntentBanner, FormCard, useCardFlip } from '../../components/AuthLayout.jsx';
 import { EmailCodeDialog } from '../../components/EmailCode.jsx';
+import LegalText from '../../components/LegalText.jsx';
 import { readIntent } from '../../lib/booking.js';
 
 // Validation rule for each field. Each returns an error message, or '' when valid.
@@ -41,7 +43,7 @@ const RULES = {
   mobile: validateMobile,
   password: validatePassword,
   confirm: (v, all) => (!v ? 'Confirm your password.' : v !== all.password ? 'Passwords do not match.' : ''),
-  agree: (v) => (v ? '' : 'Please agree to the terms and privacy notice.')
+  agree: (v) => (v ? '' : 'Please agree to the Terms of Service and Privacy Policy.')
 };
 
 /**
@@ -67,7 +69,7 @@ export default function SignupPage() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false); // terms dialog open
+  const [termsOpen, setTermsOpen] = useState(false); // dialog with the full Terms of Service and Privacy Policy
   const [challenge, setChallenge] = useState(null); // the emailed-code step ({ challengeId, maskedEmail, … }), open while set
   // "Log in" flips the card over to the login page (keeps the booking the visitor started)
   const { flipping, flipTo } = useCardFlip();
@@ -102,7 +104,8 @@ export default function SignupPage() {
     }
     setBusy(true);
     try {
-      setChallenge(await authApi.startSignUp(values));
+      // The tick is sent too: the server refuses a sign-up without it and records the terms version agreed to
+      setChallenge(await authApi.startSignUp({ ...values, agreeTerms: values.agree }));
     } catch (error) {
       setShake(true);
       // e.g. "email already registered" is shown under the email field
@@ -155,12 +158,12 @@ export default function SignupPage() {
         <Box>
           <FormControlLabel
             sx={{ alignItems: 'flex-start', mr: 0 }}
-            control={<Checkbox id="signup-agree" size="small" checked={values.agree} onChange={set('agree')} inputProps={{ 'aria-label': 'I agree to the terms and privacy notice' }} sx={{ mt: -0.5 }} />}
+            control={<Checkbox id="signup-agree" size="small" checked={values.agree} onChange={set('agree')} inputProps={{ 'aria-label': 'I agree to the Terms of Service and Privacy Policy' }} sx={{ mt: -0.5 }} />}
             label={
               <Typography sx={{ fontSize: 13, lineHeight: 1.5 }}>
                 I agree to the{' '}
                 <Link component="button" type="button" onClick={() => setTermsOpen(true)} sx={{ fontSize: 13, fontWeight: 600, color: tokens.goldDark, verticalAlign: 'baseline' }}>
-                  terms and privacy notice
+                  Terms of Service and Privacy Policy
                 </Link>
               </Typography>
             }
@@ -197,8 +200,8 @@ export default function SignupPage() {
       <AppDialog
         open={termsOpen}
         onClose={() => setTermsOpen(false)}
-        title="Terms and privacy notice"
-        maxWidth="sm"
+        title="Terms of Service and Privacy Policy"
+        maxWidth="md"
         actions={
           <Button
             variant="contained"
@@ -213,19 +216,16 @@ export default function SignupPage() {
           </Button>
         }
       >
-        <Box sx={{ fontSize: 13.5, lineHeight: 1.7, color: tokens.textSecondary, '& h3': { fontSize: 14, color: tokens.textPrimary, mt: 2, mb: 0.5 } }}>
-          <h3>Your account</h3>
-          <p>Your account lets you request reservations, receive quotations, make payments and message our team. Keep your password private; you are responsible for activity on your account.</p>
-          <h3>Reservations and payments</h3>
-          <p>
-            A submitted reservation is a request, not a confirmed booking. Your date is secured once the reservation is approved and your downpayment{minimum ? ` of at least ${peso(minimum)}` : ''} is verified.
-            You can pay more, up to the full amount. Cancellation and refund terms are stated in your contract.
-          </p>
-          <h3>Privacy</h3>
-          <p>
-            We collect your name, email and mobile number to manage your reservations and contact you about your events, in line with the Data Privacy Act of 2012 (RA 10173). We never sell your information. To access or delete your data, email {BUSINESS.email}.
-          </p>
-        </Box>
+        {/* The full Terms of Service and Privacy Policy (legal/terms.js), the same text as the /terms and /privacy pages */}
+        <Typography sx={{ fontSize: 12.5, color: tokens.textMuted, mb: 2 }}>
+          Last updated {TERMS_UPDATED}. You can also read them on their own pages:{' '}
+          <Link component={RouterLink} to="/terms" target="_blank" rel="noopener" sx={{ fontWeight: 600, color: tokens.goldDark }}>Terms of Service</Link> and{' '}
+          <Link component={RouterLink} to="/privacy" target="_blank" rel="noopener" sx={{ fontWeight: 600, color: tokens.goldDark }}>Privacy Policy</Link>.
+        </Typography>
+        <Typography component="h2" sx={{ fontSize: 17, fontWeight: 800, mb: 1.5 }}>Terms of Service</Typography>
+        <LegalText sections={termsOfService({ minDownpayment: minimum })} compact />
+        <Typography component="h2" sx={{ fontSize: 17, fontWeight: 800, mt: 4, mb: 1.5 }}>Privacy Policy</Typography>
+        <LegalText sections={privacyPolicy()} compact />
       </AppDialog>
     </AuthLayout>
   );

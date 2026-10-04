@@ -79,9 +79,10 @@ export default function AllReservationsSection() {
   // Keep the page in range when rows leave the list (e.g. a reservation moved to another status)
   const current = Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
 
-  // Download the currently filtered reservations as a plain-text table
-  const exportTxt = () => {
-    const rowsOut = filtered.map((r) => ({ Reference: r.ref, Customer: r.customerName, Email: r.customerEmail, Event: r.eventName, Occasion: r.occasion, Date: r.date, Start: r.startTime, Guests: isRental(r.serviceType) ? 'Rental' : r.guests, Package: r.packageName, Venue: `${r.venue.name}, ${r.venue.city}`, Status: statusLabel(r.status), Total: r.total, Paid: r.paid, Balance: r.balance }));
+  // Download the currently filtered reservations as a plain-text table (End: an event's end time, "-" for a rental
+  // or a booking made before end times existed)
+  const exportTxt = async () => {
+    const rowsOut = filtered.map((r) => ({ Reference: r.ref, Customer: r.customerName, Email: r.customerEmail, Event: r.eventName, Occasion: r.occasion, Date: r.date, Start: r.startTime, End: r.endTime || '-', Guests: isRental(r.serviceType) ? 'Rental' : r.guests, Package: r.packageName, Venue: `${r.venue.name}, ${r.venue.city}`, Status: statusLabel(r.status), Total: r.total, Paid: r.paid, Balance: r.balance }));
     const text = [
       'TRES MARIAS - RESERVATIONS',
       `Generated: ${formatDate(todayISO())}`,
@@ -89,7 +90,7 @@ export default function AllReservationsSection() {
       '',
       textTable(rowsOut, ['Total', 'Paid', 'Balance'])
     ].join('\n');
-    if (downloadTxt(`tres-marias-reservations-${todayISO()}.txt`, text)) notify(`Exported ${filtered.length} reservations.`);
+    if (await downloadTxt(`tres-marias-reservations-${todayISO()}.txt`, text)) notify(`Exported ${filtered.length} reservations.`);
   };
 
   // Table columns: `render` decides what each cell shows for a reservation

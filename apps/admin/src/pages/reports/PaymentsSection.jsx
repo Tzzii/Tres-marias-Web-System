@@ -300,11 +300,11 @@ export default function PaymentsSection() {
             <CardTitle subtitle={`${verifyingRow.customerName} · ${verifyingRow.eventName}`} action={<Button size="small" onClick={closeVerify}>Close</Button>}>
               Verifying · {verifying.ref}
             </CardTitle>
-            {/* A bank transfer shows its receipt (the typed reference is below, to compare); a GCash QR payment and cash have none */}
+            {/* A bank transfer shows its receipt (the typed reference is below, to compare); a QR Ph payment and cash have none */}
             {verifying.proofName ? (
               <ProofPreview payment={verifying} />
             ) : verifying.method === 'qrph' ? (
-              <AlertBanner tone="info">GCash / e-wallet QR payment, confirmed by PayMongo.</AlertBanner>
+              <AlertBanner tone="info">QR Ph payment (GCash, Maya or a bank app), confirmed by PayMongo.</AlertBanner>
             ) : (
               <AlertBanner tone="info">Cash payment recorded by the admin.</AlertBanner>
             )}
@@ -339,7 +339,7 @@ export default function PaymentsSection() {
       </Box>
 
       <Typography sx={{ mt: 2, fontSize: 12.5, color: tokens.textOnDarkMuted }}>
-        Cash-on-site payments are recorded from the reservation page with “Mark payment received”. GCash QR payments are confirmed by PayMongo; only bank transfers need verifying here.
+        Cash-on-site payments are recorded from the reservation page with “Mark payment received”. QR Ph payments are confirmed by PayMongo; only bank transfers need verifying here.
       </Typography>
 
       <ConfirmDialog

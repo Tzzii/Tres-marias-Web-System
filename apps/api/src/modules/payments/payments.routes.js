@@ -24,7 +24,7 @@ import * as payments from './payments.service.js';
  */
 
 /**
- * The proof upload: one file named "proof", kept in memory (up to MAX_UPLOAD_MB, 5 MB) so the service can
+ * The proof upload: one file named "proof", kept in memory (up to MAX_UPLOAD_MB, 20 MB) so the service can
  * check its first bytes before anything is written to disk. The routers using it sit behind requireAuth,
  * so a request without a valid token is refused before the file is read. Too large, or a file under
  * another name: MulterError, which middleware/errors.js answers with 400 INVALID under "proof".

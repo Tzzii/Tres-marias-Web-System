@@ -5,6 +5,8 @@ import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
@@ -17,6 +19,7 @@ import {
   DISH_CATEGORIES,
   DashCard,
   DateField,
+  EndTimeField,
   ErrorState,
   FormField,
   INVENTORY_CATEGORIES,
@@ -34,15 +37,19 @@ import {
   calendarApi,
   catalogApi,
   computeQuote,
+  endTimeProblem,
+  eventHours,
   flattenAddons,
   formatClock,
   formatDate,
+  formatEventTime,
   formatPackageItem,
   includesFood,
   isRental,
   isRentalPackage,
   peso,
   reservationApi,
+  shiftEndTime,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -67,7 +74,7 @@ const SECTIONS = [
 ];
 
 // Which section each field lives in (used to scroll to the first error)
-const FIELD_SECTION = { eventName: 'details', occasion: 'details', date: 'details', startTime: 'details', guests: 'details', serviceType: 'service', packageId: 'package', rentalItems: 'items', foodNotes: 'food', fulfilment: 'venue', venueName: 'venue', venueAddress: 'venue', city: 'venue' };
+const FIELD_SECTION = { eventName: 'details', occasion: 'details', date: 'details', startTime: 'details', endTime: 'details', agreeTerms: 'review', guests: 'details', serviceType: 'service', packageId: 'package', rentalItems: 'items', foodNotes: 'food', fulfilment: 'venue', venueName: 'venue', venueAddress: 'venue', city: 'venue' };
 
 /** The section an error belongs to. Menu dishes, add-on quantities and rented items have one field per id. */
 const sectionForField = (field) => {
@@ -90,17 +97,18 @@ const lowestPackagePrice = (addon) => {
 
 // Blank form values. `serviceType` starts empty, so nothing under "What you are booking" is picked
 // until the customer chooses it themselves.
-// `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental.
-const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
+// `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental, and
+// `endTime` only by an event (2 to 6 hours after the start; blank until the customer picks it).
+const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
 
 // Date error while the availability map is still on its way from the API (the date cannot be checked yet)
 const DATES_LOADING = 'The available dates are still loading. Please try again in a moment.';
 
-// Colour and label of a rental item's availability on the chosen date
+// Colour and words of a rental item's availability on the chosen date, from how many pieces are left
 const AVAILABILITY = {
-  available: { label: 'Available', color: '#047857' },
-  limited: { label: 'Limited', color: '#b45309' },
-  out: { label: 'Not available', color: '#b91c1c' }
+  available: { label: (left) => `${left} available`, color: '#047857' },
+  limited: { label: (left) => `Only ${left} left`, color: '#b45309' },
+  out: { label: () => 'None left on this date', color: '#b91c1c' }
 };
 
 /**
@@ -114,6 +122,10 @@ const AVAILABILITY = {
  * The third choice, Equipment rental, books the Equipment Rental package: the customer types how
  * many of each rentable item they need, sees each item's availability on their date, and chooses
  * pick up (free) or delivery (standard fee). Every price is known, so its total is exact.
+ *
+ * An event has a start and an end time (2 to 6 hours, maybe past midnight); a rental only the time the
+ * items are picked up or delivered. Before sending, the customer ticks "I agree to the Terms of Service",
+ * which is not kept in the draft: it is asked again for every request.
  */
 export default function BookEventPage() {
   useDocumentTitle('Book an event');
@@ -128,6 +140,7 @@ export default function BookEventPage() {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [agreed, setAgreed] = useState(false); // "I agree to the Terms of Service" (never saved in the draft)
   const [savedAt, setSavedAt] = useState(null); // time of the last draft autosave
   const [active, setActive] = useState('details'); // section currently on screen
   const chipBar = useRef(null); // phone / tablet row of section chips
@@ -157,6 +170,7 @@ export default function BookEventPage() {
       ...base,
       ...(picks.occasion ? { occasion: picks.occasion } : {}),
       ...(picks.startTime ? { startTime: picks.startTime } : {}),
+      ...(picks.endTime ? { endTime: picks.endTime } : {}),
       ...(picks.guests ? { guests: String(picks.guests) } : {}),
       ...(pkg ? { packageId: pkg.id, ...serviceFor } : {}),
       ...(params.get('date') || picks.date ? { date: params.get('date') || picks.date } : {})
@@ -272,6 +286,14 @@ export default function BookEventPage() {
   // Pieces still free on the chosen date for a stock-tracked charge or size (a tent size); null when it
   // isn't tracked, or before a date is chosen and its count has arrived
   const leftFor = (a) => (a.inventoryItemId && form.date && avail[a.inventoryItemId] ? avail[a.inventoryItemId].left : null);
+  // A rental line asking for more pieces than are free on the chosen date: said at once, while typing (and
+  // again by submit and by the server), short enough for the narrow box; '' when it fits or the counts haven't arrived
+  const stockError = (itemId) => {
+    const free = avail[itemId];
+    const qty = Number(form.rentalQty[itemId]) || 0;
+    if (!free || !qty || qty <= free.left) return '';
+    return free.left ? `Only ${free.left} available` : 'None available';
+  };
 
   // Change one or more fields, mark the form as touched, and clear those fields' errors
   const update = (patch) => {
@@ -379,6 +401,7 @@ export default function BookEventPage() {
     const e = {};
     if (form.eventName.trim().length < 3) e.eventName = 'Give your event a name (at least 3 characters).';
     if (!form.occasion) e.occasion = 'Choose the occasion.';
+    if (!agreed) e.agreeTerms = 'Please read and agree to the Terms of Service before sending your request.';
     if (rental) return { ...e, ...validateRental() };
     if (!form.date) e.date = 'Choose your event date.';
     else if (calendarApi.availabilitySnapshot().loading) e.date = DATES_LOADING;
@@ -392,6 +415,13 @@ export default function BookEventPage() {
       // Same check as the server: on the hour or half hour, within hours, and not clashing with another event that day
       const reason = calendarApi.timeUnavailableReason(form.date, form.startTime, calendarApi.availabilitySnapshot());
       if (reason) e.startTime = `${reason}.`;
+    }
+    // The end: 2 to 6 hours after the start, and the event may not run into the next one that day
+    if (!form.endTime) e.endTime = 'Choose an end time.';
+    else if (endTimeProblem(form.startTime, form.endTime)) e.endTime = `${endTimeProblem(form.startTime, form.endTime)}.`;
+    else if (form.date && !e.date && !e.startTime) {
+      const reason = calendarApi.timeUnavailableReason(form.date, form.startTime, calendarApi.availabilitySnapshot(), eventHours(form.startTime, form.endTime));
+      if (reason) e.endTime = `${reason}.`;
     }
     const guests = Number(form.guests);
     if (!form.guests) e.guests = 'Enter your guest count.';
@@ -478,9 +508,10 @@ export default function BookEventPage() {
       const created = await reservationApi.createReservation(
         user.id,
         rental
-          ? { ...form, rentalItems: rentalChosen.map(({ itemId, qty }) => ({ itemId, qty })) }
+          ? { ...form, endTime: undefined, agreeTerms: agreed, rentalItems: rentalChosen.map(({ itemId, qty }) => ({ itemId, qty })) }
           : {
               ...form,
+              agreeTerms: agreed,
               guests: Number(form.guests),
               menu: buffet ? form.menu : {},
               addonIds: bookedAddonIds,
@@ -517,6 +548,7 @@ export default function BookEventPage() {
     setSavedAt(null);
     setErrors({});
     setForm(EMPTY);
+    setAgreed(false);
     catalog.reload();
   };
 
@@ -529,7 +561,7 @@ export default function BookEventPage() {
   // Which sections are complete (shows a green tick in the section nav).
   // Additional charges are optional, so that section is ticked only once at least one is chosen.
   const sectionDone = {
-    details: form.eventName && form.occasion && form.date && form.startTime && (rental || form.guests),
+    details: form.eventName && form.occasion && form.date && form.startTime && (rental || (form.endTime && form.guests)),
     service: Boolean(form.serviceType),
     package: Boolean(pkg),
     items: rentalChosen.length > 0,
@@ -611,7 +643,12 @@ export default function BookEventPage() {
                   {/* A rental takes no event slot, so only too-soon and blocked days are greyed out */}
                   <DateField id="f-date" label={rental ? 'Date you need the items' : 'Event date'} required inline rental={rental} value={form.date} onChange={(v) => update({ date: v })} error={errors.date} />
                 </Box>
-                <TimeField id="f-startTime" label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start time'} required value={form.startTime} onChange={(v) => update({ startTime: v })} error={errors.startTime} min={RULES.earliestStart} max={RULES.latestStart} step={30} />
+                {/* Moving the start keeps the event's length, so a chosen end time never stops fitting */}
+                <TimeField id="f-startTime" label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start time'} required value={form.startTime} onChange={(v) => update({ startTime: v, ...(form.endTime ? { endTime: shiftEndTime(form.startTime, form.endTime, v) } : {}) })} error={errors.startTime} min={RULES.earliestStart} max={RULES.latestStart} step={30} />
+                {/* An event's end, 2 to 6 hours after the start (past midnight allowed); a rental has none */}
+                {!rental && (
+                  <EndTimeField id="f-endTime" required startTime={form.startTime} value={form.endTime} onChange={(v) => update({ endTime: v })} error={errors.endTime} hint={`Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`} />
+                )}
                 {/* A rental has no guest count: the customer says how many of each item instead */}
                 {!rental && (
                   <FormField id="f-guests" label="Guest count" required value={form.guests} onChange={(e) => updateGuests(e.target.value)} error={errors.guests} hint={pkg ? `Default for ${pkg.name}: ${pkg.guests} guests` : `Between ${RULES.minGuests} and ${RULES.maxGuests} guests`} inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }} />
@@ -624,7 +661,7 @@ export default function BookEventPage() {
             <Section id="service" index={sectionNo('service')} title="What you are booking" subtitle="This decides whether we cook for you." error={errors.serviceType}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', xl: rentalPkg ? 'repeat(3, 1fr)' : '1fr 1fr' }, gap: 1.5 }}>
                 {[
-                  ['Buffet and Catering', 'We cook your food', `One pork, chicken, fish and vegetable dish, with water and juice. Charged ${peso(data.pricePerPlate)} per person.`],
+                  ['Buffet and Catering', 'We cook your food', `One pork, chicken, fish and vegetable dish, with ${BUFFET_DRINKS.toLowerCase()}. Charged ${peso(data.pricePerPlate)} per person.`],
                   ['Catering only', 'Equipment and setup only', 'Tables, chairs, linens, food warmers and tableware. You provide the food, and there is no per-person charge.'],
                   // Only while the admin shows the Equipment Rental package
                   ...(rentalPkg ? [[RENTAL_SERVICE, 'Rent items only', `Pick the tables, chairs, linens, warmers or decor you need, priced per piece. Pick up in ${RENTAL.pickupAddress} or have them delivered.`]] : [])
@@ -645,7 +682,7 @@ export default function BookEventPage() {
               {/* Our buffet is served plated, which customers often ask about before booking */}
               {buffet && (
                 <AlertBanner tone="info" sx={{ mt: 2 }}>
-                  Our buffet is served plated by our team. The {peso(data.pricePerPlate)} per person covers the four dishes, water and juice for every guest.
+                  Our buffet is served plated by our team. The {peso(data.pricePerPlate)} per person covers the four dishes and {BUFFET_DRINKS.toLowerCase()} for every guest.
                 </AlertBanner>
               )}
             </Section>
@@ -703,7 +740,10 @@ export default function BookEventPage() {
                         .map((item) => {
                           const qty = form.rentalQty[item.id] || '';
                           const on = Number(qty) > 0;
+                          // How many are free on the chosen date, and a message as soon as the number typed is more
                           const free = avail[item.id] && AVAILABILITY[avail[item.id].status];
+                          const left = avail[item.id] ? avail[item.id].left : null;
+                          const tooMany = stockError(item.id);
                           return (
                             <Box key={item.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 104px', gap: 1.25, alignItems: 'start', p: 1.25, borderRadius: 1.5, border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`, backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff' }}>
                               <Box sx={{ minWidth: 0 }}>
@@ -713,19 +753,20 @@ export default function BookEventPage() {
                                 </Typography>
                                 <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
                                   Damage fee {peso(item.damageFee)} per piece
-                                  {free && (
-                                    <Box component="span" sx={{ ml: 1, fontWeight: 700, color: free.color }}>
-                                      · {free.label}
-                                    </Box>
-                                  )}
+                                </Typography>
+                                {/* "18 available" on the chosen date; before a date is picked there is nothing to count yet */}
+                                <Typography sx={{ fontSize: 12, fontWeight: 700, color: free ? free.color : tokens.textMuted }}>
+                                  {free ? free.label(left) : form.date ? 'Checking how many are free…' : 'Choose a date to see how many are free'}
                                 </Typography>
                               </Box>
                               <FormField
                                 id={`f-rent-${item.id}`}
                                 value={qty}
                                 onChange={(e) => updateRentalQty(item.id, e.target.value)}
-                                error={errors[`rental.${item.id}`]}
+                                error={errors[`rental.${item.id}`] || tooMany}
                                 placeholder="0"
+                                // None left that day: nothing can be asked for (a number typed before the date changed can still be cleared)
+                                disabled={left === 0 && !qty}
                                 inputProps={{ inputMode: 'numeric', maxLength: String(RENTAL.maxQty).length, 'aria-label': `How many ${item.name}` }}
                               />
                             </Box>
@@ -738,7 +779,7 @@ export default function BookEventPage() {
               </Section>
             )}
 
-            {/* Only for a buffet: one dish from each category, and water and juice for everyone */}
+            {/* Only for a buffet: one dish from each category, and unlimited water and juice for everyone */}
             {buffet && (
               <Section id="food" index={sectionNo('food')} title="Your menu" subtitle={`Write what you would like for each part of the menu. ${peso(data.pricePerPlate)} per person covers all of it.`}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
@@ -775,7 +816,7 @@ export default function BookEventPage() {
                 {/* Fixed for every buffet, so it is shown rather than asked */}
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.25 }}>Drinks</Typography>
-                  <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{BUFFET_DRINKS.join(' and ')} for every guest, included in the price per person.</Typography>
+                  <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{BUFFET_DRINKS} for every guest, included in the price per person.</Typography>
                 </Box>
                 <FormField id="f-foodNotes" label="Anything we should know about the food" optional multiline minRows={3} value={form.foodNotes} onChange={(e) => update({ foodNotes: e.target.value })} placeholder="Allergies, a vegetarian portion, softer food for elderly guests, serving time…" hint="This does not change the price. Our kitchen reads it before the event." inputProps={{ maxLength: 500 }} sx={{ mt: 2 }} />
               </Section>
@@ -966,6 +1007,21 @@ export default function BookEventPage() {
                   ? 'This is a request, not a confirmed rental. We check the items and send your quotation within 24 hours.'
                   : 'This is a request, not a confirmed booking. We review it and send your quotation with the additional charges priced within 24 hours.'}
               </AlertBanner>
+              {/* Asked for every request; the link opens the full terms in a new tab so the form stays as it is */}
+              <Box sx={{ mt: 2 }}>
+                <FormControlLabel
+                  sx={{ alignItems: 'flex-start', mr: 0 }}
+                  control={<Checkbox id="f-agreeTerms" size="small" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setErrors((er) => ({ ...er, agreeTerms: '' })); }} sx={{ mt: -0.5 }} />}
+                  label={
+                    <Typography sx={{ fontSize: 13, lineHeight: 1.55, color: tokens.textSecondary }}>
+                      I have read and agree to the{' '}
+                      <Link href="/terms" target="_blank" rel="noopener" sx={{ fontWeight: 600, color: tokens.goldDark }}>Terms of Service</Link>, including the payment, cancellation and refund rules, and the{' '}
+                      <Link href="/privacy" target="_blank" rel="noopener" sx={{ fontWeight: 600, color: tokens.goldDark }}>Privacy Policy</Link>.
+                    </Typography>
+                  }
+                />
+                {errors.agreeTerms && <Typography role="alert" sx={{ mt: 0.5, fontSize: 12.5, fontWeight: 600, color: tokens.redPress }}>{errors.agreeTerms}</Typography>}
+              </Box>
               <Box sx={{ mt: 2.5, display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>
                 <BusyButton size="large" busy={busy} onClick={submit}>
                   Submit reservation request
@@ -991,6 +1047,7 @@ export default function BookEventPage() {
                 : [
                     ['Booking', form.serviceType || '—'],
                     ['Date', form.date ? formatDate(form.date) : '—'],
+                    ['Time', form.startTime && form.endTime ? formatEventTime(form) : '—'],
                     ['Guests', form.guests || '—'],
                     ['Package', pkg ? pkg.name : '—'],
                     // Only a buffet has a menu to report on

@@ -1,5 +1,5 @@
-import { buildSnapshot, dateUnavailableReason, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
-import { BLOCK_REASONS } from '@tm/shared/src/services/config.js';
+import { blockNote, buildSnapshot, dateUnavailableReason, endTimeProblem, eventHours, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
+import { BLOCK_NOTE_MAX, BLOCK_REASONS } from '@tm/shared/src/services/config.js';
 import { addDays } from '@tm/shared/src/utils/format.js';
 import { tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
@@ -16,7 +16,8 @@ import * as repo from './calendar.repo.js';
  * On purpose:
  * - The public map has no events[].ref: anyone can read it, and it must not show which booking holds a time.
  * - Every date must be a real "YYYY-MM-DD" day, a start time must be "HH:MM", and a block's reason
- *   must be one of BLOCK_REASONS (the admin page only offers those).
+ *   must be one of BLOCK_REASONS (the admin page only offers those). The block's note for customers is
+ *   optional, up to BLOCK_NOTE_MAX characters; the public map carries it so the date pickers can show it.
  * Every write (block, unblock, capacity) also moves calendar_settings.updated_at (when the calendar
  * last changed), in the same transaction. The calendar keeps no audit trail (the schema has none),
  * so none is written here.
@@ -41,35 +42,45 @@ export async function availabilityMap(db) {
   return buildSnapshot({ capacity, blocked, reservations });
 }
 
-/** The public availability map: { capacity, blocked, booked, events: [{ date, startTime, hours }] }. */
+/** The public availability map: { capacity, blocked: [{ date, reason, note }], booked, events: [{ date, startTime, hours }] }. */
 export async function getCalendar() {
   const map = await availabilityMap();
   return { ...map, events: map.events.map(({ date, startTime, hours }) => ({ date, startTime, hours })) };
 }
 
 /**
- * Is this date, and start time if given, free to reserve? Returns { date, startTime, available,
- * reason, timeConflict } (startTime is '' when none was given).
- * `timeConflict` is true when the date itself is open but the chosen time is not.
+ * Is this date, and start time (and end time) if given, free to reserve? Returns { date, startTime,
+ * endTime, available, reason, note, timeConflict } (startTime / endTime are '' when none was given).
+ * Without an end time the start is checked for the shortest event (RULES.minEventHours); with one, the
+ * event must run 2 to 6 hours and not run into the next event. `note` is the admin's note when the
+ * date is blocked ('' otherwise). `timeConflict` is true when the date itself is open but the chosen
+ * time is not.
  */
-export async function checkAvailability(date, time) {
+export async function checkAvailability(date, time, end) {
   if (!isISODate(date)) throw invalid('Choose your event date.', 'date');
   const startTime = time ?? '';
   if (startTime !== '' && !isClockTime(startTime)) throw invalid('Enter the start time as HH:MM, e.g. 18:00.', 'time');
+  const endTime = startTime ? (end ?? '') : '';
+  if (endTime !== '') {
+    const problem = endTimeProblem(startTime, endTime);
+    if (problem) throw invalid(`${problem}.`, 'end');
+  }
   const map = await availabilityMap();
   const dateReason = dateUnavailableReason(date, map);
-  if (dateReason) return { date, startTime, available: false, reason: dateReason, timeConflict: false };
-  const timeReason = startTime ? timeUnavailableReason(date, startTime, map) : '';
-  return { date, startTime, available: !timeReason, reason: timeReason, timeConflict: Boolean(timeReason) };
+  if (dateReason) return { date, startTime, endTime, available: false, reason: dateReason, note: blockNote(date, map), timeConflict: false };
+  const timeReason = startTime ? timeUnavailableReason(date, startTime, map, endTime ? eventHours(startTime, endTime) : undefined) : '';
+  return { date, startTime, endTime, available: !timeReason, reason: timeReason, note: '', timeConflict: Boolean(timeReason) };
 }
 
 /**
  * Admin: block every date from `from` to `to` (both included, at most 60), with a reason from
- * BLOCK_REASONS. A date already blocked gets the new reason. Returns { added, total }: the dates newly
- * blocked, and the dates in the range. Dates that already have bookings may be blocked too (the
- * admin page warns about them); their bookings are not changed.
+ * BLOCK_REASONS and an optional note for customers (`note`, up to BLOCK_NOTE_MAX characters, e.g.
+ * "Staff outing"), which the customers' date pickers show when the date is tapped. A date already
+ * blocked gets the new reason and note. Returns { added, total }: the dates newly blocked, and the
+ * dates in the range. Dates that already have bookings may be blocked too (the admin page warns about
+ * them); their bookings are not changed.
  */
-export async function blockDates({ from, to, reason }) {
+export async function blockDates({ from, to, reason, note }) {
   if (!isISODate(from)) throw invalid('Choose the first and last date to block.', 'from');
   if (!isISODate(to)) throw invalid('Choose the first and last date to block.', 'to');
   if (to < from) throw invalid('The end date must be on or after the start date.', 'to');
@@ -77,12 +88,16 @@ export async function blockDates({ from, to, reason }) {
   const total = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
   if (total > MAX_BLOCK_DAYS) throw invalid(`Block at most ${MAX_BLOCK_DAYS} days at a time.`, 'to');
   if (!BLOCK_REASONS.includes(reason)) throw invalid('Choose a reason from the list.', 'reason');
+  if (note !== undefined && note !== null && typeof note !== 'string') throw invalid('Write the note as text.', 'note');
+  // Spaces and line breaks squeezed to single spaces: the note is one short line for customers
+  const cleanNote = (note || '').replace(/\s+/g, ' ').trim();
+  if (cleanNote.length > BLOCK_NOTE_MAX) throw invalid(`Keep the note to ${BLOCK_NOTE_MAX} characters or fewer.`, 'note');
 
   const dates = Array.from({ length: total }, (_, i) => addDays(from, i));
   return tx(async (conn) => {
     await repo.touchSettings(conn, now()); // first: calendar writes run one at a time
     const already = await repo.countBlocked(conn, from, to);
-    await repo.upsertBlocks(conn, dates, reason);
+    await repo.upsertBlocks(conn, dates, reason, cleanNote);
     return { added: total - already, total };
   });
 }
