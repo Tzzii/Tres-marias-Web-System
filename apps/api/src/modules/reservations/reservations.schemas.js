@@ -25,7 +25,8 @@ export const refParams = z.object({ ref: z.string() });
 /**
  * POST /api/reservations: the booking form. Lengths follow the columns (event_name 120, occasion 40,
  * venue_name 160, venue_address 255, city 120). The notes are TEXT, kept to 2,000 characters (the
- * form allows 500); each menu line is cut to MENU_LINE_MAX by the service.
+ * form allows 500); each menu line is cut to MENU_LINE_MAX by the service. `endTime` (an event's, not a
+ * rental's) and `agreeTerms` (the "I agree to the Terms of Service" tick, must be true) are checked there too.
  */
 export const createBody = z.object({
   packageId: passThrough,
@@ -34,6 +35,8 @@ export const createBody = z.object({
   occasion: text(40),
   date: passThrough,
   startTime: passThrough,
+  endTime: passThrough,
+  agreeTerms: passThrough,
   guests: passThrough,
   menu: passThrough,
   foodNotes: text(2000),
@@ -73,6 +76,7 @@ export const quotationBody = z.object({
 export const logisticsBody = z.object({
   date: passThrough,
   startTime: passThrough,
+  endTime: passThrough,
   guests: passThrough,
   fulfilment: passThrough,
   venueName: text(160),

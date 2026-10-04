@@ -20,17 +20,17 @@ export const calendarRoutes = express.Router();
 calendarRoutes.get('/calendar', async (req, res) => {
   res.json(await calendar.getCalendar());
 });
-// ?date=YYYY-MM-DD&time=HH:MM -> { date, startTime, available, reason, timeConflict }
+// ?date=YYYY-MM-DD&time=HH:MM&end=HH:MM (time and end optional) -> { date, startTime, endTime, available, reason, note, timeConflict }
 calendarRoutes.get('/calendar/check', validate({ query: schemas.checkQuery }), async (req, res) => {
-  const { date, time } = req.valid.query;
-  res.json(await calendar.checkAvailability(date, time));
+  const { date, time, end } = req.valid.query;
+  res.json(await calendar.checkAvailability(date, time, end));
 });
 
 /* ============================ /api/admin/calendar ============================ */
 
 export const calendarAdminRoutes = express.Router();
 
-// Block a range of dates: { from, to, reason } -> { added, total }
+// Block a range of dates: { from, to, reason, note } -> { added, total }
 calendarAdminRoutes.post('/blocks', validate({ body: schemas.blockBody }), async (req, res) => {
   res.json(await calendar.blockDates(req.valid.body));
 });

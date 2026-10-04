@@ -116,7 +116,17 @@ img {
   border-radius: 999px;
 }
 
-/* Printing a document dialog prints only the document; printing a page drops the portal chrome */
+/* A page laid out for paper (the Reports sheet) waits off screen, at the A4 content width that
+   utils/savePdf.js lays a PDF out at, until it is printed or saved as a PDF */
+.tm-print-sheet {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 680px;
+  pointer-events: none;
+}
+
+/* Printing a document dialog or a print sheet prints only that; printing a page drops the portal chrome */
 @media print {
   main {
     padding: 0 !important;
@@ -130,6 +140,17 @@ img {
   }
   .tm-print-root {
     position: static !important;
+  }
+  .tm-print-sheet {
+    width: auto !important;
+  }
+  /* Print the colours a document or sheet is drawn with: the report's chart bars, shaded table heads and
+     figure boxes, the receipt's box. Browsers leave background colours out of a printout unless the
+     print window's "Background graphics" is ticked; this keeps them in, as Save PDF does */
+  .tm-print-root,
+  .tm-print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .tm-print-root .MuiBackdrop-root,
   .tm-no-print {

@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@tm/shared/src/legal/terms.js';
 import { RULES } from '@tm/shared/src/services/config.js';
 import { cleanMobile, cleanName, describeDevice, fullNameProblem, normaliseEmail } from '@tm/shared/src/domain/account.js';
 import { maskEmail } from '@tm/shared/src/utils/format.js';
@@ -8,7 +9,7 @@ import { ApiError } from '../../lib/ApiError.js';
 import { newId } from '../../lib/ids.js';
 import { checkSecret, hashSecret, newCode } from '../../lib/passwords.js';
 import { now } from '../../lib/time.js';
-import { signToken } from '../../lib/tokens.js';
+import { readToken, readUnlockTicket, signToken, signUnlockTicket } from '../../lib/tokens.js';
 import * as messages from './auth.messages.js';
 import * as repo from './auth.repo.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
@@ -44,6 +45,7 @@ const isDead = (request, at) => !request || Boolean(request.usedAt) || request.c
 
 // Customer details safe to send to the page (never the password hash). firstName / middleName /
 // lastName are '' for accounts whose parts were never saved or were cleared by a name edit.
+// termsVersion is the Terms version they last agreed to; the portal asks again when it is not TERMS_VERSION.
 const publicCustomer = (c) => ({
   id: c.id,
   name: c.name,
@@ -54,6 +56,7 @@ const publicCustomer = (c) => ({
   mobile: c.mobile,
   company: c.company || '',
   createdAt: c.createdAt,
+  termsVersion: c.termsVersion || '',
   role: 'customer'
 });
 
@@ -125,9 +128,11 @@ export async function customerLogin({ email, password, remember = false }) {
  * it once the code comes back, which proves the customer owns the address. The password is kept only
  * as a hash. A newer request for the same email replaces an older one, and at most 5 code emails an
  * hour go to one address (code-email), so the form cannot be used to flood someone's inbox.
+ * The customer must tick "I agree to the Terms of Service and Privacy Policy" (`agreeTerms: true`); the
+ * account records the version (TERMS_VERSION) when it is made.
  * Returns what the code step needs: { challengeId, maskedEmail, expiresAt, resendAt }.
  */
-export async function startSignUp({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '' }) {
+export async function startSignUp({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '', agreeTerms = false }) {
   const first = firstName.trim();
   const middle = middleName.trim();
   const last = lastName.trim();
@@ -139,6 +144,7 @@ export async function startSignUp({ firstName = '', middleName = '', lastName = 
     (validateMobile(mobile) && { field: 'mobile', message: validateMobile(mobile) }) ||
     (validatePassword(password) && { field: 'password', message: validatePassword(password) });
   if (problem) throw new ApiError('INVALID', problem.message, { field: problem.field });
+  if (agreeTerms !== true) throw new ApiError('INVALID', 'Please agree to the Terms of Service and Privacy Policy.', { field: 'agree' });
   if (await repo.findCustomerByEmail(address)) throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
   await reserveAttempt('code-email', address);
 
@@ -220,7 +226,10 @@ export async function confirmSignUp({ challengeId, code }) {
     mobile: request.mobile,
     company: '',
     createdAt: at,
-    passwordChangedAt: null
+    passwordChangedAt: null,
+    // Agreed on the sign-up form (startSignUp refuses a request without the tick)
+    termsVersion: TERMS_VERSION,
+    termsAcceptedAt: at
   };
   try {
     await tx(async (conn) => {
@@ -354,6 +363,20 @@ export async function getCustomerProfile(customerId) {
   const customer = await repo.findCustomerById(customerId);
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
   return publicCustomer(customer);
+}
+
+/**
+ * The customer accepts the Terms of Service and Privacy Policy shown to them ("We updated our terms").
+ * `version` must be the current TERMS_VERSION: a page still showing an older text is told to reload,
+ * so nobody is recorded as agreeing to words they never saw. Returns the customer's details.
+ */
+export async function acceptTerms(customerId, { version }) {
+  if (version !== TERMS_VERSION) throw new ApiError('INVALID', 'The terms have changed since this page opened. Please reload the page and read them again.', { field: 'version' });
+  const customer = await repo.findCustomerById(customerId);
+  if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
+  const at = now();
+  await repo.setCustomerTerms(customerId, TERMS_VERSION, at);
+  return publicCustomer({ ...customer, termsVersion: TERMS_VERSION, termsAcceptedAt: at });
 }
 
 /**
@@ -536,10 +559,20 @@ export async function adminResendCode(challengeId) {
 }
 
 /**
+ * An admin session as the page keeps it: { token, user, unlockTicket, unlockUntil }. The unlock ticket
+ * (lib/tokens.js) ends with the token, at `unlockUntil` (ms); with the password it reopens the session
+ * after the screen locks for inactivity, without a new emailed code (adminUnlock).
+ */
+function adminSession(admin, token, user) {
+  const { exp } = readToken(token);
+  return { token, user, unlockTicket: signUnlockTicket(admin, exp), unlockUntil: exp * 1000 };
+}
+
+/**
  * Stage 2: verify the code and open the admin session. Records the sign-in (previous and last
  * sign-in, the device from the User-Agent header, and the failures since the last sign-in).
  * `signedInAt` and `device` stay with this session so My account can tell it apart from newer
- * sign-ins elsewhere.
+ * sign-ins elsewhere. The session comes with its unlock ticket (adminSession).
  */
 export async function adminVerifyCode({ challengeId, code }, userAgent = '') {
   const at = now();
@@ -568,7 +601,37 @@ export async function adminVerifyCode({ challengeId, code }, userAgent = '') {
     await repo.recordAdminSignIn(conn, admin.id, { at, device });
   });
   const token = signToken({ id: admin.id, role: 'admin', name: admin.name, passwordChangedAt: admin.passwordChangedAt }, { ttl: config.jwt.adminTtl });
-  return { token, user: { ...publicAdmin(admin), signedInAt: at, device } };
+  return adminSession(admin, token, { ...publicAdmin(admin), signedInAt: at, device });
+}
+
+/**
+ * The locked admin screen (RULES.idleMinutes without activity): the password alone reopens the session,
+ * no emailed code (the owner's rule, 2026-10-03). `ticket` is the unlock ticket handed out at sign-in.
+ * It must still be valid (it ends when the sign-in session would have, JWT_ADMIN_TTL after the code
+ * sign-in) and the password must not have changed since; otherwise CHALLENGE_EXPIRED and the admin signs
+ * in again with a code. Wrong passwords count in the same 'admin' lockout as the sign-in form (keyed by
+ * email): the 5th locks the account for RULES.loginLockMinutes (LOCKED), and the page then sends the
+ * admin to the full sign-in. The new token ends when the old session would have, never later.
+ * Returns { token, user, unlockTicket, unlockUntil } (the same ticket; user without signedInAt/device,
+ * which the page keeps from the sign-in).
+ */
+export async function adminUnlock({ ticket, password }) {
+  const ended = new ApiError('CHALLENGE_EXPIRED', 'Your session has ended. Please sign in again.');
+  const claims = typeof ticket === 'string' ? readUnlockTicket(ticket) : null;
+  if (!claims) throw ended;
+  const admin = await repo.findAdminById(claims.sub);
+  if (!admin || (Number(admin.passwordChangedAt) || 0) !== claims.pwv) throw ended;
+  if (typeof password !== 'string' || !password) throw new ApiError('INVALID', 'Enter your password.', { field: 'password' });
+
+  const address = normaliseEmail(admin.email);
+  const attempt = await reserveAttempt('admin', address);
+  if (!(await checkSecret(password, admin.passwordHash))) {
+    await repo.addAdminFailedAttempt(admin.id);
+    throw wrongAnswer('admin', attempt, new ApiError('INVALID_CREDENTIALS', 'Incorrect password.', { field: 'password' }));
+  }
+  await clearAttempts('admin', address);
+  const token = signToken({ id: admin.id, role: 'admin', name: admin.name, passwordChangedAt: admin.passwordChangedAt }, { expiresAt: claims.exp });
+  return { token, user: publicAdmin(admin), unlockTicket: ticket, unlockUntil: claims.exp * 1000 };
 }
 
 /* ============================ Admin account (My account) ============================ */

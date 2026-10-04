@@ -111,12 +111,14 @@ export async function getCalendar() {
 }
 
 /**
- * Is this date, and start time if given, free to reserve? Used by the home page booking bar.
- * Returns { date, startTime, available, reason, timeConflict }.
+ * Is this date, and start and end time if given, free to reserve? Used by the home page booking bar.
+ * Returns { date, startTime, endTime, available, reason, note, timeConflict } (note: the admin's note
+ * when the date is blocked).
  */
-export function checkAvailability(iso, startTime) {
+export function checkAvailability(iso, startTime, endTime) {
   const query = new URLSearchParams({ date: iso || '' });
   if (startTime) query.set('time', startTime);
+  if (startTime && endTime) query.set('end', endTime);
   return http.get(`/calendar/check?${query}`);
 }
 
@@ -128,8 +130,11 @@ async function save(send) {
   return result;
 }
 
-/** Admin: block every date from `from` to `to` (max 60 days). Already-blocked dates get the new reason. Returns { added, total }. */
-export const blockDates = ({ from, to, reason } = {}) => save(() => http.post('/admin/calendar/blocks', { from, to, reason }, { quiet: true }));
+/**
+ * Admin: block every date from `from` to `to` (max 60 days) with a reason and an optional note for customers.
+ * Already-blocked dates get the new reason and note. Returns { added, total }.
+ */
+export const blockDates = ({ from, to, reason, note = '' } = {}) => save(() => http.post('/admin/calendar/blocks', { from, to, reason, note }, { quiet: true }));
 
 /** Admin: open a blocked date again. Returns { ok: true }. */
 export const unblockDate = (date) => save(() => http.delete(`/admin/calendar/blocks/${encodeURIComponent(String(date || ''))}`, { quiet: true }));
@@ -138,4 +143,4 @@ export const unblockDate = (date) => save(() => http.delete(`/admin/calendar/blo
 export const setDailyCapacity = (value) => save(() => http.put('/admin/calendar/capacity', { value }, { quiet: true }));
 
 // Pure rules that take the map as an argument: the same code the server checks bookings with (domain/availability.js)
-export { dateUnavailableReason, timeUnavailableReason, daySchedule, earliestBookableDate } from '../../domain/availability.js';
+export { blockNote, dateUnavailableReason, timeUnavailableReason, daySchedule, earliestBookableDate } from '../../domain/availability.js';

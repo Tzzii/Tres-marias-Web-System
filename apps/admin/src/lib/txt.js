@@ -1,4 +1,4 @@
-import { peso } from '@tm/shared';
+import { peso, saveFile } from '@tm/shared';
 
 /**
  * Turns row objects into a plain-text table with lined-up columns, e.g.
@@ -26,21 +26,13 @@ export function textTable(rows, money = []) {
 }
 
 /**
- * Saves text as a .txt file in the browser. Uses Windows line endings and a UTF-8 BOM
- * so Notepad shows the lines and the peso sign correctly. Returns false when there is no text.
+ * Saves text as a .txt file. Uses Windows line endings and a UTF-8 BOM so Notepad shows the lines and
+ * the peso sign correctly. Where the browser allows it, the computer's "Save as" window opens first so
+ * the admin picks the folder and name; elsewhere it downloads the usual way (saveFile in @tm/shared).
+ * Resolves to true when saved, false when there is no text or the admin pressed Cancel (say nothing then).
  */
-export function downloadTxt(filename, text) {
+export async function downloadTxt(filename, text) {
   if (!text) return false;
   const blob = new Blob([`\uFEFF${text.replace(/\r?\n/g, '\r\n')}`], { type: 'text/plain;charset=utf-8' });
-  // Create a temporary link to the file, click it to download, then remove it
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Free the file from memory once the download has started
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return true;
+  return saveFile(filename, blob);
 }

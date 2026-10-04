@@ -10,21 +10,23 @@ import Typography from '@mui/material/Typography';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
-import { DateField, OCCASIONS, RULES, TimeField, calendarApi, formatDateLong, formatTime, validateGuests } from '@tm/shared';
+import { DateField, EndTimeField, OCCASIONS, RULES, TimeField, calendarApi, formatDateLong, formatEventTime, shiftEndTime, validateGuests } from '@tm/shared';
 import { readIntent, saveIntent } from '../lib/booking.js';
 import { site } from '../theme/siteTheme.js';
 import { siteFieldSx, siteLabelSx } from './Marketing.jsx';
 
 /**
  * Floating white availability card under the hero (1a). Checks the date against blocked
- * days and capacity, and the start time against other events that day, then saves
- * the picks so they carry into the reservation.
+ * days and capacity, and the start and end time against other events that day (an event runs 2 to 6
+ * hours), then saves the picks so they carry into the reservation. A blocked date shows the reason,
+ * with our note when there is one.
  */
 export default function BookingBar({ onAvailable }) {
   // Pre-fill with anything the visitor picked earlier
   const saved = readIntent() || {};
   const [date, setDate] = useState(saved.date || '');
   const [startTime, setStartTime] = useState(saved.startTime || '');
+  const [endTime, setEndTime] = useState(saved.endTime || '');
   const [occasion, setOccasion] = useState(saved.occasion || '');
   const [guests, setGuests] = useState(saved.guests ? String(saved.guests) : '');
   const [errors, setErrors] = useState({});
@@ -39,13 +41,14 @@ export default function BookingBar({ onAvailable }) {
     setErrors((er) => ({ ...er, guests: '' }));
   };
 
-  // Validate the four fields, then ask the calendar whether the date and start time are free.
+  // Validate the five fields, then ask the calendar whether the date and the start-to-end time are free.
   // The check itself can fail (no connection, too many requests): its message is shown instead.
   const submit = async (event) => {
     event.preventDefault();
     const next = {};
     if (!date) next.date = 'Choose your event date.';
     if (!startTime) next.startTime = 'Choose a start time.';
+    if (!endTime) next.endTime = 'Choose an end time.';
     if (!occasion) next.occasion = 'Choose the occasion.';
     const guestError = validateGuests(guests, RULES.minGuests, RULES.maxGuests);
     if (guestError) next.guests = guestError;
@@ -55,11 +58,11 @@ export default function BookingBar({ onAvailable }) {
 
     setChecking(true);
     try {
-      const availability = await calendarApi.checkAvailability(date, startTime);
+      const availability = await calendarApi.checkAvailability(date, startTime, endTime);
       setResult(availability);
       // Date and time are open: remember the picks for the reservation form and let the page react (e.g. scroll to packages)
       if (availability.available) {
-        saveIntent({ date, startTime, occasion, guests: Number(guests) });
+        saveIntent({ date, startTime, endTime, occasion, guests: Number(guests) });
         if (onAvailable) onAvailable();
       }
     } catch (e) {
@@ -71,9 +74,9 @@ export default function BookingBar({ onAvailable }) {
 
   return (
     <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, borderRadius: 3, backgroundColor: site.card, boxShadow: site.shadowPanel }}>
-      {/* One row only on wide screens (lg): the start time holds three dropdowns, so it gets a wider column,
-          and below lg the fields sit two per row so the guest count isn't squeezed */}
-      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1.1fr 1.15fr 1fr 0.7fr auto' }, gap: 2, alignItems: 'start' }}>
+      {/* Wide screens (lg): two rows of three (date, start, end / occasion, guests, button); the start time
+          holds three dropdowns, so its column is a little wider. Below lg the fields sit two per row. */}
+      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1.1fr 1.15fr 1fr' }, gap: 2, alignItems: 'start' }}>
         {/* Own label (same style as the other three fields) above the shared date picker */}
         <Box>
           <Typography component="label" htmlFor="bar-date" sx={siteLabelSx}>
@@ -91,11 +94,27 @@ export default function BookingBar({ onAvailable }) {
           <TimeField
             id="bar-time"
             value={startTime}
-            onChange={(v) => { setStartTime(v); setErrors((er) => ({ ...er, startTime: '' })); setResult(null); }}
+            onChange={(v) => { setStartTime(v); if (endTime) setEndTime(shiftEndTime(startTime, endTime, v)); setErrors((er) => ({ ...er, startTime: '' })); setResult(null); }}
             min={RULES.earliestStart}
             max={RULES.latestStart}
             step={30}
             error={errors.startTime}
+            sx={siteFieldSx}
+          />
+        </Box>
+
+        {/* End time: 2 to 6 hours after the start (the list says how long, and "next day" past midnight) */}
+        <Box>
+          <Typography component="label" htmlFor="bar-end" sx={siteLabelSx}>
+            End time
+          </Typography>
+          <EndTimeField
+            id="bar-end"
+            label=""
+            startTime={startTime}
+            value={endTime}
+            onChange={(v) => { setEndTime(v); setErrors((er) => ({ ...er, endTime: '' })); setResult(null); }}
+            error={errors.endTime}
             sx={siteFieldSx}
           />
         </Box>
@@ -161,17 +180,17 @@ export default function BookingBar({ onAvailable }) {
             <Typography sx={{ fontSize: 13.5, color: result.available ? '#065f46' : '#991b1b' }}>
               {result.available ? (
                 <>
-                  <b>{formatDateLong(result.date)}</b> at <b>{formatTime(result.startTime)}</b> is open. Pick a package below to reserve it.
+                  <b>{formatDateLong(result.date)}</b>, <b>{formatEventTime(result)}</b>, is open. Pick a package below to reserve it.
                 </>
               ) : result.failed ? (
                 result.message
               ) : result.timeConflict ? (
                 <>
-                  <b>{formatTime(result.startTime)}</b> on <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}). Please try another time.
+                  <b>{formatEventTime(result)}</b> on <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}). Please try another time.
                 </>
               ) : (
                 <>
-                  <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}). Please try another date.
+                  <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}).{result.note ? ` Note from us: ${result.note}` : ''} Please try another date.
                 </>
               )}
             </Typography>

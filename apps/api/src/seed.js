@@ -128,7 +128,10 @@ function toRows(data, hashes, now) {
       password_hash: hashes.get(c.id),
       company: c.company || '',
       created_at: c.createdAt,
-      password_changed_at: c.passwordChangedAt ?? null
+      password_changed_at: c.passwordChangedAt ?? null,
+      // Sample accounts "made before the terms": each is asked once to accept them at its next visit
+      terms_version: c.termsVersion || '',
+      terms_accepted_at: c.termsAcceptedAt ?? null
     })),
     // sort_order keeps each catalogue list in the seed's order
     packages: data.packages.map((p, index) => ({
@@ -169,6 +172,7 @@ function toRows(data, hashes, now) {
       occasion: r.occasion,
       date: r.date,
       start_time: r.startTime,
+      end_time: r.endTime || null,
       guests: r.guests,
       package_id: r.packageId,
       service_type: r.serviceType,
@@ -190,7 +194,8 @@ function toRows(data, hashes, now) {
       decline_reason: r.declineReason || '',
       cancel_reason: r.cancelReason || '',
       cancelled_by: r.cancelledBy ?? null,
-      created_at: r.createdAt
+      created_at: r.createdAt,
+      terms_version: r.termsVersion || ''
     })),
     // sort_order keeps addonIds in order; qty comes from addonQty (1 when not asked)
     reservation_addons: reservations.flatMap((r) =>
@@ -277,7 +282,7 @@ function toRows(data, hashes, now) {
       reply_by: t.reply ? t.reply.by : null
     })),
 
-    calendar_blocks: data.calendar.blocked.map((b) => ({ date: b.date, reason: b.reason })),
+    calendar_blocks: data.calendar.blocked.map((b) => ({ date: b.date, reason: b.reason, note: b.note || '' })),
     calendar_settings: [{ id: 1, daily_capacity: data.calendar.dailyCapacity, updated_at: now }],
 
     inventory_items: inventory.map((i) => ({

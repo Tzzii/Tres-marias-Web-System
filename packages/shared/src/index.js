@@ -8,7 +8,7 @@
  *   services/    the data layer: each xxxApi is services/remote/xxx.js, one function per API call
  *                (services/http.js); every page's data comes from the API (the browser data store
  *                was removed in Phase 12)
- *   utils/       formatting, status pipeline, validation
+ *   utils/       formatting, status pipeline, validation, saving part of a page as a PDF
  */
 export { tokens, eyebrowSx, shakeSx } from './theme/tokens.js';
 export { darkPalette, lightPalette } from './theme/palettes.js';
@@ -31,7 +31,7 @@ export { ThemeIcon, themeIconSrc } from './components/ThemeIcon.jsx';
 export { StarRating } from './components/StarRating.jsx';
 export { MonthCalendar, monthGrid } from './components/MonthCalendar.jsx';
 export { DateField } from './components/DateField.jsx';
-export { TimeField } from './components/TimeField.jsx';
+export { EndTimeField, TimeField } from './components/TimeField.jsx';
 export { BarChart, RankBars } from './components/BarChart.jsx';
 export { DataTable, Pager } from './components/DataTable.jsx';
 export { DocumentDialog, documentsFor } from './components/DocumentDialog.jsx';
@@ -49,9 +49,17 @@ export { createAuth, safeNextPath } from './auth/createAuth.jsx';
 export * from './utils/format.js';
 export * from './utils/status.js';
 export * from './utils/validation.js';
+// The Save PDF buttons: draws an element onto A4 pages and saves the file (loads its libraries on first use)
+export { saveElementAsPdf } from './utils/savePdf.js';
+// Saving a file with the computer's "Save as" window where the browser allows it (TXT exports, Save PDF)
+export { askWhereToSave, canAskWhereToSave, saveFile, writeTo } from './utils/saveFile.js';
 
-export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
+export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
 export { computeQuote, isRentalPackage } from './services/pricing.js';
+// Event times (an end time 2 to 6 hours after the start, maybe past midnight) and a blocked date's note for customers
+export { blockNote, endTimeOptions, endTimeProblem, endsNextDay, eventHours, shiftEndTime } from './domain/availability.js';
+// The Terms of Service and Privacy Policy (pages, sign-up, booking form) and the version customers agree to
+export { TERMS_UPDATED, TERMS_VERSION, privacyPolicy, termsOfService } from './legal/terms.js';
 // When a customer may cancel online (pages read the answer from each reservation's summary; the window in words is for texts)
 export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
 // The reference-number rule of the payment and refund forms, the same one the services check

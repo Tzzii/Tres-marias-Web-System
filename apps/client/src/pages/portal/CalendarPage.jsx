@@ -16,10 +16,12 @@ import {
   PageHeader,
   StatusChip,
   ThemeIcon,
+  RULES,
+  blockNote,
   calendarApi,
   daysFromToday,
   formatDateLong,
-  formatTime,
+  formatEventTime,
   headcount,
   parseISODate,
   reservationApi,
@@ -30,7 +32,10 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-/** 1j · Calendar: the customer's own events against open and fully booked dates. */
+/**
+ * 1j · Calendar: the customer's own events against open and fully booked dates. A blocked, fully booked
+ * or too-soon date can be tapped to see why it is closed, with the admin's note for a date we blocked.
+ */
 export default function CalendarPage() {
   useDocumentTitle('Calendar');
   const navigate = useNavigate();
@@ -44,6 +49,7 @@ export default function CalendarPage() {
   const now = parseISODate(todayISO());
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() }); // month shown
   const [mode, setMode] = useState('month'); // 'month' calendar or 'list' view
+  const [peek, setPeek] = useState(''); // closed date tapped to see why it can't be booked
 
   // Group the customer's reservations by date
   const byDate = useMemo(() => {
@@ -56,7 +62,8 @@ export default function CalendarPage() {
 
   // Decide how each calendar day looks, using the same rules and marks as the booking date picker:
   // my event > open > past date > too soon to book ("Needs...") > blocked by the admin > fully booked.
-  // Days with other customers' events get gold dots (never their names).
+  // Days with other customers' events get gold dots (never their names). Closed future days can be tapped
+  // (`peek`) to see why they are closed.
   const getDay = (iso) => {
     const mine = byDate[iso];
     if (mine) return { tone: 'event', label: mine.map((r) => r.eventName).join(', '), badge: mine[0].eventName, dots: mine.length };
@@ -68,13 +75,18 @@ export default function CalendarPage() {
         : { tone: 'open', label: 'Available — start a reservation' };
     }
     if (daysFromToday(iso) < 0) return { tone: 'disabled', label: 'Past date', unselectable: true };
-    if (reason.startsWith('Needs')) return { tone: 'disabled', label: reason, unselectable: true };
-    if (data.availability.blocked.some((b) => b.date === iso)) return { tone: 'blocked', label: reason, badge: reason, unselectable: true };
-    return { tone: 'full', label: reason, badge: reason, unselectable: true };
+    if (reason.startsWith('Needs')) return { tone: 'disabled', label: reason, unselectable: true, peek: true };
+    if (data.availability.blocked.some((b) => b.date === iso)) return { tone: 'blocked', label: `Not available: ${reason}`, badge: reason, unselectable: true, peek: true };
+    return { tone: 'full', label: reason, badge: reason, unselectable: true, peek: true };
   };
 
-  // Clicking a day: open my event on that date, or start a reservation for that date
-  const select = (iso) => {
+  // Clicking a day: a closed day only says why it is closed; otherwise open my event on that date, or start
+  // a reservation for that date
+  const select = (iso, info = {}) => {
+    if (info.peek) {
+      setPeek(iso);
+      return;
+    }
     const mine = byDate[iso];
     if (mine) navigate(`/portal/reservations/${mine[0].ref}`);
     else navigate(`/portal/book?date=${iso}`);
@@ -84,16 +96,22 @@ export default function CalendarPage() {
   const sorted = data ? data.reservations.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
   const upcoming = sorted.filter((r) => daysFromToday(r.date) >= 0);
   const past = sorted.filter((r) => daysFromToday(r.date) < 0).reverse();
+  // Why the tapped closed day can't be booked, and our note for a date we blocked
+  const peekReason = data && peek ? calendarApi.dateUnavailableReason(peek, data.availability) : '';
+  const peekNote = peekReason ? blockNote(peek, data.availability) : '';
+  // Closed by us (our reason is shown as ours, even when it is "Fully booked"), not full by itself
+  const peekBlocked = Boolean(peekReason) && data.availability.blocked.some((b) => b.date === peek);
 
   return (
     <>
-      <PageHeader title="Calendar" subtitle="Tap one of your events to open it, or an available date to start a reservation." />
+      <PageHeader title="Calendar" subtitle="Tap one of your events to open it, an available date to start a reservation, or a closed date to see why it is closed." />
       <DashCard>
         {error ? (
           <ErrorState error={error} onRetry={reload} />
         ) : loading ? (
           <ListSkeleton rows={6} height={64} />
         ) : mode === 'month' ? (
+          <>
           <MonthCalendar
             year={view.year}
             month={view.month}
@@ -108,6 +126,21 @@ export default function CalendarPage() {
               { tone: 'open', label: 'Available (gold dots: events already booked)' }
             ]}
           />
+          {/* The closed day that was tapped: why it can't be booked, with our note for a date we blocked */}
+          {peekReason && (
+            <Box role="status" sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{formatDateLong(peek)}</Typography>
+              <Typography sx={{ mt: 0.25, fontSize: 13, lineHeight: 1.5, color: tokens.textSecondary }}>
+                {peekReason === 'Fully booked' && !peekBlocked
+                  ? 'Fully booked. Please choose another date.'
+                  : peekReason.startsWith('Needs')
+                    ? `Too soon: we need ${RULES.leadDays} days' notice to prepare. Please choose a later date.`
+                    : `Not available: ${peekReason}.`}
+              </Typography>
+              {peekNote && <Typography sx={{ mt: 0.5, fontSize: 13, lineHeight: 1.5 }}>Note from us: {peekNote}</Typography>}
+            </Box>
+          )}
+          </>
         ) : (
           <>
             {/* Same place for the switch as in the month view: its own full-width row on top on phones */}
@@ -131,7 +164,7 @@ export default function CalendarPage() {
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography noWrap sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>{r.eventName}</Typography>
                             <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                              {formatDateLong(r.date)} · {formatTime(r.startTime)} · {headcount(r)}
+                              {formatDateLong(r.date)} · {formatEventTime(r)} · {headcount(r)}
                             </Typography>
                           </Box>
                           <Box sx={{ display: { xs: 'none', sm: 'block' } }}>

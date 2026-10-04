@@ -15,12 +15,15 @@ const breathe = keyframes`
   50% { opacity: 0.7; transform: scale(1.08); }
 `;
 
-/** First screen of the admin site: a large round logo. Clicking it opens the admin sign in. */
+/**
+ * First screen of the admin site: a large round logo. Clicking it opens the admin sign in, or the lock
+ * screen (password only) when the session is locked after inactivity.
+ */
 export default function SplashPage() {
   useDocumentTitle('Welcome', 'Tres Marias Admin');
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, locked } = useAuth();
 
   // Already signed in: go straight to the dashboard
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
@@ -33,7 +36,7 @@ export default function SplashPage() {
           component="button"
           type="button"
           // Keep ?next= and ?reason=idle so login shows the timeout notice and returns to the last page
-          onClick={() => navigate(`/login${location.search}`)}
+          onClick={() => navigate(`${locked ? '/locked' : '/login'}${location.search}`)}
           aria-label="Open admin sign in"
           sx={{
             position: 'relative',

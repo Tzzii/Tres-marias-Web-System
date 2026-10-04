@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -6,11 +7,14 @@ import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { cancelDeadline, cancelWindowText } from '../domain/cancellation.js';
 import { BUFFET_DRINKS, BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
+import { useNotify } from '../hooks/useNotify.jsx';
 import { tokens } from '../theme/tokens.js';
-import { formatDate, formatDateLong, formatDateTime, formatMobile, formatPackageItem, formatTime, peso, toISODate } from '../utils/format.js';
+import { formatDate, formatDateLong, formatDateTime, formatEventTime, formatMobile, formatPackageItem, formatTime, peso, toISODate } from '../utils/format.js';
+import { saveElementAsPdf } from '../utils/savePdf.js';
 import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
 import { LightSurface } from './Surface.jsx';
@@ -80,17 +84,37 @@ function Line({ label, value, strong, muted }) {
 }
 
 /**
- * Printable preview of a quotation, contract or receipt. "Print / Save as PDF" uses the browser's print.
+ * Printable preview of a quotation, contract or receipt, with two buttons: "Print" opens the browser's
+ * print window, and "Save PDF" downloads the document straight away as a PDF named after it
+ * (Quotation-RES-….pdf, Contract-RES-….pdf, Receipt-OR-….pdf), A4 with page numbers, the same on a
+ * phone as on a computer (utils/savePdf.js). Blocks marked data-pdf-keep stay on one page in the PDF.
  * An equipment rental prints its rented items (how many x the price per piece), the delivery fee and
  * any damage charges instead of a package, menu and guest count, and its contract carries the rental
  * terms: pick up or delivery, returning the items, and damage fees applying only through a revised quotation.
  * Both contracts carry the downpayment and cancellation terms of this booking: its own minimum downpayment,
  * the date until which it can be cancelled online, and the refund of anything paid above a lower quotation.
- * On phones the document fills the screen and its top bar (name, print, close) stays pinned while scrolling.
+ * On phones the document fills the screen and its top bar (name, print, save, close) stays pinned while scrolling.
  */
 export function DocumentDialog({ open, onClose, detail, doc }) {
   const isPhone = useMediaQuery('(max-width:599px)'); // same phone width as AppDialog's fullScreenOnMobile
+  const notify = useNotify();
+  const sheetRef = useRef(null); // the document itself (everything below the top bar), drawn into the PDF
+  const [saving, setSaving] = useState(false); // true while the PDF is being made
   if (!detail || !doc) return null;
+
+  // Save the document as a PDF (the "Save as" window first, where the browser has one; Cancel saves nothing).
+  // If the browser can't make one, Print still can ("Save as PDF" in the print window).
+  const savePdf = async () => {
+    setSaving(true);
+    try {
+      const saved = await saveElementAsPdf(sheetRef.current, doc.name, { title: doc.name.replace(/\.pdf$/, ''), footer: `${BUSINESS.name} · ${doc.name.replace(/\.pdf$/, '')}` });
+      if (saved) notify(`${doc.name} saved.`);
+    } catch (e) {
+      notify("Couldn't create the PDF. Use Print and choose Save as PDF instead.", 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
   // Prices come from the sent quotation, or the estimate if none was sent
   const quote = detail.quotation || detail.estimate;
   const rental = isRental(detail.serviceType);
@@ -119,9 +143,12 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
         <Box className="tm-no-print" sx={{ position: 'sticky', top: 0, zIndex: 1, px: 2, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, borderBottom: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
           <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{doc.name}</Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-            {/* Phones open the same print screen, where "Save as PDF" is one of the choices */}
-            <Button size="small" variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
-              {isPhone ? 'Print / PDF' : 'Print / Save as PDF'}
+            {/* Print opens the browser's print window; Save PDF downloads the file without it */}
+            <Button size="small" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
+              Print
+            </Button>
+            <Button size="small" variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} disabled={saving} onClick={savePdf}>
+              {saving ? 'Saving…' : 'Save PDF'}
             </Button>
             <IconButton size="small" onClick={onClose} aria-label="Close document">
               <CloseRoundedIcon fontSize="small" />
@@ -129,7 +156,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
           </Box>
         </Box>
 
-        <Box sx={{ p: { xs: 2.5, sm: 5 }, color: tokens.textPrimary }}>
+        {/* The document. Save PDF draws this box; in the PDF the page margins replace its padding. */}
+        <Box ref={sheetRef} sx={{ p: { xs: 2.5, sm: 5 }, color: tokens.textPrimary }}>
           {/* Letterhead */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -142,7 +170,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                 </Typography>
               </Box>
             </Box>
-            <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+            {/* A title too long to sit beside the name (the contracts, on A4) moves under it, still on the right */}
+            <Box sx={{ ml: { sm: 'auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
               <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{TITLES[rental && doc.kind === 'contract' ? 'rentalContract' : doc.kind]}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {doc.kind === 'receipt' ? `No. ${payment.receiptNo}` : `Ref. ${detail.ref}`}
@@ -171,8 +200,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
               <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.textMuted }}>Event</Typography>
               <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.eventName}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                {formatDateLong(detail.date)} · {rental ? (delivered ? 'delivery at ' : 'pick-up at ') : ''}
-                {formatTime(detail.startTime)}
+                {/* An event shows its start and end ("6:00 pm – 10:00 pm"); a rental its pick-up or delivery time */}
+                {formatDateLong(detail.date)} · {rental ? `${delivered ? 'delivery at ' : 'pick-up at '}${formatTime(detail.startTime)}` : formatEventTime(detail)}
               </Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {rental && !delivered ? `Pick up at ${RENTAL.pickupAddress}` : `${detail.venue.name}, ${detail.venue.address}, ${detail.venue.city}`}
@@ -182,7 +211,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
 
           {/* Receipt: payment summary. Quotation/contract: package, food request and price breakdown. */}
           {doc.kind === 'receipt' ? (
-            <Box sx={{ mt: 4, p: 3, borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
+            <Box data-pdf-keep sx={{ mt: 4, p: 3, borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
               <Line label="Payment for" value={`${paymentKindLabel(payment.kind)} · ${detail.ref}`} />
               <Line label="Payment method" value={PAYMENT_METHODS[payment.method]} />
               {payment.referenceNo && <Line label="Reference no." value={payment.referenceNo} />}
@@ -216,7 +245,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     </Typography>
                     <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
                       {includesFood(detail.serviceType)
-                        ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${BUFFET_DRINKS.join(' and ')}.`
+                        ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${BUFFET_DRINKS.toLowerCase()}.`
                         : 'Catering only: equipment and setup, no food.'}
                     </Typography>
                     {detail.foodNotes && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>Note: {detail.foodNotes}</Typography>}
@@ -227,7 +256,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
 
               {/* Price breakdown: package, food, each add-on, other charges, discount.
                   A rental lists its items, the delivery fee and any damage charges instead of a package and food. */}
-              <Box sx={{ mt: 3, ml: 'auto', maxWidth: rental ? 420 : 360 }}>
+              <Box data-pdf-keep sx={{ mt: 3, ml: 'auto', maxWidth: rental ? 420 : 360 }}>
                 {rental ? (
                   <>
                     {(quote.rentalItems || []).map((line) => (
@@ -279,7 +308,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     {includesFood(detail.serviceType) ? (
                       <li>
                         The buffet is served plated and charged per person at {peso(quote.pricePerPlate)} per plate, as shown above, multiplied by the guest count. It covers one pork, chicken, fish
-                        and vegetable dish with {BUFFET_DRINKS.join(' and ')} for every guest.
+                        and vegetable dish with {BUFFET_DRINKS.toLowerCase()} for every guest.
                       </li>
                     ) : (
                       <li>This booking is catering only: equipment and setup, with no food and no per-person charge.</li>
@@ -292,11 +321,16 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     <CancellationTerm detail={detail} day="the event day" />
                     {/* Same setup time the booking calendar keeps free before every event (RULES.eventBufferHours) */}
                     <li>The client provides safe access to the venue at least {RULES.eventBufferHours} hours before the start time for setup.</li>
-                    <li>Service time is as agreed with our team. Extensions are billed at ₱3,500 per hour.</li>
+                    {/* The booked start and end time (older bookings without an end time keep the old wording) */}
+                    <li>
+                      {detail.endTime
+                        ? `The service runs ${formatEventTime(detail)}, as booked. Extending it past the end time is billed at ₱3,500 per hour.`
+                        : 'Service time is as agreed with our team. Extensions are billed at ₱3,500 per hour.'}
+                    </li>
                     <li>Tres Marias is responsible for all catering equipment it brings. Loss or damage caused by guests is charged at cost.</li>
                   </Box>
                   )}
-                  <Box sx={{ mt: 5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                  <Box data-pdf-keep sx={{ mt: 5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
                     {[detail.customerName, `For ${BUSINESS.shortName}`].map((who) => (
                       <Box key={who} sx={{ pt: 1, borderTop: `1px solid ${tokens.textPrimary}` }}>
                         <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{who}</Typography>
@@ -343,7 +377,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     </Box>
                   )}
                   {/* "Paid so far" adds up the payments listed above; any money given back shows on its own line */}
-                  <Box sx={{ mt: 1.5, ml: 'auto', maxWidth: 360 }}>
+                  <Box data-pdf-keep sx={{ mt: 1.5, ml: 'auto', maxWidth: 360 }}>
                     <Line label="Net total" value={peso(quote.net)} />
                     <Line label="Paid so far" value={peso(detail.paid + refunded)} />
                     {refunded > 0 && <Line label="Refunded" value={`− ${peso(refunded)}`} />}

@@ -51,7 +51,9 @@ export const customerRegister = z.object({
   lastName: text(60),
   email: text(254),
   mobile: text(20),
-  password
+  password,
+  // The "I agree to the Terms of Service and Privacy Policy" tick; must be true (checked by the service)
+  agreeTerms: z.boolean({ error: 'Please agree to the Terms of Service and Privacy Policy.' }).default(false)
 });
 
 export const passwordResetStart = z.object({ email: text(254) });
@@ -60,8 +62,13 @@ export const passwordResetComplete = z.object({ password });
 export const adminStart = z.object({ email: text(254), password });
 export const adminResend = z.object({ challengeId: requestId });
 export const adminVerify = z.object({ challengeId: requestId, code });
+// The locked screen: the unlock ticket from sign-in (a JWT, well under 1,000 characters) and the password
+export const adminUnlock = z.object({ ticket: text(1000), password });
 
 /* ---- /api/me (customer) ---- */
+
+// Accepting the Terms of Service and Privacy Policy: the version read on the page (TERMS_VERSION, "YYYY-MM-DD")
+export const termsBody = z.object({ version: text(20) });
 
 export const customerProfile = z.object({ name: text(200), mobile: text(20), company: optionalText(160) });
 // Password change, step 1 (customer) and the admin's password change: the current and the new password

@@ -89,6 +89,12 @@ export default function SiteFooter({ bottomSpace = false }) {
               <Link component="button" type="button" onClick={() => navigate('/portal/reservations')} sx={{ ...linkSx, textAlign: 'left' }}>
                 Track a reservation
               </Link>
+              <Link component="button" type="button" onClick={() => navigate('/terms')} sx={{ ...linkSx, textAlign: 'left' }}>
+                Terms of Service
+              </Link>
+              <Link component="button" type="button" onClick={() => navigate('/privacy')} sx={{ ...linkSx, textAlign: 'left' }}>
+                Privacy Policy
+              </Link>
             </Box>
           </Box>
         </Box>

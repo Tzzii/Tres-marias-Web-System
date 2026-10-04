@@ -47,7 +47,10 @@ export function monthGrid(year, month) {
 /**
  * Month calendar used by the customer calendar, the admin calendar and the
  * date picker. Each day is described by `getDay(iso)`:
- *   { tone: 'event' | 'blocked' | 'full' | 'open' | 'disabled', label, badge, dots }
+ *   { tone: 'event' | 'blocked' | 'full' | 'open' | 'disabled', label, badge, dots, unselectable, peek }
+ * A 'disabled' or `unselectable` day can't be clicked, unless it has `peek: true`: then a tap still calls
+ * onSelect(iso, info) so the page can say why the day is closed (e.g. the admin's block reason) without
+ * choosing it. This matters on phones, where the `label` tooltip never shows.
  * `dots` > 0 shows one small dot in the small (date picker) calendar. The large calendar shows up to 3 dots on
  * phones, and on every screen size when the day has no `badge` (on tablets/desktop a badge takes the dots' place).
  * Changing month slides the days in from the side you moved towards; the selected day pops briefly.
@@ -137,8 +140,8 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
           const tone = toneSx[info.tone] || toneSx.open;
           const isToday = cell.iso === today; // gold border
           const isSelected = selected === cell.iso; // dark border
-          // Disabled or unselectable days can't be clicked
-          const clickable = onSelect && info.tone !== 'disabled' && !info.unselectable;
+          // Disabled or unselectable days can't be clicked, except a `peek` day (tapped to see why it is closed)
+          const clickable = Boolean(onSelect) && (Boolean(info.peek) || (info.tone !== 'disabled' && !info.unselectable));
 
           return (
             <ButtonBase

@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography';
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import {
+  BLOCK_NOTE_MAX,
   BLOCK_REASONS,
   BusyButton,
   CardTitle,
@@ -27,7 +28,7 @@ import {
   calendarApi,
   formatDate,
   formatDateLong,
-  formatTime,
+  formatEventTime,
   formatWeekday,
   headcount,
   parseISODate,
@@ -64,8 +65,8 @@ export default function CalendarSection() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(start)); // Monday of the week shown
   const [selected, setSelected] = useState(start); // clicked date
 
-  // "Block a date" form
-  const [block, setBlock] = useState({ from: '', to: '', reason: 'Fully booked' });
+  // "Block a date" form; `note` is optional, shown to customers with the reason when they tap the date
+  const [block, setBlock] = useState({ from: '', to: '', reason: 'Fully booked', note: '' });
   const [blockErrors, setBlockErrors] = useState({});
   const [blocking, setBlocking] = useState(false);
   // Daily capacity form
@@ -104,7 +105,7 @@ export default function CalendarSection() {
   // Tell the month calendar how to colour and label each day (blocked > full > has events > open)
   const getDay = (iso) => {
     const { events, blocked, slots, full } = describe(iso);
-    if (blocked) return { tone: 'blocked', label: blocked.reason, badge: blocked.reason, dots: events.length };
+    if (blocked) return { tone: 'blocked', label: blocked.note ? `${blocked.reason}: ${blocked.note}` : blocked.reason, badge: blocked.reason, dots: events.length };
     if (full) return { tone: 'full', label: 'Fully booked', badge: `${slots} ${slots === 1 ? 'event' : 'events'} · full`, dots: events.length };
     if (events.length) return { tone: 'event', label: events.map((e) => e.eventName).join(', '), badge: events.length === 1 ? events[0].eventName : `${events.length} events`, dots: events.length };
     return { tone: 'open', label: 'Open' };
@@ -124,7 +125,7 @@ export default function CalendarSection() {
     try {
       const result = await calendarApi.blockDates(block);
       notify(`Blocked ${result.total} ${result.total === 1 ? 'date' : 'dates'}.${conflicts.length ? ` Note: ${conflicts.length} already ${conflicts.length === 1 ? 'has' : 'have'} reservations.` : ''}`, conflicts.length ? 'warning' : 'success');
-      setBlock({ from: '', to: '', reason: block.reason });
+      setBlock({ from: '', to: '', reason: block.reason, note: '' });
     } catch (e) {
       notify(e.message, 'error');
     } finally {
@@ -213,11 +214,11 @@ export default function CalendarSection() {
                           <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{formatDate(iso)}</Typography>
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          {info.blocked && <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textSecondary }}>Blocked · {info.blocked.reason}</Typography>}
+                          {info.blocked && <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textSecondary }}>Blocked · {info.blocked.reason}{info.blocked.note ? ` · ${info.blocked.note}` : ''}</Typography>}
                           {info.events.length === 0 && !info.blocked && <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>Open</Typography>}
                           {info.events.map((e) => (
                             <Typography key={e.ref} noWrap sx={{ fontSize: 13, color: tokens.textPrimary }}>
-                              {formatTime(e.startTime)} · {e.eventName} · {headcount(e, 'pax')}
+                              {formatEventTime(e)} · {e.eventName} · {headcount(e, 'pax')}
                             </Typography>
                           ))}
                         </Box>
@@ -234,7 +235,7 @@ export default function CalendarSection() {
           {selectedInfo && (
             <DashCard>
               {/* Slots count approved events only (not rentals or pending requests); a day can be full before every slot is taken when no start time is left */}
-              <CardTitle subtitle={selectedInfo.blocked ? `Blocked · ${selectedInfo.blocked.reason}` : `${selectedInfo.slots} of ${data.availability.capacity} event slots taken${selectedInfo.full && selectedInfo.slots < data.availability.capacity ? ' · no start time left' : ''}`}>{formatDateLong(selected)}</CardTitle>
+              <CardTitle subtitle={selectedInfo.blocked ? `Blocked · ${selectedInfo.blocked.reason}${selectedInfo.blocked.note ? ` · ${selectedInfo.blocked.note}` : ''}` : `${selectedInfo.slots} of ${data.availability.capacity} event slots taken${selectedInfo.full && selectedInfo.slots < data.availability.capacity ? ' · no start time left' : ''}`}>{formatDateLong(selected)}</CardTitle>
               {selectedInfo.events.length === 0 ? (
                 <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>No reservations on this date.</Typography>
               ) : (
@@ -244,7 +245,7 @@ export default function CalendarSection() {
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{e.eventName}</Typography>
                         <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                          {formatTime(e.startTime)} · {e.customerName} · {headcount(e, 'pax')} · {e.venue.city}
+                          {formatEventTime(e)} · {e.customerName} · {headcount(e, 'pax')} · {e.venue.city}
                         </Typography>
                       </Box>
                       <StatusChip status={e.status} size="sm" />
@@ -273,6 +274,17 @@ export default function CalendarSection() {
                 <DateField id="block-to" label="To" mode="any" value={block.to} onChange={(v) => { setBlock((b) => ({ ...b, to: v })); setBlockErrors({}); }} error={blockErrors.to} />
               </Box>
               <SelectField id="block-reason" label="Reason shown to customers" value={block.reason} onChange={(e) => setBlock((b) => ({ ...b, reason: e.target.value }))} options={BLOCK_REASONS} />
+              {/* Customers see this under the calendar when they tap the date, after the reason */}
+              <FormField
+                id="block-note"
+                label="Note for customers"
+                optional
+                value={block.note}
+                onChange={(e) => setBlock((b) => ({ ...b, note: e.target.value }))}
+                placeholder="e.g. Our team has a company outing that day."
+                hint={`${block.note.length}/${BLOCK_NOTE_MAX} characters. Customers see it when they tap the date.`}
+                inputProps={{ maxLength: BLOCK_NOTE_MAX }}
+              />
               <BusyButton busy={blocking} onClick={submitBlock}>Block these dates</BusyButton>
             </Box>
           </DashCard>
@@ -295,6 +307,7 @@ export default function CalendarSection() {
                   <Box key={b.date} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1, borderBottom: `1px solid ${tokens.cardLightBorder}`, '&:last-child': { borderBottom: 0 } }}>
                     <Typography sx={{ fontSize: 13.5 }}>
                       <b>{formatDate(b.date)}</b> · {b.reason}
+                      {b.note && <Box component="span" sx={{ display: 'block', fontSize: 12.5, color: tokens.textSecondary }}>{b.note}</Box>}
                     </Typography>
                     <Button size="small" color="error" onClick={() => setUnblock(b)}>Remove</Button>
                   </Box>

@@ -33,6 +33,7 @@ import {
   PageHeader,
   PaymentStatusChip,
   Pill,
+  RULES,
   SelectField,
   formatDate,
   formatDateTime,
@@ -47,12 +48,15 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-// Largest receipt photo allowed
-const MAX_FILE_MB = 5;
-// Payment method buttons. GCash is paid only by the PayMongo QR (Phase 8B); a bank transfer is sent with a
-// photo of its receipt; cash is paid on site. `note` is the small line under the name.
+// Largest receipt photo allowed, in MB (the server's MAX_UPLOAD_MB defaults to the same rule)
+const MAX_FILE_MB = RULES.proofMaxMb;
+// Receipt photos the upload box takes: photos only, so a document can't be sent by mistake (owner, 2026-10-03)
+const PROOF_ACCEPT = 'image/jpeg,image/png,image/webp';
+// Payment method buttons. The QR option ('gcash' inside the system) is a PayMongo QR Ph code (Phase 8B),
+// which GCash, Maya and bank apps can all scan; a bank transfer is sent with a photo of its receipt; cash is
+// paid on site. There is no GCash number to send to. `note` is the small line under the name.
 const METHODS = [
-  { value: 'gcash', label: 'GCash / e-wallet', note: 'QR only', icon: PhoneIphoneOutlinedIcon },
+  { value: 'gcash', label: 'QR Ph', note: 'GCash, Maya or bank app', icon: PhoneIphoneOutlinedIcon },
   { value: 'bank', label: 'Bank transfer', note: 'Upload receipt', icon: AccountBalanceOutlinedIcon },
   { value: 'cash', label: 'Cash on site', note: 'On the event day', icon: StorefrontOutlinedIcon }
 ];
@@ -79,7 +83,7 @@ function copyWithTextArea(value) {
 const QR_POLL_MS = 4000;
 
 /**
- * The open GCash / e-wallet QR of a reservation (Phase 8B): the code for its exact amount, a countdown to
+ * The open QR Ph code of a reservation (Phase 8B; GCash, Maya and bank apps can scan it): the code for its exact amount, a countdown to
  * when it stops working, how to pay it (on a phone: save the image and upload it from the gallery in the
  * app; no links that open other apps) and a "Save QR image" download. While it waits it asks the server
  * every 4 seconds, only while the page is visible; the server also checks with PayMongo, so the payment
@@ -131,7 +135,7 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
     <Box sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2.5, alignItems: { xs: 'stretch', sm: 'flex-start' } }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
         {qr.qrImage ? (
-          <Box component="img" src={qr.qrImage} alt={`GCash / e-wallet QR code for ${peso(qr.amount)}`} sx={{ width: 220, height: 220, borderRadius: 1, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: '#fff' }} />
+          <Box component="img" src={qr.qrImage} alt={`QR Ph code for ${peso(qr.amount)}`} sx={{ width: 220, height: 220, borderRadius: 1, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: '#fff' }} />
         ) : (
           <Box sx={{ width: 220, height: 220, borderRadius: 1, backgroundColor: tokens.surfaceMuted }} />
         )}
@@ -161,8 +165,8 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
 
 /**
  * 1k · Payments: downpayment, balance, bank-transfer receipt upload, history and receipts.
- * Three ways to pay: GCash / e-wallet by QR only (PayMongo, Phase 8B; the card can't be picked while
- * paymentOptions() says the QR isn't available, and there is no GCash number to send to), a bank transfer
+ * Three ways to pay: a QR Ph code that GCash, Maya or a bank app scans (PayMongo, Phase 8B; the card can't be
+ * picked while paymentOptions() says the QR isn't available, and there is no GCash number to send to), a bank transfer
  * with its reference number and a photo of the receipt (the admin verifies it), or cash on site.
  * One payment at a time per reservation: while a bank transfer waits for verification or a GCash QR is
  * open (QrPanel), the form is replaced by it. An open QR comes back with the page (the summary's openQr).
@@ -291,13 +295,13 @@ export default function PaymentsPage() {
     setErrors((e) => ({ ...e, amount: '' }));
   };
 
-  // Check the picked file's type and size, then keep it and make a preview if it's an image
+  // Check the picked (or dropped) file is a photo and not too big, then keep it and show a preview of it
   const chooseFile = (event) => {
     const picked = event.target.files && event.target.files[0];
     event.target.value = ''; // reset so picking the same file again still triggers onChange
     if (!picked) return;
-    if (!/^image\/(jpeg|png|webp)$|^application\/pdf$/.test(picked.type)) {
-      setErrors((e) => ({ ...e, proof: 'Upload a JPG, PNG, WebP or PDF file.' }));
+    if (!PROOF_ACCEPT.split(',').includes(picked.type)) {
+      setErrors((e) => ({ ...e, proof: 'Please upload a photo or screenshot of your receipt (JPG, PNG or WebP).' }));
       return;
     }
     if (picked.size > MAX_FILE_MB * 1024 * 1024) {
@@ -497,13 +501,13 @@ export default function PaymentsPage() {
                             );
                           })}
                         </Box>
-                        {!qr && <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textSecondary }}>GCash QR is not available right now. Please use bank transfer.</Typography>}
+                        {!qr && <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textSecondary }}>QR Ph payment is not available right now. Please use bank transfer.</Typography>}
                       </Box>
 
-                      {/* Cash: just an explanation. GCash: the QR (Phase 8B). Bank: account details, reference number and receipt photo. */}
+                      {/* Cash: just an explanation. QR Ph: the QR (Phase 8B). Bank: account details, reference number and receipt photo. */}
                       {method === 'cash' ? (
                         <AlertBanner tone="info" title="Paying in cash">
-                          Cash is paid to our event coordinator on the day, who records it and issues your official receipt on site. {firstPayment ? `To reserve your date, the downpayment still needs to be paid by ${qr ? 'GCash (QR) or bank transfer' : 'bank transfer'}.` : ''}
+                          Cash is paid to our event coordinator on the day, who records it and issues your official receipt on site. {firstPayment ? `To reserve your date, the downpayment still needs to be paid by ${qr ? 'QR Ph or bank transfer' : 'bank transfer'}.` : ''}
                         </AlertBanner>
                       ) : method === 'gcash' ? (
                         <>
@@ -544,7 +548,7 @@ export default function PaymentsPage() {
                               Upload a photo or screenshot of your bank receipt <Box component="span" sx={{ color: tokens.red }}>*</Box>
                             </Typography>
                             <Typography sx={{ mb: 0.75, fontSize: 12, color: tokens.textMuted }}>The reference number must be readable.</Typography>
-                            <input ref={fileInput} id="pay-proof" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden onChange={chooseFile} />
+                            <input ref={fileInput} id="pay-proof" type="file" accept={PROOF_ACCEPT} hidden onChange={chooseFile} />
                             {file ? (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
                                 {preview ? <Box component="img" src={preview} alt="Bank receipt preview" sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 1 }} /> : <InsertDriveFileOutlinedIcon sx={{ fontSize: 40, color: tokens.textMuted }} />}
@@ -569,7 +573,7 @@ export default function PaymentsPage() {
                               >
                                 <CloudUploadOutlinedIcon sx={{ fontSize: 30, color: tokens.textMuted }} />
                                 <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>{touch ? 'Tap to choose a photo or screenshot of the receipt' : 'Drop a photo or screenshot of the receipt here, or browse'}</Typography>
-                                <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>JPG, PNG, WebP or PDF · up to {MAX_FILE_MB} MB</Typography>
+                                <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>JPG, PNG or WebP photo · up to {MAX_FILE_MB} MB</Typography>
                               </ButtonBase>
                             )}
                             {errors.proof && <Typography sx={{ mt: 0.75, fontSize: 12, color: tokens.redPress }}>{errors.proof}</Typography>}
@@ -578,7 +582,7 @@ export default function PaymentsPage() {
                           {formError && <AlertBanner tone="error">{formError}</AlertBanner>}
                           <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>Our team marks the payment received once verified, usually within a day.</Typography>
                           <BusyButton size="large" busy={busy} onClick={submit}>
-                            Submit payment · {peso(amount)}
+                            Submit proof of payment
                           </BusyButton>
                         </>
                       )}

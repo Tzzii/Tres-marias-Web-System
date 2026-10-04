@@ -102,7 +102,9 @@ function monthBuckets(range, dates = []) {
  *   unverifiedPayments  payments waiting for verification
  *   revenueThisMonth    payments verified this month less refunds sent this month
  *   upcoming            the next 5 approved to confirmed events after today: { ref, eventName, date,
- *                       startTime, guests, status }, soonest first (on one day, the earlier start first)
+ *                       startTime, endTime, serviceType, guests, status }, soonest first (on one day, the
+ *                       earlier start first); endTime and serviceType let the page show "6:00 pm – 10:00 pm"
+ *                       and an equipment rental as such
  */
 export function dashboardSummary(data) {
   const today = todayISO();
@@ -143,7 +145,7 @@ export function dashboardSummary(data) {
     .filter((r) => HOLDS_DATE.includes(r.status) && r.date > today)
     .sort((a, b) => textOrder(a.date, b.date) || textOrder(a.startTime, b.startTime) || textOrder(a.ref, b.ref))
     .slice(0, 5)
-    .map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, startTime: r.startTime, guests: r.guests, status: r.status }));
+    .map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, startTime: r.startTime, endTime: r.endTime || null, serviceType: r.serviceType, guests: r.guests, status: r.status }));
 
   return {
     eventsToday,
@@ -165,7 +167,8 @@ export function dashboardSummary(data) {
  *   declineRate      declined ÷ decided (approved and after, or declined), in whole percent
  *   revenueBy        'month', or 'year' for "All time"
  *   revenueChart     the same net per month, or per year from the first payment or refund to this year;
- *                    a month with more refunds than payments is below 0
+ *                    a month with more refunds than payments is below 0. A month's bar is labelled "Oct"
+ *                    and titled "October 2025" (the chart's tooltip and the printed report's table)
  *   packageCounts    bookings per package (not declined or cancelled), most booked first
  */
 export function report(data, range) {
@@ -197,6 +200,7 @@ export function report(data, range) {
   } else {
     revenueChart = monthBuckets(range).map(({ year, month }) => ({
       label: MONTH_NAMES[month].slice(0, 3),
+      title: `${MONTH_NAMES[month]} ${year}`,
       value: sumWhere((d) => d.getFullYear() === year && d.getMonth() === month)
     }));
   }

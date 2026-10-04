@@ -76,10 +76,11 @@ export const customerLogin = ({ email, password, remember = false }) =>
 
 /**
  * Sign-up, step 1 (Phase 12): the server checks the form and emails a code to the new address; no
- * account exists yet. Only the account fields are sent. Returns { challengeId, maskedEmail, expiresAt, resendAt }.
+ * account exists yet. Only the account fields are sent, with `agreeTerms` (the "I agree to the Terms of
+ * Service and Privacy Policy" tick, which must be true). Returns { challengeId, maskedEmail, expiresAt, resendAt }.
  */
-export const startSignUp = ({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '' }) =>
-  http.post('/auth/customer/register', { firstName, middleName, lastName, email, mobile, password });
+export const startSignUp = ({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '', agreeTerms = false }) =>
+  http.post('/auth/customer/register', { firstName, middleName, lastName, email, mobile, password, agreeTerms });
 
 /** Sign-up: email a new code (after the resend cooldown): { expiresAt, resendAt } */
 export const resendSignUpCode = (challengeId) => http.post(`/auth/customer/register/${segment(challengeId)}/resend`);
@@ -116,6 +117,12 @@ export const getCustomerProfile = () => http.get('/me');
 export const updateCustomerProfile = (customerId, { name = '', mobile = '', company = '' }) => http.patch('/me', { name, mobile, company });
 
 /**
+ * Accept the Terms of Service and Privacy Policy version the page shows (TERMS_VERSION). Returns the
+ * profile with its new termsVersion; INVALID when the terms changed since the page opened (reload).
+ */
+export const acceptTerms = (version) => http.post('/me/terms', { version });
+
+/**
  * Change the password in My profile, step 1 (Phase 12): the server checks the current password and the
  * new one, and emails a code; nothing changes yet. Returns { challengeId, maskedEmail, expiresAt, resendAt }.
  */
@@ -145,8 +152,18 @@ export const adminStartSignIn = ({ email, password }) =>
 /** Send a new code (after the resend cooldown): { expiresAt, resendAt } */
 export const adminResendCode = (challengeId) => http.post('/auth/admin/resend', { challengeId });
 
-/** Stage 2: verify the emailed code: { token, user } with the sign-in time and device. */
+/**
+ * Stage 2: verify the emailed code: { token, user, unlockTicket, unlockUntil }, the user with the sign-in
+ * time and device. The ticket lets the locked screen reopen the session with the password alone.
+ */
 export const adminVerifyCode = ({ challengeId, code }) => http.post('/auth/admin/verify', { challengeId, code });
+
+/**
+ * The screen locked after inactivity: the password alone (no emailed code) reopens the session until it
+ * would have ended anyway. Wrong passwords count as sign-in failures for `email` (the same lock as the
+ * sign-in form). Returns { token, user, unlockTicket, unlockUntil }; CHALLENGE_EXPIRED when the session is over.
+ */
+export const adminUnlock = ({ ticket, password, email }) => trackLock('admin', email, () => http.post('/auth/admin/unlock', { ticket, password }));
 
 /** The signed-in admin's account record (My account, and the top bar's name check). */
 export const getAdminProfile = () => http.get('/admin/me');

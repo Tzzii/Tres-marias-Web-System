@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
@@ -10,13 +10,20 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
-import { PortalShell, authApi, formatDate, messageApi, reservationApi, useResource } from '@tm/shared';
+import { PortalShell, TERMS_VERSION, authApi, formatDate, messageApi, reservationApi, useNotify, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
+import TermsUpdateDialog from '../components/TermsUpdateDialog.jsx';
 
-/** The customer account frame (1g–1l, 1p): sidebar on desktop, bottom tabs on phones. */
+/**
+ * The customer account frame (1g–1l, 1p): sidebar on desktop, bottom tabs on phones. It also asks, once per
+ * visit, an account that has not agreed to the current Terms of Service and Privacy Policy to read and
+ * accept them (TermsUpdateDialog).
+ */
 export default function PortalLayout() {
   const navigate = useNavigate();
+  const notify = useNotify();
   const { user, signOut, updateUser } = useAuth();
+  const [termsLater, setTermsLater] = useState(false); // "Remind me later" on the terms prompt, for this visit
 
   // The session keeps a copy of the customer's details from log-in. Compare it with the account record
   // (re-checked whenever data changes) so the portal never shows an old name, mobile or company. With the
@@ -35,6 +42,11 @@ export default function PortalLayout() {
       updateUser(fresh);
     }
   }, [account.data, account.error]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The account record says which Terms version the customer last agreed to ('' = never): an older one
+  // brings up the prompt, until it is accepted or put off for this visit
+  const fresh = account.data;
+  const termsDue = Boolean(fresh) && fresh.termsVersion !== TERMS_VERSION && !termsLater;
 
   // Load this customer's reservations and chat threads for the notification bell and badges
   const { data } = useResource(async () => {
@@ -119,6 +131,17 @@ export default function PortalLayout() {
       }}
     >
       <Outlet />
+      <TermsUpdateDialog
+        open={termsDue}
+        firstTime={Boolean(fresh) && !fresh.termsVersion}
+        onClose={() => setTermsLater(true)}
+        onAccepted={(profile) => {
+          setTermsLater(true); // closes it at once; the reload below brings the new version
+          updateUser({ termsVersion: profile.termsVersion });
+          account.reload();
+          notify('Thank you. Your agreement to our terms is saved.');
+        }}
+      />
     </PortalShell>
   );
 }

@@ -5,6 +5,7 @@ import { RequireAuth } from './auth.js';
 import AdminLayout from './layouts/AdminLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import SplashPage from './pages/SplashPage.jsx';
+import UnlockPage from './pages/UnlockPage.jsx';
 
 // Each page is lazy-loaded: its code is only downloaded the first time the admin opens it.
 const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
@@ -20,7 +21,7 @@ const FeedbacksPage = lazy(() => import('./pages/FeedbacksPage.jsx'));
 const AccountPage = lazy(() => import('./pages/AccountPage.jsx'));
 
 /**
- * Admin Dashboard routes. Everything except / and /login requires an admin session.
+ * Admin Dashboard routes. Everything except /, /login and /locked requires an admin session.
  * Reservation requests, all reservations and the calendar share /reservations (as tabs);
  * payments is a tab of /reports; contracts and partners share /outsource (as tabs);
  * customer conversations have their own page at /messages (?thread=ID opens one);
@@ -35,7 +36,9 @@ export default function App() {
         {/* Public routes: the logo splash screen (first page) and the admin sign-in screen */}
         <Route path="/" element={<SplashPage />} />
         <Route path="/login" element={<LoginPage />} />
-        {/* Protected routes: RequireAuth sends signed-out users to /login (or to the / logo screen after a 15-minute idle timeout); AdminLayout draws the sidebar and top bar */}
+        {/* The screen locked after 15 minutes without activity: the password alone unlocks it */}
+        <Route path="/locked" element={<UnlockPage />} />
+        {/* Protected routes: RequireAuth sends signed-out users to /login, and a locked session to /locked; AdminLayout draws the sidebar and top bar */}
         <Route
           element={
             <RequireAuth>

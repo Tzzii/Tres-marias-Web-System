@@ -22,8 +22,9 @@ import { getCalendar } from './calendar.js';
 // A reservation ref in a URL path (never trust a path segment)
 const segment = (ref) => encodeURIComponent(String(ref || ''));
 
-// The fields the booking form sends (the page also keeps drafts and typed quantities in its form state)
-const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'date', 'startTime', 'guests', 'menu', 'foodNotes', 'addonIds', 'addonQty', 'venueName', 'venueAddress', 'city', 'accessNotes', 'fulfilment', 'rentalItems'];
+// The fields the booking form sends (the page also keeps drafts and typed quantities in its form state);
+// endTime is an event's (2 to 6 hours after the start), agreeTerms the "I agree to the Terms of Service" tick
+const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'date', 'startTime', 'endTime', 'agreeTerms', 'guests', 'menu', 'foodNotes', 'addonIds', 'addonQty', 'venueName', 'venueAddress', 'city', 'accessNotes', 'fulfilment', 'rentalItems'];
 
 // Reload the availability map after a write that can change it (no change event of its own). The
 // write is saved either way, so a failed reload is not an error: the map catches up on its next load.
