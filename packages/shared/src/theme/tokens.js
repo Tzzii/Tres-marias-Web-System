@@ -40,12 +40,10 @@ export const tokens = {
   fontSans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 };
 
-/** Style for the small label above a title or field, used in both portals. */
+/** Style for the small label above a title or field, used in both portals. Shown as written, not in capitals. */
 export const eyebrowSx = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 700,
-  letterSpacing: '0.07em',
-  textTransform: 'uppercase',
   color: tokens.textMuted
 };
 

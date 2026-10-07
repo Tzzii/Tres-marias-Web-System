@@ -67,7 +67,7 @@ const formatDay = (ms) => (ms ? formatDate(toISODate(new Date(ms))) : '');
  * email / mobile needs the current password; email / mobile also need a code.
  */
 export default function AccountPage() {
-  useDocumentTitle('My account', 'Tres Marias Admin');
+  useDocumentTitle('My Account', 'Tres Marias Admin');
   const navigate = useNavigate();
   const notify = useNotify();
   const { user, session, signOut, updateUser } = useAuth();
@@ -95,7 +95,7 @@ export default function AccountPage() {
 
   return (
     <>
-      <PageHeader title="My account" subtitle="Manage your profile, password and sign-in." />
+      <PageHeader title="My Account" subtitle="Manage your profile, password and sign-in." />
       {!p ? (
         <DashCard><ListSkeleton rows={4} /></DashCard>
       ) : (
@@ -159,7 +159,7 @@ export default function AccountPage() {
           close();
           endSession();
         }}
-        title="Log out?"
+        title="Log Out?"
         description="You will need to sign in again to continue."
         confirmLabel="Log out"
         tone="danger"
@@ -222,7 +222,7 @@ function ActivityCard({ profile, session, onLogout }) {
 
   return (
     <DashCard sx={{ gridArea: 'activity', display: 'flex', flexDirection: 'column' }}>
-      <CardTitle>Sign-in activity</CardTitle>
+      <CardTitle>Sign-In Activity</CardTitle>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
         <Box>
           <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>This session</Typography>
@@ -284,7 +284,7 @@ function PasswordCard({ profile, onChange }) {
 function TwoStepCard({ profile }) {
   return (
     <DashCard sx={{ gridArea: 'twostep' }}>
-      <CardTitle action={<Pill label="On" bg="rgba(16, 185, 129, 0.12)" fg="#047857" />}>Two-step verification</CardTitle>
+      <CardTitle action={<Pill label="On" bg="rgba(16, 185, 129, 0.12)" fg="#047857" />}>Two-Step Verification</CardTitle>
       <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: tokens.textSecondary }}>
         A {RULES.codeLength}-digit code is emailed to <b>{maskEmail(profile.email)}</b> every time you sign in.
       </Typography>
@@ -329,7 +329,7 @@ function EditNameDialog({ open, onClose, profile, onSaved }) {
       onClose={onClose}
       busy={busy}
       maxWidth="xs"
-      title="Edit profile"
+      title="Edit Profile"
       description="This name appears in messages to customers and in the activity log."
       actions={
         <>
@@ -407,7 +407,7 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
       busy={busy}
       maxWidth="xs"
       fullScreenOnMobile
-      title="Change password"
+      title="Change Password"
       description="You'll be signed out and asked to sign in with the new password."
       actions={
         <>
@@ -568,7 +568,7 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
       busy={busy}
       maxWidth="xs"
       fullScreenOnMobile
-      title={step === 1 ? `Change ${label}` : 'Enter the code'}
+      title={step === 1 ? (isEmail ? 'Change Email' : 'Change Mobile Number') : 'Enter the Code'}
       description={
         step === 1
           ? isEmail

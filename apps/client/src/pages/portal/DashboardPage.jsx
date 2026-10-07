@@ -136,9 +136,9 @@ export default function DashboardPage() {
       ) : (
         <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2.5 }}>
-            <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Upcoming events" value={upcoming.length} meta={next ? formatDateLong(next.date) : 'Nothing scheduled'} loading={loading} onClick={() => navigate('/portal/calendar')} />
-            <StatCard icon={PaymentsOutlinedIcon} tone={needsDownpayment ? 'amber' : 'green'} label="Balance due" value={peso(balanceDue)} meta={needsDownpayment ? 'Downpayment not yet paid' : balanceDue ? 'Due on or before event day' : 'All paid up'} loading={loading} onClick={() => navigate('/portal/payments')} />
-            <StatCard icon={MarkUnreadChatAltOutlinedIcon} tone="blue" label="Unread messages" value={unread} meta={latestUnread ? 'From the admin' : 'No new messages'} loading={loading} onClick={() => navigate('/portal/messages')} />
+            <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Upcoming Events" value={upcoming.length} meta={next ? formatDateLong(next.date) : 'Nothing scheduled'} loading={loading} onClick={() => navigate('/portal/calendar')} />
+            <StatCard icon={PaymentsOutlinedIcon} tone={needsDownpayment ? 'amber' : 'green'} label="Balance Due" value={peso(balanceDue)} meta={needsDownpayment ? 'Downpayment not yet paid' : balanceDue ? 'Due on or before event day' : 'All paid up'} loading={loading} onClick={() => navigate('/portal/payments')} />
+            <StatCard icon={MarkUnreadChatAltOutlinedIcon} tone="blue" label="Unread Messages" value={unread} meta={latestUnread ? 'From the admin' : 'No new messages'} loading={loading} onClick={() => navigate('/portal/messages')} />
           </Box>
 
           {loading ? (
@@ -149,7 +149,7 @@ export default function DashboardPage() {
             focus && (
               <DashCard>
                 <CardTitle subtitle={`${focus.eventName} · ${focus.ref}`} action={<StatusChip status={focus.status} />}>
-                  Reservation status
+                  Reservation Status
                 </CardTitle>
                 <StatusPipeline status={focus.status} />
               </DashCard>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
             <DashCard>
-              <CardTitle action={<Button size="small" onClick={() => navigate('/portal/reservations')}>View all</Button>}>Upcoming event preview</CardTitle>
+              <CardTitle action={<Button size="small" onClick={() => navigate('/portal/reservations')}>View all</Button>}>Upcoming Event Preview</CardTitle>
               {loading ? (
                 <ListSkeleton rows={2} height={70} />
               ) : next ? (
@@ -198,7 +198,7 @@ export default function DashboardPage() {
             </DashCard>
 
             <DashCard>
-              <CardTitle>Quick actions</CardTitle>
+              <CardTitle>Quick Actions</CardTitle>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                 <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/portal/book')} sx={{ justifyContent: 'flex-start', py: 1.2 }}>
                   New reservation

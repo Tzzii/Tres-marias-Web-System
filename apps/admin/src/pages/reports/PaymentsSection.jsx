@@ -42,15 +42,15 @@ import {
 import RefundDialog, { refundRecordedText } from '../../components/RefundDialog.jsx';
 import { SectionBar } from '../../components/SectionTabs.jsx';
 
-// Filter tabs as [key, label]. "Refunds to send" lists its own rows (listRefundsDue): cancelled bookings are not in the balances.
+// Filter tabs as [key, label]. "Refunds to Send" lists its own rows (listRefundsDue): cancelled bookings are not in the balances.
 const FILTERS = [
   ['all', 'All'],
-  ['awaiting', 'Awaiting verification'],
-  ['partial', 'Partially paid'],
-  ['full', 'Fully paid'],
+  ['awaiting', 'Awaiting Verification'],
+  ['partial', 'Partially Paid'],
+  ['full', 'Fully Paid'],
   ['overdue', 'Overdue'],
   ['unpaid', 'Unpaid'],
-  ['refunds', 'Refunds to send']
+  ['refunds', 'Refunds to Send']
 ];
 
 /**
@@ -99,12 +99,12 @@ function ProofPreview({ payment }) {
 /** Does a reservation belong in a filter tab? "awaiting" = has a proof to verify; the rest match the balance status. */
 const inFilter = (key, r) => (key === 'all' ? true : key === 'awaiting' ? r.awaitingCount > 0 : r.balanceState === key);
 
-// Why money is owed back, for the "Refunds to send" rows (listRefundsDue's `why`)
+// Why money is owed back, for the "Refunds to Send" rows (listRefundsDue's `why`)
 const REFUND_WHY = { customer: 'Cancelled by the customer', admin: 'Cancelled by the admin', declined: 'Declined', overpaid: 'Overpaid' };
 
 /**
  * 1w · Payments tab of Reports: set the minimum downpayment, verify proofs, record receipts, chase
- * balances, and record the refunds owed on cancelled or overpaid bookings ("Refunds to send").
+ * balances, and record the refunds owed on cancelled or overpaid bookings ("Refunds to Send").
  * Opens straight to a proof with ?verify=ID, or to a filter with ?filter=KEY. The page title and tabs come from ReportsPage.
  */
 export default function PaymentsSection() {
@@ -126,7 +126,7 @@ export default function PaymentsSection() {
   const [rejecting, setRejecting] = useState(false); // reject dialog open
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState(null); // receipt shown in the document dialog
-  const [refunding, setRefunding] = useState(null); // "Refunds to send" row whose refund is being recorded
+  const [refunding, setRefunding] = useState(null); // "Refunds to Send" row whose refund is being recorded
 
   // Open the verify panel when a notification link adds ?verify=ID to the URL
   useEffect(() => {
@@ -159,7 +159,7 @@ export default function PaymentsSection() {
   const awaitingCount = allPayments.filter((p) => p.status === 'awaiting').length;
   const overdueCount = rows.filter((r) => r.balanceState === 'overdue').length;
 
-  // Number of reservations in each filter tab ("Refunds to send" counts its own list)
+  // Number of reservations in each filter tab ("Refunds to Send" counts its own list)
   const counts = useMemo(
     () => Object.fromEntries(FILTERS.map(([key]) => [key, key === 'refunds' ? refundsDue.length : rows.filter((r) => inFilter(key, r)).length])),
     [rows, refundsDue]
@@ -175,7 +175,7 @@ export default function PaymentsSection() {
     .filter((r) => inFilter(filter, r))
     .filter(matches)
     .sort((a, b) => b.awaitingCount - a.awaitingCount || (a.balanceState === 'overdue' ? -1 : 0) - (b.balanceState === 'overdue' ? -1 : 0) || a.date.localeCompare(b.date));
-  // "Refunds to send" rows, oldest event date first (the order listRefundsDue gives)
+  // "Refunds to Send" rows, oldest event date first (the order listRefundsDue gives)
   const visibleRefunds = refundsDue.filter(matches);
 
   // Close the verify panel and remove ?verify= from the URL
@@ -226,7 +226,7 @@ export default function PaymentsSection() {
     { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
     // card: 'title' — on phone cards the customer and event are the heading (REF becomes a field)
     { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
-    { key: 'date', label: 'Event date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
+    { key: 'date', label: 'Event Date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
     { key: 'balance', label: 'Balance', align: 'right', render: (r) => <b>{peso(r.balance)}</b> },
@@ -251,15 +251,15 @@ export default function PaymentsSection() {
     }
   ];
 
-  // "Refunds to send": one row per booking with money to return. On a phone card the customer and event
+  // "Refunds to Send": one row per booking with money to return. On a phone card the customer and event
   // are the heading, the status chip sits top right, the amount to return is a field, and the button is at the bottom.
   const refundColumns = [
     { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
     { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
     { key: 'status', label: 'Status', card: 'aside', render: (r) => <StatusChip status={r.status} size="sm" /> },
-    { key: 'date', label: 'Event date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
+    { key: 'date', label: 'Event Date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'why', label: 'Why', render: (r) => REFUND_WHY[r.why] || r.why },
-    { key: 'refundDue', label: 'To return', align: 'right', render: (r) => <b>{peso(r.refundDue)}</b> },
+    { key: 'refundDue', label: 'To Return', align: 'right', render: (r) => <b>{peso(r.refundDue)}</b> },
     { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'action', label: 'Action', align: 'right', card: 'footer', render: (r) => <Button size="small" variant="contained" onClick={() => setRefunding(r)}>Record refund</Button> }
@@ -275,9 +275,9 @@ export default function PaymentsSection() {
 
       {/* Summary cards, two per row on phones and tablets */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
-        <StatCard icon={PendingActionsOutlinedIcon} tone="amber" label="Awaiting verification" value={awaitingCount} loading={loading} onClick={() => setFilter('awaiting')} />
-        <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Collected this month" value={peso(collectedThisMonth)} loading={loading} />
-        <StatCard icon={AccountBalanceWalletOutlinedIcon} tone="blue" label="Outstanding balance" value={peso(outstanding)} loading={loading} onClick={() => setFilter('partial')} />
+        <StatCard icon={PendingActionsOutlinedIcon} tone="amber" label="Awaiting Verification" value={awaitingCount} loading={loading} onClick={() => setFilter('awaiting')} />
+        <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Collected This Month" value={peso(collectedThisMonth)} loading={loading} />
+        <StatCard icon={AccountBalanceWalletOutlinedIcon} tone="blue" label="Outstanding Balance" value={peso(outstanding)} loading={loading} onClick={() => setFilter('partial')} />
         <StatCard icon={WarningAmberRoundedIcon} tone="red" label="Overdue" value={overdueCount} loading={loading} onClick={() => setFilter('overdue')} />
       </Box>
 
@@ -323,7 +323,7 @@ export default function PaymentsSection() {
                   <Button color="error" variant="outlined" disabled={busy} onClick={() => setRejecting(true)}>Reject with reason</Button>
                 </Box>
                 <Box sx={{ mt: 2.5, p: 1.75, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
-                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>What marking received does</Typography>
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>What Marking Received Does</Typography>
                   <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
                     Generates the receipt, moves the booking to Downpayment paid once the minimum downpayment is reached (straight to Confirmed when it is paid in full), and posts the update to the customer's Payments page and chat thread.
                   </Typography>
@@ -345,7 +345,7 @@ export default function PaymentsSection() {
       <ConfirmDialog
         open={rejecting}
         onClose={() => setRejecting(false)}
-        title="Reject this payment?"
+        title="Reject This Payment?"
         description="The customer is told why and asked to submit the payment again."
         confirmLabel="Reject payment"
         tone="danger"
@@ -405,7 +405,7 @@ function MinDownpaymentCard({ setting, onSaved }) {
 
   return (
     <DashCard sx={{ mb: 2.5 }}>
-      <CardTitle subtitle="The least a customer pays first to secure a date. They can pay more, up to the full amount.">Minimum downpayment</CardTitle>
+      <CardTitle subtitle="The least a customer pays first to secure a date. They can pay more, up to the full amount.">Minimum Downpayment</CardTitle>
       {setting.error ? (
         <ErrorState error={setting.error} onRetry={setting.reload} />
       ) : current === null ? (

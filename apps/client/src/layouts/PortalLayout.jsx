@@ -70,19 +70,19 @@ export default function PortalLayout() {
       // Approved but unpaid: link to Payments, unless proof was already uploaded
       if (r.status === 'approved' && !r.downpaymentPaid) {
         if (!r.awaitingCount) due += 1;
-        list.push({ id: `${r.ref}:approved`, title: 'Reservation approved', body: `${r.eventName}: pay the downpayment by ${formatDate(r.downpaymentDue)} to secure your date.`, at: lastAt, to: r.awaitingCount ? to : `/portal/payments?ref=${r.ref}` });
+        list.push({ id: `${r.ref}:approved`, title: 'Reservation Approved', body: `${r.eventName}: pay the downpayment by ${formatDate(r.downpaymentDue)} to secure your date.`, at: lastAt, to: r.awaitingCount ? to : `/portal/payments?ref=${r.ref}` });
       }
-      if (r.status === 'downpayment_paid') list.push({ id: `${r.ref}:downpayment_paid`, title: 'Downpayment received', body: `${r.eventName} is waiting for final confirmation from our team.`, at: lastAt, to });
-      if (r.status === 'confirmed') list.push({ id: `${r.ref}:confirmed`, title: 'Booking confirmed', body: `${r.eventName} on ${formatDate(r.date)} is confirmed. Your contract is in Documents.`, at: lastAt, to });
-      if (r.status === 'declined') list.push({ id: `${r.ref}:declined`, title: 'Reservation declined', body: `${r.eventName}: ${r.declineReason}`, at: lastAt, to });
-      if (r.quotation && r.status === 'pending') list.push({ id: `${r.ref}:quoted:${r.quotation.sentAt}`, title: 'Quotation ready', body: `Your quotation for ${r.eventName} is ready to review.`, at: r.quotation.sentAt, to });
+      if (r.status === 'downpayment_paid') list.push({ id: `${r.ref}:downpayment_paid`, title: 'Downpayment Received', body: `${r.eventName} is waiting for final confirmation from our team.`, at: lastAt, to });
+      if (r.status === 'confirmed') list.push({ id: `${r.ref}:confirmed`, title: 'Booking Confirmed', body: `${r.eventName} on ${formatDate(r.date)} is confirmed. Your contract is in Documents.`, at: lastAt, to });
+      if (r.status === 'declined') list.push({ id: `${r.ref}:declined`, title: 'Reservation Declined', body: `${r.eventName}: ${r.declineReason}`, at: lastAt, to });
+      if (r.quotation && r.status === 'pending') list.push({ id: `${r.ref}:quoted:${r.quotation.sentAt}`, title: 'Quotation Ready', body: `Your quotation for ${r.eventName} is ready to review.`, at: r.quotation.sentAt, to });
     });
     // Count unread chat messages and add a notification for each thread with new ones
     let unread = 0;
     data.threads.forEach((t) => {
       unread += t.unread;
       if (t.unread && t.lastMessage) {
-        list.push({ id: `msg:${t.lastMessage.id}`, title: 'New message from Admin', body: t.lastMessage.body, at: t.lastMessage.at, to: '/portal/messages' });
+        list.push({ id: `msg:${t.lastMessage.id}`, title: 'New Message From Admin', body: t.lastMessage.body, at: t.lastMessage.at, to: '/portal/messages' });
       }
     });
     // Newest first, keep the latest 20
@@ -119,8 +119,8 @@ export default function PortalLayout() {
       bottomNav={bottomNav}
       user={{ ...user, role: 'Customer' }}
       profileItems={[
-        { key: 'profile', label: 'My profile', icon: AccountCircleOutlinedIcon, to: '/portal/profile' },
-        { key: 'site', label: 'Browse packages', icon: HomeOutlinedIcon, to: '/' }
+        { key: 'profile', label: 'My Profile', icon: AccountCircleOutlinedIcon, to: '/portal/profile' },
+        { key: 'site', label: 'Browse Packages', icon: HomeOutlinedIcon, to: '/' }
       ]}
       search={{ placeholder: 'Search your reservations', onSubmit: (q) => navigate(`/portal/reservations?q=${encodeURIComponent(q)}`) }}
       notifications={notifications}

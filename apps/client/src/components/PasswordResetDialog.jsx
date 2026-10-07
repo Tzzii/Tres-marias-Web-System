@@ -145,13 +145,13 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
   // Title, line under it and main button for each step
   const STEPS = {
     email: {
-      title: 'Reset your password',
+      title: 'Reset Your Password',
       description: accountEmail ? '' : 'Enter the email you used to sign up. We will email you a code to choose a new password.',
       action: accountEmail ? 'Send code' : 'Proceed',
       onClick: proceed
     },
-    code: { title: 'Enter the code', description: '', action: 'Verify', onClick: () => verify() },
-    password: { title: 'Create a new password', description: 'Use 8 characters or more, with at least one number.', action: 'Save password', onClick: save }
+    code: { title: 'Enter the Code', description: '', action: 'Verify', onClick: () => verify() },
+    password: { title: 'Create a New Password', description: 'Use 8 characters or more, with at least one number.', action: 'Save password', onClick: save }
   };
   const current = STEPS[step];
 

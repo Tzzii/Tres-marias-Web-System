@@ -88,7 +88,7 @@ export default function ReservationDetailPage() {
   if (loading || !r) {
     return (
       <>
-        <PageHeader title="Loading reservation…" crumbs={crumbs} />
+        <PageHeader title="Loading Reservation…" crumbs={crumbs} />
         <DashCard>
           <ListSkeleton rows={6} height={48} />
         </DashCard>
@@ -202,7 +202,7 @@ export default function ReservationDetailPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
-              <CardTitle>Event details</CardTitle>
+              <CardTitle>Event Details</CardTitle>
               <Box sx={{ display: 'flex', gap: 2.5, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
                 <ThemeIcon occasion={r.occasion} size={84} />
                 <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
@@ -246,7 +246,7 @@ export default function ReservationDetailPage() {
             )}
 
             <DashCard>
-              <CardTitle>{rental ? 'Pick up or delivery' : 'Venue and logistics'}</CardTitle>
+              <CardTitle>{rental ? 'Pick Up or Delivery' : 'Venue and Logistics'}</CardTitle>
               {rental && !delivered ? (
                 <Field label="Pick up at">{RENTAL.pickupAddress} · free</Field>
               ) : (
@@ -261,7 +261,7 @@ export default function ReservationDetailPage() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
-              <CardTitle subtitle={r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment summary</CardTitle>
+              <CardTitle subtitle={r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment Summary</CardTitle>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
               <DetailRow label="Minimum downpayment">{peso(r.downpayment)}</DetailRow>
               {/* Paid = what was received; money given back shows on its own row */}
@@ -315,7 +315,7 @@ export default function ReservationDetailPage() {
             {/* After the event: show the customer's review, or invite them to write one */}
             {r.status === 'completed' && (
               <DashCard>
-                <CardTitle>Your testimonial</CardTitle>
+                <CardTitle>Your Testimonial</CardTitle>
                 {r.testimonial ? (
                   <>
                     <StarRating value={r.testimonial.rating} showValue />
@@ -385,7 +385,7 @@ export default function ReservationDetailPage() {
       <ConfirmDialog
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
-        title="Cancel this reservation?"
+        title="Cancel This Reservation?"
         description={r.paid > 0 ? `You paid ${peso(r.paid)}. We'll return it and tell you in your chat when it's sent.` : 'The date will be released for other bookings. This cannot be undone.'}
         confirmLabel="Cancel reservation"
         cancelLabel="Keep reservation"
@@ -433,7 +433,7 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
       open={open}
       onClose={onClose}
       busy={busy}
-      title="Request a change"
+      title="Request a Change"
       description="Tell us what you would like to change: date, guest count, package, food, venue or additional charges. The admin replies in your chat, usually within an hour."
       actions={
         <>
@@ -460,7 +460,7 @@ function RentalItemsCard({ r }) {
   const damage = r.damageCharges || [];
   return (
     <DashCard>
-      <CardTitle subtitle={`${r.packageName} · priced per piece`}>Rented items</CardTitle>
+      <CardTitle subtitle={`${r.packageName} · priced per piece`}>Rented Items</CardTitle>
       {r.rentalItems.map((line) => (
         <DetailRow key={line.itemId} label={`${line.name} · ${line.qty} × ${peso(line.price)}`}>
           {peso(line.qty * line.price)}

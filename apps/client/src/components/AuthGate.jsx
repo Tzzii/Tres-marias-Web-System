@@ -26,14 +26,14 @@ export default function AuthGate({ open, onClose, intent, packageName }) {
         <LockOpenOutlinedIcon />
       </Box>
       <Typography id="gate-title" component="h2" sx={{ fontFamily: site.fontSerif, fontSize: 24, fontWeight: 600 }}>
-        Create an account to reserve
+        Create an Account to Reserve
       </Typography>
       <Typography sx={{ mt: 1, fontSize: 13.5, lineHeight: 1.6, color: site.inkSoft }}>
         Creating an account is free and takes about a minute. The package and date you picked are already saved.
       </Typography>
 
       <Box sx={{ mt: 2.5, p: 2, borderRadius: 1.5, backgroundColor: site.ivory, border: `1px solid ${site.border}` }}>
-        <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: site.inkMuted, mb: 1 }}>Saved details</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 700, color: site.inkMuted, mb: 1 }}>Saved Details</Typography>
         {/* Show what the visitor already picked, as [label, value] rows */}
         {[
           ['Package', packageName],

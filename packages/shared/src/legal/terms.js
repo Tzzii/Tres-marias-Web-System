@@ -43,11 +43,11 @@ const contactLines = () => [
 export function termsOfService({ minDownpayment } = {}) {
   const minimum = minDownpayment ? `the minimum downpayment (currently ${pesos(minDownpayment)})` : 'the minimum downpayment shown in your quotation';
   return [
-    section('about', 'About these terms', [
+    section('about', 'About These Terms', [
       `These terms are an agreement between you and ${BUSINESS.name} ("Tres Marias", "we", "us"), a catering business based in ${BUSINESS.address}. They apply when you create an account, send a reservation request, pay, rent equipment or message us through this website.`,
       'By ticking "I agree" when you sign up or send a request, you accept these terms and our Privacy Policy. The contract for each event, which you can open from your reservation, adds the details of that booking (its prices, dates and items). If the contract and these terms say different things about your booking, the contract wins.'
     ]),
-    section('account', 'Your account', [], [
+    section('account', 'Your Account', [], [
       'You must be at least 18 years old, or have a parent or guardian make the booking for you.',
       'Give your real name, a working email address and mobile number, and keep them up to date. We send sign-up and password codes and booking updates to them.',
       'Keep your password to yourself. You are responsible for what is done with your account. If you think someone else has used it, change your password and tell us right away.',
@@ -60,7 +60,7 @@ export function termsOfService({ minDownpayment } = {}) {
       'A date can be closed by us (for example, a private event). The calendar shows the reason when you tap the date.',
       'To change the date, time, guest count or anything else, use "Request a change" on your reservation or message us. Changes depend on what is still available and may change the price.'
     ]),
-    section('prices', 'Prices and quotations', [], [
+    section('prices', 'Prices and Quotations', [], [
       'A package has a fixed price. A buffet adds a price per person, multiplied by your guest count; the price per person is the one in force when you send your request, so a later price change never affects your booking.',
       'Additional charges you pick (for example, extra waiters) are priced in the quotation. The quotation we send you is the amount you owe.',
       'If something that affects the price changes after a quotation is sent (for example, the guest count), we tell you in your chat and send a revised quotation. The new amount applies only from the quotation we send you, never before. If the new total is lower than what you have paid, we return the difference.',
@@ -74,7 +74,7 @@ export function termsOfService({ minDownpayment } = {}) {
       'Every verified payment gets a receipt in your Documents.',
       'Payment proof must be real and your own. A receipt that is edited, belongs to someone else or reuses a reference number is rejected, and the reservation may be cancelled.'
     ]),
-    section('cancellations', 'Cancellations and refunds', [], [
+    section('cancellations', 'Cancellations and Refunds', [], [
       'Before you pay, you can cancel your request online at any time before the event day.',
       `After you pay, you can cancel online during ${cancelWindowText()}, and only before we start preparing. Your reservation shows the exact last day.`,
       'After that, message us in your chat or call us, and we will talk it through with you.',
@@ -82,43 +82,43 @@ export function termsOfService({ minDownpayment } = {}) {
       'Refunds are sent by bank transfer, GCash or cash, and recorded in your account.',
       'If we must cancel (for example, an emergency on our side), we tell you as soon as possible and return everything you paid, or move your event to another date if you agree.'
     ]),
-    section('rentals', 'Equipment rental', [], [
+    section('rentals', 'Equipment Rental', [], [
       'Rented items are charged per piece for the whole rental, at the prices shown when you book.',
       `You can pick them up for free at ${RENTAL.pickupAddress}, or have them delivered for our standard fee of ${pesos(RENTAL.deliveryFee)}; a large order may be quoted a different delivery fee.`,
       'Items are counted with you when you receive them and again when they come back. Please use them with care and return them clean and on time.',
       'A piece that comes back damaged or does not come back is charged at its damage fee, shown for each item when you book. Damage charges are added through a revised quotation sent to you.'
     ]),
-    section('event-day', 'On the event day', [], [
+    section('event-day', 'On the Event Day', [], [
       `Give our team safe access to the venue at least ${RULES.eventBufferHours} hours before the start time for setup, and tell us about parking, gates or building rules in the access notes.`,
       'Tell us about food allergies, vegetarian guests or other needs in your booking. We prepare food with care, but we cannot guarantee a kitchen free of every allergen.',
       'For food safety, leftovers taken home after the service are at your own risk; keep them chilled and eat them soon.',
       'Some services, such as lights and sound, come from partner suppliers we arrange for you.',
       'Loss or damage to our equipment caused by guests is charged at cost.'
     ]),
-    section('weather', 'Weather and events outside our control', [
+    section('weather', 'Weather and Events Outside Our Control', [
       'If a typhoon, flood, government order or another event outside anyone\'s control makes it unsafe or impossible to hold the event, we will work with you to move it to another available date. If that is not possible, we settle the payments as stated in your contract and in the cancellation terms above.'
     ]),
-    section('liability', 'Our responsibility', [
+    section('liability', 'Our Responsibility', [
       'We are responsible for our food, our equipment and our team, and we will make things right if we fall short. We are not responsible for losses caused by the venue, by guests, or by events outside our control. As far as the law allows, our responsibility for a booking is limited to the amount paid for it.'
     ]),
-    section('changes', 'Changes to these terms', [
+    section('changes', 'Changes to These Terms', [
       'We may update these terms. The date at the top shows the latest version. When we make an important change, we ask you to read and accept it the next time you open your account. A booking keeps the terms you agreed to when you made it.'
     ]),
-    section('law', 'Law and disputes', [
+    section('law', 'Law and Disputes', [
       'These terms follow the laws of the Republic of the Philippines. If something goes wrong, please message us first; most problems can be solved quickly. If not, the dispute will be settled in the proper courts of Batangas.'
     ]),
-    section('contact', 'Contact us', [], contactLines())
+    section('contact', 'Contact Us', [], contactLines())
   ];
 }
 
 /** The Privacy Policy as sections (Data Privacy Act of 2012, Republic Act No. 10173). */
 export function privacyPolicy() {
   return [
-    section('about', 'About this policy', [
+    section('about', 'About This Policy', [
       `${BUSINESS.name} ("Tres Marias", "we", "us") respects your privacy. This policy explains what personal information we collect through this website, why, who we share it with, how long we keep it and how we protect it, as required by the Data Privacy Act of 2012 (Republic Act No. 10173), its rules, and the issuances of the National Privacy Commission (NPC).`,
       'We are the personal information controller for the information described here.'
     ]),
-    section('collect', 'What we collect', [], [
+    section('collect', 'What We Collect', [], [
       'Account details: your name, email address, mobile number and, if you give it, your company. Your password is stored only in a scrambled form (a hash) that no one, including us, can read.',
       'Event details: the event name and occasion, date and time, guest count, venue address and access notes, your menu choices and food notes (including allergies you tell us about).',
       'Payment details: amounts, payment methods, bank reference numbers and the receipt photos you upload, and the receipts we issue. QR Ph payments are processed by PayMongo; we never see your GCash, Maya or bank login or card details.',
@@ -126,14 +126,14 @@ export function privacyPolicy() {
       'Security records: when you sign in, failed sign-in attempts, and the kind of device and browser used (for example, "Chrome on Windows"), to protect your account.',
       'Browser storage: your browser keeps your sign-in so you stay signed in. We do not use advertising or tracking cookies.'
     ]),
-    section('use', 'Why we use it', [], [
+    section('use', 'Why We Use It', [], [
       'To create your account, take your reservation requests, prepare quotations and contracts, and deliver your event or rental (this is needed for our contract with you).',
       'To record payments, issue receipts and keep the records that tax and business laws require.',
       'To send you sign-up and password codes and updates about your bookings by email, and event-day texts to your mobile number.',
       'To keep accounts and payments safe: stopping repeated wrong passwords, fake receipts and other misuse (our legitimate interest).',
       'To show your review on our website, only if you sent one and our team chose to publish it.'
     ]),
-    section('share', 'Who we share it with', [
+    section('share', 'Who We Share It With', [
       'We never sell your personal information or share it for advertising. We share only what is needed with:'
     ], [
       'PayMongo, our payment provider, for QR Ph payments.',
@@ -143,20 +143,20 @@ export function privacyPolicy() {
       'Government offices or courts, when the law requires it.',
       'The public, for a review we publish: your name, your event name, your rating and what you wrote. Nothing else, such as your email, mobile number or event date, is ever shown.'
     ]),
-    section('keep', 'How long we keep it', [], [
+    section('keep', 'How Long We Keep It', [], [
       'Your account, for as long as you keep it. You may ask us to close it.',
       'Bookings, payments, receipts and refunds, for as long as tax and accounting laws require, after which they are deleted or made anonymous.',
       `Sign-up, password and other codes stop working after ${RULES.codeValidMinutes} minutes.`,
       'Chat messages, for as long as the bookings they belong to are kept.'
     ]),
-    section('protect', 'How we protect it', [], [
+    section('protect', 'How We Protect It', [], [
       'The website uses an encrypted connection (HTTPS).',
       'Passwords and one-time codes are stored only as hashes. Admin sign-in needs a password and a code sent by email.',
       'Only our authorised staff can see your bookings and payments, and every change they make to a booking is recorded.',
       'Receipt photos can be seen only by you and our team.',
       'If a breach puts your information at risk, we will tell the National Privacy Commission and you within 72 hours of knowing about it, as the NPC requires.'
     ]),
-    section('rights', 'Your rights', [
+    section('rights', 'Your Rights', [
       'Under the Data Privacy Act you have the right to:'
     ], [
       'be informed of how your personal information is used;',
@@ -170,9 +170,9 @@ export function privacyPolicy() {
     section('minors', 'Children', [
       'Our accounts are for adults. Events for children (for example, a christening or birthday) are booked by a parent or guardian, who decides what details about the child to share with us.'
     ]),
-    section('changes', 'Changes to this policy', [
+    section('changes', 'Changes to This Policy', [
       'We may update this policy. The date at the top shows the latest version, and we ask you to accept an important change the next time you open your account.'
     ]),
-    section('contact', 'Contact us', ['For privacy questions or requests, contact our Data Protection Officer:'], contactLines())
+    section('contact', 'Contact Us', ['For privacy questions or requests, contact our Data Protection Officer:'], contactLines())
   ];
 }

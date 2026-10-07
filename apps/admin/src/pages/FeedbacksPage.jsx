@@ -51,7 +51,7 @@ const PAGE_SIZE = 5;
 // Filter tabs as [key, label, test function that decides if a feedback belongs in the tab].
 // Archived feedback is kept out of the first three tabs; it has a tab of its own.
 const FILTERS = [
-  ['all', 'All reviews', (f) => !f.archived],
+  ['all', 'All Reviews', (f) => !f.archived],
   ['unread', 'Unread', (f) => !f.readByAdmin && !f.archived],
   ['flagged', 'Flagged', (f) => f.flagged && !f.archived],
   ['archived', 'Archived', (f) => f.archived]
@@ -159,8 +159,8 @@ export default function FeedbacksPage() {
       {/* ==================== Reports and analytics ==================== */}
       {/* Two per row on phones (narrow card layout), four on large screens */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: 2.5 }}>
-        <StatCard icon={RateReviewOutlinedIcon} tone="gold" label="Total reviews" value={stats.total} meta={stats.archived ? `${stats.archived} archived` : 'From completed events'} loading={loading} />
-        <StatCard icon={StarRoundedIcon} tone="amber" label="Average rating" value={stats.average} meta="out of 5 stars" loading={loading} />
+        <StatCard icon={RateReviewOutlinedIcon} tone="gold" label="Total Reviews" value={stats.total} meta={stats.archived ? `${stats.archived} archived` : 'From completed events'} loading={loading} />
+        <StatCard icon={StarRoundedIcon} tone="amber" label="Average Rating" value={stats.average} meta="out of 5 stars" loading={loading} />
         <StatCard icon={ThumbUpAltOutlinedIcon} tone="green" label="Positive (4–5)" value={stats.positiveShare} meta={`${stats.positive} of ${stats.total}`} loading={loading} />
         <StatCard icon={ReportProblemOutlinedIcon} tone="red" label="Critical (1–2)" value={stats.criticalShare} meta={`${stats.critical} of ${stats.total}`} loading={loading} />
       </Box>
@@ -223,7 +223,7 @@ export default function FeedbacksPage() {
       <ConfirmDialog
         open={Boolean(flagging)}
         onClose={() => setFlagging(null)}
-        title="Flag this feedback?"
+        title="Flag This Feedback?"
         description="A flagged review is taken off the website until the flag is removed. The reason is only seen by the admin."
         confirmLabel="Flag feedback"
         tone="danger"
@@ -239,7 +239,7 @@ export default function FeedbacksPage() {
       <ConfirmDialog
         open={Boolean(deleting)}
         onClose={() => setDeleting(null)}
-        title="Delete this feedback?"
+        title="Delete This Feedback?"
         description={deleting ? `${deleting.customerName}'s review of ${deleting.eventName} will be removed for good, here and in their portal. They will be able to write a new one. Archive it instead if you only want it out of the list.` : ''}
         confirmLabel="Delete"
         tone="danger"
@@ -412,7 +412,7 @@ function ReplyDialog({ feedback, onClose, onSubmit }) {
       open={Boolean(feedback)}
       onClose={onClose}
       busy={busy}
-      title="Reply to the customer"
+      title="Reply to the Customer"
       description={feedback ? `${feedback.customerName} · ${feedback.eventName} · ${formatDate(feedback.eventDate)}` : ''}
       actions={
         <>

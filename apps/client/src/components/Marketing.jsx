@@ -49,7 +49,7 @@ export function SectionHead({ eyebrow, title, description, align = 'center' }) {
   });
   return (
     <Box ref={ref} sx={{ textAlign: align, maxWidth: 720, mx: align === 'center' ? 'auto' : 0, mb: { xs: 4, md: 6 } }}>
-      <Typography sx={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: site.goldText, ...line(0) }}>{eyebrow}</Typography>
+      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: site.goldText, ...line(0) }}>{eyebrow}</Typography>
       <Typography component="h2" sx={{ mt: 1.5, fontFamily: site.fontSerif, fontSize: { xs: 30, md: 40 }, fontWeight: 600, lineHeight: 1.2, color: site.ink, ...line(120) }}>
         {title}
       </Typography>
@@ -293,5 +293,5 @@ export const siteFieldSx = {
   '& .MuiFormHelperText-root': { mx: 0 }
 };
 
-/** Small uppercase label styling for fields on the light website cards. */
-export const siteLabelSx = { display: 'block', mb: 0.75, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: site.inkMuted };
+/** Small label styling for fields on the light website cards. */
+export const siteLabelSx = { display: 'block', mb: 0.75, fontSize: 12, fontWeight: 600, color: site.inkMuted };

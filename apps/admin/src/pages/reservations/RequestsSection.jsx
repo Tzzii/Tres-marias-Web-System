@@ -21,13 +21,14 @@ import {
   peso,
   reservationApi,
   statusLabel,
+  titleCase,
   tokens,
   useNotify,
   useResource
 } from '@tm/shared';
 import { SectionBar } from '../../components/SectionTabs.jsx';
 
-// Status tabs shown in this section (their names come from statusLabel)
+// Status tabs shown in this section (their names come from statusLabel, in Title Case: "Downpayment Paid")
 const TABS = ['pending', 'approved', 'downpayment_paid', 'confirmed', 'completed', 'declined'];
 
 /**
@@ -106,7 +107,7 @@ export default function RequestsSection() {
         ]
       : []),
     { key: 'customer', label: 'Customer', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.ref} · {formatRelative(r.createdAt)}</Typography></Box>) },
-    { key: 'event', label: 'Event and date', render: (r) => (<Box><Typography sx={{ fontSize: 13.5 }}>{r.occasion} · {formatDate(r.date)}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
+    { key: 'event', label: 'Event and Date', render: (r) => (<Box><Typography sx={{ fontSize: 13.5 }}>{r.occasion} · {formatDate(r.date)}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
     // An equipment rental has no guest count
     { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
@@ -144,7 +145,7 @@ export default function RequestsSection() {
                   setTab(v);
                   setSelected([]);
                 }}
-                options={TABS.map((t) => ({ value: t, label: statusLabel(t), count: loading ? undefined : counts[t] }))}
+                options={TABS.map((t) => ({ value: t, label: titleCase(statusLabel(t)), count: loading ? undefined : counts[t] }))}
               />
               <SearchField id="requests-search" value={query} onChange={setQuery} />
             </Box>
@@ -177,13 +178,13 @@ export default function RequestsSection() {
 
       <Box sx={{ mt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5 }}>
         <DashCard>
-          <CardTitle>Approve — what happens</CardTitle>
+          <CardTitle>Approve — What Happens</CardTitle>
           <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>
             Open the reservation first to price the food and additional charges and send the quotation. Once it is sent, approving moves the status to Approved and the customer gets a payment instruction: at least the minimum downpayment (or more, up to the full amount) by a due date.
           </Typography>
         </DashCard>
         <DashCard>
-          <CardTitle>Decline — what happens</CardTitle>
+          <CardTitle>Decline — What Happens</CardTitle>
           <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>A reason is required and shown to the customer. The date stays open for other bookings.</Typography>
         </DashCard>
       </Box>
@@ -192,7 +193,7 @@ export default function RequestsSection() {
       <ConfirmDialog
         open={confirm?.type === 'approve'}
         onClose={() => setConfirm(null)}
-        title={confirm && confirm.refs.length > 1 ? `Approve ${confirm.refs.length} reservations?` : 'Approve this reservation?'}
+        title={confirm && confirm.refs.length > 1 ? `Approve ${confirm.refs.length} Reservations?` : 'Approve This Reservation?'}
         description="The customer receives the quotation already sent and the due date for the minimum downpayment. Reservations without a sent quotation stay pending."
         confirmLabel="Approve"
         onConfirm={async () => {
@@ -207,7 +208,7 @@ export default function RequestsSection() {
       <ConfirmDialog
         open={confirm?.type === 'decline'}
         onClose={() => setConfirm(null)}
-        title={confirm && confirm.refs.length > 1 ? `Decline ${confirm.refs.length} reservations?` : 'Decline this reservation?'}
+        title={confirm && confirm.refs.length > 1 ? `Decline ${confirm.refs.length} Reservations?` : 'Decline This Reservation?'}
         description="The reason is shown to the customer. The date stays open for other bookings."
         confirmLabel="Decline"
         tone="danger"

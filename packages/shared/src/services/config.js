@@ -131,10 +131,10 @@ export const RENTAL_FULFILMENT = [
  * underneath each box as a suggestion, never as the only choice.
  */
 export const DISH_CATEGORIES = [
-  { key: 'pork', label: 'Pork dish' },
-  { key: 'chicken', label: 'Chicken dish' },
-  { key: 'fish', label: 'Fish dish' },
-  { key: 'vegetable', label: 'Vegetable dish' }
+  { key: 'pork', label: 'Pork Dish' },
+  { key: 'chicken', label: 'Chicken Dish' },
+  { key: 'fish', label: 'Fish Dish' },
+  { key: 'vegetable', label: 'Vegetable Dish' }
 ];
 
 /**

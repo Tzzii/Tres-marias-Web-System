@@ -145,7 +145,7 @@ export default function CalendarPage() {
           <>
             {/* Same place for the switch as in the month view: its own full-width row on top on phones */}
             <Box sx={{ display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, justifyContent: 'space-between', alignItems: 'center', gap: 1.5, mb: 2 }}>
-              <Typography sx={{ fontSize: 16, fontWeight: 700 }}>My events</Typography>
+              <Typography sx={{ fontSize: 16, fontWeight: 700 }}>My Events</Typography>
               <Box sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: -1, sm: 0 } }}>
                 <ModeToggle mode={mode} setMode={setMode} />
               </Box>
@@ -156,7 +156,7 @@ export default function CalendarPage() {
               [['Upcoming', upcoming], ['Past', past]].map(([label, list]) =>
                 list.length ? (
                   <Box key={label} sx={{ mb: 3 }}>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.textMuted, mb: 1 }}>{label}</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted, mb: 1 }}>{label}</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {list.map((r) => (
                         <ButtonBase key={r.ref} onClick={() => navigate(`/portal/reservations/${r.ref}`)} sx={{ display: 'flex', gap: 1.5, alignItems: 'center', p: 1.5, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, '&:hover': { borderColor: '#94a3b8' } }}>

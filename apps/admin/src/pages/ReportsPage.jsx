@@ -45,7 +45,7 @@ import ReportSheet from './reports/ReportSheet.jsx';
 // Tabs of this page as [key, label]
 const TABS = [
   ['overview', 'Overview'],
-  ['payments', 'Payments and balances']
+  ['payments', 'Payments and Balances']
 ];
 
 // Date range options as [key, label]
@@ -58,8 +58,8 @@ const RANGES = [
 
 // Saved reports as [key, name, description]
 const SAVED = [
-  ['monthly_sales', 'Monthly sales summary', 'Verified payments per month, split by method, less refunds'],
-  ['outstanding', 'Outstanding balances', 'Every approved booking with money still due']
+  ['monthly_sales', 'Monthly Sales Summary', 'Verified payments per month, split by method, less refunds'],
+  ['outstanding', 'Outstanding Balances', 'Every approved booking with money still due']
 ];
 
 // Short money labels for chart axes: ₱1.2M, ₱350k, or the full amount under ₱1,000; below 0 (more refunds than payments) with a minus sign
@@ -135,11 +135,11 @@ export default function ReportsPage() {
   const exportSummary = async () => {
     if (!data) return;
     const text = [
-      'TRES MARIAS - REPORT',
+      'Tres Marias - Report',
       `Range: ${rangeLabel}`,
       `Generated: ${formatDate(todayISO())}`,
       '',
-      'SUMMARY',
+      'Summary',
       textTable([
         { Figure: 'Events served', Value: String(data.eventsServed) },
         { Figure: 'Revenue (payments less refunds)', Value: peso(data.revenue) },
@@ -148,10 +148,10 @@ export default function ReportsPage() {
         { Figure: 'Decline rate', Value: `${data.declineRate}%` }
       ]),
       '',
-      byYear ? 'REVENUE BY YEAR (PAYMENTS LESS REFUNDS)' : 'REVENUE BY MONTH (PAYMENTS LESS REFUNDS)',
+      byYear ? 'Revenue by Year (Payments Less Refunds)' : 'Revenue by Month (Payments Less Refunds)',
       textTable(data.revenueChart.map((m) => ({ [byYear ? 'Year' : 'Month']: m.title || m.label, Revenue: m.value })), ['Revenue']),
       '',
-      'BOOKINGS BY PACKAGE',
+      'Bookings by Package',
       textTable(data.packageCounts.map((p) => ({ Package: p.name, Bookings: p.count })))
     ].join('\n');
     if (await downloadTxt(`tres-marias-report-${range}-${todayISO()}.txt`, text)) notify('Report exported.');
@@ -159,7 +159,7 @@ export default function ReportsPage() {
 
   // Export the open saved report (title, range and its table) as a TXT file
   const exportSaved = async () => {
-    const text = [saved.title.toUpperCase(), `Range: ${rangeLabel}`, `Generated: ${formatDate(todayISO())}`, '', textTable(saved.rows, saved.money)].join('\n');
+    const text = [saved.title, `Range: ${rangeLabel}`, `Generated: ${formatDate(todayISO())}`, '', textTable(saved.rows, saved.money)].join('\n');
     if (await downloadTxt(`${saved.title.toLowerCase().replace(/\s+/g, '-')}-${todayISO()}.txt`, text)) notify('Report exported.');
   };
 
@@ -200,16 +200,16 @@ export default function ReportsPage() {
         <>
           {/* Summary numbers for the selected range, two per row on phones and tablets, five in a row on wide screens */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(5, minmax(0, 1fr))' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
-            <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events served" value={data ? data.eventsServed : 0} loading={loading} />
+            <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events Served" value={data ? data.eventsServed : 0} loading={loading} />
             <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue" value={data ? peso(data.revenue) : '₱0'} meta="Verified payments less refunds" loading={loading} />
             <StatCard icon={CurrencyExchangeOutlinedIcon} tone="violet" label="Refunds" value={data ? peso(data.refunds) : '₱0'} meta="Returned to customers" loading={loading} />
-            <StatCard icon={AssessmentOutlinedIcon} tone="blue" label="Average per event" value={data ? peso(data.averagePerEvent) : '₱0'} loading={loading} />
-            <StatCard icon={PercentRoundedIcon} tone="red" label="Decline rate" value={data ? `${data.declineRate}%` : '0%'} loading={loading} />
+            <StatCard icon={AssessmentOutlinedIcon} tone="blue" label="Average per Event" value={data ? peso(data.averagePerEvent) : '₱0'} loading={loading} />
+            <StatCard icon={PercentRoundedIcon} tone="red" label="Decline Rate" value={data ? `${data.declineRate}%` : '0%'} loading={loading} />
           </Box>
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.7fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
             <DashCard>
-              <CardTitle subtitle="Verified payments less refunds sent. Updates automatically when payments are verified or refunds recorded.">{byYear ? 'Revenue by year' : 'Revenue by month'}</CardTitle>
+              <CardTitle subtitle="Verified payments less refunds sent. Updates automatically when payments are verified or refunds recorded.">{byYear ? 'Revenue by Year' : 'Revenue by Month'}</CardTitle>
               {loading ? (
                 <ListSkeleton rows={1} height={240} />
               ) : data.revenue === 0 && !data.refunds ? (
@@ -221,12 +221,12 @@ export default function ReportsPage() {
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
               <DashCard>
-                <CardTitle subtitle="Reservations excluding declined and cancelled">Most booked packages</CardTitle>
+                <CardTitle subtitle="Reservations excluding declined and cancelled">Most Booked Packages</CardTitle>
                 {loading ? <ListSkeleton rows={4} height={30} /> : <RankBars items={data.packageCounts.map((p) => ({ label: p.name, value: p.count }))} />}
               </DashCard>
 
               <DashCard className="tm-no-print">
-                <CardTitle subtitle={`Runs for: ${rangeLabel}`}>Saved reports</CardTitle>
+                <CardTitle subtitle={`Runs for: ${rangeLabel}`}>Saved Reports</CardTitle>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {SAVED.map(([kind, name, description]) => (
                     <Box key={kind} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>

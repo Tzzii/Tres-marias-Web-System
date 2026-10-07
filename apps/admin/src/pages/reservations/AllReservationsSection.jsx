@@ -22,6 +22,7 @@ import {
   peso,
   reservationApi,
   statusLabel,
+  titleCase,
   todayISO,
   tokens,
   useNotify,
@@ -84,7 +85,7 @@ export default function AllReservationsSection() {
   const exportTxt = async () => {
     const rowsOut = filtered.map((r) => ({ Reference: r.ref, Customer: r.customerName, Email: r.customerEmail, Event: r.eventName, Occasion: r.occasion, Date: r.date, Start: r.startTime, End: r.endTime || '-', Guests: isRental(r.serviceType) ? 'Rental' : r.guests, Package: r.packageName, Venue: `${r.venue.name}, ${r.venue.city}`, Status: statusLabel(r.status), Total: r.total, Paid: r.paid, Balance: r.balance }));
     const text = [
-      'TRES MARIAS - RESERVATIONS',
+      'Tres Marias - Reservations',
       `Generated: ${formatDate(todayISO())}`,
       `Rows: ${rowsOut.length}`,
       '',
@@ -98,7 +99,7 @@ export default function AllReservationsSection() {
     { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
     // card: 'title' — on phone cards the customer and event are the heading (REF becomes a field)
     { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
-    { key: 'date', label: 'Event date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
+    { key: 'date', label: 'Event Date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
     // An equipment rental has no guest count
     { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
@@ -122,7 +123,7 @@ export default function AllReservationsSection() {
           <ErrorState error={error} onRetry={reload} />
         ) : (
           <>
-            <FilterTabs value={status} onChange={setStatus} options={STATUS_TABS.map((s) => ({ value: s, label: s === 'all' ? 'All' : statusLabel(s), count: loading ? undefined : counts[s] }))} />
+            <FilterTabs value={status} onChange={setStatus} options={STATUS_TABS.map((s) => ({ value: s, label: s === 'all' ? 'All' : titleCase(statusLabel(s)), count: loading ? undefined : counts[s] }))} />
             <Box sx={{ mt: 1.5, mb: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
               <SearchField id="all-search" value={query} onChange={setQuery} placeholder="Search REF, customer, event or city" sx={{ flex: 1 }} />
               <TextField select size="small" value={when} onChange={(e) => setWhen(e.target.value)} sx={{ minWidth: 170 }} inputProps={{ 'aria-label': 'Event date range' }}>

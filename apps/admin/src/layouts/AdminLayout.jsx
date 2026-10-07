@@ -62,17 +62,17 @@ export default function AdminLayout() {
     // One notification per reservation request still waiting for approval
     const pendingList = data.reservations.filter((r) => r.status === 'pending');
     pendingList.forEach((r) =>
-      list.push({ id: `req:${r.ref}`, title: 'New reservation request', body: `${r.customerName} · ${r.eventName} · ${formatDate(r.date)} · ${r.guests} pax`, at: r.createdAt, to: `/reservations/${r.ref}` })
+      list.push({ id: `req:${r.ref}`, title: 'New Reservation Request', body: `${r.customerName} · ${r.eventName} · ${formatDate(r.date)} · ${r.guests} pax`, at: r.createdAt, to: `/reservations/${r.ref}` })
     );
     // One notification per payment proof that the admin still needs to verify
     const awaitingList = data.payments.filter((p) => p.status === 'awaiting');
     awaitingList.forEach((p) =>
-      list.push({ id: `pay:${p.id}`, title: 'Payment to verify', body: `${p.customerName} sent ${peso(p.amount)} via ${p.methodLabel} for ${p.eventName}.`, at: p.submittedAt, to: `/reports?tab=payments&verify=${p.id}` })
+      list.push({ id: `pay:${p.id}`, title: 'Payment to Verify', body: `${p.customerName} sent ${peso(p.amount)} via ${p.methodLabel} for ${p.eventName}.`, at: p.submittedAt, to: `/reports?tab=payments&verify=${p.id}` })
     );
     // One notification per review the admin has not read yet
     const unreadFeedback = data.feedbacks.filter((f) => !f.readByAdmin);
     unreadFeedback.forEach((f) =>
-      list.push({ id: `fbk:${f.id}`, title: 'New customer feedback', body: `${f.customerName} rated ${f.eventName} ${f.rating} of 5 stars.`, at: f.createdAt, to: '/feedbacks?tab=unread' })
+      list.push({ id: `fbk:${f.id}`, title: 'New Customer Feedback', body: `${f.customerName} rated ${f.eventName} ${f.rating} of 5 stars.`, at: f.createdAt, to: '/feedbacks?tab=unread' })
     );
     // Count unread messages and add a notification for each thread with new messages (clicking opens it on the Messages page)
     let unreadCount = 0;
@@ -127,9 +127,9 @@ export default function AdminLayout() {
       portalKey={`admin.${user.id}`}
       navItems={navItems}
       bottomNav={bottomNav}
-      secondaryNavItems={[{ key: 'account', label: 'My account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
+      secondaryNavItems={[{ key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
       user={user}
-      profileItems={[{ key: 'account', label: 'My account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
+      profileItems={[{ key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
       // The top search bar sends the admin to the All reservations tab filtered by what they typed
       search={{ placeholder: 'Search reservations or customers', onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`) }}
       notifications={notifications}

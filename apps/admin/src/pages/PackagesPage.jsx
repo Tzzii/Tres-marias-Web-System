@@ -102,12 +102,12 @@ export default function PackagesPage() {
   const packages = data ? data.packages.filter((p) => !p.archived) : [];
   const addons = data ? data.addons.filter((a) => !a.archived) : [];
   const dishes = data ? data.dishes.filter((d) => !d.archived) : [];
-  // The Additional charges tab's two lists: the charges customers tick, and the charges with packages
+  // The Additional Charges tab's two lists: the charges customers tick, and the charges with packages
   const plainAddons = addons.filter((a) => !a.hasPackages);
   const packageAddons = addons.filter((a) => a.hasPackages);
   // The columns of both lists
   const addonColumns = [
-    { key: 'name', label: 'Additional charge', render: (a) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{a.description}</Typography></Box>) },
+    { key: 'name', label: 'Additional Charge', render: (a) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{a.description}</Typography></Box>) },
     // Its own price (of one, when counted by the piece), or "Set in quotation" when it has none; a charge
     // with sizes lists each size with its price of one, and a charge with packages each package with its price
     { key: 'price', label: 'Price', align: 'right', render: (a) => (a.sizes && a.sizes.length ? <Box>{a.sizes.map((s) => <AddonPrice key={s.id} label={s.size} price={s.price} each={!a.hasPackages} />)}</Box> : <AddonPrice price={a.price} each={a.hasQuantity} />) },
@@ -186,8 +186,8 @@ export default function PackagesPage() {
             onChange={setTab}
             options={[
               { value: 'packages', label: 'Packages', count: loading ? undefined : packages.length },
-              { value: 'addons', label: 'Additional charges', count: loading ? undefined : addons.length },
-              { value: 'dishes', label: 'Buffet menu', count: loading ? undefined : dishes.length },
+              { value: 'addons', label: 'Additional Charges', count: loading ? undefined : addons.length },
+              { value: 'dishes', label: 'Buffet Menu', count: loading ? undefined : dishes.length },
               { value: 'archived', label: 'Archived', count: loading ? undefined : archivedCount }
             ]}
           />
@@ -246,7 +246,7 @@ export default function PackagesPage() {
           </Box>
         </Box>
       ) : tab === 'addons' ? (
-        // Additional charges tab: the charges customers tick (some in sizes, like the tent), then below them
+        // Additional Charges tab: the charges customers tick (some in sizes, like the tent), then below them
         // the charges with packages, where customers pick one package (like Sounds and lights)
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <DashCard>
@@ -254,7 +254,7 @@ export default function PackagesPage() {
               subtitle="Customers tick these on the reservation form. Give one a price, or leave it without one and set it in each quotation."
               action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({})}>New additional charge</Button>}
             >
-              Additional charges · {plainAddons.length}
+              Additional Charges · {plainAddons.length}
             </CardTitle>
             <DataTable
               columns={addonColumns}
@@ -269,7 +269,7 @@ export default function PackagesPage() {
               subtitle="Customers tick one of these and pick one of its packages. Each package has its own price and a list of what it includes."
               action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({ hasPackages: true })}>New charge with packages</Button>}
             >
-              Additional charges with packages · {packageAddons.length}
+              Additional Charges With Packages · {packageAddons.length}
             </CardTitle>
             <DataTable
               columns={addonColumns}
@@ -281,7 +281,7 @@ export default function PackagesPage() {
           </DashCard>
         </Box>
       ) : tab === 'dishes' ? (
-        // Buffet menu tab: the price per person, then the dishes grouped by category
+        // Buffet Menu tab: the price per person, then the dishes grouped by category
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.6fr' }, gap: 2.5, alignItems: 'start' }}>
           <PricePerPlateCard current={data.pricePerPlate} onSaved={() => { notify('Buffet price per person saved.'); reload(); }} />
           <DashCard>
@@ -295,7 +295,7 @@ export default function PackagesPage() {
               const inCategory = dishes.filter((d) => d.category === key);
               return (
                 <Box key={key} sx={{ mt: 2 }}>
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: tokens.textMuted, mb: 0.75 }}>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted, mb: 0.75 }}>
                     {label} · {inCategory.length}
                   </Typography>
                   {/* A category with nothing in it blocks every new buffet booking, so say so */}
@@ -479,7 +479,7 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
 
   return (
     <DashCard>
-      <CardTitle subtitle={isNew ? 'New packages start hidden until you show them.' : undefined}>{isNew ? 'New package' : `Editing · ${pkg.name}`}</CardTitle>
+      <CardTitle subtitle={isNew ? 'New packages start hidden until you show them.' : undefined}>{isNew ? 'New Package' : `Editing · ${pkg.name}`}</CardTitle>
       {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <FormField id="p-name" label="Package name" required value={form.name} onChange={set('name')} error={errors.name} sx={{ gridColumn: { sm: '1 / -1' } }} />
@@ -798,7 +798,7 @@ function PricePerPlateCard({ current, onSaved }) {
 
   return (
     <DashCard>
-      <CardTitle subtitle="What one guest costs on a buffet booking. Catering only bookings are not charged per person.">Buffet price per person</CardTitle>
+      <CardTitle subtitle="What one guest costs on a buffet booking. Catering only bookings are not charged per person.">Buffet Price per Person</CardTitle>
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
         <FormField
           id="price-per-plate"
@@ -854,7 +854,7 @@ function DishDialog({ dish, onClose, onSaved }) {
       onClose={onClose}
       busy={busy}
       maxWidth="xs"
-      title={dish && dish.id ? 'Edit dish' : 'New dish'}
+      title={dish && dish.id ? 'Edit Dish' : 'New Dish'}
       description="Suggested under the matching box on the booking form. Customers can still write anything they like."
       actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save</BusyButton></>}
     >

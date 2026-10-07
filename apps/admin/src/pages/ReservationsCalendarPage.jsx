@@ -7,9 +7,9 @@ import RequestsSection from './reservations/RequestsSection.jsx';
 
 // Tabs of this page as [key, label]
 const TABS = [
-  ['requests', 'Reservation requests'],
-  ['all', 'All reservations'],
-  ['calendar', 'Calendar and blocked dates']
+  ['requests', 'Reservation Requests'],
+  ['all', 'All Reservations'],
+  ['calendar', 'Calendar and Blocked Dates']
 ];
 
 /**

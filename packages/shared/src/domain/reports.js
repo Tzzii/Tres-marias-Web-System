@@ -1,4 +1,4 @@
-import { MONTH_NAMES, parseISODate, toISODate, todayISO } from '../utils/format.js';
+import { MONTH_NAMES, parseISODate, titleCase, toISODate, todayISO } from '../utils/format.js';
 import { HOLDS_DATE, PAYMENT_METHODS, statusLabel } from '../utils/status.js';
 import { financials } from './money.js';
 
@@ -14,7 +14,7 @@ import { financials } from './money.js';
  * `data` holds the records in the app's record shape: { reservations, payments, refunds, customers,
  * packages }. Reservations are full records; payments and refunds are every booking's (financials() picks
  * each booking's own); customers and packages need only { id, name }, and packages come in the
- * catalogue's order, which "Most booked packages" keeps for packages booked equally often. The API reads
+ * catalogue's order, which "Most Booked Packages" keeps for packages booked equally often. The API reads
  * this object from the database in one transaction (reports.service.js).
  *
  * Money in is verified payments, counted in the month they were verified, less refunds, counted in the
@@ -240,8 +240,10 @@ export function report(data, range) {
 export function savedReport(data, kind, range) {
   const customerName = (id) => (byId(data.customers, id) || {}).name || '';
 
-  // Monthly sales: one row per month with the payments split by method, then the refunds sent that month and the net
+  // Monthly sales: one row per month with the payments split by method, then the refunds sent that month and the net.
+  // The method columns are headed like the other columns ("Bank Transfer"), not like the method names in sentences.
   if (kind === 'monthly_sales') {
+    const [qrph, bank, cash] = ['qrph', 'bank', 'cash'].map((method) => titleCase(PAYMENT_METHODS[method]));
     const verified = data.payments.filter((p) => p.status === 'verified' && inRange(toISODate(new Date(p.verifiedAt)), range));
     const returned = data.refunds.filter((r) => inRange(r.sentOn, range));
     // "All time" lists every month from the first payment or refund, so the rows add up to everything counted
@@ -253,15 +255,15 @@ export function savedReport(data, kind, range) {
       return {
         Month: `${MONTH_NAMES[month]} ${year}`,
         Payments: inMonth.length,
-        [PAYMENT_METHODS.qrph]: byMethod('qrph'),
-        [PAYMENT_METHODS.bank]: byMethod('bank'),
-        [PAYMENT_METHODS.cash]: byMethod('cash'),
+        [qrph]: byMethod('qrph'),
+        [bank]: byMethod('bank'),
+        [cash]: byMethod('cash'),
         Total: sum(inMonth),
         Refunds: refunded,
         Net: sum(inMonth) - refunded
       };
     });
-    return { title: 'Monthly sales summary', money: [PAYMENT_METHODS.qrph, PAYMENT_METHODS.bank, PAYMENT_METHODS.cash, 'Total', 'Refunds', 'Net'], rows };
+    return { title: 'Monthly Sales Summary', money: [qrph, bank, cash, 'Total', 'Refunds', 'Net'], rows };
   }
 
   // Outstanding balances: approved bookings that still owe money, by event date (the same date: by ref)
@@ -275,13 +277,13 @@ export function savedReport(data, kind, range) {
         Reference: m.r.ref,
         Customer: customerName(m.r.customerId),
         Event: m.r.eventName,
-        'Event date': m.r.date,
+        'Event Date': m.r.date,
         Status: statusLabel(m.r.status),
         Total: m.total,
         Paid: m.paid,
         Balance: m.balance
       }));
-    return { title: 'Outstanding balances', money: ['Total', 'Paid', 'Balance'], rows };
+    return { title: 'Outstanding Balances', money: ['Total', 'Paid', 'Balance'], rows };
   }
 
   return null;

@@ -53,7 +53,7 @@ const RULES = {
  * email is proven.
  */
 export default function SignupPage() {
-  useDocumentTitle('Create an account');
+  useDocumentTitle('Create an Account');
   const navigate = useNavigate();
   const notify = useNotify();
   const [params] = useSearchParams();
@@ -136,7 +136,7 @@ export default function SignupPage() {
       <FormCard component="form" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
         <Box>
           <Typography component="h1" sx={{ fontSize: 24, fontWeight: 700 }}>
-            Sign up
+            Sign Up
           </Typography>
           <Typography sx={{ mt: 0.5, fontSize: 13.5, color: tokens.textSecondary }}>Creating an account is free and takes about a minute.</Typography>
         </Box>
@@ -186,7 +186,7 @@ export default function SignupPage() {
       {/* Step 2: the code emailed to the new address; Cancel goes back to the filled-in form */}
       <EmailCodeDialog
         challenge={challenge}
-        title="Confirm your email"
+        title="Confirm Your Email"
         actionLabel="Create account"
         onVerify={confirmCode}
         onResend={() => authApi.resendSignUpCode(challenge.challengeId)}
