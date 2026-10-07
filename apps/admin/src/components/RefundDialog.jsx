@@ -96,7 +96,7 @@ export default function RefundDialog({ open, onClose, booking, onRecorded }) {
       onClose={onClose}
       busy={busy}
       maxWidth="xs"
-      title="Record refund"
+      title="Record Refund"
       description={
         booking
           ? `${booking.eventName} · ${booking.customerName}. Record it once the money is sent: the customer sees it in their chat and payment history.`

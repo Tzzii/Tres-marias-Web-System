@@ -28,7 +28,7 @@ const REMEMBERED_EMAIL = 'tm.client.rememberedEmail';
 
 /** 1e · Log in. Same screen from the nav or the gate; only the destination differs. */
 export default function LoginPage() {
-  useDocumentTitle('Log in');
+  useDocumentTitle('Log In');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { isAuthenticated, signIn } = useAuth();
@@ -120,7 +120,7 @@ export default function LoginPage() {
       <FormCard component="form" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
         <Box>
           <Typography component="h1" sx={{ fontSize: 24, fontWeight: 700 }}>
-            Log in
+            Log In
           </Typography>
           <Typography sx={{ mt: 0.5, fontSize: 13.5, color: tokens.textSecondary }}>
             {continuingBooking ? "Welcome back. Let's continue your reservation." : 'Welcome back. Sign in to your Tres Marias account.'}

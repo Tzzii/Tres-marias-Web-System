@@ -65,7 +65,7 @@ export default function CalendarSection() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(start)); // Monday of the week shown
   const [selected, setSelected] = useState(start); // clicked date
 
-  // "Block a date" form; `note` is optional, shown to customers with the reason when they tap the date
+  // "Block a Date" form; `note` is optional, shown to customers with the reason when they tap the date
   const [block, setBlock] = useState({ from: '', to: '', reason: 'Fully booked', note: '' });
   const [blockErrors, setBlockErrors] = useState({});
   const [blocking, setBlocking] = useState(false);
@@ -266,7 +266,7 @@ export default function CalendarSection() {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <DashCard>
-            <CardTitle>Block a date</CardTitle>
+            <CardTitle>Block a Date</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
                 {/* Picking a From date after the To date moves To forward to match */}
@@ -290,7 +290,7 @@ export default function CalendarSection() {
           </DashCard>
 
           <DashCard>
-            <CardTitle subtitle="How many events can be served in one day. The customer date picker greys out days at capacity.">Daily capacity</CardTitle>
+            <CardTitle subtitle="How many events can be served in one day. The customer date picker greys out days at capacity.">Daily Capacity</CardTitle>
             <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
               <FormField id="capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} inputProps={{ min: 1, max: 10, 'aria-label': 'Events per day' }} sx={{ width: 110 }} />
               <BusyButton busy={savingCapacity} disabled={!data || String(data.availability.capacity) === capacity} onClick={saveCapacity} sx={{ height: 40 }}>Save</BusyButton>
@@ -298,7 +298,7 @@ export default function CalendarSection() {
           </DashCard>
 
           <DashCard>
-            <CardTitle>Blocked this month</CardTitle>
+            <CardTitle>Blocked This Month</CardTitle>
             {blockedThisMonth.length === 0 ? (
               <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>No blocked dates in this month.</Typography>
             ) : (
@@ -321,7 +321,7 @@ export default function CalendarSection() {
       <ConfirmDialog
         open={Boolean(unblock)}
         onClose={() => setUnblock(null)}
-        title="Unblock this date?"
+        title="Unblock This Date?"
         description={unblock ? `${formatDateLong(unblock.date)} (${unblock.reason}) opens for customer reservations again.` : ''}
         confirmLabel="Unblock"
         onConfirm={async () => {

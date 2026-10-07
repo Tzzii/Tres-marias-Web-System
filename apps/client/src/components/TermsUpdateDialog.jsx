@@ -37,7 +37,7 @@ export default function TermsUpdateDialog({ open, onClose, onAccepted, firstTime
       onClose={onClose}
       busy={busy}
       maxWidth="md"
-      title={firstTime ? 'Please review our Terms of Service and Privacy Policy' : 'We updated our Terms of Service and Privacy Policy'}
+      title={firstTime ? 'Please Review Our Terms of Service and Privacy Policy' : 'We Updated Our Terms of Service and Privacy Policy'}
       description={`Last updated ${TERMS_UPDATED}. Please read them and tick "I agree" to keep using your account. Bookings you already made keep the terms they were made under.`}
       actions={
         <>

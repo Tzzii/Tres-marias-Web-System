@@ -20,7 +20,7 @@ const DOCS = {
  * The public /terms and /privacy pages (anyone can read them, signed in or not). The text comes from
  * @tm/shared (legal/terms.js), the same words the sign-up and booking forms ask customers to agree to.
  * The Terms name the current minimum downpayment once the catalogue has loaded (until then, "the
- * minimum downpayment shown in your quotation"). "On this page" jumps to each section.
+ * minimum downpayment shown in your quotation"). "On This Page" jumps to each section.
  */
 export default function LegalPage({ kind }) {
   const doc = DOCS[kind];
@@ -44,9 +44,9 @@ export default function LegalPage({ kind }) {
           </Link>
         </Typography>
 
-        {/* "On this page": a link to each section */}
+        {/* "On This Page": a link to each section */}
         <Paper elevation={0} sx={{ mt: 3, p: { xs: 2, md: 2.5 }, borderRadius: 2, backgroundColor: site.card, border: `1px solid ${site.border}` }}>
-          <Typography sx={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: site.goldText, mb: 1 }}>On this page</Typography>
+          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: site.goldText, mb: 1 }}>On This Page</Typography>
           <Box component="ol" sx={{ m: 0, pl: 2.5, columns: { xs: 1, sm: 2 }, columnGap: 4 }}>
             {sections.map((s) => (
               <Box component="li" key={s.id} sx={{ fontSize: 13.5, lineHeight: 1.9, breakInside: 'avoid' }}>

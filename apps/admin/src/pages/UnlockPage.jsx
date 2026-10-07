@@ -37,7 +37,7 @@ import { useAuth } from '../auth.js';
  * With no lock (e.g. this address opened by hand), the page goes on to the dashboard or the sign-in.
  */
 export default function UnlockPage() {
-  useDocumentTitle('Screen locked', 'Tres Marias Admin');
+  useDocumentTitle('Screen Locked', 'Tres Marias Admin');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { isAuthenticated, locked, signIn, signOut } = useAuth();
@@ -113,7 +113,7 @@ export default function UnlockPage() {
             {lockedUntil ? (
               <>
                 <Typography component="h1" sx={{ fontSize: 21, fontWeight: 700 }}>
-                  Account temporarily locked
+                  Account Temporarily Locked
                 </Typography>
                 <AlertBanner tone="locked" title="Too many incorrect passwords">
                   {lockSeconds > 0 ? (
@@ -134,7 +134,7 @@ export default function UnlockPage() {
                   <Avatar sx={{ width: 48, height: 48, bgcolor: tokens.ink, color: tokens.gold, fontWeight: 700 }}>{initials(name)}</Avatar>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography component="h1" sx={{ fontSize: 19, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <LockOutlinedIcon sx={{ fontSize: 19, color: tokens.goldDark }} /> Screen locked
+                      <LockOutlinedIcon sx={{ fontSize: 19, color: tokens.goldDark }} /> Screen Locked
                     </Typography>
                     <Typography noWrap sx={{ fontSize: 13.5, color: tokens.textSecondary }}>{name}</Typography>
                   </Box>

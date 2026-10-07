@@ -87,7 +87,7 @@ export default function DashboardPage() {
   const completedDates = useMemo(() => (calendar.data ? calendar.data.reservations.filter((r) => r.status === 'completed').map((r) => r.date) : []), [calendar.data]);
 
   // Verified payments as { date: "YYYY-MM-DD", amount }, dated by when they were verified, and refunds the
-  // same way, dated by when they were sent (same rule as the "Revenue this month" card); the earnings
+  // same way, dated by when they were sent (same rule as the "Revenue This Month" card); the earnings
   // chart sums the payments and takes off the refunds
   const verifiedPayments = useMemo(
     () => (calendar.data ? calendar.data.payments.filter((p) => p.status === 'verified').map((p) => ({ date: toISODate(new Date(p.verifiedAt)), amount: p.amount })) : []),
@@ -197,9 +197,9 @@ export default function DashboardPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
       <Box>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.gold }}>Today · {formatDateLong(todayISO())}</Typography>
+        <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.gold }}>Today · {formatDateLong(todayISO())}</Typography>
         <Typography component="h1" sx={{ mt: 0.5, fontSize: { xs: 22, md: 26 }, fontWeight: 700, color: tokens.textLight }}>
-          Welcome back, {firstName(user.name)}
+          Welcome Back, {firstName(user.name)}
         </Typography>
       </Box>
 
@@ -264,17 +264,17 @@ export default function DashboardPage() {
         {/* Four summary cards beside the chart; clicking one opens the related page */}
         {/* Two cards per row on every screen; on phones they switch to their narrow layout (icon above the text) */}
         <Box sx={{ gridArea: 'kpi', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: { xs: 1.5, sm: 2.5 } }}>
-          <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events today" value={data ? data.eventsToday.length : 0} meta="Confirmed and in progress" loading={loading} onClick={() => navigate('/reservations?tab=calendar')} />
-          <StatCard icon={MarkEmailUnreadOutlinedIcon} tone="amber" label="Pending requests" value={data ? data.pending.length : 0} meta={data && data.pending.length ? `Oldest ${data.pendingOldestDays === 0 ? 'from today' : `${pluralize(data.pendingOldestDays, 'day')} ago`}` : 'Queue is clear'} loading={loading} onClick={() => navigate('/reservations?tab=requests')} />
-          <StatCard icon={PendingActionsOutlinedIcon} tone="blue" label="Unverified payments" value={data ? data.unverifiedPayments : 0} meta="Proofs waiting for review" loading={loading} onClick={() => navigate('/reports?tab=payments&filter=awaiting')} />
-          <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue this month" value={data ? peso(data.revenueThisMonth) : '₱0'} meta="Verified payments less refunds" loading={loading} onClick={() => navigate('/reports')} />
+          <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events Today" value={data ? data.eventsToday.length : 0} meta="Confirmed and in progress" loading={loading} onClick={() => navigate('/reservations?tab=calendar')} />
+          <StatCard icon={MarkEmailUnreadOutlinedIcon} tone="amber" label="Pending Requests" value={data ? data.pending.length : 0} meta={data && data.pending.length ? `Oldest ${data.pendingOldestDays === 0 ? 'from today' : `${pluralize(data.pendingOldestDays, 'day')} ago`}` : 'Queue is clear'} loading={loading} onClick={() => navigate('/reservations?tab=requests')} />
+          <StatCard icon={PendingActionsOutlinedIcon} tone="blue" label="Unverified Payments" value={data ? data.unverifiedPayments : 0} meta="Proofs waiting for review" loading={loading} onClick={() => navigate('/reports?tab=payments&filter=awaiting')} />
+          <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue This Month" value={data ? peso(data.revenueThisMonth) : '₱0'} meta="Verified payments less refunds" loading={loading} onClick={() => navigate('/reports')} />
         </Box>
 
         {/* Events today and Newest bookings, side by side under the chart */}
         <Box sx={{ gridArea: 'lists', display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2.5, alignItems: 'start', minWidth: 0 }}>
           {/* Today's events with payment status */}
           <DashCard>
-            <CardTitle action={data && <Pill label={data.eventsToday.length ? `${data.eventsToday.length} today` : 'No event today'} bg={tokens.goldChip} fg={tokens.goldDark} dot={false} />}>Events today</CardTitle>
+            <CardTitle action={data && <Pill label={data.eventsToday.length ? `${data.eventsToday.length} today` : 'No event today'} bg={tokens.goldChip} fg={tokens.goldDark} dot={false} />}>Events Today</CardTitle>
             {loading ? (
               <ListSkeleton rows={2} height={96} />
             ) : data.eventsToday.length === 0 ? (
@@ -307,7 +307,7 @@ export default function DashboardPage() {
 
           {/* The 5 newest reservation requests waiting for review */}
           <DashCard>
-            <CardTitle action={<Button size="small" onClick={() => navigate('/reservations?tab=requests')}>View queue</Button>}>Newest bookings</CardTitle>
+            <CardTitle action={<Button size="small" onClick={() => navigate('/reservations?tab=requests')}>View queue</Button>}>Newest Bookings</CardTitle>
             {loading ? (
               <ListSkeleton rows={3} height={56} />
             ) : data.pending.length === 0 ? (
@@ -357,7 +357,7 @@ export default function DashboardPage() {
           )}
 
           <Divider sx={{ my: 2 }} />
-          <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Coming up</Typography>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Coming Up</Typography>
           {loading ? (
             <ListSkeleton rows={3} height={44} />
           ) : data.upcoming.length === 0 ? (

@@ -92,11 +92,11 @@ const DATE_FILTERS = [
 
 // Columns the admin can show or hide with "Filter columns", as [key, label]
 const OPTIONAL_COLUMNS = [
-  ['event', 'Assigned event'],
-  ['eventDate', 'Event date'],
-  ['needBy', 'Date needed'],
-  ['amount', 'Outsource price'],
-  ['sentTo', 'Sent to']
+  ['event', 'Assigned Event'],
+  ['eventDate', 'Event Date'],
+  ['needBy', 'Date Needed'],
+  ['amount', 'Outsource Price'],
+  ['sentTo', 'Sent To']
 ];
 const COLUMNS_KEY = 'tm.admin.outsource.columns'; // this browser remembers the admin's column choice
 
@@ -279,12 +279,12 @@ export default function OutsourcePage() {
       Request: c.ref,
       Partner: c.partnerName,
       Event: c.eventName || '—',
-      'Event date': c.eventDate ? formatDate(c.eventDate) : '—',
+      'Event Date': c.eventDate ? formatDate(c.eventDate) : '—',
       Items: c.itemsSummary,
-      'Outsource price': c.amount,
+      'Outsource Price': c.amount,
       Status: STATUS[c.status].label
     }));
-    if (await downloadTxt(`outsourcing-requests-${todayISO()}.txt`, textTable(rowsOut, ['Outsource price']))) notify(`${ticked.length} request${ticked.length === 1 ? '' : 's'} downloaded.`);
+    if (await downloadTxt(`outsourcing-requests-${todayISO()}.txt`, textTable(rowsOut, ['Outsource Price']))) notify(`${ticked.length} request${ticked.length === 1 ? '' : 's'} downloaded.`);
   };
 
   // Table columns for the Requests tab; optional ones follow the "Filter columns" choice
@@ -313,16 +313,16 @@ export default function OutsourcePage() {
         </Box>
       )
     },
-    columns.event && { key: 'event', label: 'Assigned event', render: (c) => c.eventName || <Box component="span" sx={{ color: tokens.textMuted }}>No event linked</Box> },
-    columns.eventDate && { key: 'eventDate', label: 'Event date', render: (c) => (c.eventDate ? formatDate(c.eventDate) : '—') },
-    columns.needBy && { key: 'needBy', label: 'Date needed', render: (c) => formatDate(c.needBy) },
-    columns.amount && { key: 'amount', label: 'Outsource price', align: 'right', render: (c) => (c.amount > 0 ? peso(c.amount) : '—') },
+    columns.event && { key: 'event', label: 'Assigned Event', render: (c) => c.eventName || <Box component="span" sx={{ color: tokens.textMuted }}>No event linked</Box> },
+    columns.eventDate && { key: 'eventDate', label: 'Event Date', render: (c) => (c.eventDate ? formatDate(c.eventDate) : '—') },
+    columns.needBy && { key: 'needBy', label: 'Date Needed', render: (c) => formatDate(c.needBy) },
+    columns.amount && { key: 'amount', label: 'Outsource Price', align: 'right', render: (c) => (c.amount > 0 ? peso(c.amount) : '—') },
     { key: 'ref', label: 'Request Ref #', render: (c) => <Typography sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{c.ref}</Typography> },
-    { key: 'status', label: 'Request status', render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} /> },
+    { key: 'status', label: 'Request Status', render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} /> },
     // Where it went: the channels it was actually sent to, or how it will be sent once it is
     columns.sentTo && {
       key: 'sentTo',
-      label: 'Sent to',
+      label: 'Sent To',
       render: (c) =>
         c.sentAt ? <ChannelChips channels={[...new Set(c.deliveries.map((d) => d.channel))]} /> : <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>Not sent</Typography>
     },
@@ -355,7 +355,7 @@ export default function OutsourcePage() {
     { key: 'service', label: 'Supplies', render: (p) => p.service },
     {
       key: 'contact',
-      label: 'Request goes to',
+      label: 'Request Goes To',
       render: (p) => (
         <Box>
           <ChannelChips channels={p.channels} />
@@ -364,7 +364,7 @@ export default function OutsourcePage() {
       )
     },
     { key: 'contracts', label: 'Requests', align: 'right', render: (p) => p.contractCount },
-    { key: 'open', label: 'Awaiting reply', align: 'right', render: (p) => (p.openCount > 0 ? <Pill size="sm" label={String(p.openCount)} bg="rgba(245, 158, 11, 0.14)" fg="#b45309" /> : '—') },
+    { key: 'open', label: 'Awaiting Reply', align: 'right', render: (p) => (p.openCount > 0 ? <Pill size="sm" label={String(p.openCount)} bg="rgba(245, 158, 11, 0.14)" fg="#b45309" /> : '—') },
     {
       key: 'actions',
       label: 'Actions',
@@ -403,7 +403,7 @@ export default function OutsourcePage() {
         <StatCard
           icon={StorefrontOutlinedIcon}
           tone="gold"
-          label="Total partners"
+          label="Total Partners"
           value={totals.partners}
           meta={totals.unreachable ? `${totals.unreachable} with no contact details` : 'All can be reached'}
           loading={loading}
@@ -412,7 +412,7 @@ export default function OutsourcePage() {
         <StatCard
           icon={HandshakeOutlinedIcon}
           tone="green"
-          label="Accepted / active"
+          label="Accepted / Active"
           value={totals.accepted}
           meta={`${totals.completed} completed`}
           loading={loading}
@@ -421,7 +421,7 @@ export default function OutsourcePage() {
         <StatCard
           icon={HourglassEmptyRoundedIcon}
           tone="amber"
-          label="Pending response"
+          label="Pending Response"
           value={totals.sent}
           meta={`${totals.draft} draft${totals.draft === 1 ? '' : 's'} not sent`}
           loading={loading}
@@ -631,7 +631,7 @@ export default function OutsourcePage() {
             : ''
         }
         description={
-          answer && { accepted: 'The partner can supply this. It counts under Accepted / active.', declined: 'The request closes as declined. Make a new request for another partner if you still need the items.', completed: 'The items arrived and the request is closed.', cancelled: 'The request closes. Let the partner know separately if it was already sent.' }[answer.status]
+          answer && { accepted: 'The partner can supply this. It counts under Accepted / Active.', declined: 'The request closes as declined. Make a new request for another partner if you still need the items.', completed: 'The items arrived and the request is closed.', cancelled: 'The request closes. Let the partner know separately if it was already sent.' }[answer.status]
         }
         confirmLabel={answer ? { accepted: 'Record acceptance', declined: 'Record decline', completed: 'Mark delivered', cancelled: 'Cancel request' }[answer.status] : ''}
         tone={answer && ['declined', 'cancelled'].includes(answer.status) ? 'danger' : 'primary'}
@@ -738,7 +738,7 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
       busy={busy}
       maxWidth="md"
       fullScreenOnMobile
-      title={id ? 'Edit draft request' : 'New request'}
+      title={id ? 'Edit Draft Request' : 'New Request'}
       description="Say what you need and when. The request text is written for you on the next step, and you can edit it before it goes out."
       actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{id ? 'Save draft' : 'Save and review'}</BusyButton></>}
     >
@@ -770,7 +770,7 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
         />
       </Box>
 
-      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>What you need</Typography>
+      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>What You Need</Typography>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {items.map((item, index) => (
           <Box key={index} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: item.custom ? '1.4fr 1.4fr 1fr auto' : '2.4fr 1fr auto' }, gap: 1, alignItems: 'start' }}>
@@ -910,7 +910,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
       busy={busy}
       maxWidth="sm"
       fullScreenOnMobile
-      title={id ? 'Edit partner' : 'Add partner'}
+      title={id ? 'Edit Partner' : 'Add Partner'}
       description="Requests go to the email address and the mobile number on file. One of the two is enough."
       actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{id ? 'Save partner' : 'Add partner'}</BusyButton></>}
     >

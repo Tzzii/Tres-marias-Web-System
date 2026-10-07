@@ -115,7 +115,7 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
       <Box role="grid" aria-label={`${MONTH_NAMES[month]} ${year}`}>
         <Box role="row" sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: small ? 0.5 : { xs: 0.5, sm: 0.75 } }}>
           {WEEKDAYS.map((d) => (
-            <Typography key={d} role="columnheader" sx={{ textAlign: 'center', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.textMuted, pb: 0.5 }}>
+            <Typography key={d} role="columnheader" sx={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, pb: 0.5 }}>
               {small ? d.slice(0, 2) : d}
             </Typography>
           ))}

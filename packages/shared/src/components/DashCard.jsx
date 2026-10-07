@@ -108,11 +108,11 @@ export function DetailRow({ label, children, sx }) {
   );
 }
 
-/** Small uppercase label above a value. */
+/** Small label above a value. */
 export function Field({ label, children, sx }) {
   return (
     <Box sx={{ minWidth: 0, ...sx }}>
-      <Typography sx={{ ...eyebrowSx, fontSize: 10.5 }}>{label}</Typography>
+      <Typography sx={{ ...eyebrowSx, fontSize: 11.5 }}>{label}</Typography>
       <Typography component="div" sx={{ mt: 0.25, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary, overflowWrap: 'anywhere' }}>
         {children || '—'}
       </Typography>

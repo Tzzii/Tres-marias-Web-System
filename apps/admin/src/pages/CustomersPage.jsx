@@ -46,9 +46,9 @@ const PAGE_SIZE = 10;
 // Filter tabs as [key, label, test function that decides if a customer belongs in the tab]
 const FILTERS = [
   ['all', 'All', () => true],
-  ['upcoming', 'With upcoming events', (c) => c.upcomingCount > 0],
-  ['balance', 'With balance', (c) => c.balance > 0],
-  ['repeat', 'Repeat customers', (c) => c.completedCount >= 2]
+  ['upcoming', 'With Upcoming Events', (c) => c.upcomingCount > 0],
+  ['balance', 'With Balance', (c) => c.balance > 0],
+  ['repeat', 'Repeat Customers', (c) => c.completedCount >= 2]
 ];
 
 /** 1x · Customer list and drawer. A read-mostly directory. */
@@ -211,7 +211,7 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
 
               <Box sx={{ mt: 2.5 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Contact details</Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Contact Details</Typography>
                   {!editing && <Button size="small" onClick={() => setEditing(true)}>Correct</Button>}
                 </Box>
                 {editing ? (

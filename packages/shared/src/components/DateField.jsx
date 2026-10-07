@@ -25,8 +25,8 @@ import { LightSurface } from './Surface.jsx';
 // { from: '06:00', to: '12:00' } -> "6:00 am – 12:00 pm" (a single time when from and to match)
 const timeRange = ({ from, to }) => (from === to ? formatTime(from) : `${formatTime(from)} – ${formatTime(to)}`);
 
-// Small uppercase heading used inside the day schedule
-const scheduleHeadingSx = { mt: 1, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.textMuted };
+// Small heading used inside the day schedule
+const scheduleHeadingSx = { mt: 1, fontSize: 12, fontWeight: 700, color: tokens.textMuted };
 
 // Schedule content fades in (with a slight rise) each time a different date is shown
 const scheduleFadeIn = keyframes`
@@ -203,7 +203,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
             {/* Events already holding the date (same list on every customer calendar) */}
             {panel.schedule.booked.length > 0 && (
               <>
-                <Typography sx={scheduleHeadingSx}>Already booked</Typography>
+                <Typography sx={scheduleHeadingSx}>Already Booked</Typography>
                 <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                   {panel.schedule.booked.map((slot, i) => (
                     <Box key={i} component="span" sx={{ px: 1, py: 0.25, borderRadius: 999, fontSize: 12, fontWeight: 600, color: '#b91c1c', backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
@@ -225,7 +225,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
             ) : (
               // Some start times are taken: by events on this date, or by a late/early event on the day next to it
               <>
-                <Typography sx={scheduleHeadingSx}>You can start at</Typography>
+                <Typography sx={scheduleHeadingSx}>You Can Start At</Typography>
                 <Typography sx={{ mt: 0.25, fontSize: 12.5, fontWeight: 600, color: tokens.textPrimary }}>{panel.schedule.openStarts.map(timeRange).join(', ')}</Typography>
                 <Typography sx={{ mt: 0.75, fontSize: 11.5, lineHeight: 1.5, color: tokens.textMuted }}>
                   {!panel.schedule.booked.length && 'An event late the day before or early the day after takes up part of this day. '}
@@ -277,7 +277,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
     <Box sx={{ minWidth: 0 }}>
       {label &&
         (dark ? (
-          <Typography component="label" htmlFor={id} sx={{ display: 'block', mb: 0.75, fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: tokens.textOnDarkMuted }}>
+          <Typography component="label" htmlFor={id} sx={{ display: 'block', mb: 0.75, fontSize: 12, fontWeight: 700, color: tokens.textOnDarkMuted }}>
             {label}
           </Typography>
         ) : (

@@ -482,7 +482,7 @@ export async function listRefunds({ customerId } = {}) {
 }
 
 /**
- * Admin: the bookings with money still to return (refundDue in financials), for "Refunds to send":
+ * Admin: the bookings with money still to return (refundDue in financials), for "Refunds to Send":
  * cancelled or declined ones until their refund is recorded (and again if money arrives after it), and
  * overpaid ones. Oldest event date first. `why` is 'customer' (cancelled by the customer; older records
  * without cancelledBy count as theirs), 'admin', 'declined' or 'overpaid'.
@@ -571,7 +571,7 @@ async function noteEvent(conn, event) {
  * number), the status moved like any verified payment, the receipt in the customer's chat, and the QR
  * marked paid. Money received can't be refused: on a cancelled booking, or above the balance (e.g. a
  * lower quotation meanwhile), it is still recorded, with an audit entry asking for a refund; it then
- * shows under "Refunds to send". Safe to run twice (the webhook, a retry, and the page's own check can
+ * shows under "Refunds to Send". Safe to run twice (the webhook, a retry, and the page's own check can
  * meet): the QR's row is locked and a paid QR is left alone. `event` is the webhook event, noted in the
  * same transaction. Returns true when this call recorded it.
  */

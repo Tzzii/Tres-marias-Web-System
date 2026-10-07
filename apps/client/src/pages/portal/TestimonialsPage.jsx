@@ -43,7 +43,7 @@ function websiteState(testimonial) {
 
 /** My testimonials: reviews for completed events, and the events still waiting for one. */
 export default function TestimonialsPage() {
-  useDocumentTitle('My testimonials');
+  useDocumentTitle('My Testimonials');
   const notify = useNotify();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -71,7 +71,7 @@ export default function TestimonialsPage() {
 
   return (
     <>
-      <PageHeader title="My testimonials" subtitle="Share how your celebration went. Your review goes to the Tres Marias team, who may publish it on our website." />
+      <PageHeader title="My Testimonials" subtitle="Share how your celebration went. Your review goes to the Tres Marias team, who may publish it on our website." />
       {loading ? (
         <DashCard>
           <ListSkeleton rows={3} height={80} />
@@ -80,7 +80,7 @@ export default function TestimonialsPage() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           {reviewable.length > 0 && (
             <DashCard>
-              <CardTitle subtitle="Completed events you have not reviewed yet">Waiting for your review</CardTitle>
+              <CardTitle subtitle="Completed events you have not reviewed yet">Waiting for Your Review</CardTitle>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {reviewable.map((r) => (
                   <Box key={r.ref} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, flexWrap: 'wrap' }}>
@@ -100,7 +100,7 @@ export default function TestimonialsPage() {
           )}
 
           <DashCard>
-            <CardTitle>Your reviews</CardTitle>
+            <CardTitle>Your Reviews</CardTitle>
             {data.testimonials.length === 0 ? (
               <EmptyState compact icon={RateReviewOutlinedIcon} title="No testimonials yet" description="After your event is completed, you can rate it and leave a short review here." />
             ) : (
@@ -220,7 +220,7 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
       open={Boolean(reservation)}
       onClose={onClose}
       busy={busy}
-      title="Write a testimonial"
+      title="Write a Testimonial"
       description={reservation ? `${reservation.eventName} · ${formatDate(reservation.date)}` : ''}
       actions={
         <>
@@ -233,11 +233,11 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
         </>
       }
     >
-      <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 0.5 }}>Your overall rating</Typography>
+      <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 0.5 }}>Your Overall Rating</Typography>
       <Rating value={rating} onChange={(_, v) => chooseOverall(v)} size="large" sx={{ color: tokens.gold }} />
       {errors.rating && <Typography sx={{ fontSize: 12, color: tokens.redPress }}>{errors.rating}</Typography>}
 
-      <Typography sx={{ mt: 2, fontSize: 13, fontWeight: 600, mb: 0.5 }}>How was each part?</Typography>
+      <Typography sx={{ mt: 2, fontSize: 13, fontWeight: 600, mb: 0.5 }}>How Was Each Part?</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
         {FEEDBACK_CATEGORIES.map(({ key, label }) => (
           <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>

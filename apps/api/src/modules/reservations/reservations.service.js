@@ -756,7 +756,7 @@ export async function completeReservation(ref, admin) {
  * (PENDING_PAYMENT: its payment may still arrive) and while pieces are still checked out for it (record
  * their return first). Saves cancelled_by = 'admin', releases the date, keeps the reason in
  * the audit trail and tells the customer in their chat; when money was paid the message says it will be
- * returned, and the booking shows under "Refunds to send". Returns the summary.
+ * returned, and the booking shows under "Refunds to Send". Returns the summary.
  */
 export async function cancelReservationByAdmin(ref, reason, admin) {
   const text = reasonOf(reason);

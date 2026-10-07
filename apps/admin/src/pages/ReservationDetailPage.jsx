@@ -57,6 +57,7 @@ import {
   peso,
   reservationApi,
   shiftEndTime,
+  titleCase,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -326,7 +327,7 @@ export default function ReservationDetailPage() {
             {/* The review the customer wrote for this event. It is moderated on the Feedbacks page. */}
             {r.testimonial && (
               <DashCard>
-                <CardTitle action={<Button size="small" onClick={() => navigate(`/feedbacks?q=${r.ref}`)}>Open in Feedbacks</Button>}>Customer feedback</CardTitle>
+                <CardTitle action={<Button size="small" onClick={() => navigate(`/feedbacks?q=${r.ref}`)}>Open in Feedbacks</Button>}>Customer Feedback</CardTitle>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <StarRating value={r.testimonial.rating} showValue />
                   <FeedbackStatusChip feedback={r.testimonial} size="sm" />
@@ -365,7 +366,7 @@ export default function ReservationDetailPage() {
             <NotesCard r={r} onSave={(notes) => act(() => reservationApi.saveNotes(r.ref, notes), 'Internal notes saved.')} />
 
             <DashCard>
-              <CardTitle>Audit trail</CardTitle>
+              <CardTitle>Audit Trail</CardTitle>
               <Box component="ol" sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 1.5, maxHeight: 360, overflowY: 'auto' }} className="tm-scroll">
                 {/* History of every change, newest first (the newest dot is gold) */}
                 {r.activity.slice().reverse().map((a, i) => (
@@ -386,14 +387,14 @@ export default function ReservationDetailPage() {
       </Box>
 
       {/* Dialogs for each status change; each calls the API, closes, and shows a toast */}
-      <ConfirmDialog open={dialog === 'approve'} onClose={() => setDialog(null)} title="Approve this reservation?" description={r.quotation ? `The quotation of ${peso(r.quotation.net)} is attached. The customer is asked for the minimum downpayment of ${peso(Math.min(r.downpayment, r.quotation.net))} (or more, up to the full amount) by a due date.` : 'Send the quotation first: the food and additional charges need prices before the reservation can be approved.'} confirmLabel="Approve" onConfirm={async () => { await reservationApi.approveReservation(r.ref); setDialog(null); notify('Reservation approved.'); }} />
-      <ConfirmDialog open={dialog === 'decline'} onClose={() => setDialog(null)} title="Decline this reservation?" description="The reason is shown to the customer. The date stays open for other bookings." confirmLabel="Decline" tone="danger" reasonLabel="Reason shown to the customer" onConfirm={async (reason) => { await reservationApi.declineReservation(r.ref, reason); setDialog(null); notify('Reservation declined.', 'info'); }} />
-      <ConfirmDialog open={dialog === 'confirm'} onClose={() => setDialog(null)} title="Confirm this booking?" description="The customer's contract becomes available in their Documents." confirmLabel="Confirm booking" onConfirm={async () => { await reservationApi.confirmReservation(r.ref); setDialog(null); notify('Booking confirmed.'); }} />
-      <ConfirmDialog open={dialog === 'complete'} onClose={() => setDialog(null)} title="Mark as completed?" description={r.balance > 0 ? `There is still a balance of ${peso(r.balance)}. Record the payment first if it was collected.` : 'The customer will be invited to leave a testimonial.'} confirmLabel="Mark completed" onConfirm={async () => { await reservationApi.completeReservation(r.ref); setDialog(null); notify('Event marked as completed.'); }} />
+      <ConfirmDialog open={dialog === 'approve'} onClose={() => setDialog(null)} title="Approve This Reservation?" description={r.quotation ? `The quotation of ${peso(r.quotation.net)} is attached. The customer is asked for the minimum downpayment of ${peso(Math.min(r.downpayment, r.quotation.net))} (or more, up to the full amount) by a due date.` : 'Send the quotation first: the food and additional charges need prices before the reservation can be approved.'} confirmLabel="Approve" onConfirm={async () => { await reservationApi.approveReservation(r.ref); setDialog(null); notify('Reservation approved.'); }} />
+      <ConfirmDialog open={dialog === 'decline'} onClose={() => setDialog(null)} title="Decline This Reservation?" description="The reason is shown to the customer. The date stays open for other bookings." confirmLabel="Decline" tone="danger" reasonLabel="Reason shown to the customer" onConfirm={async (reason) => { await reservationApi.declineReservation(r.ref, reason); setDialog(null); notify('Reservation declined.', 'info'); }} />
+      <ConfirmDialog open={dialog === 'confirm'} onClose={() => setDialog(null)} title="Confirm This Booking?" description="The customer's contract becomes available in their Documents." confirmLabel="Confirm booking" onConfirm={async () => { await reservationApi.confirmReservation(r.ref); setDialog(null); notify('Booking confirmed.'); }} />
+      <ConfirmDialog open={dialog === 'complete'} onClose={() => setDialog(null)} title="Mark as Completed?" description={r.balance > 0 ? `There is still a balance of ${peso(r.balance)}. Record the payment first if it was collected.` : 'The customer will be invited to leave a testimonial.'} confirmLabel="Mark completed" onConfirm={async () => { await reservationApi.completeReservation(r.ref); setDialog(null); notify('Event marked as completed.'); }} />
       <ConfirmDialog
         open={dialog === 'cancel'}
         onClose={() => setDialog(null)}
-        title="Cancel this reservation?"
+        title="Cancel This Reservation?"
         description={`The customer is told in their chat with your reason, and the date is released for other bookings.${r.paid > 0 ? ` ${peso(r.paid)} was paid: it shows under Refund to be returned.` : ''}`}
         confirmLabel="Cancel reservation"
         cancelLabel="Keep reservation"
@@ -402,15 +403,15 @@ export default function ReservationDetailPage() {
         reasonPlaceholder="e.g. Our kitchen cannot take this date after all."
         onConfirm={async (reason) => { await reservationApi.cancelReservationByAdmin(r.ref, reason); setDialog(null); notify('Reservation cancelled. The customer was told in their chat.', 'info'); }}
       />
-      <ConfirmDialog open={dialog === 'prepare'} onClose={() => setDialog(null)} title="Mark as started preparing?" description={`From now on the customer can no longer cancel online: their chat tells them to message you or call ${BUSINESS.phone} instead. You can undo this if it was a mistake.`} confirmLabel="Start preparing" onConfirm={async () => { await reservationApi.startPreparing(r.ref); setDialog(null); notify('Marked as started preparing.'); }} />
-      <ConfirmDialog open={dialog === 'unprepare'} onClose={() => setDialog(null)} title="Undo “Started preparing”?" description="The customer is told in their chat that it was marked by mistake, with the date online cancellation is open until (when it hasn't passed)." confirmLabel="Undo" onConfirm={async () => { await reservationApi.undoPreparing(r.ref); setDialog(null); notify('The “Started preparing” mark was removed.', 'info'); }} />
+      <ConfirmDialog open={dialog === 'prepare'} onClose={() => setDialog(null)} title="Mark as Started Preparing?" description={`From now on the customer can no longer cancel online: their chat tells them to message you or call ${BUSINESS.phone} instead. You can undo this if it was a mistake.`} confirmLabel="Start preparing" onConfirm={async () => { await reservationApi.startPreparing(r.ref); setDialog(null); notify('Marked as started preparing.'); }} />
+      <ConfirmDialog open={dialog === 'unprepare'} onClose={() => setDialog(null)} title="Undo “Started Preparing”?" description="The customer is told in their chat that it was marked by mistake, with the date online cancellation is open until (when it hasn't passed)." confirmLabel="Undo" onConfirm={async () => { await reservationApi.undoPreparing(r.ref); setDialog(null); notify('The “Started preparing” mark was removed.', 'info'); }} />
       <RefundDialog open={dialog === 'refund'} onClose={() => setDialog(null)} booking={r} onRecorded={(refund) => { setDialog(null); notify(refundRecordedText(refund)); }} />
       <CashDialog open={dialog === 'cash'} onClose={() => setDialog(null)} r={r} onSubmit={async (amount) => { await paymentApi.recordCashPayment(r.ref, amount); setDialog(null); notify('Payment recorded and receipt issued.'); }} />
       <MenuDialog open={dialog === 'food'} onClose={() => setDialog(null)} r={r} onSubmit={async (patch) => { await reservationApi.updateMenu(r.ref, patch); setDialog(null); notify('Menu updated. Re-send the quotation if the total changed.'); }} />
       {isRental(r.serviceType) && (
         <>
           <RentalItemsDialog open={dialog === 'rentalItems'} onClose={() => setDialog(null)} r={r} onSubmit={async (items) => { await reservationApi.updateRentalItems(r.ref, { items }); setDialog(null); notify('Rented items saved. The customer was told in their chat; re-send the quotation for the new total.'); }} />
-          <ConfirmDialog open={dialog === 'checkout'} onClose={() => setDialog(null)} title="Check out the rented items?" description="Every item still needed for this rental moves from Available to In use in the inventory, and each check-out is added to the audit trail." confirmLabel="Check out" onConfirm={async () => { await inventoryApi.checkOutRental(r.ref); setDialog(null); notify('Rented items checked out.'); }} />
+          <ConfirmDialog open={dialog === 'checkout'} onClose={() => setDialog(null)} title="Check Out the Rented Items?" description="Every item still needed for this rental moves from Available to In use in the inventory, and each check-out is added to the audit trail." confirmLabel="Check out" onConfirm={async () => { await inventoryApi.checkOutRental(r.ref); setDialog(null); notify('Rented items checked out.'); }} />
           <ReturnDialog open={dialog === 'return'} onClose={() => setDialog(null)} r={r} onSubmit={async (rows) => { const result = await inventoryApi.returnRental(r.ref, rows); setDialog(null); notify(result.damaged ? `Return recorded. ${result.damaged} damaged or missing pieces were charged; re-send the quotation.` : 'Return recorded.'); }} />
         </>
       )}
@@ -458,7 +459,7 @@ function LogisticsCard({ r, closed, onSave }) {
   if (rental) {
     return (
       <DashCard>
-        <CardTitle subtitle={closed ? 'This reservation is closed.' : 'Editable by admin'}>Rental and logistics</CardTitle>
+        <CardTitle subtitle={closed ? 'This reservation is closed.' : 'Editable by admin'}>Rental and Logistics</CardTitle>
         {switching && (
           <AlertBanner tone="warning" sx={{ mb: 2 }} title="This changes the customer's total">
             {delivered ? `Delivery adds ${peso(RENTAL.deliveryFee)} (the standard fee).` : 'Pick up is free, so the delivery fee comes off.'} Saving posts a message telling the customer; the amount they owe only changes once you re-send the quotation.
@@ -501,7 +502,7 @@ function LogisticsCard({ r, closed, onSave }) {
 
   return (
     <DashCard>
-      <CardTitle subtitle={closed ? 'This reservation is closed.' : 'Editable by admin'}>Event and logistics</CardTitle>
+      <CardTitle subtitle={closed ? 'This reservation is closed.' : 'Editable by admin'}>Event and Logistics</CardTitle>
       {/* Changing the guest count on a buffet changes what the customer owes, so say so plainly
           before it is saved. Saving tells the customer in their chat; only re-sending the
           quotation actually changes the amount. */}
@@ -742,7 +743,7 @@ function NotesCard({ r, onSave }) {
   useEffect(() => setNotes(r.notes), [r.notes]);
   return (
     <DashCard>
-      <CardTitle subtitle="Visible to admin only">Internal notes</CardTitle>
+      <CardTitle subtitle="Visible to admin only">Internal Notes</CardTitle>
       <FormField id="internal-notes" multiline minRows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Allergies, VIP guests, access details, follow-ups…" inputProps={{ maxLength: 1000 }} />
       {notes !== r.notes && (
         <BusyButton size="small" busy={busy} sx={{ mt: 1.5 }} onClick={async () => { setBusy(true); await onSave(notes); setBusy(false); }}>
@@ -786,7 +787,7 @@ function CashDialog({ open, onClose, r, onSubmit }) {
   };
 
   return (
-    <AppDialog open={open} onClose={onClose} busy={busy} maxWidth="xs" title="Mark payment received" description="Record a cash payment collected on site. A receipt is generated and the customer is notified." actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={submit}>Record payment</BusyButton></>}>
+    <AppDialog open={open} onClose={onClose} busy={busy} maxWidth="xs" title="Mark Payment Received" description="Record a cash payment collected on site. A receipt is generated and the customer is notified." actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={submit}>Record payment</BusyButton></>}>
       <FormField id="cash-amount" label="Amount received" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setError(''); }} error={error} hint={`Balance ${peso(r.balance)} · minimum downpayment ${peso(r.downpayment)}${r.downpaymentPaid ? ' (reached)' : ''}`} InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} autoFocus />
     </AppDialog>
   );
@@ -840,7 +841,7 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
       open={open}
       onClose={onClose}
       busy={busy}
-      title="Edit menu"
+      title="Edit Menu"
       description="What we are serving at this event. Re-send the quotation if the total changes."
       actions={
         <>
@@ -996,7 +997,7 @@ function RentalItemsDialog({ open, onClose, r, onSubmit }) {
       busy={busy}
       maxWidth="sm"
       fullScreenOnMobile
-      title="Edit rented items"
+      title="Edit Rented Items"
       description={`Free counts are for ${formatDate(r.date)}. Items already on the rental keep the price they were booked at.`}
       actions={
         <>
@@ -1016,7 +1017,7 @@ function RentalItemsDialog({ open, onClose, r, onSubmit }) {
           <Box key={item.id}>
             {/* A heading wherever the category changes */}
             {(index === 0 || items[index - 1].category !== item.category) && (
-              <Typography sx={{ mt: index ? 1.5 : 0, mb: 0.75, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: tokens.textMuted }}>{item.category}</Typography>
+              <Typography sx={{ mt: index ? 1.5 : 0, mb: 0.75, fontSize: 12.5, fontWeight: 700, color: tokens.textMuted }}>{titleCase(item.category)}</Typography>
             )}
             <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 96px', gap: 1.25, alignItems: 'center' }}>
               <Box sx={{ minWidth: 0 }}>
@@ -1090,7 +1091,7 @@ function ReturnDialog({ open, onClose, r, onSubmit }) {
       busy={busy}
       maxWidth="sm"
       fullScreenOnMobile
-      title="Record return"
+      title="Record Return"
       description="Count what came back. Pieces still missing can be left out now and recorded when they come back."
       actions={
         <>

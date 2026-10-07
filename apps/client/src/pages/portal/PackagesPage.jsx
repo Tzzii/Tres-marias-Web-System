@@ -15,7 +15,7 @@ import { saveIntent } from '../../lib/booking.js';
  * The Equipment Rental package is priced per piece, so its card shows how renting works instead of a list of items.
  */
 export default function PackagesPage() {
-  useDocumentTitle('Available packages');
+  useDocumentTitle('Available Packages');
   const navigate = useNavigate();
   // Load the packages visible to customers
   const { data, loading, error, reload } = useResource(() => catalogApi.listPackages(), []);
@@ -28,7 +28,7 @@ export default function PackagesPage() {
 
   return (
     <>
-      <PageHeader title="Available packages" subtitle="Each package is a flat price for the buffet setup, tableware, tables and chairs, and works for any occasion. Food is cooked to your request and priced in your quotation." />
+      <PageHeader title="Available Packages" subtitle="Each package is a flat price for the buffet setup, tableware, tables and chairs, and works for any occasion. Food is cooked to your request and priced in your quotation." />
       {/* Error with Retry, loading placeholders, or one card per package */}
       {error ? (
         <DashCard>

@@ -24,7 +24,7 @@ export function NotFoundPage({ homePath = '/', homeLabel = 'Go to home' }) {
         <BrandLogo size={120} />
         <Typography sx={{ mt: 2, fontSize: 13, fontWeight: 700, letterSpacing: '0.16em', color: tokens.gold }}>ERROR 404</Typography>
         <Typography component="h1" sx={{ fontSize: { xs: 26, md: 34 }, fontWeight: 700, color: tokens.textLight }}>
-          This page is not on the menu
+          This Page Is Not on the Menu
         </Typography>
         <Typography sx={{ maxWidth: 420, fontSize: 14, color: tokens.textOnDarkSoft }}>
           The link may be old or mistyped. Let us take you back somewhere familiar.

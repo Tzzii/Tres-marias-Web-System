@@ -72,19 +72,19 @@ const OPTIONAL_COLUMNS = [
   ['category', 'Category'],
   ['total', 'Total'],
   ['available', 'Available'],
-  ['inUse', 'In use'],
-  ['rent', 'Rent price'],
+  ['inUse', 'In Use'],
+  ['rent', 'Rent Price'],
   ['condition', 'Condition']
 ];
 const COLUMNS_KEY = 'tm.admin.inventory.columns'; // this browser remembers the admin's column choice
 
 // Title, description and button label of each stock action dialog
 const ACTIONS = {
-  checkout: { title: 'Check out', description: 'Take available pieces out for an event. They count as In use until returned.', button: 'Check out' },
+  checkout: { title: 'Check Out', description: 'Take available pieces out for an event. They count as In use until returned.', button: 'Check out' },
   return: { title: 'Return', description: 'Record pieces coming back. Damaged pieces go to Damaged instead of Available.', button: 'Record return' },
-  damage: { title: 'Report damage', description: 'Move available pieces to Damaged so they are not checked out.', button: 'Report damage' },
-  repair: { title: 'Mark repaired', description: 'Move repaired pieces from Damaged back to Available.', button: 'Mark repaired' },
-  dispose: { title: 'Dispose of damaged', description: 'Remove damaged pieces that cannot be repaired. The total goes down.', button: 'Dispose' }
+  damage: { title: 'Report Damage', description: 'Move available pieces to Damaged so they are not checked out.', button: 'Report damage' },
+  repair: { title: 'Mark Repaired', description: 'Move repaired pieces from Damaged back to Available.', button: 'Mark repaired' },
+  dispose: { title: 'Dispose of Damaged', description: 'Remove damaged pieces that cannot be repaired. The total goes down.', button: 'Dispose' }
 };
 
 /**
@@ -196,7 +196,7 @@ export default function InventoryPage() {
       ),
       render: (i) => <Checkbox size="small" checked={selected.includes(i.id)} onChange={() => toggle(i.id)} inputProps={{ 'aria-label': `Select ${i.name}` }} />
     },
-    { key: 'name', label: 'Item name or code', render: (i) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{i.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{i.code}</Typography></Box>) },
+    { key: 'name', label: 'Item Name or Code', render: (i) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{i.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{i.code}</Typography></Box>) },
     columns.category && { key: 'category', label: 'Category', render: (i) => i.category },
     columns.total && { key: 'total', label: 'Total', align: 'right', render: (i) => i.total },
     columns.available && {
@@ -211,10 +211,10 @@ export default function InventoryPage() {
         </Box>
       )
     },
-    columns.inUse && { key: 'inUse', label: 'In use', align: 'right', render: (i) => i.inUse },
+    columns.inUse && { key: 'inUse', label: 'In Use', align: 'right', render: (i) => i.inUse },
     columns.rent && {
       key: 'rent',
-      label: 'Rent price',
+      label: 'Rent Price',
       align: 'right',
       // Price per piece with the damage fee underneath, or a dash for items only our team uses
       render: (i) =>
@@ -243,17 +243,17 @@ export default function InventoryPage() {
   return (
     <>
       <PageHeader
-        title="Equipment inventory"
+        title="Equipment Inventory"
         subtitle="What you own, what is out at events and what needs repair."
         actions={<Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setAdding(true)}>Add item(s)</Button>}
       />
 
       {/* Summary cards; clicking one filters the table. Two per row on phones and tablets, four on wide screens. */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
-        <StatCard icon={Inventory2OutlinedIcon} tone="gold" label="Total items" value={`${totals.total.toLocaleString('en-PH')} pcs`} meta={`${active.length} item types`} loading={loading} onClick={() => setStatus('all')} />
-        <StatCard icon={CheckCircleOutlineRoundedIcon} tone="green" label="Available items" value={`${totals.available.toLocaleString('en-PH')} pcs`} meta={`${totals.low} low · ${totals.out} out of stock`} loading={loading} onClick={() => setStatus('in_stock')} />
-        <StatCard icon={LocalShippingOutlinedIcon} tone="blue" label="In use items" value={`${totals.inUse.toLocaleString('en-PH')} pcs`} meta="Out at events" loading={loading} onClick={() => setStatus('in_use')} />
-        <StatCard icon={BuildOutlinedIcon} tone="amber" label="Damaged items" value={`${totals.damaged.toLocaleString('en-PH')} pcs`} meta={`${totals.withDamaged} item types need repair`} loading={loading} onClick={() => setStatus('damaged')} />
+        <StatCard icon={Inventory2OutlinedIcon} tone="gold" label="Total Items" value={`${totals.total.toLocaleString('en-PH')} pcs`} meta={`${active.length} item types`} loading={loading} onClick={() => setStatus('all')} />
+        <StatCard icon={CheckCircleOutlineRoundedIcon} tone="green" label="Available Items" value={`${totals.available.toLocaleString('en-PH')} pcs`} meta={`${totals.low} low · ${totals.out} out of stock`} loading={loading} onClick={() => setStatus('in_stock')} />
+        <StatCard icon={LocalShippingOutlinedIcon} tone="blue" label="In Use Items" value={`${totals.inUse.toLocaleString('en-PH')} pcs`} meta="Out at events" loading={loading} onClick={() => setStatus('in_use')} />
+        <StatCard icon={BuildOutlinedIcon} tone="amber" label="Damaged Items" value={`${totals.damaged.toLocaleString('en-PH')} pcs`} meta={`${totals.withDamaged} item types need repair`} loading={loading} onClick={() => setStatus('damaged')} />
       </Box>
 
       <DashCard>
@@ -423,7 +423,7 @@ function AddItemsDialog({ open, onClose, onSaved }) {
       busy={busy}
       maxWidth="md"
       fullScreenOnMobile
-      title="Add item(s)"
+      title="Add Item(s)"
       description="New items start fully available with no damage. Leave the alert level blank to use 10% of the quantity, and the rent price blank for items customers can't rent."
       actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{rows.length === 1 ? 'Add item' : `Add ${rows.length} items`}</BusyButton></>}
     >
@@ -675,7 +675,7 @@ function DetailsDialog({ item, onClose, onAction }) {
         {item.rentable ? `For rent at ${peso(item.rentPrice)} per piece · damage fee ${peso(item.damageFee)}` : 'Not for rent: only our team uses this item.'}
       </Typography>
 
-      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 14, fontWeight: 700 }}>Currently out</Typography>
+      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 14, fontWeight: 700 }}>Currently Out</Typography>
       {item.out.length === 0 ? (
         <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>Nothing is checked out.</Typography>
       ) : (

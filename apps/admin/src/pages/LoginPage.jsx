@@ -31,7 +31,7 @@ import { useAuth } from '../auth.js';
  * a pop-up asks for the 6-digit code emailed to the admin.
  */
 export default function LoginPage() {
-  useDocumentTitle('Admin sign in', 'Tres Marias Admin');
+  useDocumentTitle('Admin Sign In', 'Tres Marias Admin');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { isAuthenticated, signIn } = useAuth();
@@ -194,7 +194,7 @@ export default function LoginPage() {
             sx={{ width: '100%', p: { xs: 3, sm: 3.5 }, display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 2, boxShadow: tokens.shadowCard, ...shakeSx(shake && !codeOpen) }}
           >
             <Typography component="h1" sx={{ fontSize: 21, fontWeight: 700 }}>
-              Admin sign in
+              Admin Sign In
             </Typography>
 
             {reason === 'idle' && <AlertBanner tone="info">You were signed out after 15 minutes of inactivity.</AlertBanner>}
@@ -220,7 +220,7 @@ export default function LoginPage() {
       </Box>
 
       {/* Code pop-up: emailed code boxes, resend link and attempts left. Closing it cancels the sign-in. */}
-      <AppDialog open={codeOpen} onClose={() => closeCode()} title="Enter your code" maxWidth="xs" busy={busy}>
+      <AppDialog open={codeOpen} onClose={() => closeCode()} title="Enter Your Code" maxWidth="xs" busy={busy}>
         {challenge && (
           <Box
             component="form"

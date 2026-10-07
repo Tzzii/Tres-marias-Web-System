@@ -102,7 +102,7 @@ const scrollToId = (id) => {
 
 /** 1a · Browse / landing: the public entry point, no login required. */
 export default function HomePage() {
-  useDocumentTitle('Celebrations worth savouring');
+  useDocumentTitle('Celebrations Worth Savouring');
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -211,7 +211,7 @@ export default function HomePage() {
             Full-service event catering
           </Box>
           <Typography component="h1" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 40, sm: 56, md: 70 }, fontWeight: 600, lineHeight: 1.08, color: site.ink, ...heroLine(heroShown, 250) }}>
-            Celebrations worth savouring
+            Celebrations Worth Savouring
           </Typography>
           <Typography sx={{ mt: 3, mx: 'auto', maxWidth: 640, fontSize: { xs: 15, md: 17 }, lineHeight: 1.75, color: site.inkSoft, ...heroLine(heroShown, 400) }}>
             Browse every package, price and open date. No account needed to look around. When you are ready, reserve your date in minutes.
@@ -239,7 +239,7 @@ export default function HomePage() {
       <Box component="section" id="packages" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: '80px' }}>
         <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
           {/* The count leaves out the Equipment Rental package, which is priced per piece rather than flat */}
-          <SectionHead eyebrow="Our packages" title="Pick the package that fits your guest count" description={`${packages.data ? packages.data.filter((p) => !isRentalPackage(p)).length : 'Our'} packages, each a flat price for the buffet setup, tableware, tables and chairs. Any package works for any occasion, as a buffet we cook for you or as catering only. Need only a few things? Rent them by the piece.`} />
+          <SectionHead eyebrow="Our Packages" title="Pick the Package That Fits Your Guest Count" description={`${packages.data ? packages.data.filter((p) => !isRentalPackage(p)).length : 'Our'} packages, each a flat price for the buffet setup, tableware, tables and chairs. Any package works for any occasion, as a buffet we cook for you or as catering only. Need only a few things? Rent them by the piece.`} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
             {/* Grey placeholder cards while loading, then one card per package (its position staggers the entrance animation) */}
             {packages.loading
@@ -252,7 +252,7 @@ export default function HomePage() {
       {/* ==================== SERVICES ==================== */}
       <Box component="section" id="services" sx={{ py: { xs: 8, md: 10 }, backgroundColor: site.sand, scrollMarginTop: '80px' }}>
         <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
-          <SectionHead eyebrow="What we handle" title="Everything under one roof" description="You plan the guest list. We take care of the rest, from the first tasting to the last cleared plate." />
+          <SectionHead eyebrow="What We Handle" title="Everything Under One Roof" description="You plan the guest list. We take care of the rest, from the first tasting to the last cleared plate." />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
             {/* White cards fade up as they come into view (cards in a row follow one another); on hover the card lifts and the icon tile fills gold */}
             {services.map(([Icon, name, text], i) => (
@@ -275,7 +275,7 @@ export default function HomePage() {
       {/* ==================== GALLERY ==================== */}
       <Box component="section" id="gallery" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: '80px' }}>
         <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
-          <SectionHead eyebrow="Gallery" title="Moments we have served" description="A glimpse of the celebrations our team has had the honour of catering." />
+          <SectionHead eyebrow="Gallery" title="Moments We Have Served" description="A glimpse of the celebrations our team has had the honour of catering." />
           {/* One box per event that has photos (lib/gallery.js): two per row, three on wide screens, and a short
               last row is centred. Each box fades up as it comes into view and shows the event's cover photo (its
               first) over the soft colour; on hover it lifts and the photo zooms in slightly. Clicking it (or
@@ -394,7 +394,7 @@ export default function HomePage() {
           <Reveal y={18} scale={0.98}>
             <Paper elevation={0} sx={{ p: { xs: 4, md: 8 }, textAlign: 'center', borderRadius: 4, backgroundColor: site.espresso, border: `1px solid ${site.espressoBorder}`, backgroundImage: site.gradientCta, boxShadow: site.shadowCardHover }}>
               <Typography component="h2" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 30, md: 42 }, fontWeight: 600, color: site.onEspresso }}>
-                Ready to reserve your date?
+                Ready to Reserve Your Date?
               </Typography>
               <Typography sx={{ mt: 2, mx: 'auto', maxWidth: 600, fontSize: 15, lineHeight: 1.75, color: site.onEspressoSoft }}>
                 {user
@@ -419,7 +419,7 @@ export default function HomePage() {
       {/* Last section before the footer. Click a question to show or hide its answer; several can be open at once */}
       <Box component="section" id="faq" sx={{ py: { xs: 8, md: 10 }, backgroundColor: site.sand, scrollMarginTop: '80px' }}>
         <Container maxWidth={false} sx={{ maxWidth: 820 }}>
-          <SectionHead eyebrow="FAQ" title="Questions we hear often" description="Everything you might want to know before reserving. Still unsure? Our team is happy to help." />
+          <SectionHead eyebrow="FAQ" title="Questions We Hear Often" description="Everything you might want to know before reserving. Still unsure? Our team is happy to help." />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             {/* Questions fade up one after another as the list comes into view */}
             {faqs.map(([question, answer], i) => (

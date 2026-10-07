@@ -11,7 +11,7 @@ import { BUSINESS, BrandMark, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 
 // Shared styles for the column headings, the page links and the contact rows
-const headingSx = { fontSize: 11.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: site.gold, mb: 2 };
+const headingSx = { fontSize: 12.5, fontWeight: 700, color: site.gold, mb: 2 };
 // On touch screens the links get 6px more above and below (a finger-sized target) and the list gap
 // drops to 0, so the space between two links stays about the same (12px instead of 10px)
 const linkSx = { display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5, color: site.onEspressoSoft, textDecoration: 'none', '&:hover': { color: site.goldLight }, '@media (pointer: coarse)': { py: 0.75 } };
@@ -38,7 +38,7 @@ export default function SiteFooter({ bottomSpace = false }) {
           </Box>
 
           <Box>
-            <Typography sx={headingSx}>Visit or call</Typography>
+            <Typography sx={headingSx}>Visit or Call</Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
               <Box sx={{ ...contactSx, alignItems: 'flex-start' }}>
                 <PlaceOutlinedIcon sx={{ fontSize: 17, mt: '2px' }} />
@@ -78,7 +78,7 @@ export default function SiteFooter({ bottomSpace = false }) {
           </Box>
 
           <Box>
-            <Typography sx={headingSx}>Your account</Typography>
+            <Typography sx={headingSx}>Your Account</Typography>
             <Box sx={linkListSx}>
               <Link component="button" type="button" onClick={() => navigate('/login')} sx={{ ...linkSx, textAlign: 'left' }}>
                 Log in

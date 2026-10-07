@@ -146,7 +146,7 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
         )}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Scan to pay {peso(qr.amount)}</Typography>
+        <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Scan to Pay {peso(qr.amount)}</Typography>
         <Box>
           <DetailRow label="Reservation">{qr.ref}</DetailRow>
           <DetailRow label="Amount (exact)">{peso(qr.amount)}</DetailRow>
@@ -486,7 +486,7 @@ export default function PaymentsPage() {
                       </Box>
 
                       <Box>
-                        <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Payment method</Typography>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Payment Method</Typography>
                         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
                           {METHODS.map((m) => {
                             const on = method === m.value;
@@ -598,7 +598,7 @@ export default function PaymentsPage() {
             receipt names below stretch the whole page wider than the screen */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
           <DashCard>
-            <CardTitle>Payment history</CardTitle>
+            <CardTitle>Payment History</CardTitle>
             {loading ? (
               <ListSkeleton rows={3} />
             ) : history.length === 0 ? (
@@ -644,7 +644,7 @@ export default function PaymentsPage() {
           </DashCard>
 
           <DashCard>
-            <CardTitle subtitle="A receipt is generated automatically for every verified payment.">Receipts and invoices</CardTitle>
+            <CardTitle subtitle="A receipt is generated automatically for every verified payment.">Receipts and Invoices</CardTitle>
             {verified.length === 0 ? (
               <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>Receipts appear here once a payment is verified.</Typography>
             ) : (

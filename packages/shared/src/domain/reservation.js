@@ -175,7 +175,7 @@ export function approvalMessage(reservation, money) {
 }
 
 /**
- * The menu as a display list, e.g. [{ key: 'pork', label: 'Pork dish', name: 'Lechon Kawali and Crispy Pata' }].
+ * The menu as a display list, e.g. [{ key: 'pork', label: 'Pork Dish', name: 'Lechon Kawali and Crispy Pata' }].
  * Empty for a Catering only booking.
  *
  * The customer writes each line themselves rather than picking from a list, so a line can name

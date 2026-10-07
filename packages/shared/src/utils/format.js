@@ -145,6 +145,26 @@ export const initials = (name = '') => {
 /** "Maria Santos" -> "Maria". */
 export const firstName = (name = '') => name.split(' ')[0] || '';
 
+// Short words that stay lowercase inside a heading (never as its first or last word)
+const MINOR_WORDS = ['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet', 'as', 'at', 'by', 'in', 'of', 'off', 'on', 'per', 'to', 'via', 'vs'];
+
+/**
+ * Heading style for text kept in sentence case because it is stored data (e.g. an inventory category):
+ * "Tents and stage" -> "Tents and Stage", "QR Ph (GCash, Maya or bank app)" -> "QR Ph (GCash, Maya or Bank App)".
+ * Each word gets a capital first letter (both halves of a hyphenated word); short words like "and", "of"
+ * and "to" stay lowercase unless they open or close the heading. Capitals already there are kept.
+ */
+export const titleCase = (text = '') => {
+  const words = String(text).split(' ');
+  return words
+    .map((word, i) => {
+      const bare = word.replace(/[^A-Za-z]/g, '').toLowerCase();
+      if (i > 0 && i < words.length - 1 && MINOR_WORDS.includes(bare) && word === word.toLowerCase()) return word;
+      return word.replace(/(^|-)([^A-Za-z]*)([a-z])/g, (_, start, lead, letter) => start + lead + letter.toUpperCase());
+    })
+    .join(' ');
+};
+
 /** (1, 'day') -> "1 day", (3, 'day') -> "3 days". */
 export const pluralize = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
 

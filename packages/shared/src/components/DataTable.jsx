@@ -90,8 +90,8 @@ export function DataTable({ columns, rows, rowKey, onRowClick, loading, empty, m
   );
 }
 
-// Small uppercase label above a value on a phone card, like the table's column headings
-const cardLabelSx = { fontSize: 10.5, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: tokens.textMuted };
+// Small label above a value on a phone card, written like the table's column headings (Title Case)
+const cardLabelSx = { fontSize: 11.5, fontWeight: 700, color: tokens.textMuted };
 
 /**
  * The phone layout of DataTable: one card per row. The tick box and the title sit at the top with

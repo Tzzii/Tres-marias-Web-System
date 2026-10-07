@@ -486,7 +486,7 @@ export default function PortalShell({
         >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', px: collapsed ? 0 : 1, pb: 1 }}>
-              {!collapsed && <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: tokens.sidebarTextMuted }}>Navigation</Typography>}
+              {!collapsed && <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.sidebarTextMuted }}>Navigation</Typography>}
               <IconButton onClick={toggleSidebar} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} size="small" sx={{ color: tokens.sidebarText, '&:hover': { color: tokens.gold } }}>
                 {collapsed ? <MenuRoundedIcon sx={{ fontSize: 20 }} /> : <MenuOpenRoundedIcon sx={{ fontSize: 20 }} />}
               </IconButton>
@@ -529,7 +529,7 @@ export default function PortalShell({
         </Box>
       )}
 
-      {/* "Log out?" confirmation; confirming calls the portal's onLogout */}
+      {/* "Log Out?" confirmation; confirming calls the portal's onLogout */}
       <ConfirmDialog
         open={logoutOpen}
         onClose={() => setLogoutOpen(false)}
@@ -537,7 +537,7 @@ export default function PortalShell({
           setLogoutOpen(false);
           onLogout();
         }}
-        title="Log out?"
+        title="Log Out?"
         description="You will need to sign in again to continue."
         confirmLabel="Log out"
         tone="danger"

@@ -50,6 +50,7 @@ import {
   peso,
   reservationApi,
   shiftEndTime,
+  titleCase,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -60,17 +61,17 @@ import { clearDraft, clearIntent, readDraft, readIntent, saveDraft } from '../..
 
 // Form sections as [key, title, short name], in page order. The short name labels the section chips
 // on phones and tablets. The menu section is skipped for Catering only.
-// An equipment rental has no package, menu or additional charges: it shows "Items to rent" instead,
-// and its venue section becomes "Pick up or delivery".
+// An equipment rental has no package, menu or additional charges: it shows "Items to Rent" instead,
+// and its venue section becomes "Pick Up or Delivery".
 const SECTIONS = [
-  ['details', 'Event details', 'Event'],
-  ['service', 'What you are booking', 'Service'],
+  ['details', 'Event Details', 'Event'],
+  ['service', 'What You Are Booking', 'Service'],
   ['package', 'Package', 'Package'],
-  ['items', 'Items to rent', 'Items'],
-  ['food', 'Your menu', 'Menu'],
-  ['venue', 'Venue and logistics', 'Venue'],
-  ['addons', 'Additional charges', 'Add-ons'],
-  ['review', 'Review and submit', 'Review']
+  ['items', 'Items to Rent', 'Items'],
+  ['food', 'Your Menu', 'Menu'],
+  ['venue', 'Venue and Logistics', 'Venue'],
+  ['addons', 'Additional Charges', 'Add-ons'],
+  ['review', 'Review and Submit', 'Review']
 ];
 
 // Which section each field lives in (used to scroll to the first error)
@@ -95,7 +96,7 @@ const lowestPackagePrice = (addon) => {
   return prices.length ? Math.min(...prices) : null;
 };
 
-// Blank form values. `serviceType` starts empty, so nothing under "What you are booking" is picked
+// Blank form values. `serviceType` starts empty, so nothing under "What You Are Booking" is picked
 // until the customer chooses it themselves.
 // `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental, and
 // `endTime` only by an event (2 to 6 hours after the start; blank until the customer picks it).
@@ -128,7 +129,7 @@ const AVAILABILITY = {
  * which is not kept in the draft: it is asked again for every request.
  */
 export default function BookEventPage() {
-  useDocumentTitle('Book an event');
+  useDocumentTitle('Book an Event');
   const navigate = useNavigate();
   const notify = useNotify();
   const { user } = useAuth();
@@ -221,7 +222,7 @@ export default function BookEventPage() {
   const pkg = data ? data.packages.find((p) => p.id === form.packageId) : null;
   // The Equipment Rental package, when the admin shows it; the rental choice only appears if it exists
   const rentalPkg = data ? data.packages.find(isRentalPackage) || null : null;
-  // The ordinary packages for the package cards (the rental one is chosen under "What you are booking")
+  // The ordinary packages for the package cards (the rental one is chosen under "What You Are Booking")
   const packages = data ? data.packages.filter((p) => !isRentalPackage(p)) : [];
   // True when this booking is an equipment rental
   const rental = isRental(form.serviceType);
@@ -574,7 +575,7 @@ export default function BookEventPage() {
   // A rental shows its items instead of the package, menu and additional charges.
   const sections = SECTIONS.filter(([key]) => (rental ? !['package', 'food', 'addons'].includes(key) : key !== 'items' && (key !== 'food' || buffet))).map(([key, label, short]) => [
     key,
-    rental && key === 'venue' ? 'Pick up or delivery' : label,
+    rental && key === 'venue' ? 'Pick Up or Delivery' : label,
     rental && key === 'venue' ? 'Pick-up / delivery' : short
   ]);
   // A section's number on the page, which shifts when the menu section is hidden
@@ -583,8 +584,8 @@ export default function BookEventPage() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'My Reservations', to: '/portal/reservations' }, { label: 'Book an event' }]}
-        title="Book an event"
+        crumbs={[{ label: 'My Reservations', to: '/portal/reservations' }, { label: 'Book an Event' }]}
+        title="Book an Event"
         chip={
           savedAt && (
             <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: 12.5, color: tokens.textOnDarkSoft }}>
@@ -621,7 +622,7 @@ export default function BookEventPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '200px minmax(0, 1fr) 300px' }, gap: 2.5, alignItems: 'start', pb: { xs: 10, lg: 0 } }}>
           {/* ============ Left: on this page ============ */}
           <Box component="nav" aria-label="Form sections" sx={{ display: { xs: 'none', lg: 'block' }, position: 'sticky', top: tokens.headerHeight + 24 }}>
-            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: tokens.textOnDarkMuted, mb: 1, px: 1.5 }}>On this page</Typography>
+            <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.textOnDarkMuted, mb: 1, px: 1.5 }}>On This Page</Typography>
             {sections.map(([key, label], i) => (
               <ButtonBase key={key} onClick={() => scrollTo(key)} aria-current={active === key ? 'true' : undefined} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: 1.25, fontFamily: 'inherit', fontSize: 13.5, fontWeight: active === key ? 700 : 500, textAlign: 'left', color: active === key ? tokens.goldText : sectionHasError(key) ? tokens.dangerSoft : tokens.textOnDarkSoft, backgroundColor: active === key ? 'rgba(197,160,89,0.14)' : 'transparent', borderLeft: `3px solid ${active === key ? tokens.gold : 'transparent'}` }}>
                 {sectionDone[key] ? <CheckCircleRoundedIcon sx={{ fontSize: 16, color: tokens.green }} /> : <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 16, opacity: 0.5 }} />}
@@ -634,7 +635,7 @@ export default function BookEventPage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             {formError && <AlertBanner tone="error">{formError}</AlertBanner>}
 
-            <Section id="details" index={sectionNo('details')} title="Event details" subtitle={rental ? 'Tell us what the items are for and when you need them' : 'Tell us about the celebration'}>
+            <Section id="details" index={sectionNo('details')} title="Event Details" subtitle={rental ? 'Tell us what the items are for and when you need them' : 'Tell us about the celebration'}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <FormField id="f-eventName" label="Event name" required value={form.eventName} onChange={(e) => update({ eventName: e.target.value })} error={errors.eventName} placeholder="e.g. Santos–Reyes Wedding Reception" sx={{ gridColumn: { sm: '1 / -1' } }} inputProps={{ maxLength: 80 }} />
                 <SelectField id="f-occasion" label="Occasion" required value={form.occasion} onChange={(e) => update({ occasion: e.target.value })} options={OCCASIONS} placeholder="Select an occasion" error={errors.occasion} sx={{ gridColumn: { sm: '1 / -1' } }} />
@@ -658,7 +659,7 @@ export default function BookEventPage() {
 
             {/* Asked before the package, because it decides whether there is a menu to fill in and
                 how the price is worked out. Every package can be booked either way. */}
-            <Section id="service" index={sectionNo('service')} title="What you are booking" subtitle="This decides whether we cook for you." error={errors.serviceType}>
+            <Section id="service" index={sectionNo('service')} title="What You Are Booking" subtitle="This decides whether we cook for you." error={errors.serviceType}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', xl: rentalPkg ? 'repeat(3, 1fr)' : '1fr 1fr' }, gap: 1.5 }}>
                 {[
                   ['Buffet and Catering', 'We cook your food', `One pork, chicken, fish and vegetable dish, with ${BUFFET_DRINKS.toLowerCase()}. Charged ${peso(data.pricePerPlate)} per person.`],
@@ -707,7 +708,7 @@ export default function BookEventPage() {
                   );
                 })}
               </Box>
-              {/* What the chosen package includes, and how it is booked once "What you are booking" is picked */}
+              {/* What the chosen package includes, and how it is booked once "What You Are Booking" is picked */}
               {pkg && (
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>{pkg.name} includes</Typography>
@@ -725,7 +726,7 @@ export default function BookEventPage() {
             {/* Equipment rental: how many of each item, grouped like the inventory, with each item's
                 availability on the chosen date */}
             {rental && (
-              <Section id="items" index={sectionNo('items')} title="Items to rent" subtitle="Type how many you need of each item. Prices are per piece for your whole rental." error={errors.rentalItems}>
+              <Section id="items" index={sectionNo('items')} title="Items to Rent" subtitle="Type how many you need of each item. Prices are per piece for your whole rental." error={errors.rentalItems}>
                 {!form.date && (
                   <AlertBanner tone="info" sx={{ mb: 2 }}>
                     Choose your date above to see what is available that day.
@@ -733,7 +734,7 @@ export default function BookEventPage() {
                 )}
                 {INVENTORY_CATEGORIES.filter((category) => data.rentals.some((i) => i.category === category)).map((category) => (
                   <Box key={category} sx={{ mb: 2 }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: tokens.textMuted, mb: 1 }}>{category}</Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted, mb: 1 }}>{titleCase(category)}</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {data.rentals
                         .filter((i) => i.category === category)
@@ -781,7 +782,7 @@ export default function BookEventPage() {
 
             {/* Only for a buffet: one dish from each category, and unlimited water and juice for everyone */}
             {buffet && (
-              <Section id="food" index={sectionNo('food')} title="Your menu" subtitle={`Write what you would like for each part of the menu. ${peso(data.pricePerPlate)} per person covers all of it.`}>
+              <Section id="food" index={sectionNo('food')} title="Your Menu" subtitle={`Write what you would like for each part of the menu. ${peso(data.pricePerPlate)} per person covers all of it.`}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                   {DISH_CATEGORIES.map(({ key, label }) => {
                     // The admin's dish list is offered as autocomplete, but anything can be typed,
@@ -823,7 +824,7 @@ export default function BookEventPage() {
             )}
 
             {rental ? (
-              <Section id="venue" index={sectionNo('venue')} title="Pick up or delivery" error={errors.fulfilment}>
+              <Section id="venue" index={sectionNo('venue')} title="Pick Up or Delivery" error={errors.fulfilment}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
                   {[
                     ['pickup', 'Pick up', `Free. Collect the items at ${RENTAL.pickupAddress}.`],
@@ -852,7 +853,7 @@ export default function BookEventPage() {
                 )}
               </Section>
             ) : (
-            <Section id="venue" index={sectionNo('venue')} title="Venue and logistics">
+            <Section id="venue" index={sectionNo('venue')} title="Venue and Logistics">
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <FormField id="f-venueName" label="Venue name" required value={form.venueName} onChange={(e) => update({ venueName: e.target.value })} error={errors.venueName} placeholder="e.g. The Glass Garden" />
                 <FormField id="f-venueAddress" label="Venue address" required value={form.venueAddress} onChange={(e) => update({ venueAddress: e.target.value })} error={errors.venueAddress} placeholder="Street, barangay" />
@@ -863,11 +864,11 @@ export default function BookEventPage() {
             )}
 
             {!rental && (
-            <Section id="addons" index={sectionNo('addons')} title="Additional charges" subtitle="Optional. Tick what you need. A charge marked Quoted is priced in your quotation.">
+            <Section id="addons" index={sectionNo('addons')} title="Additional Charges" subtitle="Optional. Tick what you need. A charge marked Quoted is priced in your quotation.">
               {/* The charges customers tick, then the charges with packages, where a ticked charge asks for one package */}
               {[
                 { key: 'plain', list: data.addons.filter((a) => !a.hasPackages) },
-                { key: 'packages', list: data.addons.filter((a) => a.hasPackages), title: 'Additional charges with packages', hint: 'Tick one, then pick the package you want.' }
+                { key: 'packages', list: data.addons.filter((a) => a.hasPackages), title: 'Additional Charges With Packages', hint: 'Tick one, then pick the package you want.' }
               ]
                 .filter((group) => group.list.length)
                 .map((group, groupIndex) => (
@@ -1000,7 +1001,7 @@ export default function BookEventPage() {
             </Section>
             )}
 
-            <Section id="review" index={sectionNo('review')} title="Review and submit">
+            <Section id="review" index={sectionNo('review')} title="Review and Submit">
               {rental ? <RentalQuoteLines quote={quote} delivered={delivered} /> : <QuoteLines quote={quote} pkg={pkg} serviceType={form.serviceType} addons={chosenAddons} addonQty={form.addonQty} />}
               <AlertBanner tone="info" sx={{ mt: 2 }}>
                 {rental
@@ -1036,7 +1037,7 @@ export default function BookEventPage() {
           {/* ============ Right: live summary ============ */}
           <Box sx={{ display: { xs: 'none', lg: 'block' }, position: 'sticky', top: tokens.headerHeight + 24 }}>
             <DashCard>
-              <CardTitle>Your reservation</CardTitle>
+              <CardTitle>Your Reservation</CardTitle>
               {(rental
                 ? [
                     ['Booking', form.serviceType],
@@ -1062,7 +1063,7 @@ export default function BookEventPage() {
               ))}
               <Divider sx={{ my: 1.5 }} />
               {/* The package price plus, for a buffet, the food: both are known now, so this is a real figure */}
-              <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: tokens.textMuted }}>{rental ? 'Rental total' : 'Starting total'}</Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted }}>{rental ? 'Rental total' : 'Starting total'}</Typography>
               <Typography sx={{ fontSize: 28, fontWeight: 800 }}>{pkg && (!rental || rentalChosen.length) ? peso(knownTotal) : '—'}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {rental

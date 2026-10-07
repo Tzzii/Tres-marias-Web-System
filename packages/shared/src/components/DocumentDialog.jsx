@@ -172,7 +172,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
             </Box>
             {/* A title too long to sit beside the name (the contracts, on A4) moves under it, still on the right */}
             <Box sx={{ ml: { sm: 'auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
-              <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{TITLES[rental && doc.kind === 'contract' ? 'rentalContract' : doc.kind]}</Typography>
+              <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark }}>{TITLES[rental && doc.kind === 'contract' ? 'rentalContract' : doc.kind]}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {doc.kind === 'receipt' ? `No. ${payment.receiptNo}` : `Ref. ${detail.ref}`}
               </Typography>
@@ -189,15 +189,15 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
             <Box>
-              <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.textMuted }}>
-                {doc.kind === 'receipt' ? 'Received from' : 'Prepared for'}
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                {doc.kind === 'receipt' ? 'Received From' : 'Prepared For'}
               </Typography>
               <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.customerName}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{detail.customerEmail}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{formatMobile(detail.customerMobile)}</Typography>
             </Box>
             <Box>
-              <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.textMuted }}>Event</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Event</Typography>
               <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.eventName}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {/* An event shows its start and end ("6:00 pm – 10:00 pm"); a rental its pick-up or delivery time */}
@@ -225,7 +225,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
                     {detail.packageName} · {delivered ? 'Delivery' : 'Pick up'}
                   </Typography>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.textMuted }}>Damage fee per piece</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Damage Fee per Piece</Typography>
                   <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{detail.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}</Typography>
                 </Box>
               ) : (
@@ -235,13 +235,13 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                 </Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
                   <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.textMuted }}>Package includes</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Package Includes</Typography>
                     <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{detail.package.items.map(formatPackageItem).join(', ')}</Typography>
                   </Box>
                   <Box>
                     {/* A buffet prints its four dishes and the drinks; catering only says there is no food */}
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.textMuted }}>
-                      {includesFood(detail.serviceType) ? 'Buffet menu' : 'Food'}
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                      {includesFood(detail.serviceType) ? 'Buffet Menu' : 'Food'}
                     </Typography>
                     <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
                       {includesFood(detail.serviceType)
@@ -292,7 +292,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                       Draft · This contract becomes final once your booking is confirmed.
                     </Typography>
                   )}
-                  <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Terms and conditions</Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Terms and Conditions</Typography>
                   {rental ? (
                     <RentalTerms detail={detail} quote={quote} delivered={delivered} />
                   ) : (
@@ -345,7 +345,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
               {doc.kind === 'quotation' && (
                 <Box sx={{ mt: 4 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
-                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Payment record</Typography>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Payment Record</Typography>
                     {verifiedPayments.length > 0 && detail.balance <= 0 && !ended && (
                       <Typography sx={{ px: 1.25, py: 0.25, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', borderRadius: 1, border: '2px solid #047857', color: '#047857' }}>FULLY PAID</Typography>
                     )}
@@ -353,13 +353,13 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   {verifiedPayments.length === 0 ? (
                     <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>No payments received yet.</Typography>
                   ) : (
-                    <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, '& th, & td': { py: 0.75, px: 0.5, textAlign: 'left', borderBottom: `1px solid ${tokens.cardLightBorder}` }, '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.textMuted }, '& .amt': { textAlign: 'right' } }}>
+                    <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, '& th, & td': { py: 0.75, px: 0.5, textAlign: 'left', borderBottom: `1px solid ${tokens.cardLightBorder}` }, '& th': { fontSize: 12, fontWeight: 700, color: tokens.textMuted }, '& .amt': { textAlign: 'right' } }}>
                       <thead>
                         <tr>
-                          <th>Date paid</th>
+                          <th>Date Paid</th>
                           <th>Payment</th>
                           <th>Method</th>
-                          <th>Receipt no.</th>
+                          <th>Receipt No.</th>
                           <th className="amt">Amount</th>
                         </tr>
                       </thead>

@@ -37,12 +37,12 @@ const FILTERS = [
   ['approved', 'Approved', (r) => ['approved', 'downpayment_paid'].includes(r.status)],
   ['confirmed', 'Confirmed', (r) => r.status === 'confirmed'],
   ['completed', 'Completed', (r) => r.status === 'completed'],
-  ['closed', 'Declined / cancelled', (r) => ['declined', 'cancelled'].includes(r.status)]
+  ['closed', 'Declined / Cancelled', (r) => ['declined', 'cancelled'].includes(r.status)]
 ];
 
 /** 1h · My reservations list. */
 export default function ReservationsPage() {
-  useDocumentTitle('My reservations');
+  useDocumentTitle('My Reservations');
   const navigate = useNavigate();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -96,7 +96,7 @@ export default function ReservationsPage() {
   return (
     <>
       <PageHeader
-        title="My reservations"
+        title="My Reservations"
         subtitle="Every request, booking and past event in one place."
         actions={
           <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/portal/book')}>
@@ -123,7 +123,7 @@ export default function ReservationsPage() {
                     return nextParams;
                   }, { replace: true });
                 }}
-                // The "Declined / cancelled" tab only appears if there are any
+                // The "Declined / Cancelled" tab only appears if there are any
                 options={FILTERS.filter(([key]) => key !== 'closed' || counts.closed).map(([value, label]) => ({ value, label, count: loading ? undefined : counts[value] }))}
               />
               <SearchField id="reservation-search" value={query} onChange={setQuery} placeholder="Search by event or date" />

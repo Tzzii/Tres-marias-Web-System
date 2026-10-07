@@ -110,11 +110,10 @@ const lightComponents = {
   MuiTableCell: {
     styleOverrides: {
       root: { borderColor: tokens.cardLightBorder, fontSize: 13.5 },
+      // Column headings show as written, in Title Case ("Event Date"), not forced into capitals
       head: {
-        fontSize: 11,
+        fontSize: 12.5,
         fontWeight: 700,
-        letterSpacing: '0.07em',
-        textTransform: 'uppercase',
         color: tokens.textMuted,
         backgroundColor: tokens.surfaceSubtle,
         whiteSpace: 'nowrap'

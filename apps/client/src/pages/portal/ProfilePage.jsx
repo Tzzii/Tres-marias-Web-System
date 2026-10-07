@@ -37,7 +37,7 @@ import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
  * is signed out.
  */
 export default function ProfilePage() {
-  useDocumentTitle('My profile');
+  useDocumentTitle('My Profile');
   const notify = useNotify();
   const navigate = useNavigate();
   const { user, updateUser, signOut } = useAuth();
@@ -118,7 +118,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="My profile" subtitle="Keep your contact details current so our team can reach you about your events." />
+      <PageHeader title="My Profile" subtitle="Keep your contact details current so our team can reach you about your events." />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
         <DashCard component="form" noValidate onSubmit={saveProfile}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
@@ -144,7 +144,7 @@ export default function ProfilePage() {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <DashCard component="form" noValidate onSubmit={savePassword}>
-            <CardTitle subtitle="8 characters or more, with a number">Change password</CardTitle>
+            <CardTitle subtitle="8 characters or more, with a number">Change Password</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box>
                 <PasswordField id="pw-current" label="Current password" autoComplete="current-password" value={pw.current} onChange={(e) => { setPw((p) => ({ ...p, current: e.target.value })); setPwErrors({}); }} error={pwErrors.current} />
@@ -180,7 +180,7 @@ export default function ProfilePage() {
       {/* Step 2 of the password change: the code emailed to the account */}
       <EmailCodeDialog
         challenge={challenge}
-        title="Confirm your new password"
+        title="Confirm Your New Password"
         actionLabel="Change password"
         onVerify={confirmCode}
         onResend={() => authApi.resendPasswordChangeCode(challenge.challengeId)}

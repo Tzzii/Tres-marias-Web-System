@@ -28,6 +28,7 @@ import {
   formatPackageItem,
   isRentalPackage,
   peso,
+  titleCase,
   tokens,
   useDocumentTitle,
   useResource
@@ -64,7 +65,7 @@ export default function PackageDetailPage() {
   const [guests, setGuests] = useState(intent.guests ? String(intent.guests) : '');
   const [occasion, setOccasion] = useState(intent.occasion || '');
   const [guestError, setGuestError] = useState('');
-  const [gateOpen, setGateOpen] = useState(false); // "Create an account to reserve" popup
+  const [gateOpen, setGateOpen] = useState(false); // "Create an Account to Reserve" popup
   const isDesktop = useMediaQuery('(min-width:900px)');
 
   // Unknown package slug: show the 404 page
@@ -104,7 +105,7 @@ export default function PackageDetailPage() {
       <Paper id="reserve-panel" elevation={0} sx={{ p: 3, borderRadius: 3, backgroundColor: site.card, color: site.ink, border: `1px solid ${site.border}`, boxShadow: site.shadowPanel, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {rental ? (
           <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: site.inkMuted }}>Rental prices</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: site.inkMuted }}>Rental prices</Typography>
             <Typography sx={{ fontFamily: site.fontSerif, fontSize: 30, fontWeight: 700, color: site.goldText }}>Per piece</Typography>
             <Typography sx={{ fontSize: 13, color: site.inkSoft }}>
               Free pick-up in {RENTAL.pickupAddress}, or delivery from {peso(RENTAL.deliveryFee)}
@@ -112,7 +113,7 @@ export default function PackageDetailPage() {
           </Box>
         ) : (
           <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: site.inkMuted }}>Package price</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: site.inkMuted }}>Package price</Typography>
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
               <Typography sx={{ fontFamily: site.fontSerif, fontSize: 34, fontWeight: 700, color: site.goldText }}>{peso(pkg.price)}</Typography>
               <Typography sx={{ fontSize: 13, color: site.inkMuted }}>Default: {pkg.guests} guests</Typography>
@@ -185,7 +186,7 @@ export default function PackageDetailPage() {
               <>
               <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>
                 <Typography component="h2" sx={{ fontFamily: site.fontSerif, fontSize: 23, fontWeight: 600, color: site.ink, mb: 2 }}>
-                  What's included
+                  What's Included
                 </Typography>
                 <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
                   {pkg.items.map((item) => (
@@ -199,7 +200,7 @@ export default function PackageDetailPage() {
 
               <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>
                 <Typography component="h2" sx={{ fontFamily: site.fontSerif, fontSize: 23, fontWeight: 600, color: site.ink }}>
-                  Food and additional charges
+                  Food and Additional Charges
                 </Typography>
                 <Typography sx={{ mt: 0.5, mb: 2.5, fontSize: 13.5, lineHeight: 1.75, color: site.inkSoft }}>
                   Food is not part of the package. On the reservation form you choose a buffet, where you pick one pork, chicken, fish and vegetable dish and we charge per person on top of this package, or catering only, where you get the equipment above and cook the food yourself. You can add any of the extras below; one without a price shown is priced in your quotation.
@@ -272,14 +273,14 @@ function RentalPriceList({ rentals }) {
   return (
     <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>
       <Typography component="h2" sx={{ fontFamily: site.fontSerif, fontSize: 23, fontWeight: 600, color: site.ink }}>
-        What you can rent
+        What You Can Rent
       </Typography>
       <Typography sx={{ mt: 0.5, mb: 2.5, fontSize: 13.5, lineHeight: 1.75, color: site.inkSoft }}>
         Prices are per piece for your whole rental. Pick up for free in {RENTAL.pickupAddress}, or have it delivered for {peso(RENTAL.deliveryFee)} (a large order may be quoted a different delivery fee). A piece that comes back damaged or missing is charged at its damage fee.
       </Typography>
       {INVENTORY_CATEGORIES.filter((category) => rentals.some((i) => i.category === category)).map((category) => (
         <Box key={category} sx={{ mb: 2.5 }}>
-          <Typography sx={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: site.goldText, mb: 1 }}>{category}</Typography>
+          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: site.goldText, mb: 1 }}>{titleCase(category)}</Typography>
           <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }}>
             {rentals
               .filter((i) => i.category === category)
