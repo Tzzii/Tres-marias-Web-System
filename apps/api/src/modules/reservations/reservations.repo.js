@@ -88,6 +88,8 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     serviceType: row.service_type,
     menu: parseJson(row.menu),
     foodNotes: row.food_notes,
+    // The theme, colour motif and design details (domain/styling.js), or null: a rental, a blank section, an older booking
+    styling: parseJson(row.styling),
     pricePerPlate: row.price_per_plate,
     minDownpayment: row.min_downpayment,
     venue: { name: row.venue_name, address: row.venue_address, city: row.city, accessNotes: row.access_notes },
@@ -150,7 +152,7 @@ export async function findReservations(db, filter = {}) {
   const { where, params } = scope(filter);
   const [rows] = await db.query(
     `SELECT r.ref, r.customer_id, r.event_name, r.occasion, r.date, r.start_time, r.end_time, r.guests, r.package_id, r.service_type,
-            r.fulfilment, r.menu, r.food_notes, r.price_per_plate, r.min_downpayment, r.venue_name, r.venue_address, r.city, r.access_notes,
+            r.fulfilment, r.menu, r.food_notes, r.styling, r.price_per_plate, r.min_downpayment, r.venue_name, r.venue_address, r.city, r.access_notes,
             r.status, r.estimate, r.quotation, r.downpayment_due, r.preparing_at, r.notes, r.decline_reason, r.cancel_reason,
             r.cancelled_by, r.created_at, r.terms_version,
             p.name AS package_name, p.slug AS package_slug, c.name AS customer_name, c.email AS customer_email, c.mobile AS customer_mobile
@@ -383,20 +385,21 @@ export async function rentalStockInputs(db, date) {
 /**
  * Save a new booking from its record. `venue` is flattened into four columns; fulfilment is NULL for
  * everything but an equipment rental, and endTime is NULL for a rental; `minDownpayment` is the setting
- * copied at booking, `termsVersion` the Terms version the customer agreed to ('' when none), and
+ * copied at booking, `termsVersion` the Terms version the customer agreed to ('' when none), `styling`
+ * the theme and colours (JSON, NULL when none), and
  * `preparingAt` / `cancelledBy` start empty (NULL). A ref already in use fails with ER_DUP_ENTRY on
  * the primary key.
  */
 export async function insertReservation(conn, r) {
   await conn.query(
     `INSERT INTO reservations (ref, customer_id, event_name, occasion, date, start_time, end_time, guests, package_id, service_type, fulfilment,
-                               menu, food_notes, price_per_plate, min_downpayment, venue_name, venue_address, city, access_notes, status,
+                               menu, food_notes, styling, price_per_plate, min_downpayment, venue_name, venue_address, city, access_notes, status,
                                estimate, quotation, downpayment_due, preparing_at, notes, decline_reason, cancel_reason, cancelled_by, created_at,
                                terms_version)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       r.ref, r.customerId, r.eventName, r.occasion, r.date, r.startTime, r.endTime || null, r.guests, r.packageId, r.serviceType, r.fulfilment || null,
-      toJson(r.menu), r.foodNotes, r.pricePerPlate, r.minDownpayment, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes, r.status,
+      toJson(r.menu), r.foodNotes, toJson(r.styling ?? null), r.pricePerPlate, r.minDownpayment, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes, r.status,
       toJson(r.estimate), toJson(r.quotation), r.downpaymentDue, r.preparingAt ?? null, r.notes, r.declineReason, r.cancelReason, r.cancelledBy ?? null,
       r.createdAt, r.termsVersion || ''
     ]
@@ -450,6 +453,7 @@ const COLUMNS = {
   fulfilment: ['fulfilment', plain],
   menu: ['menu', toJson],
   foodNotes: ['food_notes', plain],
+  styling: ['styling', toJson],
   estimate: ['estimate', toJson],
   quotation: ['quotation', toJson],
   downpaymentDue: ['downpayment_due', plain],
@@ -461,7 +465,7 @@ const COLUMNS = {
 /**
  * Save changed fields of a booking, given in the record's shape, e.g. { status: 'approved',
  * downpaymentDue: '2026-10-06' } or { venue: { name, address, city, accessNotes } } (the four venue
- * columns). JSON fields (menu, estimate, quotation) are stored with toJson. Only the fields in COLUMNS
+ * columns). JSON fields (menu, styling, estimate, quotation) are stored with toJson. Only the fields in COLUMNS
  * and `venue` can be written; any other name is a programming error and throws before anything is saved.
  */
 export async function updateReservation(conn, ref, changes) {

@@ -17,15 +17,16 @@ import { getCalendar } from './calendar.js';
  *   none), so it only sends the usual change event, like the other admin actions and edits.
  * - The admin never approves: the customer accepts the quotation (acceptQuotation), which approves it.
  * - The admin's actions and edits (Phase 6B) answer with the booking's summary,
- *   { changed } for logistics and rented items, { ok: true } for the menu and notes.
+ *   { changed } for logistics and rented items, { ok: true } for the menu, the theme and colours, and notes.
  */
 
 // A reservation ref in a URL path (never trust a path segment)
 const segment = (ref) => encodeURIComponent(String(ref || ''));
 
 // The fields the booking form sends (the page also keeps drafts and typed quantities in its form state);
-// endTime is an event's (2 to 6 hours after the start), agreeTerms the "I agree to the Terms of Service" tick
-const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'date', 'startTime', 'endTime', 'agreeTerms', 'guests', 'menu', 'foodNotes', 'addonIds', 'addonQty', 'venueName', 'venueAddress', 'city', 'accessNotes', 'fulfilment', 'rentalItems'];
+// endTime is an event's (2 to 6 hours after the start), agreeTerms the "I agree to the Terms of Service" tick,
+// styling an event's theme, colour motif and design details ({ theme, themeOther, colors, notes }, domain/styling.js)
+const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'date', 'startTime', 'endTime', 'agreeTerms', 'guests', 'menu', 'foodNotes', 'styling', 'addonIds', 'addonQty', 'venueName', 'venueAddress', 'city', 'accessNotes', 'fulfilment', 'rentalItems'];
 
 // Reload the availability map after a write that can change it (no change event of its own). The
 // write is saved either way, so a failed reload is not an error: the map catches up on its next load.
@@ -121,6 +122,9 @@ export const updateLogistics = (ref, patch) => slotWrite((options) => http.patch
 
 /** Change the service type, the menu and the food notes. Returns { ok: true }. */
 export const updateMenu = (ref, values) => http.put(adminPath(ref, 'menu'), values);
+
+/** Change the theme, colour motif and design details: { theme, themeOther, colors, notes }. Returns { ok: true }. */
+export const updateStyling = (ref, values) => http.put(adminPath(ref, 'styling'), values);
 
 /** Save the admin's private notes. Returns { ok: true }. */
 export const saveNotes = (ref, notes) => http.put(adminPath(ref, 'notes'), { notes });

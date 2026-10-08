@@ -49,6 +49,7 @@ Content-Type: application/json
   "guests": 120,
   "menu": { "pork": "Lechon kawali", "chicken": "Chicken inasal", "fish": "Sweet and sour fish", "vegetable": "Chopsuey" },
   "foodNotes": "One vegetarian table",
+  "styling": { "theme": "Barrio Fiesta", "themeOther": "", "colors": [{ "hex": "#D32F2F" }, { "name": "Gold", "metallic": true }], "notes": "Banderitas over the buffet" },
   "addonIds": ["add-waiters"],
   "addonQty": { "add-waiters": 3 },
   "venueName": "Barangay Hall",
@@ -184,6 +185,14 @@ Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 { "serviceType": "Buffet and Catering", "menu": { "pork": "Lechon kawali", "chicken": "Chicken inasal", "fish": "Sweet and sour fish", "vegetable": "Chopsuey" }, "foodNotes": "" }
+
+### Theme, colour motif (up to 5, each named again from its code) and design details -> { ok: true }, logged in the
+### Activity. "Other" with no theme typed: 400 INVALID, meta.field "styling.themeOther"; an equipment rental: 400 INVALID
+PUT {{api}}/admin/reservations/{{ref}}/styling
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "theme": "Other", "themeOther": "Paris", "colors": [{ "hex": "#C8A2C8" }, { "name": "Silver", "metallic": true }], "notes": "Eiffel tower backdrop" }
 
 ### The admin's private notes -> { ok: true } (never in a customer's answer)
 PUT {{api}}/admin/reservations/{{ref}}/notes

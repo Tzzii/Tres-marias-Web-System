@@ -106,6 +106,10 @@ reservationAdminRoutes.patch('/:ref/logistics', validate({ params: schemas.refPa
 reservationAdminRoutes.put('/:ref/menu', validate({ params: schemas.refParams, body: schemas.menuBody }), async (req, res) => {
   res.json(await reservations.updateMenu(req.valid.params.ref, req.valid.body, req.user));
 });
+// { theme, themeOther, colors, notes }: the theme, colour motif and design details -> { ok: true }
+reservationAdminRoutes.put('/:ref/styling', validate({ params: schemas.refParams, body: schemas.stylingBody }), async (req, res) => {
+  res.json(await reservations.updateStyling(req.valid.params.ref, req.valid.body, req.user));
+});
 // { notes } (private to the admin) -> { ok: true }
 reservationAdminRoutes.put('/:ref/notes', validate({ params: schemas.refParams, body: schemas.notesBody }), async (req, res) => {
   res.json(await reservations.saveNotes(req.valid.params.ref, req.valid.body.notes));

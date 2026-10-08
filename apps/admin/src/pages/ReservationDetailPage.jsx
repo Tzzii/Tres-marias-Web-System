@@ -40,8 +40,11 @@ import {
   StarRating,
   StatusChip,
   StatusPipeline,
+  StylingFields,
+  StylingSummary,
   TimeField,
   catalogApi,
+  cleanStyling,
   computeQuote,
   daysFromToday,
   documentsFor,
@@ -61,6 +64,7 @@ import {
   qrState,
   reservationApi,
   shiftEndTime,
+  stylingProblem,
   titleCase,
   tokens,
   useDocumentTitle,
@@ -83,7 +87,8 @@ const PREPARABLE = ['downpayment_paid', 'confirmed'];
  * approves the request by accepting it in their portal; the status card says which side it waits on.
  * Besides the status actions, the admin can cancel an approved, downpayment-paid or confirmed booking
  * (with a reason the customer sees), mark "Started preparing" (after which the customer can't cancel
- * online) or undo it, and record the refund owed on a cancelled or overpaid booking.
+ * online) or undo it, and record the refund owed on a cancelled or overpaid booking. An event's theme,
+ * colours and design details from the booking form have their own card and Edit dialog (StylingDialog).
  * The Payments card also shows the customer's QR Ph codes (QrCodes): a notice while one is open, and
  * the record of every one they opened.
  */
@@ -258,6 +263,17 @@ export default function ReservationDetailPage() {
             </DashCard>
             )}
 
+            {/* The look the customer chose on the booking form (Theme and Colors); the admin edits it after a
+                change request. "To Discuss" when they haven't decided. A rental has none. */}
+            {!isRental(r.serviceType) && (
+              <DashCard>
+                <CardTitle subtitle="Never changes the price. Edits show in the Activity, which the customer sees." action={!closed && <Button size="small" variant="outlined" onClick={() => setDialog('styling')}>Edit</Button>}>
+                  Theme and Colors
+                </CardTitle>
+                <StylingSummary styling={r.styling} forAdmin />
+              </DashCard>
+            )}
+
           </Box>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
@@ -427,6 +443,7 @@ export default function ReservationDetailPage() {
       <ConfirmDialog open={dialog === 'unprepare'} onClose={() => setDialog(null)} title="Undo “Started Preparing”?" description="The customer is told in their chat that it was marked by mistake, with the date online cancellation is open until (when it hasn't passed)." confirmLabel="Undo" onConfirm={async () => { await reservationApi.undoPreparing(r.ref); setDialog(null); notify('The “Started preparing” mark was removed.', 'info'); }} />
       <RefundDialog open={dialog === 'refund'} onClose={() => setDialog(null)} booking={r} onRecorded={(refund) => { setDialog(null); notify(refundRecordedText(refund)); }} />
       <CashDialog open={dialog === 'cash'} onClose={() => setDialog(null)} r={r} onSubmit={async (amount) => { await paymentApi.recordCashPayment(r.ref, amount); setDialog(null); notify('Payment recorded and receipt issued.'); }} />
+      <StylingDialog open={dialog === 'styling'} onClose={() => setDialog(null)} r={r} onSubmit={async (values) => { await reservationApi.updateStyling(r.ref, values); setDialog(null); notify('Theme and colors saved.'); }} />
       <MenuDialog open={dialog === 'food'} onClose={() => setDialog(null)} r={r} onSubmit={async (patch) => { await reservationApi.updateMenu(r.ref, patch); setDialog(null); notify('Menu updated. Re-send the quotation if the total changed.'); }} />
       {isRental(r.serviceType) && (
         <>
@@ -952,6 +969,80 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
           })}
         <FormField id="menu-notes" label="Note about the food" multiline minRows={3} value={values.foodNotes} onChange={set('foodNotes')} inputProps={{ maxLength: 500 }} hint="Allergies, a vegetarian portion, serving time. Does not change the price." />
       </Box>
+    </AppDialog>
+  );
+}
+
+/**
+ * Dialog for the admin to change the theme, colour motif and design details (e.g. after the customer's
+ * change request), with the same fields and rules as the booking form (StylingFields; the server checks
+ * them again). They never change the price, so nothing is re-quoted; the change shows in the Activity.
+ * Once "Started preparing" is marked, a warning asks the admin to check the team can still change the linens.
+ */
+function StylingDialog({ open, onClose, r, onSubmit }) {
+  const start = () => ({ theme: '', themeOther: '', colors: [], notes: '', ...(r.styling || {}) });
+  const [values, setValues] = useState(start);
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Start from what is saved each time the dialog opens
+  useEffect(() => {
+    if (!open) return;
+    setValues(start());
+    setErrors({});
+    setError('');
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const change = (patch) => {
+    setValues((v) => ({ ...v, ...patch }));
+    setErrors({});
+    setError('');
+  };
+  const cleaned = cleanStyling(values);
+  const changed = JSON.stringify(cleaned) !== JSON.stringify(cleanStyling(start()));
+
+  // Save; a problem the form or the server finds shows under its field (or on top when it has none)
+  const save = async () => {
+    const problem = stylingProblem(cleaned);
+    if (problem) return setErrors({ [problem.field]: problem.message });
+    setBusy(true);
+    try {
+      await onSubmit(cleaned || { theme: '', themeOther: '', colors: [], notes: '' });
+    } catch (e) {
+      if (e.meta && e.meta.field) setErrors({ [e.meta.field]: e.message });
+      else setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+    return undefined;
+  };
+
+  return (
+    <AppDialog
+      open={open}
+      onClose={onClose}
+      busy={busy}
+      maxWidth="md"
+      fullScreenOnMobile
+      title="Edit Theme and Colors"
+      description="The look the team sets up for this event. It never changes the price."
+      actions={
+        <>
+          <Button onClick={onClose} disabled={busy}>Cancel</Button>
+          <BusyButton busy={busy} disabled={!changed} onClick={save}>
+            Save
+          </BusyButton>
+        </>
+      }
+    >
+      {r.preparingAt && (
+        <AlertBanner tone="warning" sx={{ mb: 2 }}>
+          Preparation has started. Check that the team can still change the linens and decorations before saving.
+        </AlertBanner>
+      )}
+      {error && <AlertBanner tone="error" sx={{ mb: 2 }}>{error}</AlertBanner>}
+      <StylingFields idPrefix="styling" value={values} onChange={change} occasion={r.occasion} errors={errors} />
     </AppDialog>
   );
 }

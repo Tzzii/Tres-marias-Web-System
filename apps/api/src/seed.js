@@ -179,6 +179,7 @@ function toRows(data, hashes, now) {
       fulfilment: r.fulfilment || null,
       menu: toJson(r.menu),
       food_notes: r.foodNotes || '',
+      styling: toJson(r.styling ?? null), // the theme, colours and design details; NULL when none (every rental)
       price_per_plate: r.pricePerPlate ?? 0,
       min_downpayment: r.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT,
       venue_name: r.venue.name,
