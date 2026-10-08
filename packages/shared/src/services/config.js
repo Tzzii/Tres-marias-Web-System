@@ -9,7 +9,7 @@
 export const BUSINESS = {
   name: 'Tres Marias Catering Services',
   shortName: 'Tres Marias',
-  phone: '0951 562 1060',
+  phone: '+63 951 562 1060',
   email: 'emmamariaobet@gmail.com',
   serviceArea: 'Malvar, Batangas and nearby towns',
   address: 'Magapi, Malvar, Batangas',

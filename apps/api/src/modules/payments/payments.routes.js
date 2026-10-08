@@ -12,9 +12,11 @@ import * as payments from './payments.service.js';
  * request shape only; the rules are in payments.service.js. Routers, mounted by app.js:
  *   paymentRoutes                /api/payments...                 customer: own payments, the bank-transfer
  *                                                                  upload, own proofs, what can be offered,
- *                                                                  the GCash / e-wallet QR (Phase 8B)
+ *                                                                  the GCash / e-wallet QR (Phase 8B) and
+ *                                                                  the record of own QRs
  *   refundRoutes                 /api/refunds                     customer: own refunds
- *   paymentAdminRoutes           /api/admin/payments...           every payment, proofs, verify, reject
+ *   paymentAdminRoutes           /api/admin/payments...           every payment, every QR opened, proofs,
+ *                                                                  verify, reject
  *   paymentReservationRoutes     /api/admin/reservations/:ref/... cash, reminder and refund of one booking
  *   balanceAdminRoutes           /api/admin/balances              the Payments ledger
  *   refundAdminRoutes            /api/admin/refunds...            every refund, and the refunds to send
@@ -67,6 +69,10 @@ paymentRoutes.get('/', async (req, res) => {
 paymentRoutes.get('/options', async (req, res) => {
   res.json(await payments.paymentOptions());
 });
+// The customer's QR Ph codes as a record, newest first: waiting, paid, expired or failed (no images)
+paymentRoutes.get('/qr', async (req, res) => {
+  res.json(await payments.listQrPayments({ customerId: req.user.id }));
+});
 // Open a GCash / e-wallet QR: { ref, amount } -> 201 with the QR (the same one again for the same amount while it is open)
 paymentRoutes.post('/qr', validate({ body: schemas.qrBody }), async (req, res) => {
   res.status(201).json(await payments.startQrPayment(req.user, req.valid.body));
@@ -98,6 +104,10 @@ export const paymentAdminRoutes = express.Router();
 // Every payment, newest first
 paymentAdminRoutes.get('/', async (req, res) => {
   res.json(await payments.listPayments());
+});
+// Every QR Ph code customers opened, newest first (?ref= one booking's only): the record of each try
+paymentAdminRoutes.get('/qr', validate({ query: schemas.qrListQuery }), async (req, res) => {
+  res.json(await payments.listQrPayments({ ref: req.valid.query.ref }));
 });
 // The receipt a customer uploaded
 paymentAdminRoutes.get('/:id/proof', validate({ params: schemas.idParams }), async (req, res) => {

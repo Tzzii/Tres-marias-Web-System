@@ -26,7 +26,7 @@ export const PACKAGE_ICONS = {
 };
 
 // Package illustrations shown instead of the plain icon on the public website, keyed by package slug.
-// Each file in src/assets/packages is named after its package's slug (e.g. package-2-with-waiters.svg) and
+// Each file in src/assets/packages is named after its package's slug (e.g. premier-full-service.svg) and
 // pictures what that package includes; Vite bundles them and gives back their URLs.
 // A package without a matching file (e.g. a new or renamed one) keeps the icon panel.
 export const PACKAGE_BACKDROPS = Object.fromEntries(

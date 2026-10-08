@@ -47,7 +47,7 @@ import { site } from '../../theme/siteTheme.js';
  * rented with its price per piece, and its panel asks only for the date and the occasion.
  */
 export default function PackageDetailPage() {
-  // Package name from the URL, e.g. /packages/package-1
+  // Package name from the URL, e.g. /packages/classic
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();

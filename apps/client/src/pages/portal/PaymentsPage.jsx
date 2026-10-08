@@ -33,17 +33,21 @@ import {
   PageHeader,
   PaymentStatusChip,
   Pill,
+  QrStatusChip,
   RULES,
   SelectField,
+  formatClock,
   formatDate,
   formatDateTime,
   paymentApi,
   peso,
+  qrState,
   referenceProblem,
   reservationApi,
   tokens,
   useDocumentTitle,
   useNotify,
+  useQrWatch,
   useResource
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
@@ -83,7 +87,21 @@ function copyWithTextArea(value) {
 const QR_POLL_MS = 4000;
 
 /**
- * The open QR Ph code of a reservation (Phase 8B; GCash, Maya and bank apps can scan it): the code for its exact amount, a countdown to
+ * The line under a QR Ph code in the Payment History, in the customer's words: until when it can be
+ * paid, that it is being checked, or that nothing was charged (with PayMongo's reason for a failed one).
+ * A paid QR is not listed: its payment is, with the receipt.
+ */
+function qrHistoryNote(qr) {
+  const state = qrState(qr);
+  if (state === 'waiting') return `Open until ${formatClock(qr.expiresAt)}. Scan it in your app to pay.`;
+  if (state === 'checking') return 'Its time is up. We are checking whether it was paid in its last seconds.';
+  if (state === 'failed') return `The payment did not go through${qr.failureReason ? `: ${qr.failureReason}` : ''}. Nothing was charged.`;
+  return 'Not paid before it expired. Nothing was charged.';
+}
+
+/**
+ * The open QR Ph code of a reservation (Phase 8B; GCash, Maya and bank apps can scan it): the code for its exact amount, its
+ * status (Waiting for payment, then Checking payment once its time is up), a countdown to
  * when it stops working, how to pay it (on a phone: save the image and upload it from the gallery in the
  * app; no links that open other apps) and a "Save QR image" download. While it waits it asks the server
  * every 4 seconds, only while the page is visible; the server also checks with PayMongo, so the payment
@@ -146,7 +164,11 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
         )}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Scan to Pay {peso(qr.amount)}</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Scan to Pay {peso(qr.amount)}</Typography>
+          {/* Waiting for payment while the countdown runs, Checking payment once it reaches 0:00 */}
+          <QrStatusChip qr={qr} at={clock} size="sm" />
+        </Box>
         <Box>
           <DetailRow label="Reservation">{qr.ref}</DetailRow>
           <DetailRow label="Amount (exact)">{peso(qr.amount)}</DetailRow>
@@ -173,7 +195,9 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
  * The customer types how much they are paying (whole pesos). Until the reservation's minimum downpayment
  * is reached, it is at least the rest of that minimum (all of it when the total is below the minimum)
  * and at most the balance; after that, any amount up to the balance, so the balance can be paid in parts.
- * The history also lists money returned to them (refunds).
+ * The history also lists money returned to them (refunds), and every QR Ph code they opened that is not
+ * paid (yet): Waiting for payment, Checking payment, or Expired / Failed · not charged. A paid QR shows
+ * as its payment (Verified, with the receipt), so it is never listed twice.
  */
 export default function PaymentsPage() {
   useDocumentTitle('Payments');
@@ -181,18 +205,21 @@ export default function PaymentsPage() {
   const notify = useNotify();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  // Load the customer's reservations, payment history and refunds, and whether the GCash QR can be used
+  // Load the customer's reservations, payment history, refunds and QR Ph codes, and whether the GCash QR can be used
   const { data, loading, error, reload } = useResource(async () => {
-    const [reservations, payments, refunds, options] = await Promise.all([
+    const [reservations, payments, refunds, qrs, options] = await Promise.all([
       reservationApi.listReservations({ customerId: user.id }),
       paymentApi.listPayments({ customerId: user.id }),
       paymentApi.listRefunds({ customerId: user.id }),
+      paymentApi.listQrPayments(),
       paymentApi.paymentOptions()
     ]);
-    return { reservations, payments, refunds, options };
+    return { reservations, payments, refunds, qrs, options };
   }, [user.id]);
   // The GCash / e-wallet QR can be used (PayMongo is set up on the server)
   const qr = Boolean(data && data.options && data.options.qr);
+  // The QR Ph codes in the history turn to Checking payment when their time is up, and are settled after the grace
+  useQrWatch(data ? data.qrs : [], reload);
 
   // Reservations that can be paid right now (approved or later, with money owed), soonest event first
   const payable = useMemo(
@@ -402,10 +429,12 @@ export default function PaymentsPage() {
   const payments = data ? data.payments : [];
   // Only verified payments have receipts
   const verified = payments.filter((p) => p.status === 'verified');
-  // Payments and refunds in one history, newest first (a refund is placed by when it was recorded)
+  // Payments, refunds and unpaid QR Ph codes in one history, newest first (a refund is placed by when it
+  // was recorded, a QR by when it was opened; a paid QR is left out because its payment is listed)
   const history = [
     ...payments.map((p) => ({ key: p.id, at: p.submittedAt, payment: p })),
-    ...(data ? data.refunds : []).map((r) => ({ key: r.id, at: r.recordedAt, refund: r }))
+    ...(data ? data.refunds : []).map((r) => ({ key: r.id, at: r.recordedAt, refund: r })),
+    ...(data ? data.qrs : []).filter((q) => q.status !== 'paid').map((q) => ({ key: q.id, at: q.createdAt, qr: q }))
   ].sort((a, b) => b.at - a.at);
 
   return (
@@ -606,10 +635,24 @@ export default function PaymentsPage() {
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                 {/* A refund reads "Refund −₱X" with how and when it was sent, and what was kept (and why) when it was less than
-                    owed; a refund of ₱0 reads "No refund", with the reason everything paid was kept */}
-                {history.map(({ key, payment: p, refund: r }) => (
+                    owed; a refund of ₱0 reads "No refund", with the reason everything paid was kept. An unpaid QR Ph
+                    code reads "₱X · QR Ph" with where it stands and until when it can be paid. */}
+                {history.map(({ key, payment: p, refund: r, qr: q }) => (
                   <Box key={key} sx={{ py: 1.25, borderBottom: `1px solid ${tokens.cardLightBorder}`, '&:last-child': { borderBottom: 0 } }}>
-                    {r ? (
+                    {q ? (
+                      <>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
+                          <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                            {peso(q.amount)} · QR Ph
+                          </Typography>
+                          <QrStatusChip qr={q} size="sm" />
+                        </Box>
+                        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                          {q.eventName} · opened {formatDateTime(q.createdAt)}
+                        </Typography>
+                        <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>{qrHistoryNote(q)}</Typography>
+                      </>
+                    ) : r ? (
                       <>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
                           <Typography sx={{ fontSize: 14, fontWeight: 700 }}>

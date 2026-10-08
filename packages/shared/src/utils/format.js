@@ -168,11 +168,23 @@ export const titleCase = (text = '') => {
 /** (1, 'day') -> "1 day", (3, 'day') -> "3 days". */
 export const pluralize = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
 
-/** "0917 123 4567" from any 11-digit PH mobile input. */
+/**
+ * The digits of a PH mobile number after +63 ("9171234567") however it is written: "0917 123 4567",
+ * "09171234567", "+63 917 123 4567", "639171234567" or "+63 (0) 917 123 4567". Only the prefix is removed,
+ * nothing is cut off, so a valid number gives 10 digits starting with 9. The number box (MobileField)
+ * also runs it on every key, which is why a "63" in front is only dropped once there are more than 10 digits.
+ */
+export const nationalMobile = (value = '') => {
+  let digits = String(value || '').replace(/\D/g, ''); // keep digits only
+  if (digits.length > 10 && digits.startsWith('63')) digits = digits.slice(2); // the country code
+  return digits.replace(/^0+/, ''); // the 0 of "0917…"
+};
+
+/** "+63 917 123 4567" from a PH mobile number written any way nationalMobile reads; anything else is left as typed. */
 export const formatMobile = (value = '') => {
-  const digits = String(value).replace(/\D/g, ''); // keep digits only
-  if (digits.length !== 11) return value; // not a standard number: leave as typed
-  return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+  const digits = nationalMobile(value);
+  if (!/^9\d{9}$/.test(digits)) return value; // not a standard number: leave as typed
+  return `+63 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
 };
 
 /** Hide the middle of an email for on-screen confirmations: "emmamariaobet@gmail.com" -> "em•••et@gmail.com". */
@@ -185,11 +197,11 @@ export const maskEmail = (value = '') => {
   return `${head}•••${tail}@${domain}`;
 };
 
-/** Hide the middle of a mobile number for on-screen confirmations: "09259012345" -> "0925 ••• 2345". */
+/** Hide the middle of a mobile number for on-screen confirmations: "09259012345" -> "+63 925 ••• 2345". */
 export const maskMobile = (value = '') => {
-  const digits = String(value).replace(/\D/g, '');
+  const digits = nationalMobile(value);
   if (digits.length < 8) return '•••';
-  return `${digits.slice(0, 4)} ••• ${digits.slice(-4)}`;
+  return `+63 ${digits.slice(0, 3)} ••• ${digits.slice(-4)}`;
 };
 
 // Month names, index 0 = January (matches Date.getMonth())

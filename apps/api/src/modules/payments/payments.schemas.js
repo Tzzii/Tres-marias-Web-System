@@ -40,6 +40,9 @@ export const qrBody = z.object({ ref: text(40), amount: passThrough });
 // GET /api/payments/qr/:id?image=1: the QR's image too (for a page coming back to an open QR)
 export const qrQuery = z.object({ image: z.enum(['0', '1']).optional() });
 
+// GET /api/admin/payments/qr?ref=…: one booking's QR Ph codes only (an unknown ref gives an empty list)
+export const qrListQuery = z.object({ ref: z.string().max(40, { error: 'Use 40 characters or fewer.' }).optional() });
+
 // POST /api/admin/payments/:id/reject: the reason the customer sees (at least 5 characters, checked by the service)
 export const rejectBody = z.object({ reason: text(1000) });
 

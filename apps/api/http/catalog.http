@@ -53,7 +53,7 @@ GET {{api}}/packages?includeHidden=true
 Authorization: Bearer {{customerLogin.response.body.token}}
 
 ### One public package by its URL name: 200, or 404 NOT_FOUND when hidden, archived or unknown
-GET {{api}}/packages/by-slug/package-1
+GET {{api}}/packages/by-slug/classic
 
 ### Additional charges not archived (?includeArchived=true for an admin)
 GET {{api}}/addons
@@ -83,12 +83,12 @@ Content-Type: application/json
 
 { "name": "Garden Party Package", "price": 18000, "guests": 120, "description": "Tables, chairs and tableware for a garden party.", "items": [{ "qty": 120, "name": "Chairs" }, { "qty": null, "name": "Buffet Table" }] }
 
-### Same name as another package ("Package 1!" makes the slug package-1): 409 NAME_TAKEN, meta.field "name"
+### Same name as another package ("Classic!" makes the slug classic): 409 NAME_TAKEN, meta.field "name"
 POST {{api}}/admin/packages
 Authorization: Bearer {{adminVerify.response.body.token}}
 Content-Type: application/json
 
-{ "name": "Package 1!", "price": 18000, "guests": 120, "description": "Tables, chairs and tableware.", "items": [{ "qty": 1, "name": "Table" }] }
+{ "name": "Classic!", "price": 18000, "guests": 120, "description": "Tables, chairs and tableware.", "items": [{ "qty": 1, "name": "Table" }] }
 
 ### Form checks: 400 INVALID "Enter a price of at least ₱100." (meta.field "price")
 POST {{api}}/admin/packages

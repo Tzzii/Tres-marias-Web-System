@@ -10,9 +10,9 @@ import { ADDON_PRICE_RANGE, INVENTORY_CATEGORIES } from '../services/config.js';
  */
 
 /**
- * A name as a URL-safe slug: "Package 1 with Waiters!" -> "package-1-with-waiters". Accents are
+ * A name as a URL-safe slug: "Classic Full Service!" -> "classic-full-service". Accents are
  * removed ("Café" -> "cafe"), and every run of other characters becomes one dash. Two package names
- * with the same slug count as the same name ("Package 1!" and "package 1").
+ * with the same slug count as the same name ("Classic!" and "classic").
  */
 export const slugify = (value) =>
   String(value || '')

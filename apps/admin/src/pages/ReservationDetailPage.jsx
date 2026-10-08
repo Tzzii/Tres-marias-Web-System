@@ -30,6 +30,7 @@ import {
   PageHeader,
   PaymentStatusChip,
   PAYMENT_METHODS,
+  QrStatusChip,
   REFUND_METHODS,
   RENTAL,
   RENTAL_FULFILMENT,
@@ -44,6 +45,7 @@ import {
   computeQuote,
   daysFromToday,
   documentsFor,
+  formatClock,
   formatDate,
   formatDateTime,
   formatMobile,
@@ -56,12 +58,14 @@ import {
   paymentKindLabel,
   pendingStep,
   peso,
+  qrState,
   reservationApi,
   shiftEndTime,
   titleCase,
   tokens,
   useDocumentTitle,
   useNotify,
+  useQrWatch,
   useResource
 } from '@tm/shared';
 import RefundDialog, { refundRecordedText } from '../components/RefundDialog.jsx';
@@ -80,6 +84,8 @@ const PREPARABLE = ['downpayment_paid', 'confirmed'];
  * Besides the status actions, the admin can cancel an approved, downpayment-paid or confirmed booking
  * (with a reason the customer sees), mark "Started preparing" (after which the customer can't cancel
  * online) or undo it, and record the refund owed on a cancelled or overpaid booking.
+ * The Payments card also shows the customer's QR Ph codes (QrCodes): a notice while one is open, and
+ * the record of every one they opened.
  */
 export default function ReservationDetailPage() {
   // The reservation reference from the URL, e.g. /reservations/RES-2026-1020-01
@@ -296,6 +302,8 @@ export default function ReservationDetailPage() {
                   ))}
                 </Box>
               )}
+              {/* The customer's QR Ph codes: a notice while one is open, and the record of each one */}
+              <QrCodes reservationRef={r.ref} />
               {/* Record a cash payment only once approved and while money is still owed */}
               {['approved', 'downpayment_paid', 'confirmed', 'completed'].includes(r.status) && r.balance > 0 && (
                 <Button fullWidth variant="contained" sx={{ mt: 2 }} onClick={() => setDialog('cash')}>
@@ -768,6 +776,54 @@ function NotesCard({ r, onSave }) {
         </BusyButton>
       )}
     </DashCard>
+  );
+}
+
+/**
+ * The booking's QR Ph codes (Phase 8B), inside the Payments card. While the customer has one open, a
+ * notice says so: Waiting for payment until its time is up, then Checking payment while the server asks
+ * PayMongo whether it was paid in its last seconds. There is nothing for the admin to do (PayMongo
+ * confirms it, and cash waits until it is paid or expires), so the notice has no button. Below it, every
+ * code the customer opened, newest first, as the record: when it was opened, and its receipt number once
+ * paid, until when it can be paid, or why it failed. Nothing shows for a booking with no QR codes.
+ * The list reloads by itself on every change and when an open code's time or grace runs out (useQrWatch).
+ */
+function QrCodes({ reservationRef }) {
+  const { data, reload } = useResource(() => paymentApi.listQrPayments({ ref: reservationRef }), [reservationRef]);
+  const qrs = data || [];
+  useQrWatch(qrs, reload);
+  if (!qrs.length) return null;
+  // The open one (only one at a time per booking), as the notice shows it
+  const open = qrs.find((q) => q.status === 'pending');
+  const openState = open ? qrState(open) : '';
+  return (
+    <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {openState === 'waiting' && (
+        <AlertBanner tone="info" title="Waiting for QR Ph payment">
+          The customer opened a QR Ph code for {peso(open.amount)} at {formatClock(open.createdAt)}. It can be paid until {formatClock(open.expiresAt)}. PayMongo confirms the payment by itself, so there is nothing to verify. Cash can be recorded once it is paid or expires.
+        </AlertBanner>
+      )}
+      {openState === 'checking' && (
+        <AlertBanner tone="info" title="Checking QR Ph payment">
+          The QR Ph code for {peso(open.amount)} ran out of time at {formatClock(open.expiresAt)}. The system is checking with PayMongo whether it was paid in its last seconds.
+        </AlertBanner>
+      )}
+      <Typography sx={{ mt: 0.5, fontSize: 12.5, fontWeight: 700, color: tokens.textSecondary }}>QR Ph Codes</Typography>
+      {qrs.map((q) => (
+        <Box key={q.id} sx={{ p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
+            <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{peso(q.amount)} · QR Ph</Typography>
+            <QrStatusChip qr={q} size="sm" />
+          </Box>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+            Opened {formatDateTime(q.createdAt)}
+            {q.status === 'paid' ? ` · paid${q.paidAt ? ` ${formatClock(q.paidAt)}` : ''} · ${q.receiptNo}` : ''}
+            {q.status === 'pending' ? ` · until ${formatClock(q.expiresAt)}` : ''}
+            {q.status === 'failed' && q.failureReason ? ` · ${q.failureReason}` : ''}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
   );
 }
 

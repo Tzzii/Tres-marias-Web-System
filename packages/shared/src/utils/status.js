@@ -44,6 +44,17 @@ export const PAYMENT_STATUS = {
   rejected: { label: 'Rejected', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
 };
 
+// Display name and chip colours for where a QR Ph code stands (qrState in domain/payment.js). Words of
+// their own, never "Pending" (a reservation status) or "Awaiting verification" (a bank transfer the
+// admin must check): an unpaid QR is not money received, and PayMongo confirms it, not the admin.
+export const QR_STATUS = {
+  waiting: { label: 'Waiting for payment', bg: 'rgba(14, 165, 233, 0.12)', fg: '#0369a1' },
+  checking: { label: 'Checking payment', bg: 'rgba(14, 165, 233, 0.12)', fg: '#0369a1' },
+  paid: { label: 'Paid', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },
+  expired: { label: 'Expired · not charged', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
+  failed: { label: 'Failed · not charged', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
+};
+
 // Display name for each payment method key. 'qrph' is the PayMongo QR Ph code (Phase 8B), which GCash, Maya
 // and bank apps can all scan; a bank transfer comes with a photo of its receipt; cash is recorded by the admin.
 // There is no manual GCash payment (owner's decision, 2026-09-30).

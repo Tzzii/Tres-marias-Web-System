@@ -19,6 +19,7 @@ import {
   ErrorState,
   FormField,
   ListSkeleton,
+  MobileField,
   OtpInput,
   PageHeader,
   PasswordField,
@@ -593,20 +594,35 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
       {formError && <AlertBanner tone="error" sx={{ mb: 2 }}>{formError}</AlertBanner>}
       {step === 1 ? (
         <Box component="form" id="contact-form" noValidate onSubmit={sendCode} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <FormField
-            id="contact-value"
-            label={isEmail ? 'New email' : 'New mobile number'}
-            required
-            autoFocus
-            type={isEmail ? 'email' : 'tel'}
-            autoComplete={isEmail ? 'email' : 'tel'}
-            placeholder={isEmail ? 'name@gmail.com' : '0917 123 4567'}
-            hint={isEmail ? `Current: ${profile.email}` : `Current: ${maskMobile(profile.mobile)}`}
-            value={value}
-            onChange={(e) => { setValue(e.target.value); setErrors((er) => ({ ...er, value: '' })); setFormError(''); }}
-            error={errors.value}
-            disabled={busy}
-          />
+          {/* A mobile number goes in MobileField ("+63" in front), which hands back the stored form ("09171234567") */}
+          {isEmail ? (
+            <FormField
+              id="contact-value"
+              label="New email"
+              required
+              autoFocus
+              type="email"
+              autoComplete="email"
+              placeholder="name@gmail.com"
+              hint={`Current: ${profile.email}`}
+              value={value}
+              onChange={(e) => { setValue(e.target.value); setErrors((er) => ({ ...er, value: '' })); setFormError(''); }}
+              error={errors.value}
+              disabled={busy}
+            />
+          ) : (
+            <MobileField
+              id="contact-value"
+              label="New mobile number"
+              required
+              autoFocus
+              hint={`Current: ${maskMobile(profile.mobile)}`}
+              value={value}
+              onChange={(e) => { setValue(e.target.value); setErrors((er) => ({ ...er, value: '' })); setFormError(''); }}
+              error={errors.value}
+              disabled={busy}
+            />
+          )}
           <PasswordField id="contact-password" label="Current password" required autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setErrors((er) => ({ ...er, password: '' })); setFormError(''); }} error={errors.password} disabled={busy} />
         </Box>
       ) : (

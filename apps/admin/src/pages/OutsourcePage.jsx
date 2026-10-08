@@ -34,6 +34,7 @@ import {
   ErrorState,
   Field,
   FormField,
+  MobileField,
   OUTSOURCE_SERVICES,
   PageHeader,
   Pager,
@@ -929,14 +930,14 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           hint="Where the request is emailed."
           placeholder="name@example.com"
         />
-        <FormField
+        <MobileField
           id="partner-mobile"
           label="Mobile number"
           value={values.mobile}
           onChange={set('mobile')}
           error={errors.mobile}
           hint="Where the request is texted."
-          placeholder="0917 123 4567"
+          autoComplete="off"
         />
       </Box>
       <FormField id="partner-notes" label="Notes" optional multiline minRows={2} value={values.notes} onChange={set('notes')} error={errors.notes} inputProps={{ maxLength: 300 }} placeholder="Delivery terms, rates, how far ahead they need to be booked…" sx={{ mt: 1.75 }} />
