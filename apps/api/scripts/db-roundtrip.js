@@ -4,12 +4,15 @@ import bcrypt from 'bcrypt';
 import { closePool, dbErrorHint, pool } from '../src/db.js';
 import { parseJson } from '../src/lib/json.js';
 import { seedPasswords } from '../src/seedData/passwords.js';
-import { buildSeed } from '../src/seedData/seed.js';
+import { NO_SAMPLE_DATA, loadSampleSeed } from '../src/seedData/sampleLoader.js';
+import { buildBusinessSeed } from '../src/seedData/seed.js';
 
 /**
  * `npm run db:roundtrip` — run right after `npm run seed:api`, on the same day. Reads every table back,
- * rebuilds each collection in the record shape of buildSeed() (src/seedData/seed.js) and deep-compares it
- * with a fresh buildSeed(). Exits with 1 on any difference and lists them.
+ * rebuilds each collection in the record shape of the sample data (buildSampleSeed() in
+ * src/seedData/sample/sample.js, on top of buildBusinessSeed() in src/seedData/seed.js) and deep-compares
+ * it with a fresh build of that data. Exits with 1 on any difference and lists them, and also when this
+ * computer has no seedData/sample/ (kept out of GitHub).
  *
  * It is also the tested reference for reading records out of the database (database -> record), which the
  * module repos need from Phase 6 on: e.g. a reservation's `venue` object from four columns, `addonIds` in
@@ -86,8 +89,13 @@ const group = (rows, key) => {
 };
 
 async function check() {
-  const seed = buildSeed();
-  console.log(`DB ${config.db.database} on ${config.db.host}:${config.db.port}; fresh buildSeed() dated ${seed.seededOn}, TZ ${process.env.TZ}`);
+  const buildSample = await loadSampleSeed();
+  if (!buildSample) {
+    console.error(NO_SAMPLE_DATA);
+    return 1;
+  }
+  const seed = buildSample(buildBusinessSeed());
+  console.log(`DB ${config.db.database} on ${config.db.host}:${config.db.port}; fresh sample data dated ${seed.seededOn}, TZ ${process.env.TZ}`);
 
   // ---- accounts (each password hash checked with bcrypt against the seed passwords in .env) ----
   const passwords = seedPasswords({ customers: true });
@@ -346,7 +354,7 @@ async function check() {
   console.log(`receipt_no: ${receiptStats.withReceipt} set (${receiptStats.first}..${receiptStats.last}), ${receiptStats.nullReceipt} NULL, duplicates ${dupReceipts.length}, UNIQUE index present ${receiptStats.uniqueIndex === 1}`);
   console.log(`foreign keys checked for orphans: ${fkChecked} (0 orphans unless listed below)`);
   console.log(`characters: ${JSON.stringify({ ...chars, santosHex: undefined })}; emoji round trip ${emojiOk}, test row left behind ${leftover}`);
-  console.log(`Lola Carmen's 80th Birthday: db ${lolaRow ? lolaRow.ref : '(missing)'}, fresh buildSeed() ${lolaSeed ? lolaSeed.ref : '(missing)'}`);
+  console.log(`Lola Carmen's 80th Birthday: db ${lolaRow ? lolaRow.ref : '(missing)'}, fresh sample data ${lolaSeed ? lolaSeed.ref : '(missing)'}`);
   // A seed from another day moves every relative date, so say how old the seed is
   console.log(`settings updated_at: catalog ${ageMin(catSettings.updated_at)} min ago, calendar ${ageMin(calSettings.updated_at)} min ago (both set by seed:api)`);
   notes.forEach((n) => console.log('NOTE:', n));

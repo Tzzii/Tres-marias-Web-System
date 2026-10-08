@@ -10,9 +10,9 @@ import { EMAIL_RE } from '../utils/validation.js';
  * trail, what the pages show of a partner and a contract, and the contract text.
  *
  * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/outsource), its
- * seed (apps/api/src/seedData/outsourceSeed.js) and the admin page all use this one copy instead of each
- * keeping its own (docs/backend-development-phases.md §7.8). A refusal comes back as
- * data, { code, message, meta }: the ApiError each service then throws.
+ * sample seed (apps/api/src/seedData/sample/outsourceSeed.js, on the developer's computer only) and the
+ * admin page all use this one copy instead of each keeping its own (docs/backend-development-phases.md
+ * §7.8). A refusal comes back as data, { code, message, meta }: the ApiError each service then throws.
  *
  * A "contract" in this code is the stored record of an outsourcing REQUEST (the table, the functions and
  * the ids keep that name). Tres Marias does not send a partner a contract: the partner's own rates and
