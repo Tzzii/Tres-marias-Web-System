@@ -170,6 +170,8 @@ async function check() {
       ref: r.ref, customerId: r.customer_id, eventName: r.event_name, occasion: r.occasion, date: r.date, startTime: r.start_time,
       endTime: r.end_time,
       guests: r.guests, packageId: r.package_id, serviceType: r.service_type, menu: parseJson(r.menu), foodNotes: r.food_notes,
+      // The theme, colours and design details: a JSON object, or NULL when the row left them blank (every rental)
+      styling: parseJson(r.styling),
       pricePerPlate: r.price_per_plate, minDownpayment: r.min_downpayment,
       venue: { name: r.venue_name, address: r.venue_address, city: r.city, accessNotes: r.access_notes },
       addonIds: links.map((l) => l.addon_id),

@@ -250,6 +250,12 @@ CREATE TABLE reservations (
   -- the autocomplete suggestions. NULL for a Catering only booking, which has no menu.
   menu            JSON            NULL,
   food_notes      TEXT            NOT NULL,             -- allergies, a vegetarian portion…; never changes the price
+  -- The look the customer wants, from the booking form's "Theme and Colors" (added 2026-10-08; rules in
+  -- packages/shared/src/domain/styling.js), e.g. { "theme": "Royal", "themeOther": "", "colors": [{ "hex": "#7B1E2B",
+  -- "name": "Burgundy" }, { "hex": "#C9A13B", "name": "Gold", "metallic": true }], "notes": "Gold chair sashes…" }.
+  -- Up to 5 colours, the first is the main one. Never changes the price. NULL for an equipment rental, a booking
+  -- that left the section blank, and bookings made before it existed (npm run db:migrate adds the column).
+  styling         JSON            NULL,
   -- The buffet price per person this booking was made at, copied from catalog_settings so a later
   -- price rise cannot move an existing reservation or a quotation already sent.
   price_per_plate INT             NOT NULL DEFAULT 0,

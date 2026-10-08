@@ -33,6 +33,7 @@ import {
   StarRating,
   StatusChip,
   StatusPipeline,
+  StylingSummary,
   ThemeIcon,
   daysFromToday,
   documentsFor,
@@ -47,6 +48,7 @@ import {
   pendingStep,
   peso,
   reservationApi,
+  stylingEmpty,
   toISODate,
   todayISO,
   tokens,
@@ -63,7 +65,9 @@ import { useAuth } from '../../auth.js';
  * minimum downpayment and its due date first. An out-of-date quotation ('revise') waits for the revised one.
  * Cancel shows only while the booking can be cancelled online (the summary's `onlineCancel`, worked out
  * by domain/cancellation.js); the status card says until when, or why not and how to cancel instead.
- * It also shows the "Started preparing" mark, who cancelled, and any refund owed or sent.
+ * It also shows the "Started preparing" mark, who cancelled, and any refund owed or sent, and the theme,
+ * colours and design details chosen on the booking form (a card only when there are some; the team edits
+ * them after a change request).
  */
 export default function ReservationDetailPage() {
   const { ref } = useParams();
@@ -266,6 +270,14 @@ export default function ReservationDetailPage() {
                 {r.foodNotes && <Field label="Your note about the food">{r.foodNotes}</Field>}
               </Box>
             </DashCard>
+            )}
+
+            {/* The look chosen on the booking form; hidden when there is none (a rental, a blank section, an older booking) */}
+            {!rental && !stylingEmpty(r.styling) && (
+              <DashCard>
+                <CardTitle subtitle={editable ? 'To change it, use Request a change and our team will update it.' : 'The look our team sets up for your event.'}>Theme and Colors</CardTitle>
+                <StylingSummary styling={r.styling} />
+              </DashCard>
             )}
 
             <DashCard>

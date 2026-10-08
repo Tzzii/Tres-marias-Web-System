@@ -13,6 +13,7 @@ import {
   rentalQuote,
   rentalStock
 } from '@tm/shared/src/domain/reservation.js';
+import { cleanStyling, stylingProblem, themeLabel } from '@tm/shared/src/domain/styling.js';
 import {
   BUSINESS,
   DEFAULT_MIN_DOWNPAYMENT,
@@ -47,7 +48,7 @@ import * as repo from './reservations.repo.js';
  * and the detail page, the booking form (an event or an equipment rental), the customer's cancellation
  * and change request (Phase 6A) and acceptance of the quotation (which approves the request, 2026-10-08),
  * and the admin's actions and edits: quotation, decline,
- * confirm, complete, cancel, "Started preparing" and its undo, logistics, menu, notes and rented items
+ * confirm, complete, cancel, "Started preparing" and its undo, logistics, menu, theme and colours, notes and rented items
  * (Phase 6B), with the return shapes, error codes, messages and meta.field the pages expect; the
  * booking form's checks are repeated here in the same order because the server never trusts the page
  * (§3 rule 3). The rules that need no stored data (money and the due date after a
@@ -201,6 +202,19 @@ function startTimeOf(form) {
 }
 
 /**
+ * The theme, colour motif and design details as sent (the booking form's section 4 or the admin's dialog),
+ * cleaned with the form's own rules (cleanStyling: unknown keys dropped, each colour named again from its
+ * code), or null when nothing was given. INVALID on the field the form shows it under
+ * ('styling.themeOther', 'styling.colors', 'styling.notes') when stylingProblem finds something wrong.
+ */
+function stylingOf(value) {
+  const styling = cleanStyling(value);
+  const problem = stylingProblem(styling);
+  if (problem) throw invalid(problem.message, problem.field);
+  return styling;
+}
+
+/**
  * An event's start and end time, checked against the day's other events (the booking form's checks, in
  * the same order): the start must be open (another event's window, or too little time before the next one,
  * TIME_UNAVAILABLE on startTime), the end must be 2 to 6 hours after it, on the hour or half hour (INVALID on
@@ -226,7 +240,8 @@ function eventTimesOf(form, date, map) {
  * is a real figure: package + guests x the price per person today, which is copied onto the booking so
  * a later price rise never changes it. An add-on with its own price is counted at today's price (copied
  * into the estimate's addonPrices); one without a price stays 0 until the quotation prices it.
- * The minimum downpayment in force today is copied the same way. A stock-tracked charge (a tent size)
+ * The minimum downpayment in force today is copied the same way. The theme, colour motif and design
+ * details are optional and never change the price (stylingOf). A stock-tracked charge (a tent size)
  * needs its pieces free on the date (addonStockProblem), though the pending request holds none yet.
  * Returns the booking's fields, its rental lines (none), and its activity and thank-you texts.
  */
@@ -260,6 +275,8 @@ async function eventBooking(conn, pkg, form) {
       menu[key] = cut(line, MENU_LINE_MAX);
     });
   }
+  // The look the customer wants (optional): null when the section was left blank
+  const styling = stylingOf(form.styling);
 
   // Add-ons archived while the form was open (or never offered) are dropped without an error; the rest
   // keep the order they were ticked in. Those counted by the piece need a how-many, 1 to 99. A charge
@@ -294,7 +311,7 @@ async function eventBooking(conn, pkg, form) {
   const pricePerPlate = Number(await catalogRepo.getPricePerPlate(conn)) || DEFAULT_PRICE_PER_PLATE;
   return {
     fields: {
-      eventName, occasion, date, startTime, endTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), pricePerPlate,
+      eventName, occasion, date, startTime, endTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), styling, pricePerPlate,
       minDownpayment: await currentMinDownpayment(conn), venue, addonIds, addonQty,
       // An add-on with its own price is counted at today's price; the quotation starts from it
       estimate: computeQuote({ pkg, serviceType, guests, pricePerPlate, addonIds, addonQty, addonPrices: addonPriceMap(addons) })
@@ -348,7 +365,7 @@ function rentalLines(stockData, wanted, date, { excludeRef, current = [] } = {})
  * time is when the items are picked up or delivered, on the hour or half hour. Pick-up is at
  * RENTAL.pickupPlace and costs nothing; delivery adds the standard fee, which the admin may change in
  * the quotation. Every price is copied, so the estimate is the real rental total; so is today's
- * minimum downpayment.
+ * minimum downpayment. A rental has no theme or colours (`styling` is null, whatever was sent).
  */
 async function rentalBooking(conn, pkg, form) {
   const date = form.date;
@@ -374,7 +391,7 @@ async function rentalBooking(conn, pkg, form) {
   const lines = rentalLines(await repo.rentalStockInputs(conn, date), form.rentalItems, date);
   return {
     fields: {
-      eventName, occasion, date, startTime, endTime: null, guests: 0, packageId: pkg.id, serviceType: RENTAL_SERVICE, menu: null, foodNotes: '', pricePerPlate: 0,
+      eventName, occasion, date, startTime, endTime: null, guests: 0, packageId: pkg.id, serviceType: RENTAL_SERVICE, menu: null, foodNotes: '', styling: null, pricePerPlate: 0,
       minDownpayment: await currentMinDownpayment(conn), rentalItems: lines, fulfilment, damageCharges: [],
       venue: fulfilment === 'delivery' ? { ...place, accessNotes: clean(form.accessNotes) } : { ...RENTAL.pickupPlace, accessNotes: '' },
       addonIds: [], addonQty: {},
@@ -1052,6 +1069,34 @@ export async function updateMenu(ref, body, admin) {
         : 'Catering only has no per-person charge, so the food will be taken off your total.';
       await postAdminMessage(conn, reservation, `${reservation.eventName} was changed from ${before} to ${serviceType}. ${food} We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`, null, admin.name);
     }
+    return { ok: true };
+  });
+}
+
+// A styling (or null) in a form that compares by content: MySQL returns a JSON column's keys re-sorted
+const stylingKey = (styling) =>
+  styling ? JSON.stringify([styling.theme, styling.themeOther, styling.notes, (styling.colors || []).map((c) => [c.hex, c.name, Boolean(c.metallic)])]) : 'none';
+
+// What the activity log says about a styling, e.g. "Royal; Burgundy, Gold" or "no theme; Sage Green"
+const stylingWords = (styling) => {
+  const colors = styling.colors.map((c) => c.name).join(', ');
+  return `${themeLabel(styling) || 'no theme'}${colors ? `; ${colors}` : ''}`;
+};
+
+/**
+ * Admin: change the theme, colour motif and design details (e.g. after agreeing them in chat), with the
+ * booking form's own rules (stylingOf). They never change the price, so the quotation is left as it is;
+ * the change goes into the activity log, which the customer sees too. Not for an equipment rental (it has
+ * none) or a closed booking. Saving what is already there changes nothing and logs nothing. Returns { ok: true }.
+ */
+export async function updateStyling(ref, body, admin) {
+  return adminWrite(ref, async (conn, { reservation }) => {
+    if (CLOSED.includes(reservation.status)) throw closedError();
+    if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no theme or colors.');
+    const styling = stylingOf(plainObject(body));
+    if (stylingKey(styling) === stylingKey(reservation.styling)) return { ok: true };
+    await repo.updateReservation(conn, ref, { styling });
+    await logAdmin(conn, ref, admin, styling ? `Updated the theme and colors (${stylingWords(styling)}).` : 'Cleared the theme and colors.');
     return { ok: true };
   });
 }

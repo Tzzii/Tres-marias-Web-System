@@ -37,6 +37,8 @@ export { DataTable, Pager } from './components/DataTable.jsx';
 export { DocumentDialog, documentsFor } from './components/DocumentDialog.jsx';
 export { ScrollToTop, NotFoundPage } from './components/Routing.jsx';
 export { ChatPanel } from './components/ChatPanel.jsx';
+// The booking's "Theme and Colors": the form fields (booking form, admin dialog), the colour picker and the read-only summary
+export { ColorMotifPicker, ColorSwatch, StylingFields, StylingSummary } from './components/Styling.jsx';
 export { default as PortalShell } from './components/PortalShell.jsx';
 
 export { useResource, useStoreVersion } from './hooks/useResource.js';
@@ -71,6 +73,8 @@ export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/c
 export { qrState, referenceProblem } from './domain/payment.js';
 // An additional charge's own price, its sizes and its packages (the admin's form and the booking form use the same rules as the services)
 export { MAX_ADDON_SIZES, PACKAGE_INCLUDES_MAX, addonPriceMap, flattenAddons, readAddonPrice, readAddonSizes } from './domain/catalog.js';
+// The theme list, colour names and checks of the booking's "Theme and Colors" (the services check the same)
+export { MAX_MOTIF_COLORS, STYLING_THEMES, THEME_OTHER, THEME_UNDECIDED, cleanStyling, decorReminders, stylingEmpty, stylingProblem, stylingToDiscuss, themeLabel } from './domain/styling.js';
 export { ApiError } from './services/errors.js';
 export * as authApi from './services/remote/auth.js';
 export * as catalogApi from './services/remote/catalog.js';

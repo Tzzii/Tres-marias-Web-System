@@ -10,6 +10,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { cancelDeadline, cancelWindowText } from '../domain/cancellation.js';
+import { stylingEmpty } from '../domain/styling.js';
 import { BUFFET_DRINKS, BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
 import { useNotify } from '../hooks/useNotify.jsx';
 import { tokens } from '../theme/tokens.js';
@@ -17,6 +18,7 @@ import { formatDate, formatDateLong, formatDateTime, formatEventTime, formatMobi
 import { saveElementAsPdf } from '../utils/savePdf.js';
 import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
+import { StylingSummary } from './Styling.jsx';
 import { LightSurface } from './Surface.jsx';
 
 // The booking's own minimum downpayment (copied when it was made; older bookings use the starting amount)
@@ -91,6 +93,7 @@ function Line({ label, value, strong, muted }) {
  * An equipment rental prints its rented items (how many x the price per piece), the delivery fee and
  * any damage charges instead of a package, menu and guest count, and its contract carries the rental
  * terms: pick up or delivery, returning the items, and damage fees applying only through a revised quotation.
+ * An event's quotation and contract also print its theme, colours and design details when it has any.
  * Both contracts carry the downpayment and cancellation terms of this booking: its own minimum downpayment,
  * the date until which it can be cancelled online, and the refund of anything paid above a lower quotation.
  * On phones the document fills the screen and its top bar (name, print, save, close) stays pinned while scrolling.
@@ -251,6 +254,14 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     {detail.foodNotes && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>Note: {detail.foodNotes}</Typography>}
                   </Box>
                 </Box>
+                {/* The look agreed for the event (the booking form's Theme and Colors), so it is on paper too.
+                    Each colour prints its square, name and code, which still reads in black and white. */}
+                {!stylingEmpty(detail.styling) && (
+                  <Box data-pdf-keep sx={{ mt: 1.5 }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Theme and Colors</Typography>
+                    <StylingSummary styling={detail.styling} compact />
+                  </Box>
+                )}
               </Box>
               )}
 

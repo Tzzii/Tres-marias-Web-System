@@ -26,7 +26,9 @@ export const refParams = z.object({ ref: z.string() });
  * POST /api/reservations: the booking form. Lengths follow the columns (event_name 120, occasion 40,
  * venue_name 160, venue_address 255, city 120). The notes are TEXT, kept to 2,000 characters (the
  * form allows 500); each menu line is cut to MENU_LINE_MAX by the service. `endTime` (an event's, not a
- * rental's) and `agreeTerms` (the "I agree to the Terms of Service" tick, must be true) are checked there too.
+ * rental's) and `agreeTerms` (the "I agree to the Terms of Service" tick, must be true) are checked there too,
+ * and so is `styling` (the theme, colour motif and design details: cleanStyling and stylingProblem in
+ * @tm/shared/src/domain/styling.js; a rental's is ignored).
  */
 export const createBody = z.object({
   packageId: passThrough,
@@ -40,6 +42,7 @@ export const createBody = z.object({
   guests: passThrough,
   menu: passThrough,
   foodNotes: text(2000),
+  styling: passThrough,
   addonIds: passThrough,
   addonQty: passThrough,
   venueName: text(160),
@@ -90,6 +93,10 @@ export const logisticsBody = z.object({
 
 // PUT /api/admin/reservations/:ref/menu { serviceType, menu, foodNotes }; each menu line is cut to MENU_LINE_MAX by the service
 export const menuBody = z.object({ serviceType: passThrough, menu: passThrough, foodNotes: text(2000) });
+
+// PUT /api/admin/reservations/:ref/styling { theme, themeOther, colors, notes }: checked by the service with the
+// booking form's own rules (cleanStyling, stylingProblem), so the messages are the form's
+export const stylingBody = z.object({ theme: passThrough, themeOther: passThrough, colors: passThrough, notes: passThrough });
 
 // PUT /api/admin/reservations/:ref/notes { notes }: the admin's private notes (the card allows 1,000 characters)
 export const notesBody = z.object({ notes: text(2000) });

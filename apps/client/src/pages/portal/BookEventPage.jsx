@@ -32,11 +32,15 @@ import {
   RULES,
   SERVICE_TYPES,
   SelectField,
+  StylingFields,
+  StylingSummary,
   TimeField,
   addonPriceMap,
   calendarApi,
   catalogApi,
+  cleanStyling,
   computeQuote,
+  decorReminders,
   endTimeProblem,
   eventHours,
   flattenAddons,
@@ -50,6 +54,9 @@ import {
   peso,
   reservationApi,
   shiftEndTime,
+  stylingEmpty,
+  stylingProblem,
+  themeLabel,
   titleCase,
   tokens,
   useDocumentTitle,
@@ -61,12 +68,13 @@ import { clearDraft, clearIntent, readDraft, readIntent, saveDraft } from '../..
 
 // Form sections as [key, title, short name], in page order. The short name labels the section chips
 // on phones and tablets. The menu section is skipped for Catering only.
-// An equipment rental has no package, menu or additional charges: it shows "Items to Rent" instead,
-// and its venue section becomes "Pick Up or Delivery".
+// An equipment rental has no package, theme and colours, menu or additional charges: it shows
+// "Items to Rent" instead, and its venue section becomes "Pick Up or Delivery".
 const SECTIONS = [
   ['details', 'Event Details', 'Event'],
   ['service', 'What You Are Booking', 'Service'],
   ['package', 'Package', 'Package'],
+  ['styling', 'Theme and Colors', 'Styling'],
   ['items', 'Items to Rent', 'Items'],
   ['food', 'Your Menu', 'Menu'],
   ['venue', 'Venue and Logistics', 'Venue'],
@@ -77,9 +85,13 @@ const SECTIONS = [
 // Which section each field lives in (used to scroll to the first error)
 const FIELD_SECTION = { eventName: 'details', occasion: 'details', date: 'details', startTime: 'details', endTime: 'details', agreeTerms: 'review', guests: 'details', serviceType: 'service', packageId: 'package', rentalItems: 'items', foodNotes: 'food', fulfilment: 'venue', venueName: 'venue', venueAddress: 'venue', city: 'venue' };
 
-/** The section an error belongs to. Menu dishes, add-on quantities and rented items have one field per id. */
+/**
+ * The section an error belongs to. Menu dishes, add-on quantities and rented items have one field per id,
+ * and the theme and colours one per part ('styling.themeOther', 'styling.colors', 'styling.notes').
+ */
 const sectionForField = (field) => {
   if (field.startsWith('menu.')) return 'food';
+  if (field.startsWith('styling.')) return 'styling';
   if (field.startsWith('addonQty.')) return 'addons';
   if (field.startsWith('rental.')) return 'items';
   return FIELD_SECTION[field] || 'details';
@@ -100,7 +112,16 @@ const lowestPackagePrice = (addon) => {
 // until the customer chooses it themselves.
 // `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental, and
 // `endTime` only by an event (2 to 6 hours after the start; blank until the customer picks it).
-const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
+// `styling` is an event's theme, colour motif and design details (section 4, optional; domain/styling.js).
+const EMPTY_STYLING = { theme: '', themeOther: '', colors: [], notes: '' };
+const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', styling: EMPTY_STYLING, venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
+
+// A draft's styling in the form's shape: a draft saved before the section existed, or one changed by hand
+// in the browser, still loads (only known themes, real colour codes and text are kept, by cleanStyling)
+const draftStyling = (value) => ({ ...EMPTY_STYLING, ...(cleanStyling(value) || {}) });
+
+// "balloons", "balloons and stage", "balloons, stage and tent"
+const wordList = (words) => (words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : words[0]);
 
 // Date error while the availability map is still on its way from the API (the date cannot be checked yet)
 const DATES_LOADING = 'The available dates are still loading. Please try again in a moment.';
@@ -127,6 +148,10 @@ const AVAILABILITY = {
  * An event has a start and an end time (2 to 6 hours, maybe past midnight); a rental only the time the
  * items are picked up or delivered. Before sending, the customer ticks "I agree to the Terms of Service",
  * which is not kept in the draft: it is asked again for every request.
+ *
+ * After the package, an event (not a rental) has "Theme and Colors": an optional theme (the ones popular
+ * for the occasion first, "Other" with a text box, or "Not decided yet"), up to five colours from the colour
+ * picker or the metallic buttons, and design details. It never changes the price.
  */
 export default function BookEventPage() {
   useDocumentTitle('Book an Event');
@@ -162,6 +187,7 @@ export default function BookEventPage() {
 
     // Only known fields are kept, so a draft saved before the form changed still loads
     const base = hasDraft ? { ...EMPTY, ...Object.fromEntries(Object.entries(draft.form).filter(([key]) => key in EMPTY)) } : { ...EMPTY };
+    base.styling = draftStyling(base.styling);
     const picks = intentIsNewer ? intent : {};
     const pkg = catalog.data.packages.find((p) => p.slug === (params.get('package') || picks.packageSlug));
     // Picking the Equipment Rental package makes the booking a rental; any other package leaves a rental
@@ -246,6 +272,11 @@ export default function BookEventPage() {
   // The items a rental asks for, with today's price per piece: [{ itemId, name, qty, price }]
   const rentalChosen = data && rental ? data.rentals.filter((i) => Number(form.rentalQty[i.id]) > 0).map((i) => ({ itemId: i.id, name: i.name, qty: Number(form.rentalQty[i.id]), price: i.price })) : [];
   const delivered = rental && form.fulfilment === 'delivery';
+  // The theme, colours and design details as they will be sent (cleaned, each colour named from its code),
+  // or null when the section is left blank; a rental has none
+  const styling = rental ? null : cleanStyling(form.styling);
+  // Decorations the design details mention that are additional charges not ticked yet ("You mentioned balloons…")
+  const reminders = data && !rental ? decorReminders(form.styling.notes, data.addons, form.addonIds) : [];
   // The running total, worked out exactly as the admin's quotation will be. An additional charge with
   // its own price is counted at it; one without a price comes out as 0 here and shows "To be quoted".
   const quote = computeQuote({
@@ -303,6 +334,19 @@ export default function BookEventPage() {
     setErrors((e) => {
       const next = { ...e };
       Object.keys(patch).forEach((k) => delete next[k]);
+      return next;
+    });
+  };
+
+  // Change the theme, the colours or the design details (section 4), and clear those parts' messages;
+  // a new theme also clears the message under the "Other" box
+  const updateStyling = (patch) => {
+    touched.current = true;
+    setForm((f) => ({ ...f, styling: { ...f.styling, ...patch } }));
+    setErrors((e) => {
+      const next = { ...e };
+      Object.keys(patch).forEach((k) => delete next[`styling.${k}`]);
+      if ('theme' in patch) delete next['styling.themeOther'];
       return next;
     });
   };
@@ -429,6 +473,9 @@ export default function BookEventPage() {
     else if (!Number.isInteger(guests) || guests < RULES.minGuests || guests > RULES.maxGuests) e.guests = `Between ${RULES.minGuests} and ${RULES.maxGuests} guests.`;
     if (!SERVICE_TYPES.includes(form.serviceType)) e.serviceType = 'Choose what you are booking.';
     if (!pkg) e.packageId = 'Choose a package.';
+    // The theme and colours are optional; only "Other" with nothing typed, or text that is too long, is wrong
+    const stylingCheck = stylingProblem(styling);
+    if (stylingCheck) e[stylingCheck.field] = stylingCheck.message;
     // A buffet needs something written on every line; catering only has no menu at all
     if (buffet) {
       DISH_CATEGORIES.forEach(({ key, label }) => {
@@ -504,17 +551,19 @@ export default function BookEventPage() {
     setBusy(true);
     try {
       // Catering only carries no menu, and only by-the-piece charges carry a count. A charge with
-      // sizes is sent as the sizes given a count, and one with packages as the package picked. A rental
-      // sends the items it asks for instead.
+      // sizes is sent as the sizes given a count, and one with packages as the package picked. The theme
+      // and colours go cleaned (null when left blank). A rental sends the items it asks for instead, and
+      // no theme or colours.
       const created = await reservationApi.createReservation(
         user.id,
         rental
-          ? { ...form, endTime: undefined, agreeTerms: agreed, rentalItems: rentalChosen.map(({ itemId, qty }) => ({ itemId, qty })) }
+          ? { ...form, endTime: undefined, styling: undefined, agreeTerms: agreed, rentalItems: rentalChosen.map(({ itemId, qty }) => ({ itemId, qty })) }
           : {
               ...form,
               agreeTerms: agreed,
               guests: Number(form.guests),
               menu: buffet ? form.menu : {},
+              styling,
               addonIds: bookedAddonIds,
               addonQty: Object.fromEntries(Object.entries(form.addonQty).map(([id, many]) => [id, Number(many)]))
             }
@@ -560,11 +609,13 @@ export default function BookEventPage() {
   // Every category has its dish (a Catering only booking has no menu to fill in)
   const menuComplete = DISH_CATEGORIES.every(({ key }) => (form.menu[key] || '').trim().length >= 2);
   // Which sections are complete (shows a green tick in the section nav).
-  // Additional charges are optional, so that section is ticked only once at least one is chosen.
+  // Additional charges and the theme and colours are optional, so those sections are ticked only once
+  // something is chosen (and, for the theme, nothing in it is wrong).
   const sectionDone = {
     details: form.eventName && form.occasion && form.date && form.startTime && (rental || (form.endTime && form.guests)),
     service: Boolean(form.serviceType),
     package: Boolean(pkg),
+    styling: !stylingEmpty(styling) && !stylingProblem(styling),
     items: rentalChosen.length > 0,
     food: menuComplete,
     venue: rental && !delivered ? true : form.venueName && form.venueAddress && form.city,
@@ -572,8 +623,8 @@ export default function BookEventPage() {
     review: false
   };
   // The menu section is hidden for Catering only, so it drops out of the nav and the numbering.
-  // A rental shows its items instead of the package, menu and additional charges.
-  const sections = SECTIONS.filter(([key]) => (rental ? !['package', 'food', 'addons'].includes(key) : key !== 'items' && (key !== 'food' || buffet))).map(([key, label, short]) => [
+  // A rental shows its items instead of the package, theme and colours, menu and additional charges.
+  const sections = SECTIONS.filter(([key]) => (rental ? !['package', 'styling', 'food', 'addons'].includes(key) : key !== 'items' && (key !== 'food' || buffet))).map(([key, label, short]) => [
     key,
     rental && key === 'venue' ? 'Pick Up or Delivery' : label,
     rental && key === 'venue' ? 'Pick-up / delivery' : short
@@ -721,6 +772,26 @@ export default function BookEventPage() {
                 </Box>
               )}
             </Section>
+            )}
+
+            {/* The look of the event (optional): a theme (the ones popular for the chosen occasion first), up to
+                five colours and the design details. It never changes the price; decorations the details mention
+                that are additional charges get a gentle reminder. A rental has none. */}
+            {!rental && (
+              <Section id="styling" index={sectionNo('styling')} title="Theme and Colors" subtitle="Optional. Tell us the look you want so our team sets up your tables, linens and backdrop to match.">
+                <StylingFields idPrefix="f-styling" value={form.styling} onChange={updateStyling} occasion={form.occasion} errors={errors} forCustomer>
+                  {reminders.length > 0 && (
+                    <AlertBanner tone="info" sx={{ mt: 1.5 }}>
+                      You mentioned {wordList(reminders.map((r) => r.word))}. {wordList(reminders.map((r) => r.name))} {reminders.length === 1 ? 'is an additional charge' : 'are additional charges'}: tick {reminders.length === 1 ? 'it' : 'them'} under Additional Charges if you want us to provide {reminders.length === 1 ? 'it' : 'them'}.
+                      <Box sx={{ mt: 0.5 }}>
+                        <Button size="small" onClick={() => scrollTo('addons')} sx={{ px: 0, minWidth: 0, fontWeight: 700 }}>
+                          Go to Additional Charges
+                        </Button>
+                      </Box>
+                    </AlertBanner>
+                  )}
+                </StylingFields>
+              </Section>
             )}
 
             {/* Equipment rental: how many of each item, grouped like the inventory, with each item's
@@ -1003,6 +1074,13 @@ export default function BookEventPage() {
 
             <Section id="review" index={sectionNo('review')} title="Review and Submit">
               {rental ? <RentalQuoteLines quote={quote} delivered={delivered} /> : <QuoteLines quote={quote} pkg={pkg} serviceType={form.serviceType} addons={chosenAddons} addonQty={form.addonQty} />}
+              {/* The look chosen in section 4, as the quotation and contract will print it */}
+              {!stylingEmpty(styling) && (
+                <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
+                  <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Theme and Colors</Typography>
+                  <StylingSummary styling={styling} compact />
+                </Box>
+              )}
               <AlertBanner tone="info" sx={{ mt: 2 }}>
                 {rental
                   ? 'This is a request, not a confirmed rental. We check the items and send your quotation within 24 hours; accepting it approves your rental.'
@@ -1051,6 +1129,9 @@ export default function BookEventPage() {
                     ['Time', form.startTime && form.endTime ? formatEventTime(form) : '—'],
                     ['Guests', form.guests || '—'],
                     ['Package', pkg ? pkg.name : '—'],
+                    // Section 4 (optional): the theme's name and how many colours
+                    ['Theme', (styling && themeLabel(styling)) || '—'],
+                    ['Colors', styling && styling.colors.length ? `${styling.colors.length} chosen` : '—'],
                     // Only a buffet has a menu to report on
                     ...(buffet ? [['Menu', menuComplete ? 'Chosen' : '—']] : []),
                     ['Additional charges', chosenAddons.length || 'None']
