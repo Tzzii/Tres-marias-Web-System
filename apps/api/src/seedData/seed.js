@@ -70,8 +70,8 @@ const WEDDING_EXTRAS = [
 const PACKAGES = [
   {
     id: 'pkg-mini',
-    slug: 'mini-package',
-    name: 'Mini Package',
+    slug: 'petite',
+    name: 'Petite',
     price: 8000,
     guests: 60,
     description: 'A buffet setup with tableware, round tables and chairs for small gatherings of up to 60 guests.',
@@ -80,8 +80,8 @@ const PACKAGES = [
   },
   {
     id: 'pkg-1',
-    slug: 'package-1',
-    name: 'Package 1',
+    slug: 'classic',
+    name: 'Classic',
     price: 10000,
     guests: 100,
     description: 'A buffet setup with tableware, round tables and chairs for up to 100 guests.',
@@ -90,18 +90,18 @@ const PACKAGES = [
   },
   {
     id: 'pkg-1-waiters',
-    slug: 'package-1-with-waiters',
-    name: 'Package 1 with Waiters',
+    slug: 'classic-full-service',
+    name: 'Classic Full Service',
     price: 12000,
     guests: 100,
-    description: 'Everything in Package 1 for up to 100 guests, with 2 waiters/dishwashers.',
+    description: 'Everything in Classic for up to 100 guests, with 2 waiters/dishwashers.',
     items: cateringItems({ guests: 100, warmers: 8, warmerName: 'Food Warmers', tables: 10, pitchers: 4, jugs: 1, waiters: 2 }),
     mood: 1
   },
   {
     id: 'pkg-2',
-    slug: 'package-2',
-    name: 'Package 2',
+    slug: 'premier',
+    name: 'Premier',
     price: 15000,
     guests: 150,
     description: 'A buffet setup with elegant food warmers, tableware, round tables and chairs for up to 150 guests.',
@@ -110,18 +110,18 @@ const PACKAGES = [
   },
   {
     id: 'pkg-2-waiters',
-    slug: 'package-2-with-waiters',
-    name: 'Package 2 with Waiters',
+    slug: 'premier-full-service',
+    name: 'Premier Full Service',
     price: 15000,
     guests: 150,
-    description: 'Everything in Package 2 for up to 150 guests, with 3 waiters/dishwashers.',
+    description: 'Everything in Premier for up to 150 guests, with 3 waiters/dishwashers.',
     items: cateringItems({ guests: 150, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 15, pitchers: 4, jugs: 1, waiters: 3 }),
     mood: 2
   },
   {
     id: 'pkg-3',
-    slug: 'package-3',
-    name: 'Package 3',
+    slug: 'grand',
+    name: 'Grand',
     price: 20000,
     guests: 200,
     description: 'A buffet setup with elegant food warmers, tableware, round tables and chairs for up to 200 guests.',
@@ -130,18 +130,18 @@ const PACKAGES = [
   },
   {
     id: 'pkg-3-waiters',
-    slug: 'package-3-with-waiters',
-    name: 'Package 3 with Waiters',
+    slug: 'grand-full-service',
+    name: 'Grand Full Service',
     price: 20000,
     guests: 200,
-    description: 'Everything in Package 3 for up to 200 guests, with 4 waiters/dishwashers.',
+    description: 'Everything in Grand for up to 200 guests, with 4 waiters/dishwashers.',
     items: cateringItems({ guests: 200, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 20, pitchers: 6, jugs: 2, waiters: 4 }),
     mood: 3
   },
   {
     id: 'pkg-wedding-1',
-    slug: 'wedding-package-1',
-    name: 'Wedding Package 1',
+    slug: 'signature-wedding',
+    name: 'Signature Wedding',
     price: 25000,
     guests: 150,
     description: 'A full reception setup for up to 150 guests: presidential table, tent, arc, stage, cake and water tables, with 6 waiters/dishwashers.',
@@ -165,8 +165,8 @@ const PACKAGES = [
   },
   {
     id: 'pkg-wedding-2',
-    slug: 'wedding-package-2',
-    name: 'Wedding Package 2',
+    slug: 'royal-wedding',
+    name: 'Royal Wedding',
     price: 30000,
     guests: 170,
     description: 'A full reception setup for up to 170 guests: presidential table, a larger tent, arc, stage, cake and water tables, with 8 waiters/dishwashers.',
@@ -493,7 +493,7 @@ export function buildSeed() {
    * The buffet menu, the service type and any add-on quantities come from MENUS, SERVICE_ONLY
    * and ADDON_QTY above, keyed by `key`, so the rows stay one line of reading each.
    * `key` is a short name used only inside this file; the real reference (RES-YYYY-MMDD-NN) is built from the event date below.
-   * The occasion and the package are independent: e.g. a corporate event can use Package 1.
+   * The occasion and the package are independent: e.g. a corporate event can use Classic.
    * Extras: quoted, dueOffset, paidFull (balanceMethod: 'cash' = paid on the event day), paidHalf,
    * rejected { amount share, method, offset, reason }, awaiting { referenceNo, proofName, method },
    * declineReason, cancelReason, accessNotes, notes.

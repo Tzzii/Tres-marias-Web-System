@@ -18,9 +18,9 @@ export { ThemeModeToggle } from './components/ThemeModeToggle.jsx';
 
 export { LightSurface, DarkSurface } from './components/Surface.jsx';
 export { DashCard, CardTitle, StatCard, DetailRow, Field } from './components/DashCard.jsx';
-export { Pill, StatusChip, PaymentStatusChip, BalanceChip, FeedbackStatusChip } from './components/Pill.jsx';
+export { Pill, StatusChip, PaymentStatusChip, QrStatusChip, BalanceChip, FeedbackStatusChip } from './components/Pill.jsx';
 export { StatusPipeline } from './components/StatusPipeline.jsx';
-export { FieldLabel, FormField, SelectField, PasswordField } from './components/FormField.jsx';
+export { FieldLabel, FormField, SelectField, PasswordField, MobileField } from './components/FormField.jsx';
 export { BrandLogo, BrandMark, LOGO_SRC } from './components/Brand.jsx';
 export { AppDialog, BusyButton, ConfirmDialog } from './components/AppDialog.jsx';
 export { OtpInput } from './components/OtpInput.jsx';
@@ -41,6 +41,7 @@ export { default as PortalShell } from './components/PortalShell.jsx';
 
 export { useResource, useStoreVersion } from './hooks/useResource.js';
 export { useCountdown, formatCountdown } from './hooks/useCountdown.js';
+export { useQrWatch } from './hooks/useQrWatch.js';
 export { useDocumentTitle } from './hooks/useDocumentTitle.js';
 export { NotifyProvider, useNotify } from './hooks/useNotify.jsx';
 
@@ -66,8 +67,8 @@ export { pendingStep } from './domain/reservation.js';
 export { downpaymentDueFor } from './domain/money.js';
 // When a customer may cancel online (pages read the answer from each reservation's summary; the window in words is for texts)
 export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
-// The reference-number rule of the payment and refund forms, the same one the services check
-export { referenceProblem } from './domain/payment.js';
+// The reference-number rule of the payment and refund forms, the same one the services check, and where a QR Ph code stands (waiting, checking, paid …)
+export { qrState, referenceProblem } from './domain/payment.js';
 // An additional charge's own price, its sizes and its packages (the admin's form and the booking form use the same rules as the services)
 export { MAX_ADDON_SIZES, PACKAGE_INCLUDES_MAX, addonPriceMap, flattenAddons, readAddonPrice, readAddonSizes } from './domain/catalog.js';
 export { ApiError } from './services/errors.js';

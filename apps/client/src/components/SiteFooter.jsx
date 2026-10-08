@@ -62,13 +62,15 @@ export default function SiteFooter({ bottomSpace = false }) {
           <Box>
             <Typography sx={headingSx}>Packages</Typography>
             <Box sx={linkListSx}>
-              {/* [URL slug, display name] for each package page link */}
+              {/* [URL slug, display name] for each package page link: the four tiers and both weddings.
+                  The Full Service versions are left out, since each one is its tier with waiters added. */}
               {[
-                ['mini-package', 'Mini Package'],
-                ['package-1', 'Package 1'],
-                ['package-2', 'Package 2'],
-                ['package-3', 'Package 3'],
-                ['wedding-package-1', 'Wedding Package 1']
+                ['petite', 'Petite'],
+                ['classic', 'Classic'],
+                ['premier', 'Premier'],
+                ['grand', 'Grand'],
+                ['signature-wedding', 'Signature Wedding'],
+                ['royal-wedding', 'Royal Wedding']
               ].map(([slug, name]) => (
                 <Link key={slug} component="button" type="button" onClick={() => navigate(`/packages/${slug}`)} sx={{ ...linkSx, textAlign: 'left' }}>
                   {name}

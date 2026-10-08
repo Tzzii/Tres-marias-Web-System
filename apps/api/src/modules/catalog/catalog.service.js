@@ -53,7 +53,7 @@ export function listPackages({ includeHidden = false, includeArchived = false } 
   return repo.listPackages({ includeHidden: admin && includeHidden, includeArchived: admin && includeArchived });
 }
 
-/** One public package by its URL name, e.g. 'package-1': visible and not archived, for everyone. */
+/** One public package by its URL name, e.g. 'classic': visible and not archived, for everyone. */
 export async function getPackageBySlug(slug) {
   const pkg = await repo.findPublicPackageBySlug(slug);
   if (!pkg) throw new ApiError('NOT_FOUND', 'This package is no longer available.');

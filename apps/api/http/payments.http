@@ -73,6 +73,12 @@ Content-Type: application/json
 GET {{api}}/payments/qr/{{qr.response.body.id}}?image=1
 Authorization: Bearer {{customerToken}}
 
+### The customer's QR Ph codes as a record, newest first: [{ id, ref, amount, status ("pending", "paid",
+### "expired" or "failed"), expiresAt, createdAt, paidAt, receiptNo, failureReason, eventName, eventDate,
+### customerName }]. A pending one past its time is checked with PayMongo first.
+GET {{api}}/payments/qr
+Authorization: Bearer {{customerToken}}
+
 ### The customer's refunds, newest first
 GET {{api}}/refunds
 Authorization: Bearer {{customerToken}}
@@ -81,6 +87,10 @@ Authorization: Bearer {{customerToken}}
 
 ### Every payment, newest first
 GET {{api}}/admin/payments
+Authorization: Bearer {{adminToken}}
+
+### Every QR Ph code customers opened, newest first (same shape as GET /payments/qr); ?ref= one booking's only
+GET {{api}}/admin/payments/qr?ref={{ref}}
 Authorization: Bearer {{adminToken}}
 
 ### A customer's uploaded receipt (404 for cash, a QR payment or a sample payment: they have no file)

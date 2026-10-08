@@ -44,6 +44,15 @@ export async function getQrPayment(customerId, id, { image = false } = {}) {
 }
 
 /**
+ * The record of every QR Ph code opened (Phase 8B), newest first: the signed-in customer's own, or every
+ * one for the admin (only booking `ref`'s with { ref }). Each is { id, ref, amount, status, expiresAt,
+ * createdAt, paidAt, receiptNo, failureReason, eventName, eventDate, customerName }, never the image.
+ * An unpaid QR is not a payment: a paid one also shows in listPayments, with its receipt.
+ */
+export const listQrPayments = ({ ref } = {}) =>
+  isAdmin() ? http.get(`/admin/payments/qr${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`) : http.get('/payments/qr');
+
+/**
  * Customer sends a bank transfer: { ref, method: 'bank', amount, referenceNo, proofName, file }. The
  * server checks every payment rule (domain/payment.js) and the file's real type. Returns the payment.
  */

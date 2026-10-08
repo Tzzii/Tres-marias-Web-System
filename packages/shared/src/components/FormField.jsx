@@ -1,4 +1,4 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, useLayoutEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { tokens } from '../theme/tokens.js';
+import { nationalMobile } from '../utils/format.js';
 
 /**
  * Labelled inputs for light surfaces (design system: FormField). The label sits
@@ -93,6 +94,66 @@ export function SelectField({ options, placeholder, ...props }) {
     </FormField>
   );
 }
+
+// Where the cursor sits in "917 123 4567" after the first `count` digits (the spaces come after the 3rd and 6th)
+const mobileCaret = (count) => count + (count > 3 ? 1 : 0) + (count > 6 ? 1 : 0);
+
+/**
+ * Philippine mobile number input with a fixed "+63" in front. The person types the 10 digits after it and
+ * the spaces appear as they type ("917 123 4567"); a pasted or autofilled "0917…", "+63 917…" or "63917…"
+ * loses its prefix first (nationalMobile), and digits past the tenth are dropped. The cursor stays after
+ * the digit it followed when a digit is typed or deleted in the middle.
+ * `value` may be written any of those ways (e.g. the stored "09171234567"). `onChange` gets
+ * { target: { value } } like a text box, with the number in its stored form: "0" + the digits
+ * ("09171234567"), or '' when the box is empty, so validateMobile and the server read it as before.
+ */
+export const MobileField = forwardRef(function MobileField(
+  { value, onChange, placeholder = '917 123 4567', autoComplete = 'tel', InputProps, ...props },
+  ref
+) {
+  const input = useRef(null);
+  const caret = useRef(null); // cursor position to restore after the next render, or null
+  const digits = nationalMobile(value).slice(0, 10);
+
+  // Put the cursor back where the person was typing; the reformatted value would otherwise send it to the end
+  useLayoutEffect(() => {
+    if (caret.current !== null && input.current && document.activeElement === input.current) {
+      input.current.setSelectionRange(caret.current, caret.current);
+    }
+    caret.current = null;
+  });
+
+  // Keep the page's ref working (FormField forwards it to the input) alongside our own
+  const setInput = (node) => {
+    input.current = node;
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  };
+
+  const handleChange = (e) => {
+    const typed = e.target.value;
+    const national = nationalMobile(typed);
+    const next = national.slice(0, 10);
+    // Digits before the cursor, less the prefix that was removed from the front
+    const before = typed.slice(0, e.target.selectionStart ?? typed.length).replace(/\D/g, '').length;
+    const removed = typed.replace(/\D/g, '').length - national.length;
+    caret.current = mobileCaret(Math.min(next.length, Math.max(0, before - removed)));
+    if (onChange) onChange({ target: { value: next ? `0${next}` : '' } });
+  };
+
+  return (
+    <FormField
+      ref={setInput}
+      type="tel"
+      autoComplete={autoComplete}
+      placeholder={placeholder}
+      value={[digits.slice(0, 3), digits.slice(3, 6), digits.slice(6)].filter(Boolean).join(' ')}
+      onChange={handleChange}
+      InputProps={{ ...InputProps, startAdornment: <InputAdornment position="start">+63</InputAdornment> }}
+      {...props}
+    />
+  );
+});
 
 /** Password input with an eye button to show or hide the text. */
 export const PasswordField = forwardRef(function PasswordField(props, ref) {

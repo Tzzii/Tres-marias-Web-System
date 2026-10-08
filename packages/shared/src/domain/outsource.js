@@ -64,7 +64,7 @@ export function partnerProblem(values, { names = [] } = {}) {
   const { email, mobile } = contactOf(values);
   if (!email && !mobile) return invalid('Give an email address or a mobile number so requests can reach them.', { field: 'email' });
   if (email && !EMAIL_RE.test(email)) return invalid('Enter a valid email address.', { field: 'email' });
-  if (mobile && !/^(09\d{9}|\+639\d{9})$/.test(mobile)) return invalid('Enter a valid mobile number, e.g. 0917 123 4567.', { field: 'mobile' });
+  if (mobile && !/^(09\d{9}|\+639\d{9})$/.test(mobile)) return invalid('Enter a valid mobile number, e.g. +63 917 123 4567.', { field: 'mobile' });
   return null;
 }
 

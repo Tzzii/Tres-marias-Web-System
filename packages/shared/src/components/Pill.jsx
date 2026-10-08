@@ -1,5 +1,6 @@
 import Box from '@mui/material/Box';
-import { BALANCE_STATE, FEEDBACK_STATUS, PAYMENT_STATUS, STATUS, feedbackState } from '../utils/status.js';
+import { qrState } from '../domain/payment.js';
+import { BALANCE_STATE, FEEDBACK_STATUS, PAYMENT_STATUS, QR_STATUS, STATUS, feedbackState } from '../utils/status.js';
 
 /** A rounded status label. Colours come from the status maps in utils/status.js. */
 export function Pill({ label, bg, fg, dot = true, size = 'md', sx }) {
@@ -37,6 +38,16 @@ export function StatusChip({ status, size, sx }) {
 /** Payment status chip: awaiting / verified / rejected. */
 export function PaymentStatusChip({ status, size }) {
   const s = PAYMENT_STATUS[status];
+  return <Pill label={s.label} bg={s.bg} fg={s.fg} size={size} />;
+}
+
+/**
+ * QR Ph code chip: Waiting for payment / Checking payment / Paid / Expired · not charged / Failed · not
+ * charged (qrState from the QR's status and `at`, the time now unless given). Waiting turns into Checking
+ * only when the page renders again, which useQrWatch does when the QR's time runs out.
+ */
+export function QrStatusChip({ qr, at, size }) {
+  const s = QR_STATUS[qrState(qr, at)] || { label: qr.status, bg: '#f1f5f9', fg: '#334155' };
   return <Pill label={s.label} bg={s.bg} fg={s.fg} size={size} />;
 }
 

@@ -206,6 +206,38 @@ export async function findQr(db, id, { image = false } = {}) {
   return row && { ...toQr(row), receiptNo: row.receipt_no ?? '' };
 }
 
+/**
+ * QRs as records with the receipt number once paid and the names the lists show, newest first (never
+ * the image): { qr, eventName, eventDate, customerName } for every one, one customer's (`customerId`),
+ * one booking's (`ref`; the lookup ignores case, so the caller compares the ref), and only those with
+ * `status`.
+ */
+export async function findQrs(db, { customerId, ref, status } = {}) {
+  const conditions = [];
+  const params = [];
+  for (const [column, value] of [['q.customer_id', customerId], ['q.ref', ref], ['q.status', status]]) {
+    if (value == null) continue;
+    conditions.push(`${column} = ?`);
+    params.push(value);
+  }
+  const [rows] = await db.query(
+    `SELECT ${QR_COLUMNS}, pay.receipt_no, r.event_name, r.date AS event_date, c.name AS customer_name
+       FROM qr_payments q
+       LEFT JOIN payments pay ON pay.id = q.payment_id
+       LEFT JOIN reservations r ON r.ref = q.ref
+       LEFT JOIN customers c ON c.id = q.customer_id
+      ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+      ORDER BY q.created_at DESC, q.id`,
+    params
+  );
+  return rows.map((row) => ({
+    qr: { ...toQr(row), receiptNo: row.receipt_no ?? '' },
+    eventName: row.event_name ?? '',
+    eventDate: row.event_date ?? '',
+    customerName: row.customer_name ?? ''
+  }));
+}
+
 /** The QR of a PayMongo Payment Intent (pi_…), or null: how a webhook finds its QR. */
 export async function findQrByIntent(db, intentId) {
   const row = first(await db.query(`SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.intent_id = ?`, [intentId]));

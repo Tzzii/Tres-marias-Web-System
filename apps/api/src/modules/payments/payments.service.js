@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { financials, statusForPayments } from '@tm/shared/src/domain/money.js';
-import { kindOf, paymentAmountProblem, proofFileName, referenceKey, referenceProblem } from '@tm/shared/src/domain/payment.js';
+import { QR_GRACE_MS, kindOf, paymentAmountProblem, proofFileName, referenceKey, referenceProblem } from '@tm/shared/src/domain/payment.js';
 import { daysFromToday, formatDate } from '@tm/shared/src/utils/format.js';
 import { PAYMENT_METHODS, REFUND_METHODS, statusLabel } from '@tm/shared/src/utils/status.js';
 import { config } from '../../config.js';
@@ -44,13 +44,20 @@ const CUSTOMER_PAYABLE = ['approved', 'downpayment_paid', 'confirmed'];
 // before then are still stored and shown to the admin as they are.
 const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-// A GCash QR still counts as open this long after PayMongo's expiry: a payment started in its last
-// seconds may still be on its way, so no other payment or new QR may start before it is settled
-const QR_GRACE_MS = 2 * 60 * 1000;
+// A GCash QR still counts as open for QR_GRACE_MS (2 minutes, domain/payment.js, which the pages share)
+// after PayMongo's expiry: a payment started in its last seconds may still be on its way, so no other
+// payment or new QR may start before it is settled.
 // How often a waiting QR is checked with PayMongo when its page asks (in case the webhook is late or
 // never comes), and how often once it is past its time
 const QR_CHECK_MS = 60 * 1000;
 const QR_CHECK_LATE_MS = 10 * 1000;
+// Most QRs past their time one list read checks with PayMongo (listQrPayments); the rest wait for the next read
+const QR_SETTLE_MAX = 5;
+// How long a list read waits for those checks before answering; a slower check goes on by itself and
+// tells the pages through the change stamp when it records something
+const QR_SETTLE_WAIT_MS = 3000;
+// QRs a list read is checking with PayMongo right now, so overlapping reads don't ask about them twice
+const settling = new Set();
 // Who PayMongo's confirmations are from in the audit trail, and who the automatic chat messages are from
 const PAYMONGO_NAME = 'PayMongo';
 const TEAM_NAME = 'Tres Marias team';
@@ -108,24 +115,30 @@ export async function listPayments({ customerId } = {}) {
 /**
  * One row per reservation with money attached, for the admin Payments ledger: every booking except
  * pending, declined and cancelled ones (a cancelled booking with money to return is in listRefundsDue),
- * by event date, with financials() (refunds taken off) and its payments in the order they were made.
+ * by event date, with financials() (refunds taken off), its payments in the order they were made, and
+ * `openQr`: the customer's QR Ph code still open { id, amount, expiresAt } or null (not money received,
+ * so the figures leave it out; the ledger only says it is waiting).
  */
 export async function listBalances() {
   const rows = await reservationsRepo.findReservations(pool);
   return rows
     .filter(({ reservation }) => !['pending', 'declined', 'cancelled'].includes(reservation.status))
     .sort((a, b) => byEventDate(a.reservation, b.reservation))
-    .map(({ reservation: r, customerName, payments, refunds }) => ({
-      ref: r.ref,
-      eventName: r.eventName,
-      date: r.date,
-      status: r.status,
-      downpaymentDue: r.downpaymentDue,
-      customerId: r.customerId,
-      customerName: customerName ?? '',
-      ...financials(r, payments, refunds),
-      payments: inMadeOrder(payments).map((payment) => enrich({ payment, eventName: r.eventName, eventDate: r.date, customerName: customerName ?? '' }))
-    }));
+    .map(({ reservation: r, customerName, payments, refunds, pendingQrs }) => {
+      const open = openQrIn(pendingQrs);
+      return {
+        ref: r.ref,
+        eventName: r.eventName,
+        date: r.date,
+        status: r.status,
+        downpaymentDue: r.downpaymentDue,
+        customerId: r.customerId,
+        customerName: customerName ?? '',
+        ...financials(r, payments, refunds),
+        payments: inMadeOrder(payments).map((payment) => enrich({ payment, eventName: r.eventName, eventDate: r.date, customerName: customerName ?? '' })),
+        openQr: open ? { id: open.id, amount: open.amount, expiresAt: open.expiresAt } : null
+      };
+    });
 }
 
 /**
@@ -748,6 +761,59 @@ export async function getQrPayment(customer, id, { image = false } = {}) {
   if (!qr || qr.id !== id || qr.customerId !== customer.id) throw new ApiError('NOT_FOUND', 'We could not find this QR payment.');
   await refreshQr(qr);
   return qrView(await repo.findQr(pool, id, { image }));
+}
+
+// What the QR lists show of each code (no image, no PayMongo ids): where it stands and when, for whom
+const qrRecord = ({ qr, eventName, eventDate, customerName }) => ({
+  id: qr.id,
+  ref: qr.ref,
+  amount: qr.amount,
+  status: qr.status,
+  expiresAt: qr.expiresAt,
+  createdAt: qr.createdAt,
+  paidAt: qr.paidAt ?? null,
+  receiptNo: qr.receiptNo || '',
+  failureReason: qr.failureReason || '',
+  eventName,
+  eventDate,
+  customerName
+});
+
+/**
+ * The record of every QR Ph code opened, newest first: one customer's (`customerId`, their Payment
+ * History), one booking's (`ref`, the admin's reservation page; spelled exactly as stored), or every
+ * one (the admin's Reports > Payments > QR Ph Codes). Each code shows where it stands: pending (the
+ * pages call it Waiting for payment, or Checking payment once past its time), paid (with its receipt
+ * number), expired or failed (with PayMongo's reason). Kept apart from listPayments: an unpaid QR is not
+ * money received, and a paid one is also a payment row of its own.
+ * A QR still pending past its time is first checked with PayMongo (refreshQr: paid -> recorded, past
+ * the grace and unpaid -> expired), at most QR_SETTLE_MAX per read, none already being checked by
+ * another read, and only while PayMongo is set up, so a code nobody looked at again is not left
+ * "pending" for ever. The read waits for those checks up to QR_SETTLE_WAIT_MS: when PayMongo is slow
+ * the list answers anyway and the check finishes on its own (a code it records reaches the pages
+ * through the change stamp). PayMongo being unreachable leaves the code as it is (shown as Checking
+ * payment) until a later read.
+ */
+export async function listQrPayments({ customerId, ref } = {}) {
+  const filter = { customerId, ref };
+  if (qrReady()) {
+    const stale = (await repo.findQrs(pool, { ...filter, status: 'pending' }))
+      .filter(({ qr }) => now() >= qr.expiresAt && !settling.has(qr.id))
+      .slice(0, QR_SETTLE_MAX);
+    const checks = stale.map(({ qr }) => {
+      settling.add(qr.id);
+      return refreshQr(qr)
+        .catch((err) => console.error('[payments] QR check:', qr.id, err.message))
+        .finally(() => settling.delete(qr.id));
+    });
+    if (checks.length) {
+      let timer;
+      await Promise.race([Promise.all(checks), new Promise((resolve) => (timer = setTimeout(resolve, QR_SETTLE_WAIT_MS)))]);
+      clearTimeout(timer);
+    }
+  }
+  const rows = await repo.findQrs(pool, filter);
+  return rows.filter(({ qr }) => ref == null || qr.ref === ref).map(qrRecord);
 }
 
 /**

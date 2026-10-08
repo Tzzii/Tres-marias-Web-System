@@ -25,24 +25,29 @@ import {
   FormField,
   ListSkeleton,
   MIN_DOWNPAYMENT_RANGE,
+  QrStatusChip,
   SearchField,
   StatCard,
   StatusChip,
   catalogApi,
+  formatClock,
   formatDate,
   formatDateTime,
   paymentApi,
   paymentKindLabel,
   peso,
+  qrState,
   reservationApi,
   tokens,
   useNotify,
+  useQrWatch,
   useResource
 } from '@tm/shared';
 import RefundDialog, { refundRecordedText } from '../../components/RefundDialog.jsx';
 import { SectionBar } from '../../components/SectionTabs.jsx';
 
 // Filter tabs as [key, label]. "Refunds to Send" lists its own rows (listRefundsDue): cancelled bookings are not in the balances.
+// "QR Ph Codes" lists its own rows too (listQrPayments): every QR Ph code a customer opened, paid or not, as the record.
 const FILTERS = [
   ['all', 'All'],
   ['awaiting', 'Awaiting Verification'],
@@ -50,7 +55,8 @@ const FILTERS = [
   ['full', 'Fully Paid'],
   ['overdue', 'Overdue'],
   ['unpaid', 'Unpaid'],
-  ['refunds', 'Refunds to Send']
+  ['refunds', 'Refunds to Send'],
+  ['qr', 'QR Ph Codes']
 ];
 
 /**
@@ -102,20 +108,35 @@ const inFilter = (key, r) => (key === 'all' ? true : key === 'awaiting' ? r.awai
 // Why money is owed back, for the "Refunds to Send" rows (listRefundsDue's `why`)
 const REFUND_WHY = { customer: 'Cancelled by the customer', admin: 'Cancelled by the admin', declined: 'Declined', overpaid: 'Overpaid' };
 
+/** The Details cell of a "QR Ph Codes" row: when it was paid (and its receipt), until when it is open, or how it ended. */
+function qrDetail(q) {
+  const state = qrState(q);
+  if (state === 'paid') return `Paid${q.paidAt ? ` ${formatDateTime(q.paidAt)}` : ''} · ${q.receiptNo}`;
+  if (state === 'waiting') return `Open until ${formatClock(q.expiresAt)}`;
+  if (state === 'checking') return 'Time is up · checking with PayMongo';
+  if (state === 'failed') return q.failureReason || 'The payment did not go through';
+  return `Expired ${formatDateTime(q.expiresAt)}`;
+}
+
 /**
  * 1w · Payments tab of Reports: set the minimum downpayment, verify proofs, record receipts, chase
- * balances, and record the refunds owed on cancelled or overpaid bookings ("Refunds to Send").
+ * balances, record the refunds owed on cancelled or overpaid bookings ("Refunds to Send"), and look up
+ * every QR Ph code customers opened ("QR Ph Codes": waiting, checking, paid, expired or failed; nothing
+ * to verify, PayMongo confirms them). A booking whose customer has a QR Ph code open says "Waiting for
+ * QR payment" under Standing.
  * Opens straight to a proof with ?verify=ID, or to a filter with ?filter=KEY. The page title and tabs come from ReportsPage.
  */
 export default function PaymentsSection() {
   const navigate = useNavigate();
   const notify = useNotify();
   const [params, setParams] = useSearchParams();
-  // Load every reservation with its total, amount paid, balance and payments, and the bookings with money to return
+  // Load every reservation with its total, amount paid, balance and payments, the bookings with money to return, and every QR Ph code
   const { data, loading, error, reload } = useResource(async () => {
-    const [balances, refundsDue] = await Promise.all([paymentApi.listBalances(), paymentApi.listRefundsDue()]);
-    return { balances, refundsDue };
+    const [balances, refundsDue, qrs] = await Promise.all([paymentApi.listBalances(), paymentApi.listRefundsDue(), paymentApi.listQrPayments()]);
+    return { balances, refundsDue, qrs };
   }, []);
+  // Open QR Ph codes turn to Checking payment when their time is up, and are settled after the grace
+  useQrWatch(data ? data.qrs : [], reload);
   // The minimum downpayment setting, read from the catalogue (this also refreshes catalogApi.minDownpayment())
   const setting = useResource(() => catalogApi.getCatalog(), []);
 
@@ -143,6 +164,7 @@ export default function PaymentsSection() {
 
   const rows = data ? data.balances : [];
   const refundsDue = data ? data.refundsDue : [];
+  const qrs = data ? data.qrs : [];
   // Every payment from every reservation in one flat list
   const allPayments = rows.flatMap((r) => r.payments);
   // The payment being verified and the reservation it belongs to
@@ -159,10 +181,10 @@ export default function PaymentsSection() {
   const awaitingCount = allPayments.filter((p) => p.status === 'awaiting').length;
   const overdueCount = rows.filter((r) => r.balanceState === 'overdue').length;
 
-  // Number of reservations in each filter tab ("Refunds to Send" counts its own list)
+  // Number of reservations in each filter tab ("Refunds to Send" and "QR Ph Codes" count their own lists)
   const counts = useMemo(
-    () => Object.fromEntries(FILTERS.map(([key]) => [key, key === 'refunds' ? refundsDue.length : rows.filter((r) => inFilter(key, r)).length])),
-    [rows, refundsDue]
+    () => Object.fromEntries(FILTERS.map(([key]) => [key, key === 'refunds' ? refundsDue.length : key === 'qr' ? qrs.length : rows.filter((r) => inFilter(key, r)).length])),
+    [rows, refundsDue, qrs]
   );
 
   // The search box matches the REF, customer or event in either list
@@ -177,6 +199,8 @@ export default function PaymentsSection() {
     .sort((a, b) => b.awaitingCount - a.awaitingCount || (a.balanceState === 'overdue' ? -1 : 0) - (b.balanceState === 'overdue' ? -1 : 0) || a.date.localeCompare(b.date));
   // "Refunds to Send" rows, oldest event date first (the order listRefundsDue gives)
   const visibleRefunds = refundsDue.filter(matches);
+  // "QR Ph Codes" rows, newest opened first (the order listQrPayments gives)
+  const visibleQrs = qrs.filter(matches);
 
   // Close the verify panel and remove ?verify= from the URL
   const closeVerify = () => {
@@ -230,7 +254,19 @@ export default function PaymentsSection() {
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
     { key: 'balance', label: 'Balance', align: 'right', render: (r) => <b>{peso(r.balance)}</b> },
-    { key: 'state', label: 'Standing', render: (r) => (r.awaitingCount ? <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>Proof to verify</Box> : <BalanceChip state={r.balanceState} size="sm" />) },
+    // A proof to verify comes first; a QR Ph code the customer has open is said next (nothing to do, PayMongo confirms it)
+    {
+      key: 'state',
+      label: 'Standing',
+      render: (r) =>
+        r.awaitingCount ? (
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>Proof to verify</Box>
+        ) : r.openQr ? (
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>Waiting for QR payment</Box>
+        ) : (
+          <BalanceChip state={r.balanceState} size="sm" />
+        )
+    },
     {
       key: 'action',
       label: 'Action',
@@ -265,6 +301,17 @@ export default function PaymentsSection() {
     { key: 'action', label: 'Action', align: 'right', card: 'footer', render: (r) => <Button size="small" variant="contained" onClick={() => setRefunding(r)}>Record refund</Button> }
   ];
 
+  // "QR Ph Codes": one row per QR Ph code a customer opened, the record of each try. Nothing to act on
+  // (PayMongo confirms them): a click opens the booking. On a phone card the customer and event are the heading.
+  const qrColumns = [
+    { key: 'opened', label: 'Opened', render: (q) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDateTime(q.createdAt)}</Box> },
+    { key: 'ref', label: 'REF', render: (q) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{q.ref}</Typography> },
+    { key: 'customer', label: 'Customer', card: 'title', render: (q) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{q.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{q.eventName}</Typography></Box>) },
+    { key: 'status', label: 'Status', card: 'aside', render: (q) => <QrStatusChip qr={q} size="sm" /> },
+    { key: 'amount', label: 'Amount', align: 'right', render: (q) => <b>{peso(q.amount)}</b> },
+    { key: 'detail', label: 'Details', render: (q) => <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{qrDetail(q)}</Typography> }
+  ];
+
   if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
 
   return (
@@ -289,6 +336,8 @@ export default function PaymentsSection() {
           </Box>
           {filter === 'refunds' ? (
             <DataTable loading={loading} columns={refundColumns} rows={visibleRefunds} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={960} empty={<EmptyState compact title="No refunds to send" description="Cancelled and overpaid bookings with money to return show here." />} />
+          ) : filter === 'qr' ? (
+            <DataTable loading={loading} columns={qrColumns} rows={visibleQrs} rowKey={(q) => q.id} onRowClick={(q) => navigate(`/reservations/${q.ref}`)} minWidth={960} empty={<EmptyState compact title="No QR Ph codes yet" description="Every QR Ph code a customer opens shows here: waiting, paid, expired or failed." />} />
           ) : (
             <DataTable loading={loading} columns={columns} rows={visible} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={960} empty={<EmptyState compact title="Nothing here" description="No reservations match this filter." />} />
           )}
@@ -339,7 +388,7 @@ export default function PaymentsSection() {
       </Box>
 
       <Typography sx={{ mt: 2, fontSize: 12.5, color: tokens.textOnDarkMuted }}>
-        Cash-on-site payments are recorded from the reservation page with “Mark payment received”. QR Ph payments are confirmed by PayMongo; only bank transfers need verifying here.
+        Cash-on-site payments are recorded from the reservation page with “Mark payment received”. QR Ph payments are confirmed by PayMongo; only bank transfers need verifying here. Every QR Ph code a customer opens, paid or not, is kept under “QR Ph Codes”.
       </Typography>
 
       <ConfirmDialog

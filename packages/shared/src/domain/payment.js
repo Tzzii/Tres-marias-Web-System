@@ -1,6 +1,6 @@
 /**
  * Rules of the payment and refund forms that need no stored data: what a payment is for, whether an
- * amount may be paid, and what a reference number looks like.
+ * amount may be paid, what a reference number looks like, and where a QR Ph code stands (qrState).
  *
  * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/payments, the
  * QR payments of Phase 8B included) and the pages give the same answer (docs/backend-development-phases.md §7.8). `money` is financials() from domain/money.js.
@@ -65,3 +65,22 @@ export function proofFileName(name) {
   const whole = typeof text.toWellFormed === 'function' ? text.toWellFormed() : text;
   return Array.from(whole).slice(0, MAX_FILE_NAME).join('');
 }
+
+/**
+ * How long a QR Ph code (Phase 8B) still counts as open after PayMongo's expiry: a payment started in
+ * its last seconds may still be on its way, so the server keeps checking for that long before it calls
+ * the code expired (payments.service.js), and the pages show it as "Checking payment" meanwhile.
+ */
+export const QR_GRACE_MS = 2 * 60 * 1000;
+
+/**
+ * Where a QR Ph code stands for the pages, from its stored status and the time `at` (QR_STATUS in
+ * utils/status.js has the words and colours):
+ *   'waiting'   still marked pending and within its time: the customer can scan and pay it
+ *   'checking'  still marked pending but past its time: a payment made in its last seconds may still
+ *               arrive, so the server checks with PayMongo until it is paid or expired
+ *   'paid', 'expired', 'failed'  as stored
+ * An unpaid QR is never money received: only a paid one has a payment row (with its receipt), so no
+ * total or balance ever counts a waiting QR.
+ */
+export const qrState = (qr, at = Date.now()) => (qr.status === 'pending' ? (at < qr.expiresAt ? 'waiting' : 'checking') : qr.status);

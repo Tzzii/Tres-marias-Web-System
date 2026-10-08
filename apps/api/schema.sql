@@ -131,7 +131,7 @@ CREATE TABLE customers (
 -- package after the rest (Phase 4). The same goes for addons and dishes.
 CREATE TABLE packages (
   id          VARCHAR(40)  NOT NULL,                     -- pkg-…
-  slug        VARCHAR(120) NOT NULL,                     -- URL name made from the name, e.g. package-1-with-waiters
+  slug        VARCHAR(120) NOT NULL,                     -- URL name made from the name, e.g. classic-full-service
   name        VARCHAR(120) NOT NULL,
   kind        VARCHAR(10)  NOT NULL DEFAULT 'package',   -- 'package' or 'rental'
   price       INT          NOT NULL,

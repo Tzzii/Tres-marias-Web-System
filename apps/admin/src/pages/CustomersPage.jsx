@@ -22,6 +22,7 @@ import {
   FormField,
   LightSurface,
   ListSkeleton,
+  MobileField,
   PageHeader,
   Pager,
   SearchField,
@@ -71,11 +72,12 @@ export default function CustomersPage() {
   const rows = data || [];
   // Number of customers in each filter tab
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(([k, , t]) => [k, rows.filter(t).length])), [rows]);
-  // Apply the filter tab and search. Spaces are removed so "0917 123" matches "0917123".
+  // Apply the filter tab and search. Spaces are removed so "0917 123" matches "0917123", and the mobile number
+  // is also searched as shown ("+63 917 123 4567"), so "+63917" finds it too.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     const test = FILTERS.find(([k]) => k === filter)[2];
-    return rows.filter(test).filter((c) => !q || [c.name, c.email, c.mobile, c.company].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
+    return rows.filter(test).filter((c) => !q || [c.name, c.email, c.mobile, formatMobile(c.mobile), c.company].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
   }, [rows, filter, query]);
 
   // Keep the page in range when customers leave the list (e.g. a balance was paid off under "With balance")
@@ -153,9 +155,10 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
     setErrors({});
   }, [customerId]);
 
-  // Fill the contact form with the loaded customer's details
+  // Fill the contact form with the loaded customer's details. The mobile number stays as stored, so saving
+  // only the email keeps it the way it was; MobileField shows it after "+63".
   useEffect(() => {
-    if (data) setValues({ email: data.email, mobile: formatMobile(data.mobile) });
+    if (data) setValues({ email: data.email, mobile: data.mobile });
   }, [data]);
 
   // Validate and save corrected email/mobile
@@ -217,10 +220,10 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
                 {editing ? (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                     <FormField id="c-email" label="Email" value={values.email} onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))} error={errors.email} />
-                    <FormField id="c-mobile" label="Mobile" value={values.mobile} onChange={(e) => setValues((v) => ({ ...v, mobile: e.target.value }))} error={errors.mobile} />
+                    <MobileField id="c-mobile" label="Mobile" autoComplete="off" value={values.mobile} onChange={(e) => setValues((v) => ({ ...v, mobile: e.target.value }))} error={errors.mobile} />
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <BusyButton size="small" busy={busy} onClick={save}>Save</BusyButton>
-                      <Button size="small" onClick={() => { setEditing(false); setValues({ email: data.email, mobile: formatMobile(data.mobile) }); setErrors({}); }}>Cancel</Button>
+                      <Button size="small" onClick={() => { setEditing(false); setValues({ email: data.email, mobile: data.mobile }); setErrors({}); }}>Cancel</Button>
                     </Box>
                   </Box>
                 ) : (

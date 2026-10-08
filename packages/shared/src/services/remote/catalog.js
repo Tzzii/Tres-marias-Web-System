@@ -102,7 +102,7 @@ export const minDownpayment = () => minimum.read();
 export const listPackages = ({ includeHidden = false, includeArchived = false } = {}) =>
   withSettings(http.get(`/packages${switches({ includeHidden, includeArchived })}`));
 
-/** One public package by its URL name, e.g. 'package-1'. NOT_FOUND when hidden, archived or unknown. */
+/** One public package by its URL name, e.g. 'classic'. NOT_FOUND when hidden, archived or unknown. */
 export const getPackageBySlug = (slug) => http.get(`/packages/by-slug/${segment(slug)}`);
 
 /** Additional charges (add-ons). By default only the ones not archived. */

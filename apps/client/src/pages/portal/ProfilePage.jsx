@@ -11,13 +11,14 @@ import {
   CardTitle,
   DashCard,
   FormField,
+  MobileField,
   PageHeader,
   PasswordField,
   authApi,
   collectErrors,
   formatDateLong,
-  formatMobile,
   initials,
+  nationalMobile,
   required,
   toISODate,
   tokens,
@@ -42,8 +43,8 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const { user, updateUser, signOut } = useAuth();
 
-  // Profile form
-  const [profile, setProfile] = useState({ name: user.name, mobile: formatMobile(user.mobile), company: user.company || '' });
+  // Profile form. The mobile number is kept as stored ("09171234567"); MobileField shows it after "+63".
+  const [profile, setProfile] = useState({ name: user.name, mobile: user.mobile, company: user.company || '' });
   const [profileErrors, setProfileErrors] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -57,12 +58,13 @@ export default function ProfilePage() {
   // Pick up the latest details (in case they changed elsewhere)
   useEffect(() => {
     authApi.getCustomerProfile(user.id).then((fresh) => {
-      setProfile({ name: fresh.name, mobile: formatMobile(fresh.mobile), company: fresh.company || '' });
+      setProfile({ name: fresh.name, mobile: fresh.mobile, company: fresh.company || '' });
     }).catch(() => {});
   }, [user.id]);
 
-  // True when the form differs from the saved profile (spaces in the mobile number are ignored)
-  const dirty = profile.name.trim() !== user.name || profile.mobile.replace(/\s/g, '') !== user.mobile || (profile.company || '') !== (user.company || '');
+  // True when the form differs from the saved profile (the mobile number is compared by its digits after +63,
+  // so "09171234567" and "+639171234567" count as the same number)
+  const dirty = profile.name.trim() !== user.name || nationalMobile(profile.mobile) !== nationalMobile(user.mobile) || (profile.company || '') !== (user.company || '');
 
   // Validate name and mobile, save, and update the signed-in user so the new name shows everywhere
   const saveProfile = async (e) => {
@@ -132,7 +134,7 @@ export default function ProfilePage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <FormField id="profile-name" label="Full name" required value={profile.name} onChange={(e) => { setProfile((p) => ({ ...p, name: e.target.value })); setProfileErrors({}); }} error={profileErrors.name} />
             <FormField id="profile-email" label="Email" value={user.email} disabled hint="To change your login email, message our team." />
-            <FormField id="profile-mobile" label="Mobile" required type="tel" value={profile.mobile} onChange={(e) => { setProfile((p) => ({ ...p, mobile: e.target.value })); setProfileErrors({}); }} error={profileErrors.mobile} />
+            <MobileField id="profile-mobile" label="Mobile" required value={profile.mobile} onChange={(e) => { setProfile((p) => ({ ...p, mobile: e.target.value })); setProfileErrors({}); }} error={profileErrors.mobile} />
             <FormField id="profile-company" label="Company" optional value={profile.company} onChange={(e) => setProfile((p) => ({ ...p, company: e.target.value }))} hint="For official receipts under a company name." />
             <Box sx={{ display: 'flex', gap: 1 }}>
               <BusyButton type="submit" busy={savingProfile} disabled={!dirty}>

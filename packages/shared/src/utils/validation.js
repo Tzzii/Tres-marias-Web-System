@@ -14,12 +14,15 @@ export const validateEmail = (value) => {
   return EMAIL_RE.test(String(value).trim()) ? '' : 'Enter a valid email address.';
 };
 
-/** Philippine mobile numbers: 09XXXXXXXXX or +639XXXXXXXXX. */
+/**
+ * Philippine mobile numbers: 09XXXXXXXXX or +639XXXXXXXXX. The example in the message is written the way
+ * the number box shows it (MobileField, "+63" in front).
+ */
 export const validateMobile = (value) => {
   // Ignore spaces and dashes so "0917-123-4567" is accepted
   const digits = String(value || '').replace(/[\s-]/g, '');
   if (!digits) return 'Mobile number is required.';
-  return /^(09\d{9}|\+639\d{9})$/.test(digits) ? '' : 'Enter a valid mobile number, e.g. 0917 123 4567.';
+  return /^(09\d{9}|\+639\d{9})$/.test(digits) ? '' : 'Enter a valid mobile number, e.g. +63 917 123 4567.';
 };
 
 /** 8 characters or more, with a number. */
