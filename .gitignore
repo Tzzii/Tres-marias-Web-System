@@ -6,6 +6,8 @@ dist/
 *.log
 *.timestamp-*.mjs
 apps/api/uploads/
+# The sample customers, bookings and reviews (npm run seed:api) stay on this computer only
+apps/api/src/seedData/sample/
 .DS_Store
 .claude/
 design-backup/

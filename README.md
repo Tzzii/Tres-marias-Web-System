@@ -57,7 +57,8 @@ capstone website #2/
 │       │                            # checks: route-audit.js, security-tests.js (lib/ = their helpers)
 │       └── src/                     # server.js, app.js, config.js, db.js, seed.js, lib/, middleware/,
 │                                    # integrations/ (mail, SMS, storage, PayMongo), modules/ (one per service),
-│                                    # seedData/ (the sample data the seeder loads)
+│                                    # seedData/ (the business data the seeder loads; its sample/
+│                                    # folder of made-up customers stays on your computer, not on GitHub)
 ├── packages/
 │   └── shared/                      # SHARED BY BOTH APPS (imported as @tm/shared)
 │       ├── public/images/           # Logo and event theme icons (served by both apps)
@@ -80,7 +81,9 @@ Why a monorepo instead of one app with `/admin` routes: the two sites deploy to 
 hosts, so the customer site never ships the admin screens and each app can be released on
 its own schedule, while both still import the same `@tm/shared` package. The website bundles hold
 no data of their own: every page asks the API, and the sample data lives only in the API's seeder
-(`apps/api/src/seedData`), so no password or sample customer is ever shipped to a browser.
+(`apps/api/src/seedData`), so no password or sample customer is ever shipped to a browser. The sample
+customers are not on GitHub either: `apps/api/src/seedData/sample/` is in `.gitignore` (see
+"Resetting the data").
 
 ---
 
@@ -122,8 +125,9 @@ The API needs MySQL 8. First time only:
    and the passwords the seeder gives the accounts it creates: `SEED_ADMIN_PASSWORD` (the admin) and
    `SEED_CUSTOMER_PASSWORD` (every sample customer). They are never written in the code or here.
 2. As the MySQL root user, run `apps/api/db-setup.sql` once (creates the `tres_marias` database and user).
-3. `npm run db:reset` (creates the tables), then `npm run seed:api` (loads the sample data below)
-   or `npm run seed:starter` (the fresh start with no customers, see "Resetting the data").
+3. `npm run db:reset` (creates the tables), then `npm run seed:api` (loads the sample data below;
+   needs `apps/api/src/seedData/sample/`, which a fresh clone does not have) or `npm run seed:starter`
+   (the fresh start with no customers, see "Resetting the data").
 
 When an update adds a table (Phase 12 added `signup_requests` and `password_changes`) or a column (the
 3 October 2026 revisions added `reservations.end_time`, `calendar_blocks.note` and the `terms_version`
@@ -193,6 +197,13 @@ for a test inbox). SMS is for notifications and outsourcing requests only.
 for 2 minutes. At most 5 code emails an hour go to one customer address. The API keeps these in the
 database, so clearing the browser's data does not lift them; `npm run seed:api` does (it reloads the
 sample data), and so does a finished password reset for that account.
+
+**Where the seed data is:** `apps/api/src/seedData/seed.js` holds the business data (packages,
+additional charges, dishes, settings, the admin account and the inventory) and is on GitHub. The sample
+customers with their reservations, payments, chat, reviews and outsourcing partners are in
+`apps/api/src/seedData/sample/`, which `.gitignore` keeps on the developer's computer, so neither GitHub
+nor the live server has any of them. To use the sample data on another computer, copy that folder there
+by hand; without it, `npm run seed:api` and `npm run db:roundtrip` stop with a message and change nothing.
 
 **Resetting the data:** `npm run seed:api` puts the database back to the sample data. When
 `apps/api/schema.sql` has changed (e.g. Phase 4 gave packages, additional charges and dishes a

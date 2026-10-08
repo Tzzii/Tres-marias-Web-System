@@ -7,15 +7,17 @@ import { closePool, dbErrorHint, pool, tx } from './db.js';
 import { toJson } from './lib/json.js';
 import { hashSecret } from './lib/passwords.js';
 import { seedPasswords } from './seedData/passwords.js';
-import { buildSeed } from './seedData/seed.js';
+import { NO_SAMPLE_DATA, loadSampleSeed } from './seedData/sampleLoader.js';
+import { buildBusinessSeed } from './seedData/seed.js';
 
 /**
- * Fill the database from buildSeed() (src/seedData/seed.js), flattened into the tables of schema.sql.
- * Two modes:
- * - `npm run seed:api` — the demo data: sample customers with their reservations, payments, chat,
- *   reviews and outsourcing, for development and testing.
- * - `npm run seed:starter` (--starter) — the fresh start for go-live: only the real business data,
- *   with no customers and every inventory piece on the shelf (see starterData()).
+ * Fill the database from the seed data, flattened into the tables of schema.sql. Two modes:
+ * - `npm run seed:api` — the demo data: the business data (seedData/seed.js) plus the sample customers
+ *   with their reservations, payments, chat, reviews and outsourcing (seedData/sample/), for development
+ *   and testing. The sample folder is kept out of GitHub, so this mode works only on a computer that has
+ *   it and refuses to run anywhere else, the live server included.
+ * - `npm run seed:starter` (--starter) — the fresh start for go-live: only the business data, with no
+ *   customers and every inventory piece on the shelf (see starterData()).
  * Either one replaces every row, so it refuses to run when NODE_ENV is production unless --force is
  * given. Run `npm run db:reset` first whenever schema.sql has changed.
  *
@@ -57,38 +59,36 @@ const FIRST_RECEIPT = 1001;
 
 /**
  * The starter data (--starter): the fresh start the live server opens with, as if the website were
- * going up for the first time. Built from buildSeed(), so the real business data is not copied:
- * - Kept: the admin account, the packages, add-ons and dishes, the price per person and minimum
+ * going up for the first time. Built from `business` (buildBusinessSeed() in seedData/seed.js) alone:
+ * - Loaded: the admin account, the packages, add-ons and dishes, the price per person and minimum
  *   downpayment, the daily capacity, and the 48 inventory items (codes, totals, low-stock levels,
  *   rent prices and damage fees, and the tent sizes that book them).
  * - Inventory: every piece is on the shelf (nothing checked out, nothing damaged), and each item's
  *   history starts with one line dated `now`, the one the app writes when the admin adds an item.
- * - Gone: the sample customers and everything made for them (reservations, payments, refunds, chat,
- *   reviews), the sample blocked dates, and every outsourcing partner and contract. The partners are
- *   made up, and after go-live a contract really goes out by SMS and email; the admin adds the real ones.
- * - Counters start again (pay-0001, OUT-YYYY-0001, rf-0001), except inventory, so the next item added
- *   is EQ-0049, and receipt, so the first receipt is OR-1001. As in buildSeed(), `receipt` is the NEXT
- *   number here; toRows() stores the last one used.
+ * - Empty: customers and everything made for them (reservations, payments, refunds, chat, reviews),
+ *   blocked dates, and outsourcing partners and contracts; the admin adds the real partners.
+ * - Counters start at the beginning (pay-0001, OUT-YYYY-0001, rf-0001), except inventory, so the next
+ *   item added is EQ-0049, and receipt, so the first receipt is OR-1001. `receipt` is the NEXT number
+ *   here, as in the sample data; toRows() stores the last one used.
  */
-function starterData(data, now) {
-  const actor = data.admins[0].name;
+function starterData(business, now) {
+  const actor = business.admins[0].name;
   return {
-    ...data,
+    settings: business.settings,
+    admins: business.admins,
     customers: [],
+    packages: business.packages,
+    addons: business.addons,
+    dishes: business.dishes,
     reservations: [],
     payments: [],
     refunds: [],
     threads: [],
     testimonials: [],
-    calendar: { ...data.calendar, blocked: [] },
-    inventory: data.inventory.map((item) => ({
-      ...item,
-      allocations: {},
-      damaged: 0,
-      history: [{ at: now, actor, text: addedText(item.total, item) }]
-    })),
+    calendar: { dailyCapacity: business.dailyCapacity, blocked: [] },
+    inventory: business.inventory.items.map((item) => ({ ...item, history: [{ at: now, actor, text: addedText(item.total, item) }] })),
     outsourcing: { partners: [], contracts: [] },
-    counters: { receipt: FIRST_RECEIPT, payment: 0, inventory: data.counters.inventory, outsource: 0, refund: 0 }
+    counters: { receipt: FIRST_RECEIPT, payment: 0, inventory: business.inventory.counter, outsource: 0, refund: 0 }
   };
 }
 
@@ -411,12 +411,19 @@ async function schemaProblem() {
 
 /**
  * Run the seed: the demo data, or the starter data with --starter (the fresh start for go-live).
- * Returns the exit code: 0 when every row went in, 1 when nothing changed.
+ * Returns the exit code: 0 when every row went in, 1 when nothing changed (also when the demo data is
+ * asked for on a computer without seedData/sample/).
  */
 async function main() {
   const what = STARTER ? 'the starter data: no customers, every inventory piece available' : 'the sample data';
   if (config.isProduction && !process.argv.includes('--force')) {
     console.error(`Refusing to seed: NODE_ENV is production and this replaces every row with ${what}. Add --force only if that is really what you want.`);
+    return 1;
+  }
+  // The demo data needs the sample folder, which is only on the developer's computer
+  const buildSample = STARTER ? null : await loadSampleSeed();
+  if (!STARTER && !buildSample) {
+    console.error(`Refusing to seed: ${NO_SAMPLE_DATA}`);
     return 1;
   }
   // The accounts' passwords, from apps/api/.env (checked before anything changes)
@@ -437,7 +444,8 @@ async function main() {
     }
 
     const now = Date.now();
-    const data = STARTER ? starterData(buildSeed(), now) : buildSeed();
+    const business = buildBusinessSeed();
+    const data = STARTER ? starterData(business, now) : buildSample(business);
     // Every admin gets SEED_ADMIN_PASSWORD and every sample customer SEED_CUSTOMER_PASSWORD, each with its own salt
     const accounts = [...data.admins.map((a) => [a.id, passwords.admin]), ...data.customers.map((c) => [c.id, passwords.customer])];
     const hashes = new Map(await Promise.all(accounts.map(async ([id, password]) => [id, await hashSecret(password)])));
