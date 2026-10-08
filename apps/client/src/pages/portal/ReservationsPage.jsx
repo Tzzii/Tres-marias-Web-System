@@ -21,6 +21,7 @@ import {
   formatDate,
   headcount,
   isRental,
+  pendingStep,
   peso,
   reservationApi,
   tokens,
@@ -90,7 +91,18 @@ export default function ReservationsPage() {
     { key: 'guests', label: 'Guests', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'status', label: 'Status', render: (r) => <StatusChip status={r.status} /> },
-    { key: 'action', label: '', align: 'right', render: (r) => <Button size="small" onClick={() => navigate(`/portal/reservations/${r.ref}`)}>View details</Button> }
+    // A quotation waiting for the customer to accept it gets its own button: accepting approves the request
+    {
+      key: 'action',
+      label: '',
+      align: 'right',
+      render: (r) =>
+        pendingStep(r) === 'accept' ? (
+          <Button size="small" variant="contained" onClick={() => navigate(`/portal/reservations/${r.ref}`)}>Review quotation</Button>
+        ) : (
+          <Button size="small" onClick={() => navigate(`/portal/reservations/${r.ref}`)}>View details</Button>
+        )
+    }
   ];
 
   return (
@@ -148,8 +160,9 @@ export default function ReservationsPage() {
                       <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                         {formatDate(r.date)} · {r.packageName} · {headcount(r)}
                       </Typography>
-                      <Box sx={{ mt: 0.75 }}>
+                      <Box sx={{ mt: 0.75, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         <StatusChip status={r.status} size="sm" />
+                        {pendingStep(r) === 'accept' && <Typography component="span" sx={{ fontSize: 12, fontWeight: 700, color: tokens.goldDark }}>Quotation ready to accept</Typography>}
                       </Box>
                     </Box>
                     <ChevronRightRoundedIcon sx={{ color: tokens.textMuted }} />

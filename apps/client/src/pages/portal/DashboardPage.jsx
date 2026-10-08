@@ -28,6 +28,7 @@ import {
   formatRelative,
   headcount,
   messageApi,
+  pendingStep,
   peso,
   pluralize,
   reservationApi,
@@ -65,7 +66,9 @@ export default function DashboardPage() {
   // Active events from today on, soonest first
   const upcoming = reservations.filter((r) => ACTIVE.includes(r.status) && daysFromToday(r.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
   const next = upcoming[0]; // the very next event
-  const pending = reservations.filter((r) => r.status === 'pending').length;
+  // A quotation waiting for the customer to accept it (that approves the request), and the requests still waiting on us
+  const toAccept = reservations.find((r) => pendingStep(r) === 'accept');
+  const pending = reservations.filter((r) => r.status === 'pending' && pendingStep(r) !== 'accept').length;
   // Total still owed across approved and confirmed bookings
   const balanceDue = reservations.filter((r) => ['approved', 'downpayment_paid', 'confirmed'].includes(r.status)).reduce((sum, r) => sum + r.balance, 0);
   // First approved booking with no downpayment and no proof uploaded yet
@@ -84,8 +87,10 @@ export default function DashboardPage() {
   // One-line summary under the greeting, picking the most important message first
   const subline = loading
     ? 'Loading your reservations…'
-    : pending
-      ? `You have ${pluralize(pending, 'reservation')} waiting on our approval.`
+    : toAccept
+      ? `Your quotation for ${toAccept.eventName} is ready. Accept it to approve your reservation.`
+      : pending
+      ? `You have ${pluralize(pending, 'reservation')} waiting for our quotation.`
       : needsDownpayment
         ? `${needsDownpayment.eventName} is approved. Pay the downpayment to secure your date.`
         : next

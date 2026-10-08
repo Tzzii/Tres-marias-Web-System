@@ -10,7 +10,7 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
-import { PortalShell, TERMS_VERSION, authApi, formatDate, messageApi, reservationApi, useNotify, useResource } from '@tm/shared';
+import { PortalShell, TERMS_VERSION, authApi, formatDate, messageApi, pendingStep, reservationApi, useNotify, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
 import TermsUpdateDialog from '../components/TermsUpdateDialog.jsx';
 
@@ -75,7 +75,8 @@ export default function PortalLayout() {
       if (r.status === 'downpayment_paid') list.push({ id: `${r.ref}:downpayment_paid`, title: 'Downpayment Received', body: `${r.eventName} is waiting for final confirmation from our team.`, at: lastAt, to });
       if (r.status === 'confirmed') list.push({ id: `${r.ref}:confirmed`, title: 'Booking Confirmed', body: `${r.eventName} on ${formatDate(r.date)} is confirmed. Your contract is in Documents.`, at: lastAt, to });
       if (r.status === 'declined') list.push({ id: `${r.ref}:declined`, title: 'Reservation Declined', body: `${r.eventName}: ${r.declineReason}`, at: lastAt, to });
-      if (r.quotation && r.status === 'pending') list.push({ id: `${r.ref}:quoted:${r.quotation.sentAt}`, title: 'Quotation Ready', body: `Your quotation for ${r.eventName} is ready to review.`, at: r.quotation.sentAt, to });
+      // A quotation to accept (accepting approves the request); a new one sent replaces the notification
+      if (pendingStep(r) === 'accept') list.push({ id: `${r.ref}:quoted:${r.quotation.sentAt}`, title: 'Quotation Ready', body: `Your quotation for ${r.eventName} is ready. Review it and accept it to approve your reservation.`, at: r.quotation.sentAt, to });
     });
     // Count unread chat messages and add a notification for each thread with new ones
     let unread = 0;

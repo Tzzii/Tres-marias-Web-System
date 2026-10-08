@@ -5,9 +5,9 @@ import { HOLDS_DATE } from '../utils/status.js';
 import { cancelDeadline } from './cancellation.js';
 
 /**
- * Reservation rules that need no stored data: whether a sent quotation is out of date, how many
- * pieces of each item are free for a rental on a date, what a rental costs after an edit, the menu as
- * a display list, and the chat message an approval sends.
+ * Reservation rules that need no stored data: whether a sent quotation is out of date, where a pending
+ * request stands (pendingStep), how many pieces of each item are free for a rental on a date, what a
+ * rental costs after an edit, the menu as a display list, and the chat message an approval sends.
  *
  * Pure (no database, no localStorage, no React), so the API server (apps/api/src/modules/reservations)
  * and the pages give the same answers (docs/backend-development-phases.md §7.8). The money rules are in domain/money.js.
@@ -46,6 +46,18 @@ export function quotationStaleReason(reservation) {
 
 /** True when the sent quotation no longer matches the booking it belongs to (see quotationStaleReason). */
 export const quotationStale = (reservation) => Boolean(quotationStaleReason(reservation));
+
+/**
+ * Where a pending request stands, the same on both portals and the server's reports: 'quote' (the
+ * admin still has to send the quotation), 'revise' (it went out, but the booking changed since, so a
+ * revised one is owed before it can be accepted) or 'accept' (waiting for the customer to accept it,
+ * which approves the request); '' for any other status. 'quote' and 'revise' are the admin's to do.
+ */
+export function pendingStep(reservation) {
+  if (reservation.status !== 'pending') return '';
+  if (!reservation.quotation) return 'quote';
+  return quotationStale(reservation) ? 'revise' : 'accept';
+}
 
 /**
  * Pieces of an item an event booking holds through its additional charges: the booked quantity of the
@@ -153,11 +165,12 @@ export function rentalQuote(pkg, reservation, { rentalItems = reservation.rental
 }
 
 /**
- * The chat message an approval sends (`reservation` is the approved booking, with its due date; `money`
- * is financials() for it), e.g. "Good news! Lim Family Lunch is approved. Please pay a downpayment of at
+ * The chat message sent when the customer accepts the quotation, which approves the request
+ * (`reservation` is the approved booking, with its due date; `money` is financials() for it), e.g.
+ * "Thank you for accepting your quotation. Lim Family Lunch is approved. Please pay a downpayment of at
  * least ₱3,000 by 03 Oct 2026 to secure your date. You can pay more, up to the full ₱48,500. After you
  * pay, you can cancel online until 10 Oct 2026." A total below the minimum asks for the full amount.
- * When the online cancel deadline has already passed (a late approval), it says how to cancel instead
+ * When the online cancel deadline has already passed (a late acceptance), it says how to cancel instead
  * of naming a date in the past.
  */
 export function approvalMessage(reservation, money) {
@@ -171,7 +184,7 @@ export function approvalMessage(reservation, money) {
     deadline >= todayISO()
       ? `After you pay, you can cancel online until ${formatDate(deadline)}.`
       : `Online cancellation for paid bookings ended on ${formatDate(deadline)}, so after you pay, message us here or call ${BUSINESS.phone} to cancel.`;
-  return `Good news! ${reservation.eventName} is approved. ${pay} ${cancel}`;
+  return `Thank you for accepting your quotation. ${reservation.eventName} is approved. ${pay} ${cancel}`;
 }
 
 /**

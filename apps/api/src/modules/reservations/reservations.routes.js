@@ -41,6 +41,10 @@ reservationRoutes.post('/:ref/cancel', validate({ params: schemas.refParams, bod
 reservationRoutes.post('/:ref/change-request', validate({ params: schemas.refParams, body: schemas.changeBody }), async (req, res) => {
   res.json(await reservations.requestChange(req.valid.params.ref, req.user, req.valid.body.message));
 });
+// Accept the quotation, which approves the request: { sentAt } of the quotation shown -> the summary
+reservationRoutes.post('/:ref/accept-quotation', validate({ params: schemas.refParams, body: schemas.acceptBody }), async (req, res) => {
+  res.json(await reservations.acceptQuotation(req.valid.params.ref, req.user, req.valid.body.sentAt));
+});
 
 /* ============================ /api/rentals (any signed-in user) ============================ */
 
@@ -65,13 +69,11 @@ reservationAdminRoutes.get('/:ref', validate({ params: schemas.refParams }), asy
   res.json(await reservations.getReservation(req.valid.params.ref));
 });
 
-// The admin's actions: each answers with the booking's summary
+// The admin's actions: each answers with the booking's summary. There is no approve: the customer
+// approves a request by accepting its quotation (POST /api/reservations/:ref/accept-quotation).
 // Price and send the quotation: { addonPrices, otherCharges, otherLabel, discount, deliveryFee, note }
 reservationAdminRoutes.post('/:ref/quotation', validate({ params: schemas.refParams, body: schemas.quotationBody }), async (req, res) => {
   res.json(await reservations.sendQuotation(req.valid.params.ref, req.valid.body, req.user));
-});
-reservationAdminRoutes.post('/:ref/approve', validate({ params: schemas.refParams }), async (req, res) => {
-  res.json(await reservations.approveReservation(req.valid.params.ref, req.user));
 });
 // { reason } shown to the customer
 reservationAdminRoutes.post('/:ref/decline', validate({ params: schemas.refParams, body: schemas.reasonBody }), async (req, res) => {

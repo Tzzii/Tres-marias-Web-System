@@ -1005,8 +1005,8 @@ export default function BookEventPage() {
               {rental ? <RentalQuoteLines quote={quote} delivered={delivered} /> : <QuoteLines quote={quote} pkg={pkg} serviceType={form.serviceType} addons={chosenAddons} addonQty={form.addonQty} />}
               <AlertBanner tone="info" sx={{ mt: 2 }}>
                 {rental
-                  ? 'This is a request, not a confirmed rental. We check the items and send your quotation within 24 hours.'
-                  : 'This is a request, not a confirmed booking. We review it and send your quotation with the additional charges priced within 24 hours.'}
+                  ? 'This is a request, not a confirmed rental. We check the items and send your quotation within 24 hours; accepting it approves your rental.'
+                  : 'This is a request, not a confirmed booking. We review it and send your quotation with the additional charges priced within 24 hours; accepting it approves your reservation.'}
               </AlertBanner>
               {/* Asked for every request; the link opens the full terms in a new tab so the form stays as it is */}
               <Box sx={{ mt: 2 }}>

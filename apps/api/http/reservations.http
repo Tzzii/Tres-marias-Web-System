@@ -126,10 +126,16 @@ Content-Type: application/json
 
 { "addonPrices": { "add-waiters": 800 }, "otherCharges": 2000, "otherLabel": "2 extra hours", "discount": 500, "note": "Thank you for booking with us." }
 
-### Approve a pending request (needs a quotation: 409 NO_QUOTATION). A full date: 409 CAPACITY; a clashing start
-### time: 409 TIME_UNAVAILABLE; a rental with too few pieces free: 409 OUT_OF_STOCK; a blocked date: 409 DATE_UNAVAILABLE
-POST {{api}}/admin/reservations/{{ref}}/approve
-Authorization: Bearer {{adminToken}}
+### There is no admin approve (2026-10-08): the customer accepts the quotation, which approves the request.
+### { sentAt } = the quotation's sentAt from the answer above. Before a quotation: 409 NO_QUOTATION; an older or
+### out-of-date quotation, already accepted, or declined: 409 INVALID_STATE; a full date: 409 CAPACITY; a clashing
+### time: 409 TIME_UNAVAILABLE; a rental with too few pieces free: 409 OUT_OF_STOCK; a blocked date: 409 DATE_UNAVAILABLE.
+### The same checks stop the admin sending a pending request's quotation ("… before sending the quotation.").
+POST {{api}}/reservations/{{ref}}/accept-quotation
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "sentAt": 1791390279922 }
 
 ### Decline a pending request; the reason (at least 5 characters, else 400 INVALID) goes to the customer's chat
 POST {{api}}/admin/reservations/{{ref}}/decline

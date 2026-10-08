@@ -54,6 +54,7 @@ import {
   messageApi,
   paymentApi,
   paymentKindLabel,
+  pendingStep,
   peso,
   reservationApi,
   shiftEndTime,
@@ -74,6 +75,8 @@ const PREPARABLE = ['downpayment_paid', 'confirmed'];
 
 /**
  * 1t · Reservation details. The one screen where the admin edits a booking.
+ * A pending request has no Approve: the admin sends the quotation (or declines), and the customer
+ * approves the request by accepting it in their portal; the status card says which side it waits on.
  * Besides the status actions, the admin can cancel an approved, downpayment-paid or confirmed booking
  * (with a reason the customer sees), mark "Started preparing" (after which the customer can't cancel
  * online) or undo it, and record the refund owed on a cancelled or overpaid booking.
@@ -87,7 +90,7 @@ export default function ReservationDetailPage() {
   const { data: r, loading, error, reload } = useResource(() => reservationApi.getReservation(ref), [ref]);
   useDocumentTitle(r ? `${r.ref} · ${r.eventName}` : 'Reservation', 'Tres Marias Admin');
 
-  const [dialog, setDialog] = useState(null); // which dialog is open: approve, decline, confirm, complete, cancel, prepare, unprepare, refund, cash, food, rentalItems, checkout, return
+  const [dialog, setDialog] = useState(null); // which dialog is open: decline, confirm, complete, cancel, prepare, unprepare, refund, cash, food, rentalItems, checkout, return
   const [doc, setDoc] = useState(null); // document open in the preview dialog
   // Breadcrumb links shown above the title
   const crumbs = [{ label: 'Reservation & Calendar', to: '/reservations?tab=all' }, { label: ref }];
@@ -114,6 +117,8 @@ export default function ReservationDetailPage() {
   }
 
   const closed = CLOSED.includes(r.status);
+  // Pending: 'quote' (send the quotation), 'revise' (re-send it: the booking changed) or 'accept' (the customer's turn)
+  const step = pendingStep(r);
   // Run a save action and show a success or error toast
   const act = async (fn, message) => {
     try {
@@ -135,15 +140,15 @@ export default function ReservationDetailPage() {
   };
 
   // Buttons in the page header change with the status:
-  // pending -> Approve / Send quotation / Decline, downpayment paid -> Confirm, confirmed and event day reached -> Mark completed,
+  // pending -> Send (or Re-send) quotation / Decline (the customer approves by accepting the quotation),
+  // downpayment paid -> Confirm, confirmed and event day reached -> Mark completed,
   // and approved to confirmed -> Cancel reservation (a pending request is declined instead)
   const headerActions = (
     <>
       {r.status === 'pending' && (
         <>
-          <Button variant="contained" onClick={() => setDialog('approve')}>Approve</Button>
-          <Button variant="outlined" onClick={() => document.getElementById('quotation-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
-            Send quotation
+          <Button variant={step === 'accept' ? 'outlined' : 'contained'} onClick={() => document.getElementById('quotation-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} sx={step === 'accept' ? { color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' } : undefined}>
+            {step === 'quote' ? 'Send quotation' : 'Re-send quotation'}
           </Button>
           <Button onClick={() => setDialog('decline')} sx={{ color: tokens.dangerSoft }}>Decline</Button>
         </>
@@ -165,6 +170,14 @@ export default function ReservationDetailPage() {
         {/* Progress bar of the booking status, plus decline/cancel/overdue notices and the "Started preparing" mark */}
         <DashCard>
           <StatusPipeline status={r.status} />
+          {/* A pending request waits on the admin's quotation, or on the customer accepting it (which approves it) */}
+          {step === 'quote' && <AlertBanner tone="warning" sx={{ mt: 2 }} title="Send the quotation">The customer approves this request by accepting the quotation in their portal. The date is not held until they do.</AlertBanner>}
+          {step === 'revise' && <AlertBanner tone="warning" sx={{ mt: 2 }} title="Re-send the quotation">The booking changed after the quotation was sent, so the customer can't accept it yet. {r.quotationStaleReason}</AlertBanner>}
+          {step === 'accept' && (
+            <AlertBanner tone="info" sx={{ mt: 2 }} title="Waiting for the customer to accept the quotation">
+              Sent {formatDateTime(r.quotation.sentAt)} ({peso(r.quotation.net)}). Accepting approves the reservation and asks for the minimum downpayment by a due date. The date is not held until then.
+            </AlertBanner>
+          )}
           {r.status === 'declined' && <AlertBanner tone="error" sx={{ mt: 2 }} title="Decline reason sent to the customer">{r.declineReason}</AlertBanner>}
           {/* Records without cancelledBy are the customer's own cancellations */}
           {r.status === 'cancelled' && <AlertBanner tone="error" sx={{ mt: 2 }} title={r.cancelledBy === 'admin' ? 'Cancelled by the admin' : 'Cancelled by the customer'}>{r.cancelReason}</AlertBanner>}
@@ -242,7 +255,7 @@ export default function ReservationDetailPage() {
           </Box>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
-            <QuotationCard r={r} closed={closed} onSend={(values) => act(() => reservationApi.sendQuotation(r.ref, values), 'Quotation saved and sent to the customer.')} />
+            <QuotationCard r={r} closed={closed} onSend={(values) => act(() => reservationApi.sendQuotation(r.ref, values), r.status === 'pending' ? 'Quotation sent. The customer accepts it in their portal to approve the reservation.' : 'Quotation saved and sent to the customer.')} />
 
             <DashCard>
               <CardTitle>Payments</CardTitle>
@@ -387,8 +400,7 @@ export default function ReservationDetailPage() {
       </Box>
 
       {/* Dialogs for each status change; each calls the API, closes, and shows a toast */}
-      <ConfirmDialog open={dialog === 'approve'} onClose={() => setDialog(null)} title="Approve This Reservation?" description={r.quotation ? `The quotation of ${peso(r.quotation.net)} is attached. The customer is asked for the minimum downpayment of ${peso(Math.min(r.downpayment, r.quotation.net))} (or more, up to the full amount) by a due date.` : 'Send the quotation first: the food and additional charges need prices before the reservation can be approved.'} confirmLabel="Approve" onConfirm={async () => { await reservationApi.approveReservation(r.ref); setDialog(null); notify('Reservation approved.'); }} />
-      <ConfirmDialog open={dialog === 'decline'} onClose={() => setDialog(null)} title="Decline This Reservation?" description="The reason is shown to the customer. The date stays open for other bookings." confirmLabel="Decline" tone="danger" reasonLabel="Reason shown to the customer" onConfirm={async (reason) => { await reservationApi.declineReservation(r.ref, reason); setDialog(null); notify('Reservation declined.', 'info'); }} />
+      <ConfirmDialog open={dialog === 'decline'} onClose={() => setDialog(null)} title="Decline This Reservation?" description={`The reason is shown to the customer${r.quotation ? ', and the quotation can no longer be accepted' : ''}. The date stays open for other bookings.`} confirmLabel="Decline" tone="danger" reasonLabel="Reason shown to the customer" onConfirm={async (reason) => { await reservationApi.declineReservation(r.ref, reason); setDialog(null); notify('Reservation declined.', 'info'); }} />
       <ConfirmDialog open={dialog === 'confirm'} onClose={() => setDialog(null)} title="Confirm This Booking?" description="The customer's contract becomes available in their Documents." confirmLabel="Confirm booking" onConfirm={async () => { await reservationApi.confirmReservation(r.ref); setDialog(null); notify('Booking confirmed.'); }} />
       <ConfirmDialog open={dialog === 'complete'} onClose={() => setDialog(null)} title="Mark as Completed?" description={r.balance > 0 ? `There is still a balance of ${peso(r.balance)}. Record the payment first if it was collected.` : 'The customer will be invited to leave a testimonial.'} confirmLabel="Mark completed" onConfirm={async () => { await reservationApi.completeReservation(r.ref); setDialog(null); notify('Event marked as completed.'); }} />
       <ConfirmDialog
@@ -558,6 +570,11 @@ function LogisticsCard({ r, closed, onSave }) {
  *
  * The new total may be lower than what the customer has paid: the card says how much would be paid
  * above it, and once sent that amount shows under Refund to be returned (the customer is told in the chat).
+ *
+ * On a pending request the quotation is the offer the customer accepts in their portal, which approves
+ * the request; the server refuses to send it when the date can no longer be taken (full, blocked, the
+ * time or the stock taken), and a newer one sent before they accept is the one they accept. A quotation
+ * re-sent after it was accepted applies as soon as it is sent.
  */
 function QuotationCard({ r, closed, onSend }) {
   const rental = isRental(r.serviceType);

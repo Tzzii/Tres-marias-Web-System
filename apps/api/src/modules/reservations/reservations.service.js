@@ -45,7 +45,8 @@ import * as repo from './reservations.repo.js';
 /**
  * The reservation rules on the server (docs/backend-development-phases.md Phase 6, §9.4): the lists
  * and the detail page, the booking form (an event or an equipment rental), the customer's cancellation
- * and change request (Phase 6A), and the admin's actions and edits: quotation, approve, decline,
+ * and change request (Phase 6A) and acceptance of the quotation (which approves the request, 2026-10-08),
+ * and the admin's actions and edits: quotation, decline,
  * confirm, complete, cancel, "Started preparing" and its undo, logistics, menu, notes and rented items
  * (Phase 6B), with the return shapes, error codes, messages and meta.field the pages expect; the
  * booking form's checks are repeated here in the same order because the server never trusts the page
@@ -62,7 +63,7 @@ import * as repo from './reservations.repo.js';
  *   and required text is checked after trimming (spaces alone are not an event name or a venue).
  * - A quotation's amounts must be whole pesos from 0 to MAX_AMOUNT, and a logistics edit needs the
  *   venue, city and address (the admin page never sends less, but the server never trusts the page).
- * - A booking, an approval, a logistics edit and a rented-items edit read the availability map and
+ * - A booking, an accepted quotation, a logistics edit and a rented-items edit read the availability map and
  *   the rental stock from the database inside their own transaction, after taking the availability
  *   lock (lockAvailability), so two of them never pass the same check at once.
  * - Refunds (Phase 8) are taken off what was paid, from the refunds table.
@@ -279,7 +280,7 @@ async function eventBooking(conn, pkg, form) {
   });
   const addonIds = addons.map((addon) => addon.id);
   // Stock-tracked charges (a tent size) need enough pieces free on the date. A pending request holds
-  // none yet, so approval checks again.
+  // none yet, so accepting the quotation checks again.
   const stockProblem = addonStockProblem(await repo.rentalStockInputs(conn, date), { addonIds, addonQty }, date, addons);
   if (stockProblem) throw invalid(stockProblem.message, stockProblem.field);
 
@@ -440,7 +441,7 @@ async function book(conn, customer, form) {
 
 /**
  * The signed-in customer submits the booking form; the status starts at Pending, which holds no slot
- * and no rental stock (the admin's approval does, Phase 6B). Picking the Equipment Rental package makes
+ * and no rental stock (the customer's acceptance of the quotation does). Picking the Equipment Rental package makes
  * it an Equipment rental. The ref comes from the refs already given out for the event date
  * (makeReservationRef); if another booking was saved with the same ref first, the whole booking is
  * tried again in a new transaction with a fresh read of the refs, up to MAX_REF_ATTEMPTS times (the
@@ -517,6 +518,49 @@ export async function requestChange(ref, customer, message) {
   });
 }
 
+/**
+ * The customer accepts the quotation we sent, and that approves the request: the admin sets the price,
+ * the customer agrees to it (decided 2026-10-08 with the capstone adviser; there is no admin Approve).
+ * Only a pending request with a quotation can be accepted (NO_QUOTATION before one is sent), and only the
+ * one the customer was looking at: `sentAt` must be the current quotation's, so a newer one sent
+ * meanwhile is reviewed first, and an out-of-date one (the booking changed after it was sent) waits for
+ * the revised quotation. The date must still be free (slotProblem: open, a slot under the capacity, the
+ * time clear, the stock free), checked under the availability lock so two acceptances never take the
+ * last slot; when it was taken meanwhile, the customer is asked to message us. Then the status moves to
+ * Approved with the downpayment due date, the activity log keeps who accepted which amount, the
+ * customer's acceptance goes into their chat (unread for the admin, so the team sees it) and the
+ * payment instruction (approvalMessage) follows with the quotation attached. Only the first quotation
+ * is accepted: one re-sent after this applies when it is sent (sendQuotation). Returns the customer's
+ * view of its summary. Lock order as every slot write: the availability lock, the booking's row, the chat.
+ */
+export async function acceptQuotation(ref, customer, sentAt) {
+  return tx(async (conn) => {
+    await lockAvailability(conn);
+    const owner = await repo.lockOwner(conn, ref);
+    if (!owner || !sameRef(owner, ref) || owner.customerId !== customer.id) throw notFound();
+    const [row] = await repo.findReservations(conn, { ref });
+    const { reservation } = row;
+    if (reservation.status !== 'pending') {
+      throw new ApiError('INVALID_STATE', CLOSED.includes(reservation.status) && reservation.status !== 'completed' ? `This reservation is ${statusLabel(reservation.status).toLowerCase()}, so its quotation can no longer be accepted.` : 'You already accepted this quotation.');
+    }
+    const quote = reservation.quotation;
+    if (!quote) throw new ApiError('NO_QUOTATION', 'We have not sent your quotation yet. We will tell you in your chat when it is ready.');
+    if (quotationStale(reservation)) throw new ApiError('INVALID_STATE', 'Your reservation changed after this quotation was sent. We will send you a revised quotation to accept.');
+    if (toNumber(sentAt) !== quote.sentAt) throw new ApiError('INVALID_STATE', 'We sent you a newer quotation. Please review it before accepting.');
+    const blocked = await slotProblem(conn, reservation);
+    if (blocked) throw new ApiError(blocked.code, `${blocked.problem} Please message us so we can find another ${blocked.fix === 'time' ? 'time' : 'date'} for you.`);
+
+    // Due in RULES.downpaymentDueDays, but no later than 3 days before the event (and never before today)
+    const approved = { ...reservation, status: 'approved', downpaymentDue: downpaymentDueFor(reservation.date) };
+    await repo.updateReservation(conn, ref, { status: approved.status, downpaymentDue: approved.downpaymentDue });
+    await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Accepted the quotation (${pesoText(quote.net)}). The reservation is approved.` });
+    await postCustomerMessage(conn, reservation, `I accept the quotation for ${reservation.eventName}: ${pesoText(quote.net)}.`, customer.name);
+    await postAdminMessage(conn, reservation, approvalMessage(approved, financials(approved, row.payments, row.refunds)), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, 'Tres Marias team');
+    const [updated] = await repo.findReservations(conn, { ref });
+    return withoutNotes(summarize(updated));
+  });
+}
+
 /* ============================ Admin actions and edits (Phase 6B) ============================ */
 
 // Bookings that are over: nothing on them is edited or re-quoted any more
@@ -575,12 +619,56 @@ function adminWrite(ref, action, { availability = false } = {}) {
 }
 
 /**
+ * Why a pending request can't take its date now, or null when it can: the date has passed or is blocked,
+ * an event finds the day at its daily capacity (CAPACITY), its whole time (start to end, with the setup
+ * and tear-down buffer) clashing with the events approved that day (TIME_UNAVAILABLE) or its
+ * stock-tracked charges (a tent size) taken (OUT_OF_STOCK), and an equipment rental, which takes no slot,
+ * finds too few of its items free (OUT_OF_STOCK). Pending requests hold nothing, so only approved
+ * bookings count. Answers { code, problem, fix }: `problem` says what is wrong in words both sides can
+ * read, and `fix` ('date', 'time' or 'items') lets the admin (sending the quotation) and the customer
+ * (accepting it) each be told their own next step. Reads the availability map and the rental stock in
+ * the caller's transaction; acceptQuotation holds the availability lock while it reads them.
+ */
+async function slotProblem(conn, reservation) {
+  const { date, ref } = reservation;
+  if (daysFromToday(date) < 0) return { code: 'INVALID_STATE', problem: 'This event date has passed.', fix: 'date' };
+  const map = await availabilityMap(conn);
+  const blocked = map.blocked.find((b) => b.date === date);
+  if (blocked) return { code: 'DATE_UNAVAILABLE', problem: `${formatDate(date)} is blocked (${blocked.reason.toLowerCase()}).`, fix: 'date' };
+
+  if (isRental(reservation.serviceType)) {
+    // Another approved rental (or an event's checked-out equipment) may have taken the pieces meanwhile
+    const stock = rentalStock(await repo.rentalStockInputs(conn, date), date, ref);
+    const short = reservation.rentalItems.filter((line) => line.qty > (stock[line.itemId] || 0));
+    return short.length ? { code: 'OUT_OF_STOCK', problem: `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}.`, fix: 'items' } : null;
+  }
+  // The events already holding the date (this pending one holds none yet; rentals never do)
+  if ((map.booked[date] || 0) >= map.capacity) return { code: 'CAPACITY', problem: `${formatDate(date)} is already at the daily capacity of ${map.capacity} events.`, fix: 'date' };
+  // Its stock-tracked charges (a tent size) must still be free: other approvals may have taken them
+  const stockData = await repo.rentalStockInputs(conn, date);
+  const short = addonShortfall(stockData, reservation, date, ref);
+  if (short.length) return { code: 'OUT_OF_STOCK', problem: `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`, fix: 'date' };
+  // Its whole time (start to end, or RULES.defaultEventHours for an old booking with no end time) must
+  // be clear of the events approved that day, with the setup and tear-down buffer around them
+  const timeReason = timeUnavailableReason(date, reservation.startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) }, eventHours(reservation.startTime, reservation.endTime));
+  return timeReason ? { code: 'TIME_UNAVAILABLE', problem: `${timeReason} on ${formatDate(date)}.`, fix: 'time' } : null;
+}
+
+// What the admin does about a slotProblem before the quotation can go out
+const ADMIN_FIX = { date: 'Move the event to another date', time: 'Change the time', items: 'Change the items or the date' };
+
+/**
  * Admin: price the add-ons and any other charges, apply a discount, and send the quotation to the
  * customer's chat. The food is never typed: a buffet is guests x
  * the rate stored on the booking (never today's), and a rental is its items at the prices they were
  * booked at plus any damage charges, with `deliveryFee` for a delivered rental (the standard fee when
  * left out). `values` is { addonPrices: { addonId: price of one }, otherCharges, otherLabel, discount,
  * deliveryFee, note }; every amount is whole pesos from 0 to MAX_AMOUNT.
+ *
+ * A pending request's quotation is an offer the customer accepts (acceptQuotation), so it is only sent
+ * while the date can still be taken (slotProblem: the date open, a slot under the capacity, the time
+ * clear, the stock free); otherwise the admin is told what to change first. Accepting checks again.
+ * A quotation re-sent after it was accepted (a new guest count, damage charges) needs no acceptance.
  *
  * The new total can move the status (statusForPayments): forward when what was paid covers it (e.g. to
  * Confirmed), or back to Approved with a new due date when the payments fall below the downpayment.
@@ -593,6 +681,10 @@ export async function sendQuotation(ref, values, admin) {
     const { reservation, payments, refunds } = row;
     if (CLOSED.includes(reservation.status)) {
       throw new ApiError('INVALID_STATE', `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be re-quoted.`);
+    }
+    if (reservation.status === 'pending') {
+      const blocked = await slotProblem(conn, reservation);
+      if (blocked) throw new ApiError(blocked.code, `${blocked.problem} ${ADMIN_FIX[blocked.fix]} before sending the quotation.`);
     }
     const rental = isRental(reservation.serviceType);
     const delivered = rental && reservation.fulfilment === 'delivery';
@@ -645,63 +737,14 @@ export async function sendQuotation(ref, values, admin) {
       extra += ` You've paid ${pesoText(after.overpaid)} more than the new total. We'll return it and tell you here when it's sent.`;
     }
 
+    // A pending request's quotation waits for the customer to accept it on their reservation page
+    if (reservation.status === 'pending') extra += ' Open your reservation and tap Accept Quotation to approve it.';
+
     await repo.updateReservation(conn, ref, saved);
     for (const text of log) await logAdmin(conn, ref, admin, text);
     await postAdminMessage(conn, reservation, `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`, { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
     return savedSummary(conn, ref);
   });
-}
-
-/**
- * Admin: approve a pending request and set the downpayment due date. The quotation must be sent first
- * (NO_QUOTATION); the date must not have passed or be blocked. Then an event needs a slot under the
- * daily capacity (CAPACITY) and a start time clear of the events already approved that day
- * (TIME_UNAVAILABLE; pending requests hold no time) and its stock-tracked charges (a tent size) still
- * free that day (OUT_OF_STOCK), while an equipment rental, which takes no slot, needs enough of every
- * item still free that day (OUT_OF_STOCK). It runs under the availability lock,
- * so two approvals for the last slot never both pass. The chat message (approvalMessage) comes with the
- * quotation. Returns the booking's summary.
- */
-export async function approveReservation(ref, admin) {
-  return adminWrite(
-    ref,
-    async (conn, row) => {
-      const { reservation } = row;
-      const { date } = reservation;
-      if (reservation.status !== 'pending') throw new ApiError('INVALID_STATE', 'Only pending reservations can be approved.');
-      if (!reservation.quotation) throw new ApiError('NO_QUOTATION', 'Send the quotation first so the food and additional charges are priced.');
-      if (daysFromToday(date) < 0) throw new ApiError('INVALID_STATE', 'This event date has passed. Move the event to a new date before approving.');
-      const map = await availabilityMap(conn);
-      const blocked = map.blocked.find((b) => b.date === date);
-      if (blocked) throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is blocked (${blocked.reason.toLowerCase()}). Move the event to another date before approving.`);
-
-      if (isRental(reservation.serviceType)) {
-        // Refused if another approved rental (or an event's checked-out equipment) took the pieces meanwhile
-        const stock = rentalStock(await repo.rentalStockInputs(conn, date), date, ref);
-        const short = reservation.rentalItems.filter((line) => line.qty > (stock[line.itemId] || 0));
-        if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}. Change the items or the date before approving.`);
-      } else {
-        // The events already holding the date (this pending one holds none yet; rentals never do)
-        if ((map.booked[date] || 0) >= map.capacity) throw new ApiError('CAPACITY', `${formatDate(date)} is already at the daily capacity of ${map.capacity} events.`);
-        // Its stock-tracked charges (a tent size) must still be free: other approvals may have taken them
-        const stockData = await repo.rentalStockInputs(conn, date);
-        const short = addonShortfall(stockData, reservation, date, ref);
-        if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}. Move the event to another date before approving.`);
-        // Its whole time (start to end, or RULES.defaultEventHours for an old booking with no end time) must
-        // be clear of the events approved that day, with the setup and tear-down buffer around them
-        const timeReason = timeUnavailableReason(date, reservation.startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) }, eventHours(reservation.startTime, reservation.endTime));
-        if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason} on ${formatDate(date)}. Change the time before approving.`);
-      }
-
-      // Due in RULES.downpaymentDueDays, but no later than 3 days before the event (and never before today)
-      const approved = { ...reservation, status: 'approved', downpaymentDue: downpaymentDueFor(date) };
-      await repo.updateReservation(conn, ref, { status: approved.status, downpaymentDue: approved.downpaymentDue });
-      await logAdmin(conn, ref, admin, 'Approved the reservation.');
-      await postAdminMessage(conn, reservation, approvalMessage(approved, financials(approved, row.payments, row.refunds)), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
-      return savedSummary(conn, ref);
-    },
-    { availability: true }
-  );
 }
 
 /** Admin: decline a pending request, with a reason (5+ characters) sent to the customer's chat. Returns the summary. */

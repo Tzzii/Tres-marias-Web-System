@@ -60,6 +60,10 @@ export { computeQuote, isRentalPackage } from './services/pricing.js';
 export { blockNote, endTimeOptions, endTimeProblem, endsNextDay, eventHours, shiftEndTime } from './domain/availability.js';
 // The Terms of Service and Privacy Policy (pages, sign-up, booking form) and the version customers agree to
 export { TERMS_UPDATED, TERMS_VERSION, privacyPolicy, termsOfService } from './legal/terms.js';
+// Where a pending request stands: the admin owes a quotation or a revised one, or the customer can accept it
+export { pendingStep } from './domain/reservation.js';
+// The downpayment due date an approval sets (the customer's Accept Quotation dialog shows it before accepting)
+export { downpaymentDueFor } from './domain/money.js';
 // When a customer may cancel online (pages read the answer from each reservation's summary; the window in words is for texts)
 export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
 // The reference-number rule of the payment and refund forms, the same one the services check

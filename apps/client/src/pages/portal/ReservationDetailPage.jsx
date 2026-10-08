@@ -6,6 +6,7 @@ import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
@@ -35,6 +36,7 @@ import {
   ThemeIcon,
   daysFromToday,
   documentsFor,
+  downpaymentDueFor,
   formatDate,
   formatDateLong,
   formatDateTime,
@@ -42,6 +44,7 @@ import {
   formatPackageItem,
   includesFood,
   isRental,
+  pendingStep,
   peso,
   reservationApi,
   toISODate,
@@ -54,7 +57,10 @@ import {
 import { useAuth } from '../../auth.js';
 
 /**
- * 1i · Reservation details. Read-only except Request a change, Cancel and Pay.
+ * 1i · Reservation details. Read-only except Accept Quotation, Request a change, Cancel and Pay.
+ * A pending request is approved by the customer accepting the quotation we sent (pendingStep 'accept'):
+ * the status card and the Payment Summary offer Accept Quotation, whose dialog shows the total, the
+ * minimum downpayment and its due date first. An out-of-date quotation ('revise') waits for the revised one.
  * Cancel shows only while the booking can be cancelled online (the summary's `onlineCancel`, worked out
  * by domain/cancellation.js); the status card says until when, or why not and how to cancel instead.
  * It also shows the "Started preparing" mark, who cancelled, and any refund owed or sent.
@@ -70,6 +76,7 @@ export default function ReservationDetailPage() {
 
   const [changeOpen, setChangeOpen] = useState(false); // "Request a change" dialog
   const [cancelOpen, setCancelOpen] = useState(false); // cancel confirmation dialog
+  const [acceptOpen, setAcceptOpen] = useState(false); // "Accept quotation" confirmation dialog
   const [doc, setDoc] = useState(null); // document open in the preview
 
   const crumbs = [{ label: 'My Reservations', to: '/portal/reservations' }, { label: r ? r.eventName : ref }];
@@ -108,6 +115,11 @@ export default function ReservationDetailPage() {
   const canPay = ['approved', 'downpayment_paid', 'confirmed'].includes(r.status) && r.balance > 0 && !r.awaitingCount;
   // Quotation, contract and receipts for this reservation
   const docs = documentsFor(r);
+  // Pending: 'quote' (we still send the quotation), 'revise' (a revised one is coming) or 'accept'
+  const step = pendingStep(r);
+  const quotationDoc = docs.find((d) => d.kind === 'quotation');
+  // What accepting asks for: the minimum downpayment (the whole total when that is lower), due as an approval sets it
+  const acceptDownpayment = r.quotation ? Math.min(r.downpayment, r.quotation.net) : 0;
   // An equipment rental shows its items, pick up or delivery and any damage charges instead of a package and menu
   const rental = isRental(r.serviceType);
   const delivered = rental && r.fulfilment === 'delivery';
@@ -139,9 +151,20 @@ export default function ReservationDetailPage() {
         {/* Status progress bar plus a message explaining what happens next */}
         <DashCard>
           <StatusPipeline status={r.status} />
-          {r.status === 'pending' && (
+          {/* The button sits under the text, so the text keeps the banner's full width on a phone */}
+          {step === 'accept' && (
+            <AlertBanner tone="info" sx={{ mt: 2 }} title="Your Quotation Is Ready">
+              Net total {peso(r.quotation.net)}. Open the quotation under Documents to see every line, then accept it to approve your reservation. To change something first, use Request a Change.
+              <Box sx={{ mt: 1.25 }}>
+                <Button size="small" variant="contained" onClick={() => setAcceptOpen(true)}>Accept Quotation</Button>
+              </Box>
+            </AlertBanner>
+          )}
+          {(step === 'quote' || step === 'revise') && (
             <AlertBanner tone="info" sx={{ mt: 2 }}>
-              {r.quotation ? 'Your quotation is ready below. We will approve the reservation and send payment instructions shortly.' : 'We are reviewing your request and will send the final quotation within 24 hours.'}
+              {step === 'revise'
+                ? 'Your reservation changed after we sent your quotation. We will send you a revised quotation to accept.'
+                : 'We are reviewing your request and will send your quotation within 24 hours. You accept it here to approve your reservation.'}
             </AlertBanner>
           )}
           {r.status === 'approved' && !r.downpaymentPaid && (
@@ -261,7 +284,7 @@ export default function ReservationDetailPage() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
-              <CardTitle subtitle={r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment Summary</CardTitle>
+              <CardTitle subtitle={step === 'accept' ? 'Your quotation, waiting for you to accept it' : step === 'revise' ? 'A revised quotation is on its way' : r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment Summary</CardTitle>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
               <DetailRow label="Minimum downpayment">{peso(r.downpayment)}</DetailRow>
               {/* Paid = what was received; money given back shows on its own row */}
@@ -279,6 +302,18 @@ export default function ReservationDetailPage() {
                 <AlertBanner tone="info" sx={{ mt: 1.5 }} title={`Overpaid ${peso(r.overpaid)}, to be returned`}>
                   We'll return it and tell you in your chat when it's sent.
                 </AlertBanner>
+              )}
+              {step === 'accept' && (
+                <>
+                  <Button fullWidth variant="contained" startIcon={<TaskAltRoundedIcon />} onClick={() => setAcceptOpen(true)} sx={{ mt: 1.5 }}>
+                    Accept quotation
+                  </Button>
+                  {quotationDoc && (
+                    <Button fullWidth variant="outlined" startIcon={<DescriptionOutlinedIcon />} onClick={() => setDoc(quotationDoc)} sx={{ mt: 1.25 }}>
+                      View quotation
+                    </Button>
+                  )}
+                </>
               )}
               {canPay && (
                 <Button fullWidth variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => navigate(`/portal/payments?ref=${r.ref}`)} sx={{ mt: 1.5 }}>
@@ -381,6 +416,27 @@ export default function ReservationDetailPage() {
           navigate('/portal/messages');
         }}
       />
+
+      {/* Accepting approves the request: the server checks again that the date is still free, and a refusal stays in the dialog */}
+      {step === 'accept' && (
+        <ConfirmDialog
+          open={acceptOpen}
+          onClose={() => setAcceptOpen(false)}
+          title="Accept This Quotation?"
+          description={`You agree to the net total of ${peso(r.quotation.net)} for ${r.eventName}. This approves your reservation and holds your date. ${
+            acceptDownpayment < r.quotation.net
+              ? `Pay a downpayment of at least ${peso(acceptDownpayment)} by ${formatDateLong(downpaymentDueFor(r.date))} to secure it.`
+              : `Pay the full ${peso(r.quotation.net)} by ${formatDateLong(downpaymentDueFor(r.date))} to secure it.`
+          }`}
+          confirmLabel="Accept quotation"
+          cancelLabel="Not yet"
+          onConfirm={async () => {
+            await reservationApi.acceptQuotation(r.ref, r.quotation.sentAt);
+            setAcceptOpen(false);
+            notify('Quotation accepted. Your reservation is approved.');
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={cancelOpen}

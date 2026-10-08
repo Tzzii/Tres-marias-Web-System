@@ -51,7 +51,7 @@ import * as repo from './inventory.repo.js';
  *
  * Every write runs in one transaction and takes the availability lock first (lockAvailability in
  * calendar.repo.js): a check-out, a return, damage, a repair, a disposal, an edit of the total or of
- * "for rent" and archiving all change the stock a rental booking or approval counts (rentalStock), and
+ * "for rent" and archiving all change the stock a rental booking or an accepted quotation counts (rentalStock), and
  * those take the same lock, so the two never pass the same check at once. Lock order, as every write
  * keeps it: the availability lock, then the booking's row when the write is for a booking (lockOwner:
  * a check-out and a return for an event, a rental's check-out and return; the customer's and the admin's

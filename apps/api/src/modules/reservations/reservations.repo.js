@@ -283,8 +283,8 @@ export async function findTestimonial(db, ref) {
 
 /**
  * The booking's owner and status, { ref, customerId, status } or null, with its row locked until the
- * transaction ends, so two writes on one booking (e.g. the customer cancelling while the admin
- * approves) run one after the other and the second sees the first one's result. `ref` comes back as
+ * transaction ends, so two writes on one booking (e.g. the customer accepting the quotation while the
+ * admin re-sends it) run one after the other and the second sees the first one's result. `ref` comes back as
  * stored: the lookup ignores case and trailing spaces (the column's collation), so callers compare it.
  * Lock order for every write: the availability lock (when needed), then this row, then the chat thread.
  */
