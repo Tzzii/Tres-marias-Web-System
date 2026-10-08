@@ -1,6 +1,7 @@
 import { MONTH_NAMES, parseISODate, titleCase, toISODate, todayISO } from '../utils/format.js';
 import { HOLDS_DATE, PAYMENT_METHODS, statusLabel } from '../utils/status.js';
 import { financials } from './money.js';
+import { pendingStep } from './reservation.js';
 
 /**
  * Dashboard and Reports figures that need no stored data: the admin Dashboard's counters and lists, the
@@ -96,9 +97,11 @@ function monthBuckets(range, dates = []) {
  * Everything the admin Dashboard shows (getDashboardSummary):
  *   eventsToday         approved to confirmed events on today's date, earliest start first: each full
  *                       reservation record with customerName, packageName and its financials()
- *   pending             requests waiting for review, newest first: { ref, eventName, occasion, date,
- *                       guests, createdAt, customerName, packageName }
+ *   pending             requests waiting for the admin, newest first: no quotation sent yet, or one that
+ *                       is out of date (pendingStep 'quote' or 'revise'): { ref, eventName, occasion,
+ *                       date, guests, createdAt, customerName, packageName }
  *   pendingOldestDays   whole days since the oldest waiting request came in (0 when there is none)
+ *   awaitingAcceptance  pending requests whose quotation waits for the customer to accept it
  *   unverifiedPayments  payments waiting for verification
  *   revenueThisMonth    payments verified this month less refunds sent this month
  *   upcoming            the next 5 approved to confirmed events after today: { ref, eventName, date,
@@ -120,9 +123,10 @@ export function dashboardSummary(data) {
     })
     .sort((a, b) => textOrder(a.startTime, b.startTime) || textOrder(a.ref, b.ref));
 
-  // Requests waiting for review, newest first (requested at the same moment: by ref, as the reservation lists)
+  // Requests waiting for the admin's quotation, newest first (requested at the same moment: by ref, as the
+  // reservation lists). One whose quotation was sent waits for the customer instead: it is only counted.
   const pending = data.reservations
-    .filter((r) => r.status === 'pending')
+    .filter((r) => ['quote', 'revise'].includes(pendingStep(r)))
     .sort((a, b) => b.createdAt - a.createdAt || textOrder(a.ref, b.ref))
     .map((r) => ({
       ref: r.ref,
@@ -152,6 +156,7 @@ export function dashboardSummary(data) {
     pending,
     // Never below 0: a request stamped later today (the sample data does this) is "from today", not "-1 days ago"
     pendingOldestDays: pending.reduce((oldest, p) => Math.max(oldest, Math.floor((Date.now() - p.createdAt) / 86400000)), 0),
+    awaitingAcceptance: data.reservations.filter((r) => pendingStep(r) === 'accept').length,
     unverifiedPayments: data.payments.filter((p) => p.status === 'awaiting').length,
     revenueThisMonth,
     upcoming

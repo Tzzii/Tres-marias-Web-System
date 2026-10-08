@@ -213,7 +213,7 @@ the server's own `.env`: choose a new, strong one there.
 
 ## How the system works
 
-- **Service layer.** Every page calls the functions of `@tm/shared` (`reservationApi.approveReservation(ref)`,
+- **Service layer.** Every page calls the functions of `@tm/shared` (`reservationApi.acceptQuotation(ref, sentAt)`,
   `paymentApi.verifyPayment(id)`, …), which are `packages/shared/src/services/remote/*`: one API call
   each through `services/http.js`, with the session token. They return plain JSON and throw
   `ApiError { code, message, meta }`, so every page handles an error the same way.
@@ -223,7 +223,9 @@ the server's own `.env`: choose a new, strong one there.
 - **Rules.** The server is the authority: every rule a page checks is checked again by the API, with
   the same code where it is pure (`packages/shared/src/domain`) and the same messages.
 - **Status pipeline.** Pending → Approved → Downpayment paid → Confirmed → Completed, plus
-  Declined (admin) and Cancelled (by the customer online, or by the admin with a reason). The
+  Declined (admin) and Cancelled (by the customer online, or by the admin with a reason). The admin
+  sets the price in the quotation and the customer approves the request by accepting it in the
+  portal (there is no admin Approve). The
   customer pays at least the minimum downpayment first (a setting on the admin Payments tab), and
   money owed back after a cancellation or a lower revised quotation is recorded as a refund.
 - **Feedback.** Once an event is completed the customer rates it in the portal (overall stars,

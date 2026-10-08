@@ -56,6 +56,9 @@ export const reasonBody = z.object({ reason: text(2000) });
 // POST /api/reservations/:ref/change-request { message }, 2,000 characters like a chat message
 export const changeBody = z.object({ message: text(2000) });
 
+// POST /api/reservations/:ref/accept-quotation { sentAt }: which quotation the customer accepted (checked by the service)
+export const acceptBody = z.object({ sentAt: passThrough });
+
 // GET /api/rentals/availability?date=YYYY-MM-DD&excludeRef=RES-… (excludeRef: the admin's edit dialog only)
 export const availabilityQuery = z.object({ date: passThrough, excludeRef: passThrough });
 

@@ -153,17 +153,18 @@ async function fixtures(call) {
     if (res.status !== 201) throw new Error(`Booking for ${who.name} failed: ${res.status} ${res.text}`);
     return res.body;
   };
-  // The admin prices it and approves it (a pick-up rental's quotation is its items)
-  const approve = async (ref) => {
+  // The admin prices it (a pick-up rental's quotation is its items) and the customer accepts the
+  // quotation, which approves it (there is no admin approve since 2026-10-08)
+  const approve = async (who, ref) => {
     const quote = await call('POST', `/admin/reservations/${ref}/quotation`, { token: admin, body: { otherCharges: 0, discount: 0, note: '' } });
     if (quote.status !== 200) throw new Error(`Quotation for ${ref} failed: ${quote.status} ${quote.text}`);
-    const approved = await call('POST', `/admin/reservations/${ref}/approve`, { token: admin });
-    if (approved.status !== 200) throw new Error(`Approval of ${ref} failed: ${approved.status} ${approved.text}`);
-    return approved.body;
+    const accepted = await call('POST', `/reservations/${ref}/accept-quotation`, { token: who.token, body: { sentAt: quote.body.quotation.sentAt } });
+    if (accepted.status !== 200) throw new Error(`Accepting the quotation of ${ref} failed: ${accepted.status} ${accepted.text}`);
+    return accepted.body;
   };
-  const RA = await approve((await book(A)).ref);
-  const RB = await approve((await book(B)).ref);
-  const RC = await approve((await book(C)).ref);
+  const RA = await approve(A, (await book(A)).ref);
+  const RB = await approve(B, (await book(B)).ref);
+  const RC = await approve(C, (await book(C)).ref);
 
   // Each booking posted a thank-you in its customer's chat, so A and B each have a conversation
   for (const who of [A, B]) who.thread = (await call('GET', '/threads', { token: who.token })).body[0].id;
@@ -217,6 +218,8 @@ async function runTests(call, fx) {
     ok(cancel.status === 404, `A cancels B's booking: ${said(cancel)}`);
     const change = await call('POST', `/reservations/${RB.ref}/change-request`, { token: A.token, body: { message: 'Please move it' } });
     ok(change.status === 404, `A asks for a change on B's booking: ${said(change)}`);
+    const accept = await call('POST', `/reservations/${RB.ref}/accept-quotation`, { token: A.token, body: { sentAt: RB.quotation.sentAt } });
+    ok(accept.status === 404, `A accepts B's quotation: ${said(accept)}`);
     const list = await call('GET', '/reservations', { token: A.token });
     ok(!list.body.some((r) => r.ref === RB.ref), "A's list of bookings does not show B's");
     const after = await call('GET', `/reservations/${RB.ref}`, { token: B.token });
@@ -252,7 +255,7 @@ async function runTests(call, fx) {
     ['GET', '/admin/reservations'],
     ['GET', '/admin/customers'],
     ['GET', '/admin/reports/dashboard'],
-    ['POST', `/admin/reservations/${RB.ref}/approve`],
+    ['POST', `/admin/reservations/${RB.ref}/quotation`],
     ['POST', `/admin/payments/${PB.id}/verify`],
     ['DELETE', '/admin/feedback/anything'],
     ['GET', '/admin/no-such-page']

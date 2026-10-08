@@ -399,6 +399,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     ? 'Rental prices are per piece for your whole rental. A piece that comes back damaged or missing is charged at its damage fee through a revised quotation.'
                     : 'The package covers the equipment and service listed above; the food is cooked to your request and priced separately.'}
                   {detail.quotation?.note ? ` Note: ${detail.quotation.note}` : ''}
+                  {/* A request is approved when the customer accepts its quotation */}
+                  {detail.status === 'pending' && detail.quotation ? ' Accept it on your reservation page to approve your reservation.' : ''}
                 </Typography>
               )}
             </>

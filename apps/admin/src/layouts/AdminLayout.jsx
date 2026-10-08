@@ -12,7 +12,7 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
-import { PortalShell, authApi, feedbackApi, formatDate, messageApi, outsourceApi, paymentApi, peso, reservationApi, useResource } from '@tm/shared';
+import { PortalShell, authApi, feedbackApi, formatDate, messageApi, outsourceApi, paymentApi, pendingStep, peso, reservationApi, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
 /**
@@ -59,10 +59,16 @@ export default function AdminLayout() {
     // Nothing loaded yet: show no notifications and zero badges
     if (!data) return { notifications: [], pending: 0, awaiting: 0, unread: 0, awaitingReply: 0, newFeedback: 0 };
     const list = [];
-    // One notification per reservation request still waiting for approval
-    const pendingList = data.reservations.filter((r) => r.status === 'pending');
+    // One notification per reservation request still waiting for the admin's quotation (or a revised one
+    // after a change). Once it is sent, the request waits for the customer to accept it, which approves it;
+    // their acceptance arrives as an unread chat message.
+    const pendingList = data.reservations.filter((r) => ['quote', 'revise'].includes(pendingStep(r)));
     pendingList.forEach((r) =>
-      list.push({ id: `req:${r.ref}`, title: 'New Reservation Request', body: `${r.customerName} · ${r.eventName} · ${formatDate(r.date)} · ${r.guests} pax`, at: r.createdAt, to: `/reservations/${r.ref}` })
+      list.push(
+        pendingStep(r) === 'revise'
+          ? { id: `req:${r.ref}:revise`, title: 'Quotation to Re-send', body: `${r.customerName} · ${r.eventName}: the booking changed after the quotation was sent.`, at: r.activity.length ? r.activity[r.activity.length - 1].at : r.createdAt, to: `/reservations/${r.ref}` }
+          : { id: `req:${r.ref}`, title: 'New Reservation Request', body: `${r.customerName} · ${r.eventName} · ${formatDate(r.date)} · ${r.guests} pax`, at: r.createdAt, to: `/reservations/${r.ref}` }
+      )
     );
     // One notification per payment proof that the admin still needs to verify
     const awaitingList = data.payments.filter((p) => p.status === 'awaiting');
@@ -94,7 +100,7 @@ export default function AdminLayout() {
   }, [data]);
 
   // Sidebar links, in the order they appear. `badge` shows a count bubble next to the link.
-  // Reservation & Calendar holds requests, all reservations and the calendar (badge = pending requests);
+  // Reservation & Calendar holds requests, all reservations and the calendar (badge = requests needing a quotation);
   // Outsource sits under Inventory, since it covers what the inventory can't (badge = requests still
   // waiting for a reply); Messages sits under Customers, one conversation per customer (badge = unread
   // messages); Reports holds the payments tab (badge = payment proofs to verify);

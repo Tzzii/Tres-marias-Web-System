@@ -3,6 +3,8 @@ import { tokens } from '../theme/tokens.js';
 /**
  * The reservation status pipeline, identical on both portals:
  * Pending → Approved → Downpayment paid → Confirmed → Completed
+ * A request moves from Pending to Approved when the customer accepts the quotation the admin sent
+ * (pendingStep in domain/reservation.js says where a pending one stands)
  * plus the two exits, Declined (by the admin) and Cancelled (by the customer online, or by the admin
  * with a reason; the reservation's `cancelledBy` says which). "Started preparing" is a mark on the
  * booking (`preparingAt`), not a status.

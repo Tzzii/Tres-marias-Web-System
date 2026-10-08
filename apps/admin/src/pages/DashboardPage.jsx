@@ -265,7 +265,23 @@ export default function DashboardPage() {
         {/* Two cards per row on every screen; on phones they switch to their narrow layout (icon above the text) */}
         <Box sx={{ gridArea: 'kpi', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: { xs: 1.5, sm: 2.5 } }}>
           <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Events Today" value={data ? data.eventsToday.length : 0} meta="Confirmed and in progress" loading={loading} onClick={() => navigate('/reservations?tab=calendar')} />
-          <StatCard icon={MarkEmailUnreadOutlinedIcon} tone="amber" label="Pending Requests" value={data ? data.pending.length : 0} meta={data && data.pending.length ? `Oldest ${data.pendingOldestDays === 0 ? 'from today' : `${pluralize(data.pendingOldestDays, 'day')} ago`}` : 'Queue is clear'} loading={loading} onClick={() => navigate('/reservations?tab=requests')} />
+          {/* Requests needing a quotation (or a revised one); those sent wait for the customer to accept them */}
+          <StatCard
+            icon={MarkEmailUnreadOutlinedIcon}
+            tone="amber"
+            label="Pending Requests"
+            value={data ? data.pending.length : 0}
+            meta={
+              data
+                ? [
+                    data.pending.length ? `Oldest ${data.pendingOldestDays === 0 ? 'from today' : `${pluralize(data.pendingOldestDays, 'day')} ago`}` : 'Queue is clear',
+                    data.awaitingAcceptance ? `${data.awaitingAcceptance} waiting for the customer` : ''
+                  ].filter(Boolean).join(' · ')
+                : ''
+            }
+            loading={loading}
+            onClick={() => navigate('/reservations?tab=requests')}
+          />
           <StatCard icon={PendingActionsOutlinedIcon} tone="blue" label="Unverified Payments" value={data ? data.unverifiedPayments : 0} meta="Proofs waiting for review" loading={loading} onClick={() => navigate('/reports?tab=payments&filter=awaiting')} />
           <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Revenue This Month" value={data ? peso(data.revenueThisMonth) : '₱0'} meta="Verified payments less refunds" loading={loading} onClick={() => navigate('/reports')} />
         </Box>
@@ -305,13 +321,13 @@ export default function DashboardPage() {
             )}
           </DashCard>
 
-          {/* The 5 newest reservation requests waiting for review */}
+          {/* The 5 newest reservation requests waiting for the admin's quotation */}
           <DashCard>
             <CardTitle action={<Button size="small" onClick={() => navigate('/reservations?tab=requests')}>View queue</Button>}>Newest Bookings</CardTitle>
             {loading ? (
               <ListSkeleton rows={3} height={56} />
             ) : data.pending.length === 0 ? (
-              <EmptyState compact title="All caught up" description="All reservation requests have been processed." />
+              <EmptyState compact title="All caught up" description="Every reservation request has its quotation. The customer accepts it to approve the reservation." />
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                 {data.pending.slice(0, 5).map((r) => (

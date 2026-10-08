@@ -5,7 +5,6 @@ import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
 import {
-  AlertBanner,
   CardTitle,
   ConfirmDialog,
   DashCard,
@@ -13,11 +12,13 @@ import {
   EmptyState,
   ErrorState,
   FilterTabs,
+  Pill,
   SearchField,
   StatusChip,
   formatDate,
   formatRelative,
   isRental,
+  pendingStep,
   peso,
   reservationApi,
   statusLabel,
@@ -32,9 +33,11 @@ import { SectionBar } from '../../components/SectionTabs.jsx';
 const TABS = ['pending', 'approved', 'downpayment_paid', 'confirmed', 'completed', 'declined'];
 
 /**
- * 1s · Requests tab of "Reservation & Calendar": approve or decline, one by one or in bulk.
- * Quotations are priced and sent from each reservation's page (the food has no fixed price).
- * The page title and tabs come from ReservationsCalendarPage.
+ * 1s · Requests tab of "Reservation & Calendar": the pending requests and where each stands, and decline,
+ * one by one or in bulk. There is no Approve: quotations are priced and sent from each reservation's page
+ * (the food has no fixed price), and the customer approves a request by accepting its quotation in their
+ * portal. A request still needing a quotation (or a revised one) shows "Send quotation"; one sent and
+ * current shows "Waiting for customer". The page title and tabs come from ReservationsCalendarPage.
  */
 export default function RequestsSection() {
   const navigate = useNavigate();
@@ -44,14 +47,17 @@ export default function RequestsSection() {
   const [tab, setTab] = useState('pending'); // selected status tab
   const [query, setQuery] = useState(''); // search text
   const [selected, setSelected] = useState([]); // REFs ticked for bulk actions
-  const [confirm, setConfirm] = useState(null); // open confirm dialog: { type: 'approve'|'decline', refs }
+  const [confirm, setConfirm] = useState(null); // open confirm dialog: { type: 'decline', refs }
 
   const rows = data || [];
   // Number of reservations per tab
   const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t, rows.filter((r) => r.status === t).length])), [rows]);
   const pending = rows.filter((r) => r.status === 'pending');
-  // Age in days of the oldest pending request (86400000 ms = 1 day)
-  const oldestDays = pending.length ? Math.max(...pending.map((r) => Math.floor((Date.now() - r.createdAt) / 86400000))) : 0;
+  // The requests the admin still has to quote (or re-quote), and those waiting for the customer to accept
+  const toQuote = pending.filter((r) => pendingStep(r) !== 'accept');
+  const toAccept = pending.length - toQuote.length;
+  // Age in days of the oldest request still needing a quotation (86400000 ms = 1 day)
+  const oldestDays = toQuote.length ? Math.max(...toQuote.map((r) => Math.floor((Date.now() - r.createdAt) / 86400000))) : 0;
 
   // Rows for the current tab matching the search.
   // Pending: oldest request first (first come, first served). Others: by event date.
@@ -86,7 +92,7 @@ export default function RequestsSection() {
     if (failures.length) notify(`Could not update ${failures.length}: ${failures[0]}`, 'error');
   };
 
-  // Table columns. The checkbox column and Approve/Decline buttons only appear on the Pending tab.
+  // Table columns. The checkbox column, the quotation step and the Decline button only appear on the Pending tab.
   const columns = [
     ...(tab === 'pending'
       ? [
@@ -118,10 +124,13 @@ export default function RequestsSection() {
           label: 'Action',
           align: 'right',
           render: (r) => (
-            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-              <Button size="small" variant="contained" onClick={() => setConfirm({ type: 'approve', refs: [r.ref] })}>Approve</Button>
+            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', alignItems: 'center' }}>
+              {pendingStep(r) === 'accept' ? (
+                <Pill size="sm" label="Waiting for customer" bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" dot={false} />
+              ) : (
+                <Button size="small" variant="contained" onClick={() => navigate(`/reservations/${r.ref}`)}>{pendingStep(r) === 'revise' ? 'Re-send quotation' : 'Send quotation'}</Button>
+              )}
               <Button size="small" color="error" onClick={() => setConfirm({ type: 'decline', refs: [r.ref] })}>Decline</Button>
-              <Button size="small" onClick={() => navigate(`/reservations/${r.ref}`)}>Open</Button>
             </Box>
           )
         }
@@ -130,7 +139,18 @@ export default function RequestsSection() {
 
   return (
     <>
-      <SectionBar text={loading ? 'Loading…' : pending.length ? `${pending.length} waiting · oldest ${oldestDays === 0 ? 'today' : `${oldestDays} ${oldestDays === 1 ? 'day' : 'days'}`}` : 'No requests waiting'} />
+      <SectionBar
+        text={
+          loading
+            ? 'Loading…'
+            : pending.length
+              ? [
+                  toQuote.length ? `${toQuote.length} to quote · oldest ${oldestDays === 0 ? 'today' : `${oldestDays} ${oldestDays === 1 ? 'day' : 'days'}`}` : 'Nothing to quote',
+                  toAccept ? `${toAccept} waiting for the customer` : ''
+                ].filter(Boolean).join(' · ')
+              : 'No requests waiting'
+        }
+      />
 
       <DashCard>
         {error ? (
@@ -154,9 +174,6 @@ export default function RequestsSection() {
             {selectedRows.length > 0 && (
               <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
                 <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{selectedRows.length} selected</Typography>
-                <Button size="small" variant="contained" sx={{ bgcolor: tokens.gold, color: tokens.onGold, '&:hover': { bgcolor: tokens.goldLight } }} onClick={() => setConfirm({ type: 'approve', refs: selectedRows.map((r) => r.ref) })}>
-                  Approve selected
-                </Button>
                 <Button size="small" sx={{ color: tokens.dangerOnInk }} onClick={() => setConfirm({ type: 'decline', refs: selectedRows.map((r) => r.ref) })}>
                   Decline selected
                 </Button>
@@ -178,9 +195,9 @@ export default function RequestsSection() {
 
       <Box sx={{ mt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5 }}>
         <DashCard>
-          <CardTitle>Approve — What Happens</CardTitle>
+          <CardTitle>Quotation — What Happens</CardTitle>
           <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>
-            Open the reservation first to price the food and additional charges and send the quotation. Once it is sent, approving moves the status to Approved and the customer gets a payment instruction: at least the minimum downpayment (or more, up to the full amount) by a due date.
+            Open the reservation to price the additional charges and send the quotation. The customer accepts it in their portal, which moves the status to Approved and gives them a payment instruction: at least the minimum downpayment (or more, up to the full amount) by a due date. The date is held only once they accept.
           </Typography>
         </DashCard>
         <DashCard>
@@ -189,22 +206,7 @@ export default function RequestsSection() {
         </DashCard>
       </Box>
 
-      {/* Confirm dialogs. Each closes itself, then runs the action on every chosen REF. */}
-      <ConfirmDialog
-        open={confirm?.type === 'approve'}
-        onClose={() => setConfirm(null)}
-        title={confirm && confirm.refs.length > 1 ? `Approve ${confirm.refs.length} Reservations?` : 'Approve This Reservation?'}
-        description="The customer receives the quotation already sent and the due date for the minimum downpayment. Reservations without a sent quotation stay pending."
-        confirmLabel="Approve"
-        onConfirm={async () => {
-          const refs = confirm.refs;
-          setConfirm(null);
-          await runBulk(refs, (ref) => reservationApi.approveReservation(ref), 'Approved');
-        }}
-      >
-        {confirm?.type === 'approve' && <AlertBanner tone="info" sx={{ mb: 1 }}>{confirm.refs.join(', ')}</AlertBanner>}
-      </ConfirmDialog>
-
+      {/* Confirm dialog. It closes itself, then runs the action on every chosen REF. */}
       <ConfirmDialog
         open={confirm?.type === 'decline'}
         onClose={() => setConfirm(null)}

@@ -18,10 +18,10 @@ import { cancelWindowText } from '../domain/cancellation.js';
  */
 
 /** The version customers agree to (a date, "YYYY-MM-DD"); stored on accounts and bookings. */
-export const TERMS_VERSION = '2026-10-03';
+export const TERMS_VERSION = '2026-10-08';
 
 /** The same date in words, for "Last updated" at the top of both pages. */
-export const TERMS_UPDATED = '3 October 2026';
+export const TERMS_UPDATED = '8 October 2026';
 
 // "₱3,000"
 const pesos = (amount) => `₱${Number(amount).toLocaleString('en-PH')}`;
@@ -54,20 +54,21 @@ export function termsOfService({ minDownpayment } = {}) {
       'We may suspend or close an account that gives false details, sends fake payment proof, abuses our team in the chat, or tries to break or misuse the website.'
     ]),
     section('reservations', 'Reservations', [], [
-      'A reservation you send is a request, not a confirmed booking. We review it and send you a quotation, usually within 24 hours.',
+      'A reservation you send is a request, not a confirmed booking. We review it and send you a quotation, usually within 24 hours. You review the quotation and accept it on your reservation page; accepting it approves your reservation.',
       `Events must be booked at least ${RULES.leadDays} days ahead, for ${RULES.minGuests} to ${RULES.maxGuests} guests, and run ${RULES.minEventHours} to ${RULES.maxEventHours} hours. We keep ${RULES.eventBufferHours} hours free between events for setup and tear-down, and we take a limited number of events each day.`,
-      'Your date is held for you once we approve the request. It is secured once your downpayment is verified; the booking is then confirmed and your contract is final.',
+      'Until you accept the quotation, your date is not held, so another booking may take it; if that happens, we help you find another date or time. Your date is held for you once you accept the quotation. It is secured once your downpayment is verified; the booking is then confirmed and your contract is final.',
       'A date can be closed by us (for example, a private event). The calendar shows the reason when you tap the date.',
       'To change the date, time, guest count or anything else, use "Request a change" on your reservation or message us. Changes depend on what is still available and may change the price.'
     ]),
     section('prices', 'Prices and Quotations', [], [
       'A package has a fixed price. A buffet adds a price per person, multiplied by your guest count; the price per person is the one in force when you send your request, so a later price change never affects your booking.',
-      'Additional charges you pick (for example, extra waiters) are priced in the quotation. The quotation we send you is the amount you owe.',
-      'If something that affects the price changes after a quotation is sent (for example, the guest count), we tell you in your chat and send a revised quotation. The new amount applies only from the quotation we send you, never before. If the new total is lower than what you have paid, we return the difference.',
+      'Additional charges you pick (for example, extra waiters) are priced in the quotation. The quotation you accept is the amount you owe.',
+      'If something that affects the price changes before you accept (for example, the guest count), we send a revised quotation and you accept that one instead.',
+      'If something that affects the price changes after you accept (for example, the guest count, or damage charges on rented items), we tell you in your chat and send a revised quotation. The new amount applies only from the quotation we send you, never before. If the new total is lower than what you have paid, we return the difference.',
       'Extending the service beyond the agreed end time is charged per hour, as stated in your contract.'
     ]),
     section('payments', 'Payments', [], [
-      `To secure your date, pay at least ${minimum}, or the full amount when your total is lower. You choose how much to pay, up to the full amount. The downpayment is due on the date shown on your reservation (about ${RULES.downpaymentDueDays} days after approval); the balance is due on or before the event day and can be paid in parts.`,
+      `To secure your date, pay at least ${minimum}, or the full amount when your total is lower. You choose how much to pay, up to the full amount. The downpayment is due on the date shown on your reservation (about ${RULES.downpaymentDueDays} days after you accept the quotation); the balance is due on or before the event day and can be paid in parts.`,
       'QR Ph: scan the QR code on the Payments page with GCash, Maya or your bank app. The payment is processed by our payment provider, PayMongo, and confirmed automatically. We do not add a fee for it.',
       `Bank transfer: send the amount to our ${BUSINESS.bankName} account shown on the Payments page, then enter the reference number and upload a photo or screenshot of the receipt. Our team checks it, usually within a day.`,
       'Cash: the balance can be paid in cash to our event coordinator on the event day, who records it and gives you an official receipt.',

@@ -10,11 +10,12 @@ import { getCalendar } from './calendar.js';
  * - The customer id the pages pass is only used to pick the address (/reservations for a customer,
  *   /admin/reservations for the admin); the server always takes the customer from the token.
  * - Answers to a customer never carry the admin's private `notes`.
- * - A write that can take, free or move an event's slot (a cancellation by either side, an approval,
+ * - A write that can take, free or move an event's slot (a cancellation by either side, an accepted quotation,
  *   marking an event completed, a new date or start time) is saved quietly, the availability map is
  *   reloaded, and then one change event goes out, so every page
  *   that reloads already reads the new map. Creating a booking takes no slot (a pending request holds
  *   none), so it only sends the usual change event, like the other admin actions and edits.
+ * - The admin never approves: the customer accepts the quotation (acceptQuotation), which approves it.
  * - The admin's actions and edits (Phase 6B) answer with the booking's summary,
  *   { changed } for logistics and rented items, { ok: true } for the menu and notes.
  */
@@ -83,16 +84,19 @@ export const cancelReservation = (ref, customerId, reason) => slotWrite((options
 /** Ask for a change: posted in the customer's chat, tagged with the reservation. Returns { threadId }. */
 export const requestChange = (ref, customerId, message) => http.post(`/reservations/${segment(ref)}/change-request`, { message });
 
+/**
+ * Accept the quotation shown (`sentAt` is its sentAt), which approves the request and takes its slot; the
+ * server refuses a newer or out-of-date quotation and a date taken meanwhile. Returns the summary.
+ */
+export const acceptQuotation = (ref, sentAt) => slotWrite((options) => http.post(`/reservations/${segment(ref)}/accept-quotation`, { sentAt }, options));
+
 /* ---------------- Admin actions and edits (Phase 6B) ---------------- */
 
-// An admin action on one booking, e.g. adminPath('RES-2026-1020-01', 'approve') -> "/admin/reservations/RES-2026-1020-01/approve"
+// An admin action on one booking, e.g. adminPath('RES-2026-1020-01', 'confirm') -> "/admin/reservations/RES-2026-1020-01/confirm"
 const adminPath = (ref, action) => `/admin/reservations/${segment(ref)}/${action}`;
 
 /** Price and send the quotation: { addonPrices, otherCharges, otherLabel, discount, deliveryFee, note }. Returns the summary. */
 export const sendQuotation = (ref, values) => http.post(adminPath(ref, 'quotation'), values);
-
-/** Approve a pending request (it takes its slot). Returns the summary. */
-export const approveReservation = (ref) => slotWrite((options) => http.post(adminPath(ref, 'approve'), {}, options));
 
 /** Decline a pending request with a reason shown to the customer. Returns the summary. */
 export const declineReservation = (ref, reason) => http.post(adminPath(ref, 'decline'), { reason });
