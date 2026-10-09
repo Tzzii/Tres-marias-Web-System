@@ -25,6 +25,7 @@ import {
   FeedbackStatusChip,
   Field,
   FormField,
+  ITEM_COUNT_MAX,
   ListSkeleton,
   MENU_LINE_MAX,
   PageHeader,
@@ -43,19 +44,23 @@ import {
   StylingFields,
   StylingSummary,
   TimeField,
+  bookingExtraGuests,
+  bookingItems,
   catalogApi,
   cleanStyling,
   computeQuote,
   daysFromToday,
   documentsFor,
+  extraGuestsFor,
+  formatBookingItem,
   formatClock,
   formatDate,
   formatDateTime,
   formatMobile,
-  formatPackageItem,
   includesFood,
   inventoryApi,
   isRental,
+  itemsToConfirm,
   messageApi,
   paymentApi,
   paymentKindLabel,
@@ -70,7 +75,8 @@ import {
   useDocumentTitle,
   useNotify,
   useQrWatch,
-  useResource
+  useResource,
+  usesGuestRule
 } from '@tm/shared';
 import RefundDialog, { refundRecordedText } from '../components/RefundDialog.jsx';
 
@@ -237,7 +243,9 @@ export default function ReservationDetailPage() {
               <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`} action={!closed && <Button size="small" variant="outlined" onClick={() => setDialog('food')}>Edit menu</Button>}>
                 {r.serviceType}
               </CardTitle>
-              <Field label="Package includes">{r.package.items.map(formatPackageItem).join(', ')}</Field>
+              {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and the
+                  other counted items show the counts set in the quotation, or "(to confirm)" until it is sent */}
+              <Field label={bookingExtraGuests(r) ? `Package includes, for ${r.guests} guests (${bookingExtraGuests(r)} above the package)` : 'Package includes'}>{bookingItems(r).map(formatBookingItem).join(', ')}</Field>
               <Divider sx={{ my: 2 }} />
               {/* A buffet lists the dish chosen for each category, so the kitchen reads it at a glance */}
               {includesFood(r.serviceType) ? (
@@ -492,6 +500,11 @@ function LogisticsCard({ r, closed, onSave }) {
   // A buffet is charged per person, so a new guest count moves the total before it is even saved
   const guestsNow = Number(values.guests) || 0;
   const repricing = includesFood(r.serviceType) && guestsNow !== r.guests && guestsNow > 0;
+  // Guests above the package's default are priced in the quotation (with the items to confirm), so a new
+  // number of them changes the total too, once the quotation is re-sent (domain/packageItems.js)
+  const extraBefore = rental ? 0 : bookingExtraGuests(r);
+  const extraNow = rental || !usesGuestRule(r) ? 0 : extraGuestsFor(r.package, guestsNow);
+  const extraMoves = guestsNow > 0 && guestsNow !== r.guests && extraNow !== extraBefore;
 
   if (rental) {
     return (
@@ -549,6 +562,13 @@ function LogisticsCard({ r, closed, onSave }) {
           telling the customer; the amount they owe only changes once you re-send the quotation.
         </AlertBanner>
       )}
+      {/* The same for the guests above the package's default: their equipment and the items to confirm are
+          set in the quotation, so a new number of them needs a re-sent quotation */}
+      {extraMoves && (
+        <AlertBanner tone="warning" sx={{ mb: 2 }} title="This changes the extra guests">
+          {extraBefore || 'No'} → {extraNow || 'no'} guests above the package's {r.package.guests}. Their equipment and the items to confirm are set in the quotation, so {r.quotation ? 're-send it after saving. Saving posts a message telling the customer; the amount they owe only changes once you re-send the quotation.' : 'price them when you send it.'}
+        </AlertBanner>
+      )}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <DateField id="l-date" label="Date" mode="any" value={values.date} onChange={set('date')} disabled={closed} />
         {/* Same hour / minute / AM-PM picker as the customer form: booking hours only, every 30 minutes */}
@@ -590,6 +610,12 @@ function LogisticsCard({ r, closed, onSave }) {
  * For an add-on counted by the piece the amount typed is the price of ONE; the line total is that
  * times the quantity the customer asked for.
  *
+ * An event with more guests than its package's default (the owner's rule, 2026-10-09; domain/packageItems.js)
+ * asks for two more things before it can be sent: the price of the equipment for the extra guests (0 waives
+ * it) and the count of each package item that does not grow with the guests (food warmers, pitchers, water
+ * jugs, waiters), shown to the customer instead of "to confirm". Plates, glasses, cutlery, chairs and tables
+ * grow by themselves. A quotation that is out of date (a new guest count) can be re-sent as it is.
+ *
  * An equipment rental lists its items at the prices they were booked at and any damage charges;
  * the admin only sets the delivery fee (standard RENTAL.deliveryFee, more for a large order).
  *
@@ -604,10 +630,14 @@ function LogisticsCard({ r, closed, onSave }) {
 function QuotationCard({ r, closed, onSend }) {
   const rental = isRental(r.serviceType);
   const delivered = rental && r.fulfilment === 'delivery';
+  // Guests above the package's default and the package items whose count the admin sets for them (none on a rental)
+  const extraGuests = rental ? 0 : extraGuestsFor(r.package, r.guests);
+  const confirmItems = rental ? [] : itemsToConfirm(r.package, r.guests);
   // Form values from the last sent quotation (blank amounts when nothing was sent yet).
   // The delivery fee starts at the standard fee until a delivered quotation sets another.
   // Before the first quotation, an add-on with its own price starts at the price the booking was made
   // at (its estimate), else at today's price on the Packages page; one with no price starts blank.
+  // The extra guests' charge and the counts to confirm start from the last quotation that set them, else blank.
   const initial = () => {
     const q = r.quotation;
     const amount = (value) => (q && value ? String(value) : '');
@@ -619,6 +649,8 @@ function QuotationCard({ r, closed, onSend }) {
     };
     return {
       addonPrices: Object.fromEntries(r.addonIds.map((id) => [id, q ? amount(q.addonPrices && q.addonPrices[id]) : startPrice(id)])),
+      extraGuestsCharge: q && q.extraGuests ? String(q.extraGuestsCharge || 0) : '',
+      itemCounts: Object.fromEntries(confirmItems.map((item) => [item.name, q && q.itemCounts && q.itemCounts[item.name] ? String(q.itemCounts[item.name]) : ''])),
       deliveryFee: String(q && q.fulfilment === 'delivery' ? q.deliveryFee : RENTAL.deliveryFee),
       otherCharges: amount(q && q.otherCharges),
       otherLabel: q ? q.otherLabel || '' : '',
@@ -635,6 +667,9 @@ function QuotationCard({ r, closed, onSend }) {
   const set = (key) => (e) => setValues((v) => ({ ...v, [key]: e.target.value }));
   // Change handler for one additional charge's price
   const setAddonPrice = (id) => (e) => setValues((v) => ({ ...v, addonPrices: { ...v.addonPrices, [id]: e.target.value } }));
+  // Change handler for the count of one item to confirm
+  const setItemCount = (name) => (e) => setValues((v) => ({ ...v, itemCounts: { ...v.itemCounts, [name]: e.target.value } }));
+  const itemCount = (name) => (values.itemCounts || {})[name] ?? '';
 
   // Live price calculation. The food comes from the booking, not from anything typed here.
   const preview = computeQuote({
@@ -648,6 +683,7 @@ function QuotationCard({ r, closed, onSend }) {
     addonIds: r.addonIds,
     addonQty: r.addonQty,
     addonPrices: values.addonPrices,
+    extraGuestsCharge: values.extraGuestsCharge,
     otherCharges: values.otherCharges,
     discount: values.discount
   });
@@ -656,17 +692,22 @@ function QuotationCard({ r, closed, onSend }) {
   // Every amount must be a number of 0 or more
   const invalid = (value) => value !== '' && (Number.isNaN(Number(value)) || Number(value) < 0);
   const amountError = (value) => (invalid(value) ? 'Enter a valid amount.' : '');
-  const anyInvalid = [values.otherCharges, values.discount, ...(delivered ? [values.deliveryFee] : []), ...Object.values(values.addonPrices)].some(invalid);
+  const anyInvalid = [values.otherCharges, values.discount, ...(delivered ? [values.deliveryFee] : []), ...(extraGuests ? [values.extraGuestsCharge] : []), ...Object.values(values.addonPrices)].some(invalid);
+  // A count to confirm is a whole number from 1 up
+  const countError = (value) => (value !== '' && !(Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= ITEM_COUNT_MAX) ? `Enter a whole number from 1 to ${ITEM_COUNT_MAX.toLocaleString('en-PH')}.` : '');
   // Discount must not be more than the total
-  const gross = preview.packageTotal + preview.food + preview.rental + preview.deliveryFee + preview.damage + preview.addons + preview.otherCharges;
+  const gross = preview.packageTotal + preview.extraGuestsCharge + preview.food + preview.rental + preview.deliveryFee + preview.damage + preview.addons + preview.otherCharges;
   const discountError = amountError(values.discount) || (preview.discount > gross ? 'Discount is larger than the total.' : '');
   // A total below what was already paid is allowed: the difference is returned to the customer
   const paidAbove = Math.max(0, r.paid - preview.net);
   // Every additional charge needs a price before the quotation can be sent. The food does not:
   // it is already known from the service type and the guest count.
   const missingPrice = r.addonIds.some((id) => !Number(values.addonPrices[id]));
-  // Only allow sending if nothing was sent yet, or something is different from the last one sent
-  const changed = !r.quotation || JSON.stringify(values) !== JSON.stringify(initial());
+  // Extra guests need their equipment priced (0 is allowed) and every item to confirm counted
+  const missingExtra = extraGuests > 0 && (values.extraGuestsCharge === '' || confirmItems.some((item) => itemCount(item.name) === '' || countError(itemCount(item.name))));
+  // Only allow sending if nothing was sent yet, something is different from the last one sent, or the
+  // booking changed since it was sent (out of date), so it can be re-sent as it is
+  const changed = !r.quotation || r.quotationStale || JSON.stringify(values) !== JSON.stringify(initial());
   const peso0 = { startAdornment: <InputAdornment position="start">₱</InputAdornment> };
 
   return (
@@ -694,7 +735,7 @@ function QuotationCard({ r, closed, onSend }) {
         </>
       ) : (
         <>
-          <DetailRow label={`Package · ${r.packageName}`}>{peso(preview.packageTotal)}</DetailRow>
+          <DetailRow label={`Package · ${r.packageName} (${r.package.guests} guests)`}>{peso(preview.packageTotal)}</DetailRow>
           {/* Worked out, never typed: the guest count times the rate this booking was made at */}
           {includesFood(r.serviceType) ? (
             <DetailRow label={`Buffet · ${preview.plates} × ${peso(preview.pricePerPlate)}`}>{peso(preview.food)}</DetailRow>
@@ -706,6 +747,11 @@ function QuotationCard({ r, closed, onSend }) {
       {closed ? (
         // Closed reservations show the sent amounts read-only
         <>
+          {/* A booking quoted before the extra-guest rule (2026-10-09) has neither line */}
+          {usesGuestRule(r) && preview.extraGuests > 0 && <DetailRow label={`Extra ${preview.extraGuests} guests (equipment)`}>{peso(preview.extraGuestsCharge)}</DetailRow>}
+          {usesGuestRule(r) && confirmItems.length > 0 && (
+            <DetailRow label="Items confirmed">{confirmItems.map((item) => `${itemCount(item.name) || '?'} ${item.name}`).join(', ')}</DetailRow>
+          )}
           {r.addons.map((a) => <DetailRow key={a.id} label={addonLabel(a)}>{peso(preview.addonTotals[a.id])}</DetailRow>)}
           {preview.otherCharges > 0 && <DetailRow label={values.otherLabel || 'Other charges'}>{peso(preview.otherCharges)}</DetailRow>}
           <DetailRow label="Discount">— {peso(preview.discount)}</DetailRow>
@@ -715,6 +761,24 @@ function QuotationCard({ r, closed, onSend }) {
           {/* A delivered rental: standard fee unless the order is large */}
           {delivered && (
             <FormField id="q-delivery" label="Delivery fee" required type="number" value={values.deliveryFee} onChange={set('deliveryFee')} error={amountError(values.deliveryFee)} hint={`Standard ${peso(RENTAL.deliveryFee)}. Set more for a large order.`} InputProps={peso0} inputProps={{ min: 0, step: 50 }} />
+          )}
+          {/* More guests than the package's default: price their equipment, then count each item that does
+              not grow with the guests (the customer sees these counts instead of "to confirm") */}
+          {extraGuests > 0 && (
+            <>
+              <FormField id="q-extra-guests" label={`Extra ${extraGuests} guests (equipment)`} required type="number" value={values.extraGuestsCharge} onChange={set('extraGuestsCharge')} error={amountError(values.extraGuestsCharge)} hint={`${r.guests} guests on a package for ${r.package.guests}. Plates, glasses, cutlery, chairs and tables grow by themselves; enter 0 to waive the charge.`} InputProps={peso0} inputProps={{ min: 0, step: 500 }} />
+              {confirmItems.length > 0 && (
+                <Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Items to confirm for {r.guests} guests</Typography>
+                  <Typography sx={{ mb: 1, fontSize: 12, color: tokens.textMuted }}>How many of each for this event. The customer sees these instead of "to confirm".</Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                    {confirmItems.map((item) => (
+                      <FormField key={item.name} id={`q-count-${item.name}`} label={item.name} required type="number" value={itemCount(item.name)} onChange={setItemCount(item.name)} error={countError(itemCount(item.name))} hint={`Package: ${item.defaultQty} for ${r.package.guests} guests`} inputProps={{ min: 1, step: 1 }} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </>
           )}
           {r.addons.map((a) => (
             <FormField
@@ -752,14 +816,17 @@ function QuotationCard({ r, closed, onSend }) {
           )}
           <FormField id="q-note" label="Note to the customer" optional multiline minRows={2} value={values.note} onChange={set('note')} inputProps={{ maxLength: 300 }} sx={{ mt: 1 }} />
           {missingPrice && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Enter a price for each additional charge to send the quotation.</Typography>}
+          {missingExtra && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Enter the price for the extra guests and the count of each item to confirm to send the quotation.</Typography>}
           <BusyButton
             fullWidth
             busy={busy}
-            disabled={anyInvalid || Boolean(discountError) || missingPrice || !changed}
+            disabled={anyInvalid || Boolean(discountError) || missingPrice || missingExtra || !changed}
             onClick={async () => {
               setBusy(true);
               await onSend({
                 addonPrices: Object.fromEntries(Object.entries(values.addonPrices).map(([id, price]) => [id, Number(price) || 0])),
+                // Only while there are extra guests; the server ignores both otherwise
+                ...(extraGuests ? { extraGuestsCharge: Number(values.extraGuestsCharge) || 0, itemCounts: Object.fromEntries(confirmItems.map((item) => [item.name, Number(itemCount(item.name))])) } : {}),
                 deliveryFee: Number(values.deliveryFee) || 0,
                 otherCharges: Number(values.otherCharges) || 0,
                 otherLabel: values.otherLabel,

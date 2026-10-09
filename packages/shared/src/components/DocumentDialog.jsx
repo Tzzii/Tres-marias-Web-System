@@ -10,11 +10,12 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { cancelDeadline, cancelWindowText } from '../domain/cancellation.js';
+import { bookingExtraGuests, bookingItems, formatBookingItem } from '../domain/packageItems.js';
 import { stylingEmpty } from '../domain/styling.js';
 import { BUFFET_DRINKS, BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
 import { useNotify } from '../hooks/useNotify.jsx';
 import { tokens } from '../theme/tokens.js';
-import { formatDate, formatDateLong, formatDateTime, formatEventTime, formatMobile, formatPackageItem, formatTime, peso, toISODate } from '../utils/format.js';
+import { formatDate, formatDateLong, formatDateTime, formatEventTime, formatMobile, formatTime, peso, toISODate } from '../utils/format.js';
 import { saveElementAsPdf } from '../utils/savePdf.js';
 import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
@@ -138,6 +139,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   const addonPrice = (id) => (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
   // How many of an add-on were asked for (1 for anything not counted by the piece)
   const addonCount = (id) => (quote.addonQty && quote.addonQty[id]) || 1;
+  // Guests above the package's default: the ones the sent quotation priced (none on one sent before the
+  // rule of 2026-10-09), or before any quotation the booking's own, whose equipment is still to be quoted
+  const extraGuests = rental ? 0 : detail.quotation ? detail.quotation.extraGuests || 0 : bookingExtraGuests(detail);
 
   return (
     <LightSurface>
@@ -238,8 +242,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                 </Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
                   <Box>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Package Includes</Typography>
-                    <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{detail.package.items.map(formatPackageItem).join(', ')}</Typography>
+                    {/* For the booking's guest count: plates, chairs and tables grown, the other items as the quotation set them */}
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>{extraGuests ? `Package Includes, for ${detail.guests} Guests` : 'Package Includes'}</Typography>
+                    <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{bookingItems(detail).map(formatBookingItem).join(', ')}</Typography>
                   </Box>
                   <Box>
                     {/* A buffet prints its four dishes and the drinks; catering only says there is no food */}
@@ -265,7 +270,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
               </Box>
               )}
 
-              {/* Price breakdown: package, food, each add-on, other charges, discount.
+              {/* Price breakdown: package, extra guests, food, each add-on, other charges, discount.
                   A rental lists its items, the delivery fee and any damage charges instead of a package and food. */}
               <Box data-pdf-keep sx={{ mt: 3, ml: 'auto', maxWidth: rental ? 420 : 360 }}>
                 {rental ? (
@@ -279,7 +284,11 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     ))}
                   </>
                 ) : (
-                  <Line label={`Package (default: ${detail.package.guests} guests)`} value={peso(quote.packageTotal)} />
+                  <>
+                    <Line label={`Package (default: ${detail.package.guests} guests)`} value={peso(quote.packageTotal)} />
+                    {/* The equipment for the guests above the package's default, priced in the quotation */}
+                    {extraGuests > 0 && <Line label={`Extra ${extraGuests} guests (equipment)`} value={detail.quotation ? peso(quote.extraGuestsCharge || 0) : 'To be quoted'} />}
+                  </>
                 )}
                 {/* The buffet is charged per person, so the line shows the sum it came from */}
                 {quote.plates > 0 && <Line label={`Buffet (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`} value={peso(quote.food)} />}
@@ -329,6 +338,13 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                       from the quotation we send you, never before.</b> Increases made later than 7 days before the event are billed per guest on the day.
                     </li>
                     <li>If a revised quotation is lower than what you have paid, we return the difference.</li>
+                    {/* More guests than the package's default: what grows, and that the rest was set in the quotation */}
+                    {extraGuests > 0 && (
+                      <li>
+                        The package covers {detail.package.guests} guests. For your {detail.package.guests + extraGuests} guests, the plates, glasses, cutlery, chairs and tables grow with the guest count,
+                        the other items are as listed above, and the equipment for the {extraGuests} extra guests is charged as shown.
+                      </li>
+                    )}
                     <CancellationTerm detail={detail} day="the event day" />
                     {/* Same setup time the booking calendar keeps free before every event (RULES.eventBufferHours) */}
                     <li>The client provides safe access to the venue at least {RULES.eventBufferHours} hours before the start time for setup.</li>

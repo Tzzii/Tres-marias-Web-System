@@ -22,11 +22,13 @@ const damageTotal = (lines = []) => lines.reduce((sum, line) => sum + line.qty *
 
 /**
  * Why the sent quotation is out of date, in words the admin reads on the quotation card, or '' when
- * it is current. For a buffet, the guest count or the service type changed after it was sent (a
- * buffet is charged per person, so those two are the only edits that can move the total). For a
- * rental, the items (or their count), pick-up versus delivery, and damage charges recorded after the
- * return, e.g. "Damage charges of ₱800 were recorded after it was sent." The admin sees a warning
- * and has to re-send it; nothing about what the customer owes changes on its own.
+ * it is current. For an event, the service type changed after it was sent, the guest count of a buffet
+ * changed (a buffet is charged per person), or the guests above the package's default changed on a
+ * quotation that priced them (one sent since 2026-10-09 keeps `packageGuests` and `extraGuests`; their
+ * equipment and the items to confirm depend on that number). For a rental, the items (or their count),
+ * pick-up versus delivery, and damage charges recorded after the return, e.g. "Damage charges of ₱800
+ * were recorded after it was sent." The admin sees a warning and has to re-send it; nothing about what
+ * the customer owes changes on its own.
  */
 export function quotationStaleReason(reservation) {
   const quote = reservation.quotation;
@@ -41,6 +43,10 @@ export function quotationStaleReason(reservation) {
   if (quote.serviceType !== reservation.serviceType) return `It was sent as ${quote.serviceType}, but this booking is now ${reservation.serviceType}.`;
   const plates = includesFood(reservation.serviceType) ? reservation.guests : 0;
   if (quote.plates !== plates) return `It was sent for ${quote.plates} guests, but this booking is now for ${reservation.guests}.`;
+  if (quote.extraGuests !== undefined && quote.packageGuests) {
+    const extraNow = Math.max(0, reservation.guests - quote.packageGuests);
+    if (extraNow !== quote.extraGuests) return `It was sent with ${quote.extraGuests || 'no'} guests above the package's ${quote.packageGuests}, but this booking now has ${extraNow || 'none'}.`;
+  }
   return '';
 }
 

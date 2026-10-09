@@ -143,8 +143,10 @@ function packageValues(values, rental) {
 }
 
 /**
- * "What's included" as [{ qty, name }]: at least one item, each with a name, and a quantity that is
- * a whole number or null ("Buffet Table" has none). Only qty and name are kept.
+ * "What's included" as [{ qty, name, grows }]: at least one item, each with a name, and a quantity that is
+ * a whole number or null ("Buffet Table" has none). An item with a quantity also keeps `grows` when it is
+ * sent (true: it grows with the guest count, like plates and chairs; false: its count above the package's
+ * guests is set in the quotation, like waiters; domain/packageItems.js). Nothing else is kept.
  */
 function packageItems(list) {
   if (!Array.isArray(list) || list.length === 0) throw invalid('List at least one item.', 'items');
@@ -157,7 +159,7 @@ function packageItems(list) {
     if (qty !== null && (!Number.isInteger(qty) || qty < 1 || qty > MAX_ITEM_QTY)) {
       throw invalid(`Start a line with a quantity from 1 to ${MAX_ITEM_QTY.toLocaleString('en-PH')}, or leave the number out.`, 'items');
     }
-    return { qty, name };
+    return qty !== null && typeof item.grows === 'boolean' ? { qty, name, grows: item.grows } : { qty, name };
   });
 }
 
@@ -165,7 +167,7 @@ const packageTaken = () => new ApiError('NAME_TAKEN', 'Another package already u
 
 /**
  * Admin: update the package with this id, or create a new one when id is null. Returns the saved package.
- * Expects { name, price, guests, description, items: [{ qty, name }], visible }. A new package is
+ * Expects { name, price, guests, description, items: [{ qty, name, grows }], visible }. A new package is
  * kind 'package', hidden unless `visible` is true (the form's switch), with the next card colour
  * (mood) and the default icon. Editing keeps the current visibility when `visible` is not sent.
  */
