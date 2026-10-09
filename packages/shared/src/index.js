@@ -35,6 +35,7 @@ export { EndTimeField, TimeField } from './components/TimeField.jsx';
 export { BarChart, RankBars } from './components/BarChart.jsx';
 export { DataTable, Pager } from './components/DataTable.jsx';
 export { DocumentDialog, documentsFor } from './components/DocumentDialog.jsx';
+export { PackageItemList } from './components/PackageItems.jsx';
 export { ScrollToTop, NotFoundPage } from './components/Routing.jsx';
 export { ChatPanel } from './components/ChatPanel.jsx';
 // The booking's "Theme and Colors": the form fields (booking form, admin dialog), the colour picker and the read-only summary
