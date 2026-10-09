@@ -35,14 +35,16 @@ import {
   StatusPipeline,
   StylingSummary,
   ThemeIcon,
+  bookingExtraGuests,
+  bookingItems,
   daysFromToday,
   documentsFor,
   downpaymentDueFor,
+  formatBookingItem,
   formatDate,
   formatDateLong,
   formatDateTime,
   formatEventTime,
-  formatPackageItem,
   includesFood,
   isRental,
   pendingStep,
@@ -246,7 +248,9 @@ export default function ReservationDetailPage() {
             ) : (
             <DashCard>
               <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`}>{r.serviceType}</CardTitle>
-              <Field label="Package includes">{r.package.items.map(formatPackageItem).join(', ')}</Field>
+              {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and
+                  the other counted items show the counts our quotation set, or "(to confirm)" before it */}
+              <Field label={bookingExtraGuests(r) ? `Package includes, for your ${r.guests} guests` : 'Package includes'}>{bookingItems(r).map(formatBookingItem).join(', ')}</Field>
               <Divider sx={{ my: 2 }} />
               {/* A buffet lists the dish chosen for each category; catering only has no menu */}
               {includesFood(r.serviceType) ? (
@@ -298,6 +302,8 @@ export default function ReservationDetailPage() {
             <DashCard>
               <CardTitle subtitle={step === 'accept' ? 'Your quotation, waiting for you to accept it' : step === 'revise' ? 'A revised quotation is on its way' : r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment Summary</CardTitle>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
+              {/* Before the quotation, the equipment for guests above the package's default has no price yet */}
+              {!r.quotation && bookingExtraGuests(r) > 0 && <DetailRow label={`Extra ${bookingExtraGuests(r)} guests (equipment)`}>To be quoted</DetailRow>}
               <DetailRow label="Minimum downpayment">{peso(r.downpayment)}</DetailRow>
               {/* Paid = what was received; money given back shows on its own row */}
               <DetailRow label="Paid">{peso(r.paid + refunded)}</DetailRow>

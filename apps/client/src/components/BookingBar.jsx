@@ -103,9 +103,10 @@ export default function BookingBar({ onAvailable }) {
           />
         </Box>
 
-        {/* End time: 2 to 6 hours after the start (the list says how long, and "next day" past midnight) */}
+        {/* End time: the same hour : minute : AM/PM picker, offering only 2 to 6 hours after the start;
+            the line under it says how long the event runs, and "next day" past midnight */}
         <Box>
-          <Typography component="label" htmlFor="bar-end" sx={siteLabelSx}>
+          <Typography component="label" htmlFor="bar-end-hour" sx={siteLabelSx}>
             End time
           </Typography>
           <EndTimeField

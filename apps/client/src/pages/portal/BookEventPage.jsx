@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -46,11 +46,12 @@ import {
   flattenAddons,
   formatClock,
   formatDate,
+  formatBookingItem,
   formatEventTime,
-  formatPackageItem,
   includesFood,
   isRental,
   isRentalPackage,
+  packageItemsFor,
   peso,
   reservationApi,
   shiftEndTime,
@@ -140,6 +141,12 @@ const AVAILABILITY = {
  * four categories, charged per person) or Catering only (the package's equipment on its own).
  * A buffet has a fixed price per person, so the running total on this page is a real figure, not
  * a placeholder; only the additional charges are still priced by the admin in the quotation.
+ *
+ * A package covers its default guest count. Once a package is picked and the guest count is above it
+ * (the owner's rule, 2026-10-09; domain/packageItems.js), "includes" grows with the guests: plates,
+ * glasses, cutlery, chairs and tables go up (200 -> 600), and the other counted items (food warmers,
+ * pitchers, waiters) say "to confirm". The equipment for the extra guests shows as "To be quoted" in the
+ * summary, so the total reads "₱20,000 + quoted": the admin prices it, and sets those counts, in the quotation.
  *
  * The third choice, Equipment rental, books the Equipment Rental package: the customer types how
  * many of each rentable item they need, sees each item's availability on their date, and chooses
@@ -293,6 +300,12 @@ export default function BookEventPage() {
   // What is known now: the package, the food for a buffet, and the additional charges that have their
   // own price; the others are quoted later. A rental is fully priced already: its items plus the delivery fee.
   const knownTotal = quote.net;
+  // The package's items for this guest count (grown above its default, some to confirm); an event only
+  const packageItems = pkg && !rental ? packageItemsFor(pkg, Number(form.guests) || 0) : [];
+  // Guests above the package's default: their equipment is priced in the quotation, so the total is "+ quoted"
+  const extraGuests = rental ? 0 : quote.extraGuests;
+  const extraNote = extraGuests ? ` + equipment for ${extraGuests} extra guests (to be quoted)` : '';
+  const plusQuoted = extraGuests ? ' + quoted' : '';
   // The ticked charges' total that is already known, and a reminder when some are still to be quoted
   const addonNote = quote.addons ? ` + additional charges ${peso(quote.addons)}` : '';
   const quotedNote = chosenAddons.some((a) => !a.price) ? ' Charges marked "To be quoted" are priced in your quotation.' : '';
@@ -701,9 +714,10 @@ export default function BookEventPage() {
                 {!rental && (
                   <EndTimeField id="f-endTime" required startTime={form.startTime} value={form.endTime} onChange={(v) => update({ endTime: v })} error={errors.endTime} hint={`Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`} />
                 )}
-                {/* A rental has no guest count: the customer says how many of each item instead */}
+                {/* A rental has no guest count: the customer says how many of each item instead. Above the
+                    package's default, the hint says the package grows and the extra guests are quoted. */}
                 {!rental && (
-                  <FormField id="f-guests" label="Guest count" required value={form.guests} onChange={(e) => updateGuests(e.target.value)} error={errors.guests} hint={pkg ? `Default for ${pkg.name}: ${pkg.guests} guests` : `Between ${RULES.minGuests} and ${RULES.maxGuests} guests`} inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }} />
+                  <FormField id="f-guests" label="Guest count" required value={form.guests} onChange={(e) => updateGuests(e.target.value)} error={errors.guests} hint={pkg ? `Default for ${pkg.name}: ${pkg.guests} guests${extraGuests ? `. The package grows to your ${form.guests} guests; the ${extraGuests} extra are priced in your quotation.` : ''}` : `Between ${RULES.minGuests} and ${RULES.maxGuests} guests`} inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }} />
                 )}
               </Box>
             </Section>
@@ -759,11 +773,35 @@ export default function BookEventPage() {
                   );
                 })}
               </Box>
-              {/* What the chosen package includes, and how it is booked once "What You Are Booking" is picked */}
+              {/* What the chosen package includes for the guest count, and how it is booked once "What You Are
+                  Booking" is picked. Above the package's default, the grown counts are in bold and the items
+                  the quotation confirms say "(to confirm)". */}
               {pkg && (
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>{pkg.name} includes</Typography>
-                  <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>{pkg.items.map(formatPackageItem).join(' · ')}</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+                    {pkg.name} includes{extraGuests ? ` for your ${form.guests} guests` : ''}
+                  </Typography>
+                  {extraGuests > 0 && (
+                    <Typography sx={{ mb: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.goldDark }}>
+                      Adjusted from {pkg.guests} to your {form.guests} guests. We confirm the items marked "to confirm" and price the equipment for your {extraGuests} extra guests in your quotation.
+                    </Typography>
+                  )}
+                  <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
+                    {packageItems.map((item, i) => (
+                      <Fragment key={`${item.name}-${i}`}>
+                        {i > 0 && ' · '}
+                        {item.toConfirm ? (
+                          <Box component="span" sx={{ color: tokens.goldDark }}>{formatBookingItem(item)}</Box>
+                        ) : item.qty !== item.defaultQty ? (
+                          <>
+                            <Box component="b" sx={{ color: tokens.textPrimary }}>{item.qty}</Box> {item.name}
+                          </>
+                        ) : (
+                          formatBookingItem(item)
+                        )}
+                      </Fragment>
+                    ))}
+                  </Typography>
                   {form.serviceType && (
                     <Typography sx={{ mt: 0.75, fontSize: 12.5, color: tokens.textSecondary }}>
                       {buffet ? 'Your food is cooked by us and charged per person on top of this package.' : 'Booked as catering only: the equipment above, with no food.'}
@@ -1084,7 +1122,7 @@ export default function BookEventPage() {
               <AlertBanner tone="info" sx={{ mt: 2 }}>
                 {rental
                   ? 'This is a request, not a confirmed rental. We check the items and send your quotation within 24 hours; accepting it approves your rental.'
-                  : 'This is a request, not a confirmed booking. We review it and send your quotation with the additional charges priced within 24 hours; accepting it approves your reservation.'}
+                  : `This is a request, not a confirmed booking. We review it and send your quotation with the additional charges${extraGuests ? ` and the equipment for your ${extraGuests} extra guests` : ''} priced within 24 hours; accepting it approves your reservation.`}
               </AlertBanner>
               {/* Asked for every request; the link opens the full terms in a new tab so the form stays as it is */}
               <Box sx={{ mt: 2 }}>
@@ -1127,7 +1165,7 @@ export default function BookEventPage() {
                     ['Booking', form.serviceType || '—'],
                     ['Date', form.date ? formatDate(form.date) : '—'],
                     ['Time', form.startTime && form.endTime ? formatEventTime(form) : '—'],
-                    ['Guests', form.guests || '—'],
+                    ['Guests', form.guests ? `${form.guests}${extraGuests ? ` (${extraGuests} extra)` : ''}` : '—'],
                     ['Package', pkg ? pkg.name : '—'],
                     // Section 4 (optional): the theme's name and how many colours
                     ['Theme', (styling && themeLabel(styling)) || '—'],
@@ -1143,9 +1181,13 @@ export default function BookEventPage() {
                 </Box>
               ))}
               <Divider sx={{ my: 1.5 }} />
-              {/* The package price plus, for a buffet, the food: both are known now, so this is a real figure */}
+              {/* The package price plus, for a buffet, the food: both are known now, so this is a real figure.
+                  Extra guests add "+ quoted": their equipment is priced in the quotation. */}
               <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted }}>{rental ? 'Rental total' : 'Starting total'}</Typography>
-              <Typography sx={{ fontSize: 28, fontWeight: 800 }}>{pkg && (!rental || rentalChosen.length) ? peso(knownTotal) : '—'}</Typography>
+              <Typography sx={{ fontSize: 28, fontWeight: 800 }}>
+                {pkg && (!rental || rentalChosen.length) ? peso(knownTotal) : '—'}
+                {pkg && plusQuoted && <Box component="span" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textSecondary }}>{plusQuoted}</Box>}
+              </Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {rental
                   ? rentalChosen.length
@@ -1154,12 +1196,12 @@ export default function BookEventPage() {
                   : !pkg
                   ? 'Choose a package to see your total'
                   : !form.serviceType
-                  ? `Package ${peso(quote.packageTotal)}${addonNote}. Choose what you are booking to finish your total.${quotedNote}`
+                  ? `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Choose what you are booking to finish your total.${quotedNote}`
                   : buffet && quote.plates
-                    ? `Package ${peso(quote.packageTotal)} + buffet for ${quote.plates} at ${peso(quote.pricePerPlate)} each${addonNote}.${quotedNote}`
+                    ? `Package ${peso(quote.packageTotal)}${extraNote} + buffet for ${quote.plates} at ${peso(quote.pricePerPlate)} each${addonNote}.${quotedNote}`
                     : buffet
                       ? 'Enter your guest count to see the buffet price'
-                      : `Package ${peso(quote.packageTotal)}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
+                      : `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
               </Typography>
               <BusyButton fullWidth size="large" busy={busy} onClick={submit} sx={{ mt: 2 }}>
                 Submit request
@@ -1175,7 +1217,7 @@ export default function BookEventPage() {
         <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--tm-bottom-nav, 0px)', zIndex: 1090, display: { xs: 'flex', lg: 'none' }, alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 2, py: 1.25, backgroundColor: '#fff', borderTop: `1px solid ${tokens.cardLightBorder}`, boxShadow: '0 -10px 30px -12px rgba(0,0,0,0.4)' }}>
           <Box>
             <Typography sx={{ fontSize: 11, color: tokens.textMuted }}>{rental ? 'Rental total' : buffet && quote.plates ? `Package + buffet for ${quote.plates}` : 'Starting total'}</Typography>
-            <Typography sx={{ fontSize: 19, fontWeight: 800, color: tokens.textPrimary, lineHeight: 1.1 }}>{rental ? (rentalChosen.length ? peso(knownTotal) : 'Pick your items') : pkg ? peso(knownTotal) : 'Pick a package'}</Typography>
+            <Typography sx={{ fontSize: 19, fontWeight: 800, color: tokens.textPrimary, lineHeight: 1.1 }}>{rental ? (rentalChosen.length ? peso(knownTotal) : 'Pick your items') : pkg ? `${peso(knownTotal)}${plusQuoted}` : 'Pick a package'}</Typography>
           </Box>
           <BusyButton busy={busy} onClick={submit} sx={{ px: 3, bgcolor: tokens.ink, color: tokens.onInk, '&:hover': { bgcolor: tokens.inkHover } }}>
             Submit request
@@ -1205,12 +1247,15 @@ function Section({ id, index, title, subtitle, error, children }) {
 /**
  * Price breakdown before the quotation. The package price and, for a buffet, the food are both
  * known here, because a buffet is charged per person, and so is each additional charge with its own
- * price. Only the charges without one are still "To be quoted", so the starting total is what the
- * customer can already count on.
+ * price. Only the charges without one, and the equipment for guests above the package's default, are
+ * still "To be quoted", so the starting total is what the customer can already count on ("+ quoted"
+ * when there are extra guests).
  */
 function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
   const rows = [
     [pkg ? `Package · ${pkg.name}` : 'Package', pkg ? peso(quote.packageTotal) : '—'],
+    // Guests above the package's default: the admin prices their equipment in the quotation
+    ...(quote.extraGuests ? [[`Extra ${quote.extraGuests} guests (equipment)`, 'To be quoted']] : []),
     // A buffet line only once the guest count is in; catering only never has one
     ...(includesFood(serviceType)
       ? [[quote.plates ? `Buffet · ${quote.plates} × ${peso(quote.pricePerPlate)}` : 'Buffet · enter your guest count', quote.plates ? peso(quote.food) : '—']]
@@ -1227,7 +1272,7 @@ function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
       ))}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, px: 2, py: 1.5, backgroundColor: tokens.surfaceSubtle }}>
         <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Starting total</Typography>
-        <Typography sx={{ fontSize: 16, fontWeight: 800 }}>{pkg ? peso(quote.net) : '—'}</Typography>
+        <Typography sx={{ fontSize: 16, fontWeight: 800 }}>{pkg ? `${peso(quote.net)}${quote.extraGuests ? ' + quoted' : ''}` : '—'}</Typography>
       </Box>
     </Box>
   );

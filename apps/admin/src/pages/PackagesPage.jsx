@@ -36,6 +36,7 @@ import {
   formatPackageItem,
   inventoryApi,
   isRentalPackage,
+  itemGrows,
   peso,
   readAddonPrice,
   readAddonSizes,
@@ -46,11 +47,24 @@ import {
 } from '@tm/shared';
 
 // Empty form values for a new package (new packages start hidden)
-const blankPackage = () => ({ name: '', price: '', guests: '', description: '', itemsText: '', visible: false });
+const blankPackage = () => ({ name: '', price: '', guests: '', description: '', itemsText: '', grows: {}, visible: false });
 
-// Convert a saved package into form values: numbers become strings and the items become one line
-// each ("100 Porcelain Plates")
-const toForm = ({ items, ...p }) => ({ ...p, price: String(p.price), guests: String(p.guests), itemsText: items.map(formatPackageItem).join('\n') });
+// Convert a saved package into form values: numbers become strings, the items become one line
+// each ("100 Porcelain Plates"), and `grows` says, by item name, which counted items grow with the guests
+const toForm = ({ items, ...p }) => ({
+  ...p,
+  price: String(p.price),
+  guests: String(p.guests),
+  itemsText: items.map(formatPackageItem).join('\n'),
+  grows: Object.fromEntries(items.filter((item) => item.qty).map((item) => [item.name, itemGrows(item, p)]))
+});
+
+/**
+ * Whether a counted item of the form grows with the guest count: the admin's tick when there is one, else
+ * the same guess as for a package saved before the ticks (domain/packageItems.js itemGrows): an item counted
+ * once per default guest, or a counted table. So a new "300 Chairs" line on a 300-guest package starts ticked.
+ */
+const growsInForm = (form, item) => (item.name in form.grows ? form.grows[item.name] : itemGrows(item, { guests: Number(form.guests) }));
 
 /**
  * Turn the "What's included" text into items, one per line. A number at the start of a line is the quantity:
@@ -69,7 +83,9 @@ const parseItems = (text) =>
 /**
  * 1u · Catalogue manager. What customers see on the public site and the reservation form.
  * A package is a flat price for equipment and service (never food), with a default guest count.
- * The default only helps customers pick a package; the booking follows the customer's own guest count.
+ * The package is set up and priced for its default guest count, and customers book their own count. Above
+ * the default, the items ticked "Grows with the guest count" grow with it and the admin prices the extra
+ * guests (and counts the other items) in the quotation (domain/packageItems.js).
  * Additional charges are extras customers can tick, at their own price or priced in each quotation; the
  * charges with packages (Sounds and lights, Photographer and videographer) are listed under them, and
  * customers pick one package of each.
@@ -406,7 +422,8 @@ export default function PackagesPage() {
 const editorField = (field) => (field === 'items' ? 'itemsText' : ['name', 'price', 'guests', 'description', 'itemsText'].includes(field) ? field : null);
 
 /**
- * Form for creating or editing a package: name, price, default guest count, description, what's included, setup styles, visibility.
+ * Form for creating or editing a package: name, price, default guest count, description, what's included
+ * (and which counted items grow with the guest count above the default), setup styles, visibility.
  * The Equipment Rental package only has a name, description and visibility here: its prices are each
  * rentable item's rent price on the Inventory page.
  */
@@ -451,21 +468,27 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
     return e;
   };
 
-  // Validate, then save the package: trim text, convert numbers back, turn the lines into items
+  // Tick or untick "grows with the guest count" for one counted item
+  const toggleGrows = (item) => setForm((f) => ({ ...f, grows: { ...f.grows, [item.name]: !growsInForm(f, item) } }));
+  // The counted items of the list as typed now, for the ticks under it
+  const countedItems = rental ? [] : parseItems(form.itemsText).filter((item) => item.qty);
+
+  // Validate, then save the package: trim text, convert numbers back, turn the lines into items (each
+  // counted one saying whether it grows with the guest count)
   const save = async () => {
     const found = validate();
     setErrors(found);
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      const { itemsText, ...rest } = form;
+      const { itemsText, grows, ...rest } = form;
       const saved = await catalogApi.savePackage({
         ...rest,
         name: form.name.trim(),
         description: form.description.trim(),
         price: Number(form.price),
         guests: Number(form.guests),
-        items: parseItems(itemsText)
+        items: parseItems(itemsText).map((item) => (item.qty ? { ...item, grows: growsInForm(form, item) } : item))
       });
       onSaved(saved, isNew);
     } catch (err) {
@@ -492,6 +515,26 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
         <FormField id="p-desc" label="Description shown on the site" required multiline minRows={2} value={form.description} onChange={set('description')} error={errors.description} sx={{ gridColumn: { sm: '1 / -1' } }} />
         {!rental && (
           <FormField id="p-items" label="What's included" required multiline minRows={8} value={form.itemsText} onChange={set('itemsText')} error={errors.itemsText} hint='One item per line. Start with the quantity when there is one, e.g. "100 Porcelain Plates" or "Buffet Table".' sx={{ gridColumn: { sm: '1 / -1' } }} />
+        )}
+        {/* For bookings above the default guest count: ticked items grow with the guests (200 plates -> 600 at
+            600 guests); the other counted items are set in each quotation, and the customer sees "to confirm" */}
+        {countedItems.length > 0 && (
+          <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Grows with the guest count</Typography>
+            <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+              When a booking has more guests than the default, ticked items grow with it (e.g. plates, glasses, chairs, tables). You set the count of the others in the quotation, with the price for the extra guests.
+            </Typography>
+            <Box sx={{ mt: 0.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2 }}>
+              {countedItems.map((item, i) => (
+                <FormControlLabel
+                  key={`${item.name}-${i}`}
+                  sx={{ mr: 0 }}
+                  control={<Checkbox size="small" checked={growsInForm(form, item)} onChange={() => toggleGrows(item)} />}
+                  label={<Typography sx={{ fontSize: 13 }}>{formatPackageItem(item)}</Typography>}
+                />
+              ))}
+            </Box>
+          </Box>
         )}
       </Box>
 

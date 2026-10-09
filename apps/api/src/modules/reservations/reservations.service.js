@@ -29,7 +29,8 @@ import {
   isRental
 } from '@tm/shared/src/services/config.js';
 import { TERMS_VERSION } from '@tm/shared/src/legal/terms.js';
-import { computeQuote } from '@tm/shared/src/services/pricing.js';
+import { ITEM_COUNT_MAX, itemsToConfirm } from '@tm/shared/src/domain/packageItems.js';
+import { computeQuote, extraGuestsFor } from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
 import { daysFromToday, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
 import { HOLDS_DATE, statusLabel } from '@tm/shared/src/utils/status.js';
@@ -675,12 +676,42 @@ async function slotProblem(conn, reservation) {
 const ADMIN_FIX = { date: 'Move the event to another date', time: 'Change the time', items: 'Change the items or the date' };
 
 /**
+ * The quotation's extra-guest values for an event above its package's default guest count (see
+ * sendQuotation): { extraGuestsCharge, itemCounts }, both required then; { 0, {} } otherwise (a rental, or
+ * guests at or below the default). Only the package's items to confirm are read from `values.itemCounts`;
+ * a count for any other name is dropped. Errors name the field: 'extraGuestsCharge', 'itemCounts.<name>'.
+ */
+function extraGuestValues(pkg, reservation, values) {
+  const extra = isRental(reservation.serviceType) ? 0 : extraGuestsFor(pkg, reservation.guests);
+  if (!extra) return { extraGuestsCharge: 0, itemCounts: {} };
+  const charge = values.extraGuestsCharge;
+  if (charge === undefined || charge === null || charge === '') throw invalid(`Enter the price of the equipment for the ${extra} extra guests (0 to waive it).`, 'extraGuestsCharge');
+  const extraGuestsCharge = quotationAmount(charge, 'extraGuestsCharge');
+  const sent = plainObject(values.itemCounts);
+  const itemCounts = {};
+  itemsToConfirm(pkg, reservation.guests).forEach((item) => {
+    const count = toNumber(sent[item.name]);
+    if (!Number.isInteger(count) || count < 1 || count > ITEM_COUNT_MAX) {
+      throw invalid(`Enter how many ${item.name} for ${reservation.guests} guests (1 to ${ITEM_COUNT_MAX.toLocaleString('en-PH')}).`, `itemCounts.${item.name}`);
+    }
+    itemCounts[item.name] = count;
+  });
+  return { extraGuestsCharge, itemCounts };
+}
+
+/**
  * Admin: price the add-ons and any other charges, apply a discount, and send the quotation to the
  * customer's chat. The food is never typed: a buffet is guests x
  * the rate stored on the booking (never today's), and a rental is its items at the prices they were
  * booked at plus any damage charges, with `deliveryFee` for a delivered rental (the standard fee when
- * left out). `values` is { addonPrices: { addonId: price of one }, otherCharges, otherLabel, discount,
- * deliveryFee, note }; every amount is whole pesos from 0 to MAX_AMOUNT.
+ * left out). `values` is { addonPrices: { addonId: price of one }, extraGuestsCharge, itemCounts,
+ * otherCharges, otherLabel, discount, deliveryFee, note }; every amount is whole pesos from 0 to MAX_AMOUNT.
+ *
+ * An event with more guests than its package's default (extraGuestsFor; domain/packageItems.js) needs two
+ * more things, both required: `extraGuestsCharge`, the price of the equipment for those guests (0 is
+ * allowed, to waive it), and `itemCounts`, the count of every package item that does not grow with the
+ * guests ({ 'Elegant Food Warmers': 10, 'Waiters/Dishwashers': 12 }, whole numbers 1 to ITEM_COUNT_MAX).
+ * Both are saved on the quotation; at or below the default they are ignored and saved as 0 and {}.
  *
  * A pending request's quotation is an offer the customer accepts (acceptQuotation), so it is only sent
  * while the date can still be taken (slotProblem: the date open, a slot under the capacity, the time
@@ -711,11 +742,13 @@ export async function sendQuotation(ref, values, admin) {
     const otherCharges = quotationAmount(values.otherCharges, 'otherCharges');
     const discount = quotationAmount(values.discount, 'discount');
     const note = clean(values.note);
+    const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
+    const { extraGuestsCharge, itemCounts } = extraGuestValues(pkg, reservation, values);
 
     // The total the customer held before this quotation, for the audit trail
     const totalBefore = financials(reservation, payments, refunds).total;
     const quote = computeQuote({
-      pkg: await catalogRepo.findPackageById(reservation.packageId, conn),
+      pkg,
       serviceType: reservation.serviceType,
       guests: reservation.guests,
       pricePerPlate: reservation.pricePerPlate,
@@ -725,10 +758,11 @@ export async function sendQuotation(ref, values, admin) {
       addonIds: reservation.addonIds,
       addonQty: reservation.addonQty,
       addonPrices,
+      extraGuestsCharge,
       otherCharges,
       discount
     });
-    const quotation = { ...quote, ...(rental ? { fulfilment: reservation.fulfilment } : {}), otherLabel: quote.otherCharges ? clean(values.otherLabel) : '', sentAt: now(), note };
+    const quotation = { ...quote, itemCounts, ...(rental ? { fulfilment: reservation.fulfilment } : {}), otherLabel: quote.otherCharges ? clean(values.otherLabel) : '', sentAt: now(), note };
     const quoted = { ...reservation, quotation };
     const saved = { quotation };
     const log = [`Sent the quotation (${pesoText(quote.net)}).`];
@@ -886,10 +920,11 @@ export async function undoPreparing(ref, admin) {
  * approved booking earlier pulls its downpayment due date in (dueAfterMove). The audit trail lists what
  * changed, old value and new.
  *
- * A buffet is charged per person, so a new guest count changes what the booking costs. The sent
- * quotation is never edited: the customer is told in their chat straight away (old and new food total),
- * the booking shows as out of date (quotationStale), and the new amount only counts once the admin
- * re-sends the quotation. Before any quotation an event's estimate stays as booked (an open question
+ * A buffet is charged per person, so a new guest count changes what the booking costs, and so does a new
+ * count of guests above the package's default on a quotation that priced them (their equipment and the
+ * items to confirm; domain/packageItems.js). The sent quotation is never edited: the customer is told in
+ * their chat straight away (old and new food total, old and new extra guests), the booking shows as out
+ * of date (quotationStale), and the new amount only counts once the admin re-sends the quotation. Before any quotation an event's estimate stays as booked (an open question
  * for the owner, docs §4.1). Runs under the availability lock. Returns { changed }: how many things changed.
  */
 export async function updateLogistics(ref, patch, admin) {
@@ -948,17 +983,35 @@ export async function updateLogistics(ref, patch, admin) {
 
       await repo.updateReservation(conn, ref, { date, startTime, endTime, guests, venue, downpaymentDue: due });
       if (changes.length) await logAdmin(conn, ref, admin, `Updated ${changes.join(', ')}.`);
-      // The guest count moved on a quoted buffet: tell the customer what it does to their total before
-      // anyone re-sends anything, so a change can never pass unnoticed
-      if (guests !== reservation.guests && reservation.quotation && includesFood(reservation.serviceType)) {
-        const food = guests * (reservation.pricePerPlate || 0);
-        await postAdminMessage(
-          conn,
-          reservation,
-          `The guest count for ${reservation.eventName} was changed from ${reservation.guests} to ${guests}. Your buffet is charged per person, so the food total changes from ${pesoText(reservation.quotation.food)} to ${pesoText(food)}. We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`,
-          null,
-          admin.name
-        );
+      // The guest count moved on a quoted event: tell the customer what it does to their total before
+      // anyone re-sends anything, so a change can never pass unnoticed. A buffet's food is per person; the
+      // guests above the package's default matter on a quotation that priced them (it keeps extraGuests).
+      const quote = reservation.quotation;
+      if (guests !== reservation.guests && quote) {
+        const reasons = [];
+        if (includesFood(reservation.serviceType)) {
+          const food = guests * (reservation.pricePerPlate || 0);
+          reasons.push(`Your buffet is charged per person, so the food total changes from ${pesoText(quote.food)} to ${pesoText(food)}.`);
+        }
+        if (quote.extraGuests !== undefined && quote.packageGuests) {
+          const extraNow = Math.max(0, guests - quote.packageGuests);
+          if (extraNow !== quote.extraGuests) {
+            reasons.push(
+              extraNow
+                ? `Your package covers ${quote.packageGuests} guests, so the equipment for ${extraNow} extra guests (before: ${quote.extraGuests || 'none'}) is priced in the revised quotation.`
+                : `Your package covers ${quote.packageGuests} guests, so the charge for extra guests comes off.`
+            );
+          }
+        }
+        if (reasons.length) {
+          await postAdminMessage(
+            conn,
+            reservation,
+            `The guest count for ${reservation.eventName} was changed from ${reservation.guests} to ${guests}. ${reasons.join(' ')} We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`,
+            null,
+            admin.name
+          );
+        }
       }
       return { changed: changes.length };
     },

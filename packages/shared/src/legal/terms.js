@@ -18,10 +18,10 @@ import { cancelWindowText } from '../domain/cancellation.js';
  */
 
 /** The version customers agree to (a date, "YYYY-MM-DD"); stored on accounts and bookings. */
-export const TERMS_VERSION = '2026-10-08';
+export const TERMS_VERSION = '2026-10-09';
 
 /** The same date in words, for "Last updated" at the top of both pages. */
-export const TERMS_UPDATED = '8 October 2026';
+export const TERMS_UPDATED = '9 October 2026';
 
 // "₱3,000"
 const pesos = (amount) => `₱${Number(amount).toLocaleString('en-PH')}`;
@@ -62,6 +62,7 @@ export function termsOfService({ minDownpayment } = {}) {
     ]),
     section('prices', 'Prices and Quotations', [], [
       'A package has a fixed price. A buffet adds a price per person, multiplied by your guest count; the price per person is the one in force when you send your request, so a later price change never affects your booking.',
+      'Each package is set up for its default guest count (shown on the package). If you have more guests, the plates, glasses, cutlery, chairs and tables grow with your guest count; we confirm the other items (such as food warmers and waiters) and price the equipment for the extra guests in your quotation. With fewer guests, the package price stays the same.',
       'Additional charges you pick (for example, extra waiters) are priced in the quotation. The quotation you accept is the amount you owe.',
       'If something that affects the price changes before you accept (for example, the guest count), we send a revised quotation and you accept that one instead.',
       'If something that affects the price changes after you accept (for example, the guest count, or damage charges on rented items), we tell you in your chat and send a revised quotation. The new amount applies only from the quotation we send you, never before. If the new total is lower than what you have paid, we return the difference.',

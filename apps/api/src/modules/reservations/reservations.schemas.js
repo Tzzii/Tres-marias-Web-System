@@ -66,11 +66,14 @@ export const acceptBody = z.object({ sentAt: passThrough });
 export const availabilityQuery = z.object({ date: passThrough, excludeRef: passThrough });
 
 /**
- * POST /api/admin/reservations/:ref/quotation. The amounts (whole pesos) are checked by the service;
- * the two texts are kept to what the quotation card allows (otherLabel 60, note 300 characters).
+ * POST /api/admin/reservations/:ref/quotation. The amounts (whole pesos) and the counts of the items to
+ * confirm (itemCounts, by item name) are checked by the service; the two texts are kept to what the
+ * quotation card allows (otherLabel 60, note 300 characters).
  */
 export const quotationBody = z.object({
   addonPrices: passThrough,
+  extraGuestsCharge: passThrough,
+  itemCounts: passThrough,
   otherCharges: passThrough,
   otherLabel: text(60),
   discount: passThrough,
