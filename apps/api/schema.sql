@@ -408,6 +408,7 @@ CREATE TABLE qr_payments (
   customer_id         VARCHAR(40)     NOT NULL,
   amount              INT             NOT NULL,             -- whole pesos (PayMongo receives amount * 100)
   intent_id           VARCHAR(64)     NOT NULL,             -- PayMongo Payment Intent, pi_…
+  code_id             VARCHAR(64)     NULL,                 -- PayMongo's QR Ph code, qr_…: how a qr.expired event finds its QR (2026-10-09; NULL for older QRs)
   qr_image            MEDIUMTEXT      NOT NULL,             -- base64 data URL of the QR image
   status              VARCHAR(20)     NOT NULL DEFAULT 'pending',
   expires_at          BIGINT UNSIGNED NOT NULL,

@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
  * network, so test #19 can send a signed webhook for a GCash QR twice and see it recorded once.
  *   POST /payment_intents            a new intent for the amount asked
  *   POST /payment_methods            a qrph method
- *   POST /payment_intents/:id/attach the QR (a 1x1 image) and when it expires
+ *   POST /payment_intents/:id/attach the QR (a 1x1 image), its code id (qr_…) and when it expires
  *   GET  /payment_intents/:id        "succeeded", paid in full: what PayMongo says once a QR is paid
  * Any other address goes to the real fetch. The API's own rules (signature, amount, dedupe) are untouched.
  */
@@ -36,7 +36,7 @@ globalThis.fetch = async (input, init = {}) => {
   const attach = /^\/payment_intents\/([^/]+)\/attach$/.exec(route);
   if (method === 'POST' && attach) {
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    return answer(200, { data: { id: attach[1], attributes: { livemode: false, status: 'awaiting_next_action', next_action: { code: { image_url: PIXEL, expires_at: expiresAt, test_url: '' } } } } });
+    return answer(200, { data: { id: attach[1], attributes: { livemode: false, status: 'awaiting_next_action', next_action: { code: { id: `qr_fake_${random()}`, image_url: PIXEL, expires_at: expiresAt, test_url: '' } } } } });
   }
   const read = /^\/payment_intents\/([^/?]+)$/.exec(route);
   if (method === 'GET' && read) {
