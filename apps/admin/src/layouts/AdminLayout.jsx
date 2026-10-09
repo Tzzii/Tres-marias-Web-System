@@ -79,8 +79,10 @@ export default function AdminLayout() {
     // One notification per QR Ph payment, which PayMongo verifies by itself (2026-10-09): no admin saw it, so
     // this is how the admin hears that a downpayment came in or that a reservation is now fully paid. A
     // balance payment counts as "fully paid" when it is the reservation's newest verified payment and the
-    // reservation is Confirmed (or Completed) now. Bank transfers have "Payment to Verify" above, and cash
-    // is recorded by the admin, so neither gets one.
+    // reservation is Confirmed (or Completed) with no balance left. Confirmed alone is not enough: the admin
+    // can confirm a booking once its downpayment is paid, so a part of the balance paid after that is
+    // "Balance Payment Received". Bank transfers have "Payment to Verify" above, and cash is recorded by
+    // the admin, so neither gets one.
     const reservationOf = new Map(data.reservations.map((r) => [r.ref, r]));
     const newestVerified = new Map(); // ref -> its newest verified payment
     data.payments.forEach((p) => {
@@ -91,7 +93,7 @@ export default function AdminLayout() {
       .filter((p) => p.status === 'verified' && p.method === 'qrph')
       .forEach((p) => {
         const r = reservationOf.get(p.ref);
-        const fullyPaid = p.kind === 'full' || (p.kind === 'balance' && newestVerified.get(p.ref) === p && Boolean(r) && ['confirmed', 'completed'].includes(r.status));
+        const fullyPaid = p.kind === 'full' || (p.kind === 'balance' && newestVerified.get(p.ref) === p && Boolean(r) && ['confirmed', 'completed'].includes(r.status) && r.balance === 0);
         const receipt = p.receiptNo ? ` (${p.receiptNo})` : '';
         const [title, body] = fullyPaid
           ? ['Fully Paid', `${p.customerName} paid ${peso(p.amount)} via QR Ph for ${p.eventName}. The reservation is now fully paid${receipt}.`]
