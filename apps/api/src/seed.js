@@ -6,7 +6,7 @@ import { DEFAULT_MIN_DOWNPAYMENT } from '@tm/shared/src/services/config.js';
 import { closePool, dbErrorHint, pool, tx } from './db.js';
 import { toJson } from './lib/json.js';
 import { hashSecret } from './lib/passwords.js';
-import { seedPasswords } from './seedData/passwords.js';
+import { seedAdminEmail, seedPasswords } from './seedData/passwords.js';
 import { NO_SAMPLE_DATA, loadSampleSeed } from './seedData/sampleLoader.js';
 import { buildBusinessSeed } from './seedData/seed.js';
 
@@ -30,6 +30,9 @@ import { buildBusinessSeed } from './seedData/seed.js';
  *   sample customer (seedData/passwords.js). A missing or weak one stops the run before anything changes.
  *   They are hashed before the transaction starts, so it stays short, with the API's own hashSecret()
  *   (lib/passwords.js): the accounts get the same bcrypt cost as real sign-ups.
+ * - SEED_ADMIN_EMAIL in apps/api/.env, when set, replaces the owner's email on the admin account. The
+ *   account keeps the owner's name and mobile. A malformed address also stops the run before anything
+ *   changes.
  * - Sample dates count from today in Manila time, so seeding again another day moves them.
  * - Prints the row count of every table and the counters, read back after the commit, and for the
  *   starter data the inventory totals (pieces, in use, damaged).
@@ -427,10 +430,12 @@ async function main() {
     console.error(`Refusing to seed: ${NO_SAMPLE_DATA}`);
     return 1;
   }
-  // The accounts' passwords, from apps/api/.env (checked before anything changes)
+  // The accounts' passwords and the admin's email, from apps/api/.env (checked before anything changes)
   const passwords = seedPasswords({ customers: !STARTER });
-  if (passwords.problems.length) {
-    console.error(`Refusing to seed:\n- ${passwords.problems.join('\n- ')}`);
+  const adminEmail = seedAdminEmail();
+  const problems = [...passwords.problems, adminEmail.problem].filter(Boolean);
+  if (problems.length) {
+    console.error(`Refusing to seed:\n- ${problems.join('\n- ')}`);
     return 1;
   }
 
@@ -446,6 +451,11 @@ async function main() {
 
     const now = Date.now();
     const business = buildBusinessSeed();
+    // SEED_ADMIN_EMAIL: the owner's account (admins[0]) signs in with this address instead; name and mobile stay
+    if (adminEmail.email) {
+      business.admins[0].email = adminEmail.email;
+      console.log(`The admin account (${business.admins[0].name}) signs in with SEED_ADMIN_EMAIL from apps/api/.env.`);
+    }
     const data = STARTER ? starterData(business, now) : buildSample(business);
     // Every admin gets SEED_ADMIN_PASSWORD and every sample customer SEED_CUSTOMER_PASSWORD, each with its own salt
     const accounts = [...data.admins.map((a) => [a.id, passwords.admin]), ...data.customers.map((c) => [c.id, passwords.customer])];
