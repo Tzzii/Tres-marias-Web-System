@@ -179,7 +179,7 @@ These accounts are in the sample data (in the database after `npm run seed:api`)
 | App | Username | Password | Second step |
 | --- | --- | --- | --- |
 | Customer Portal | `maria.santos@gmail.com` (or any seeded customer) | `SEED_CUSTOMER_PASSWORD` | — |
-| Admin Dashboard | `emmamariaobet@gmail.com` | `SEED_ADMIN_PASSWORD` | 6-digit code sent by email |
+| Admin Dashboard | `emmamariaobet@gmail.com` (or `SEED_ADMIN_EMAIL`, if set) | `SEED_ADMIN_PASSWORD` | 6-digit code sent by email |
 
 New customer accounts are created from **Sign up**: the form, then the 6-digit code emailed to the
 address typed (the account is made only when that code is entered).

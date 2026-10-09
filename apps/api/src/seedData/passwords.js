@@ -1,4 +1,5 @@
-import { validateAdminPassword, validatePassword } from '@tm/shared/src/utils/validation.js';
+import { normaliseEmail } from '@tm/shared/src/domain/account.js';
+import { validateAdminPassword, validateEmail, validatePassword } from '@tm/shared/src/utils/validation.js';
 
 /**
  * The passwords the seeder gives the accounts it creates, read from apps/api/.env (Phase 12): never
@@ -23,4 +24,21 @@ export function seedPasswords({ customers }) {
     else if (validatePassword(customer)) problems.push(`SEED_CUSTOMER_PASSWORD is too weak. ${validatePassword(customer)}`);
   }
   return { admin, customer, problems };
+}
+
+/**
+ * The email the seeded admin account signs in with, from SEED_ADMIN_EMAIL in apps/api/.env. Its
+ * sign-in codes go to this address. Blank means the owner's address in seedData/seed.js. The setting is
+ * for a live site set up by someone who cannot open the owner's inbox yet. The account keeps the
+ * owner's name and mobile, and the owner can switch the email back later on the admin's My Account page
+ * (the code for that goes to the owner's address). Kept in .env, not in the code, so a
+ * personal address never reaches the public repository.
+ *
+ * Returns { email, problem }: `email` is the address in lower case, or '' when the setting is blank.
+ * `problem` is a plain-words message when the address is not valid, otherwise ''.
+ */
+export function seedAdminEmail() {
+  const email = normaliseEmail(process.env.SEED_ADMIN_EMAIL);
+  const problem = email && validateEmail(email) ? `SEED_ADMIN_EMAIL is not a valid email address. ${validateEmail(email)}` : '';
+  return { email, problem };
 }
