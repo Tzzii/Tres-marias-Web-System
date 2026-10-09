@@ -424,6 +424,7 @@ const editorField = (field) => (field === 'items' ? 'itemsText' : ['name', 'pric
 /**
  * Form for creating or editing a package: name, price, default guest count, description, what's included
  * (and which counted items grow with the guest count above the default), setup styles, visibility.
+ * The visibility switch follows Show/Hide in the package list while the form is open.
  * The Equipment Rental package only has a name, description and visibility here: its prices are each
  * rentable item's rent price on the Inventory page.
  */
@@ -436,6 +437,13 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   // "dirty" = the form differs from the saved package, so Save is enabled
   const original = useMemo(() => (pkg ? JSON.stringify(toForm(pkg)) : null), [pkg]);
   const dirty = isNew || JSON.stringify(form) !== original;
+
+  // Show/Hide in the package list saves the visibility at once, outside this form. Follow it here, or a
+  // later Save would send the old value back and undo it; other edits not saved yet stay as typed.
+  const savedVisible = pkg ? pkg.visible : undefined;
+  useEffect(() => {
+    if (savedVisible !== undefined) setForm((f) => (f.visible === savedVisible ? f : { ...f, visible: savedVisible }));
+  }, [savedVisible]);
 
   // Nothing selected yet
   if (!pkg && !isNew) {

@@ -28,6 +28,7 @@ import {
   ITEM_COUNT_MAX,
   ListSkeleton,
   MENU_LINE_MAX,
+  PackageItemList,
   PageHeader,
   PaymentStatusChip,
   PAYMENT_METHODS,
@@ -52,7 +53,6 @@ import {
   daysFromToday,
   documentsFor,
   extraGuestsFor,
-  formatBookingItem,
   formatClock,
   formatDate,
   formatDateTime,
@@ -244,8 +244,11 @@ export default function ReservationDetailPage() {
                 {r.serviceType}
               </CardTitle>
               {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and the
-                  other counted items show the counts set in the quotation, or "(to confirm)" until it is sent */}
-              <Field label={bookingExtraGuests(r) ? `Package includes, for ${r.guests} guests (${bookingExtraGuests(r)} above the package)` : 'Package includes'}>{bookingItems(r).map(formatBookingItem).join(', ')}</Field>
+                  other counted items show the counts set in the quotation, or a "To confirm" tag until it is sent.
+                  One item per row, its count in its own column (PackageItemList). */}
+              <Field label={bookingExtraGuests(r) ? `Package includes, for ${r.guests} guests (${bookingExtraGuests(r)} above the package)` : 'Package includes'}>
+                <PackageItemList items={bookingItems(r)} />
+              </Field>
               <Divider sx={{ my: 2 }} />
               {/* A buffet lists the dish chosen for each category, so the kitchen reads it at a glance */}
               {includesFood(r.serviceType) ? (

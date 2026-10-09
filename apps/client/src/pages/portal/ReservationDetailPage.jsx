@@ -27,6 +27,7 @@ import {
   Field,
   FormField,
   ListSkeleton,
+  PackageItemList,
   PageHeader,
   RENTAL,
   REFUND_METHODS,
@@ -40,7 +41,6 @@ import {
   daysFromToday,
   documentsFor,
   downpaymentDueFor,
-  formatBookingItem,
   formatDate,
   formatDateLong,
   formatDateTime,
@@ -69,7 +69,9 @@ import { useAuth } from '../../auth.js';
  * by domain/cancellation.js); the status card says until when, or why not and how to cancel instead.
  * It also shows the "Started preparing" mark, who cancelled, and any refund owed or sent, and the theme,
  * colours and design details chosen on the booking form (a card only when there are some; the team edits
- * them after a change request).
+ * them after a change request). The package's items are listed one per row (PackageItemList), and the
+ * Payment Summary lists what the total is made of (ChargeLines), so the customer can see both without
+ * opening the quotation.
  */
 export default function ReservationDetailPage() {
   const { ref } = useParams();
@@ -129,6 +131,8 @@ export default function ReservationDetailPage() {
   // An equipment rental shows its items, pick up or delivery and any damage charges instead of a package and menu
   const rental = isRental(r.serviceType);
   const delivered = rental && r.fulfilment === 'delivery';
+  // The package's items for this booking's guest count (a rental has none)
+  const items = rental ? [] : bookingItems(r);
 
   return (
     <>
@@ -249,8 +253,14 @@ export default function ReservationDetailPage() {
             <DashCard>
               <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`}>{r.serviceType}</CardTitle>
               {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and
-                  the other counted items show the counts our quotation set, or "(to confirm)" before it */}
-              <Field label={bookingExtraGuests(r) ? `Package includes, for your ${r.guests} guests` : 'Package includes'}>{bookingItems(r).map(formatBookingItem).join(', ')}</Field>
+                  the other counted items show the counts our quotation set, or a "To confirm" tag before it.
+                  One item per row, its count in its own column (PackageItemList), so a long list stays easy to read. */}
+              <Field label={bookingExtraGuests(r) ? `Package includes, for your ${r.guests} guests` : 'Package includes'}>
+                <PackageItemList items={items} />
+              </Field>
+              {items.some((item) => item.toConfirm) && (
+                <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Our quotation sets the counts marked To confirm.</Typography>
+              )}
               <Divider sx={{ my: 2 }} />
               {/* A buffet lists the dish chosen for each category; catering only has no menu */}
               {includesFood(r.serviceType) ? (
@@ -301,10 +311,9 @@ export default function ReservationDetailPage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
               <CardTitle subtitle={step === 'accept' ? 'Your quotation, waiting for you to accept it' : step === 'revise' ? 'A revised quotation is on its way' : r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment Summary</CardTitle>
-              <DetailRow label="Total">{peso(r.total)}</DetailRow>
-              {/* Before the quotation, the equipment for guests above the package's default has no price yet */}
-              {!r.quotation && bookingExtraGuests(r) > 0 && <DetailRow label={`Extra ${bookingExtraGuests(r)} guests (equipment)`}>To be quoted</DetailRow>}
-              <DetailRow label="Minimum downpayment">{peso(r.downpayment)}</DetailRow>
+              {/* What the total is made of, line by line, so the customer need not open the quotation to see it */}
+              <ChargeLines r={r} rental={rental} delivered={delivered} />
+              <DetailRow label="Minimum downpayment" sx={{ mt: 1 }}>{peso(r.downpayment)}</DetailRow>
               {/* Paid = what was received; money given back shows on its own row */}
               <DetailRow label="Paid">{peso(r.paid + refunded)}</DetailRow>
               {refunded > 0 && <DetailRow label="Refunded">− {peso(refunded)}</DetailRow>}
@@ -522,6 +531,88 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
     >
       <FormField id="change-message" label="Your request" multiline minRows={4} value={message} onChange={(e) => { setMessage(e.target.value); setError(''); }} error={error} placeholder="e.g. Please change the guest count from 150 to 170 and add Mango Float to the food." inputProps={{ maxLength: 2000 }} />
     </AppDialog>
+  );
+}
+
+/**
+ * What the customer pays for, one line each, with the total under them (the Payment Summary). The lines
+ * come from the quotation we sent, or from the estimate before one, the same figures the quotation
+ * printout lists:
+ *   event    the package (with the guests it covers), the equipment for the guests above that, the buffet
+ *            (guests × the price per person), and each additional charge (× how many, with the price of one)
+ *   rental   the rented items (how many pieces), delivery or free pick-up, and any damage charges
+ *   both     other charges and a discount, when the quotation has them
+ * Before the quotation, the extra guests' equipment and each charge without its own price say "To be
+ * quoted", and so does a charge added after the quotation was sent; the total then reads "₱20,000 +
+ * quoted". The priced lines add up to the total, because r.total is the quote's net (financials in
+ * domain/money.js).
+ */
+function ChargeLines({ r, rental, delivered }) {
+  const quote = r.quotation || r.estimate;
+  const quoted = Boolean(r.quotation);
+  // Guests above the package's default: the ones the sent quotation priced (none on a quotation sent before
+  // the rule of 2026-10-09), or, before any quotation, the booking's own
+  const extraGuests = rental ? 0 : quoted ? r.quotation.extraGuests || 0 : bookingExtraGuests(r);
+  // An add-on's line total (price × how many); a quotation saved before quantities only has the price
+  const addonTotal = (id) => (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
+  const addonCount = (id) => (quote.addonQty && quote.addonQty[id]) || (r.addonQty || {})[id] || 1;
+  // A charge the sent quotation priced (one added after it waits for the revised quotation)
+  const inQuotation = (id) => [quote.addonPrices, quote.addonTotals].some((prices) => prices && id in prices);
+  const rentalLines = quote.rentalItems || [];
+  const damageLines = quote.damageCharges || [];
+  const pieces = (lines) => lines.reduce((sum, line) => sum + line.qty, 0);
+
+  // Each line: { key, label, note (small text under the label), value, toQuote (no price yet) }
+  const lines = rental
+    ? [
+        { key: 'items', label: 'Rented items', note: `${rentalLines.length} ${rentalLines.length === 1 ? 'item' : 'items'}, ${pieces(rentalLines)} pieces`, value: peso(quote.rental || 0) },
+        delivered ? { key: 'delivery', label: 'Delivery', value: peso(quote.deliveryFee || 0) } : { key: 'pickup', label: 'Pick up', value: 'Free' },
+        ...(quote.damage > 0 ? [{ key: 'damage', label: 'Damage charges', note: `${pieces(damageLines)} pieces damaged or missing`, value: peso(quote.damage) }] : [])
+      ]
+    : [
+        { key: 'package', label: `Package · ${r.packageName}`, note: `Covers ${quote.packageGuests || r.package.guests} guests`, value: peso(quote.packageTotal) },
+        ...(extraGuests > 0
+          ? [{ key: 'extra', label: `Extra ${extraGuests} guests (equipment)`, value: quoted ? peso(quote.extraGuestsCharge || 0) : 'To be quoted', toQuote: !quoted }]
+          : []),
+        // The buffet is charged per person, so the line shows the sum it came from
+        ...(quote.plates > 0 ? [{ key: 'buffet', label: 'Buffet', note: `${quote.plates} × ${peso(quote.pricePerPlate)} per person`, value: peso(quote.food) }] : []),
+        // Before the quotation, a charge without its own price has none yet
+        ...r.addons.map((a) => {
+          const priced = quoted ? inQuotation(a.id) : addonTotal(a.id) > 0;
+          const count = addonCount(a.id);
+          const each = quote.addonPrices && quote.addonPrices[a.id];
+          return {
+            key: a.id,
+            label: a.hasQuantity ? `${a.name} × ${count}` : a.name,
+            note: a.hasQuantity && priced && each && count > 1 ? `${peso(each)} each` : '',
+            value: priced ? peso(addonTotal(a.id)) : 'To be quoted',
+            toQuote: !priced
+          };
+        })
+      ];
+  if (quote.otherCharges > 0) lines.push({ key: 'other', label: quote.otherLabel || 'Other charges', value: peso(quote.otherCharges) });
+  if (quote.discount > 0) lines.push({ key: 'discount', label: 'Discount', value: `− ${peso(quote.discount)}` });
+  const toQuote = lines.some((line) => line.toQuote);
+
+  return (
+    <Box sx={{ borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, overflow: 'hidden' }}>
+      {lines.map((line) => (
+        <Box key={line.key} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2, px: 1.75, py: 1.1, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: tokens.textPrimary, overflowWrap: 'anywhere' }}>{line.label}</Typography>
+            {line.note && <Typography sx={{ mt: 0.125, fontSize: 11.5, color: tokens.textMuted }}>{line.note}</Typography>}
+          </Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', color: line.toQuote ? tokens.textMuted : tokens.textPrimary }}>{line.value}</Typography>
+        </Box>
+      ))}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2, px: 1.75, py: 1.25, backgroundColor: tokens.surfaceSubtle }}>
+        <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>Total</Typography>
+        <Typography sx={{ fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>
+          {peso(r.total)}
+          {toQuote ? ' + quoted' : ''}
+        </Typography>
+      </Box>
+    </Box>
   );
 }
 

@@ -28,9 +28,9 @@
     "preview:admin": "node scripts/vite-run.mjs preview admin"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "concurrently": "^10.0.6"
   }
 }

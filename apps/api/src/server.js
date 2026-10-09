@@ -3,7 +3,7 @@ import { config } from './config.js'; // first: loads apps/api/.env and sets TZ 
 import { createApp } from './app.js';
 
 /**
- * Start the API: `npm run dev:api` (nodemon) or `npm start -w apps/api`.
+ * Start the API: `npm run dev:api` (node --watch: restarts on every save) or `npm start -w apps/api`.
  *
  * Uses http.createServer instead of app.listen() because in Express 5 app.listen passes a start-up
  * error (e.g. port in use) to its callback, which would print "ready" for a server that never started.
