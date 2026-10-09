@@ -13,12 +13,14 @@ import {
   closePool,
   codeIn,
   config,
+  createTestAdmin,
   createTestCustomer,
   freePort,
   lastEmailTo,
   nextIp,
   parseArgs,
   pool,
+  removeTestAdmin,
   requireWriteConsent,
   runApiBriefly,
   runDir,
@@ -30,7 +32,8 @@ import {
 
 /**
  * `npm run test:security -- --writes-test-data` — the 19 security tests of Phase 12 (docs §8, Phase 12 #4),
- * plus a few checks of what Phase 12 added (email codes, production settings, security headers).
+ * #20 (one admin sign-in at a time: the newest wins, 2026-10-09), plus a few checks of what Phase 12 added
+ * (email codes, production settings, security headers).
  *
  * It starts its own API process (lib/harness.js startApi) on the database in apps/api/.env, with
  * test-only settings: the log mail driver (each emailed code is kept in the outbox table, so the tests can
@@ -41,7 +44,8 @@ import {
  * It makes its own test data first (fixtures()): three test customers (A, B, C, @example.test), an
  * approved one-piece equipment rental for each (booked and approved through the API), and B's bank
  * transfer with a receipt photo. Sessions are signed with JWT_SECRET like the API's own (no password is
- * typed, no code is read from a real inbox). Every call that the rate limits could answer sends its own
+ * typed, no code is read from a real inbox); only #20 signs in for real, as a test admin of its own (code
+ * from the outbox), which it deletes afterwards. Every call that the rate limits could answer sends its own
  * made-up client address (X-Forwarded-For, which the API trusts from its one proxy), so the tests do not
  * trip over each other; #9 and #11 are the tests that hit the limits on purpose.
  *
@@ -545,6 +549,66 @@ async function runTests(call, fx) {
     ok(recorded.length === 1 && /^OR-\d+$/.test(recorded[0].receipt_no || ''), `Payments recorded for ${RC.ref}: ${recorded.length}, receipt ${recorded.map((p) => p.receipt_no).join(', ')}`);
     const peek = await call('GET', `/payments/qr/${qr.body.id}`, { token: A.token });
     ok(peek.status === 404, `A opens C's QR: ${said(peek)}`);
+  });
+
+  await test(20, 'A newer admin sign-in ends the older session', '401 SESSION_REPLACED', async (ok) => {
+    // A test admin of its own, so the real admin's sign-in is not touched; deleted at the end
+    const testAdmin = await createTestAdmin();
+    const replaced = (res) => res.status === 401 && res.body && res.body.code === 'SESSION_REPLACED';
+    try {
+      // The real two steps: password (emails a code), then the code from the outbox
+      const signIn = async (device) => {
+        const start = await call('POST', '/auth/admin/start', { ip: nextIp(), body: { email: testAdmin.email, password: testAdmin.password } });
+        const code = codeIn(await lastEmailTo(testAdmin.email));
+        const res = await call('POST', '/auth/admin/verify', { ip: nextIp(), body: { challengeId: start.body && start.body.challengeId, code } });
+        ok(res.status === 200 && res.body.token && res.body.unlockTicket, `${device} signs in with the password and the emailed code: ${said(res)}`);
+        return res.body || {};
+      };
+
+      const laptop = await signIn('The laptop');
+      let res = await call('GET', '/admin/me', { token: laptop.token });
+      ok(res.status === 200, `The laptop opens My Account: ${said(res)} (control)`);
+
+      const phone = await signIn('Then the phone');
+      res = await call('GET', '/admin/me', { token: laptop.token });
+      ok(replaced(res), `The laptop's next request: ${said(res)}`);
+      res = await call('GET', '/changes', { token: laptop.token });
+      ok(replaced(res), `The laptop's 15-second check for changes: ${said(res)}`);
+      res = await call('GET', '/admin/reservations', { token: laptop.token });
+      ok(replaced(res), `The laptop opens the reservations: ${said(res)}`);
+      res = await call('POST', '/auth/admin/unlock', { ip: nextIp(), body: { ticket: laptop.unlockTicket, password: testAdmin.password } });
+      ok(replaced(res), `The laptop's lock screen, with the right password: ${said(res)}`);
+      res = await call('GET', '/admin/me', { token: phone.token });
+      ok(res.status === 200, `The phone works: ${said(res)}`);
+
+      // The phone's own lock screen keeps the phone's sign-in
+      res = await call('POST', '/auth/admin/unlock', { ip: nextIp(), body: { ticket: phone.unlockTicket, password: testAdmin.password } });
+      ok(res.status === 200 && res.body.token, `The phone's lock screen, with the right password: ${said(res)} (control)`);
+      const unlocked = res.body && res.body.token;
+      const both = [await call('GET', '/admin/me', { token: unlocked }), await call('GET', '/admin/me', { token: phone.token })];
+      ok(both.every((r) => r.status === 200), `After unlocking, the phone's new and old tokens both work: ${both.map(said).join(', ')} (same sign-in)`);
+
+      // A token made before this rule (no session id) ends with "session ended", not "another device"
+      res = await call('GET', '/admin/me', { token: tokenFor(testAdmin, 'admin') });
+      ok(res.status === 401 && res.body.code === 'UNAUTHENTICATED', `An admin token with no session id: ${said(res)}`);
+
+      // Signing in on the laptop again moves the session back: now the phone is out
+      const laptopAgain = await signIn('The laptop (again)');
+      res = await call('GET', '/admin/me', { token: phone.token });
+      ok(replaced(res), `The phone's next request: ${said(res)}`);
+      res = await call('GET', '/admin/me', { token: laptopAgain.token });
+      ok(res.status === 200, `The laptop works again: ${said(res)}`);
+
+      // Customers keep several sessions; the real admin's session is untouched
+      res = await call('GET', '/me', { token: A.token });
+      ok(res.status === 200, `Customer A, signed in all along, is not affected: ${said(res)}`);
+      res = await call('GET', '/admin/reservations', { token: admin });
+      ok(res.status === 200, `The real admin's session is not affected: ${said(res)}`);
+    } finally {
+      await removeTestAdmin(testAdmin);
+    }
+    const [[{ n }]] = await pool.query('SELECT COUNT(*) AS n FROM admins WHERE id = ?', [testAdmin.id]);
+    ok(n === 0, 'The test admin was deleted afterwards');
   });
 
   /* ---------------- Extra checks of what Phase 12 added ---------------- */

@@ -170,7 +170,8 @@ export default function LoginPage() {
   };
 
   // ?reason=idle: signed out automatically for inactivity; ?reason=password: signed out after changing the password;
-  // ?reason=expired: the server ended the session (the token expired, or the password was changed elsewhere)
+  // ?reason=expired: the server ended the session (the token expired, or the password was changed elsewhere);
+  // ?reason=replaced: the account signed in on another device or tab, which ended this session (newest sign-in wins)
   const reason = params.get('reason');
 
   return (
@@ -200,6 +201,11 @@ export default function LoginPage() {
             {reason === 'idle' && <AlertBanner tone="info">You were signed out after 15 minutes of inactivity.</AlertBanner>}
             {reason === 'password' && <AlertBanner tone="success">Password changed. Sign in with your new password.</AlertBanner>}
             {reason === 'expired' && <AlertBanner tone="info">Your session has ended. Please sign in again.</AlertBanner>}
+            {reason === 'replaced' && (
+              <AlertBanner tone="warning" title="You were signed out because your account was signed in on another device.">
+                If this wasn't you, sign in again and change your password.
+              </AlertBanner>
+            )}
             {/* Banners show here only while the code pop-up is closed; the pop-up has its own.
                 The lockout banner names its cause, so closing the pop-up during a code lockout
                 doesn't look like a wrong-password lockout. */}

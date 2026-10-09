@@ -22,10 +22,12 @@ export class ApiError extends Error {
  * OUT_OF_STOCK (Phase 6A): not enough pieces of a rental item free on the date; 409 like CAPACITY.
  * DELIVERY_FAILED (Phase 3): the email provider refused a one-time code, so the code never left; 502
  * like PAYMENT_PROVIDER, since another service failed, not the request.
+ * SESSION_REPLACED (2026-10-09): an admin session ended because the same account signed in somewhere
+ * newer (one sign-in at a time, middleware/auth.js); 401 like UNAUTHENTICATED, and the page says why.
  */
 export const STATUS = Object.freeze({
   INVALID: 400,
-  INVALID_CREDENTIALS: 401, INVALID_CODE: 401, UNAUTHENTICATED: 401,
+  INVALID_CREDENTIALS: 401, INVALID_CODE: 401, UNAUTHENTICATED: 401, SESSION_REPLACED: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   INVALID_STATE: 409, NAME_TAKEN: 409, EMAIL_TAKEN: 409, IN_USE: 409,

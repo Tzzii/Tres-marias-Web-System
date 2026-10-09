@@ -57,15 +57,17 @@ const WRONG_ANSWER = ['INVALID_CREDENTIALS', 'INVALID_CODE'];
 
 /**
  * Turn a failed response into the ApiError pages already handle. A 401 ends the session
- * (UNAUTHENTICATED: the token is missing, expired, edited, or older than a password change), except:
+ * (UNAUTHENTICATED: the token is missing, expired, edited, or older than a password change;
+ * SESSION_REPLACED: the admin account signed in again on another device or tab), except:
  * - a wrong password or code (INVALID_CREDENTIALS, INVALID_CODE): on the sign-in forms (/auth/…), and
  *   for the current password asked before a password, email or mobile change; the form shows it;
  * - when the session's token changed while the request was on its way (`sentToken` is the token the
  *   request carried): the 401 is about the old token, and the new one is still good.
+ * The sign-out carries the code, so the login page can say why.
  */
 function failure(res, data, path, sentToken, fallback = { code: 'SERVER_ERROR', message: 'Something went wrong.' }) {
   const code = (data && data.code) || fallback.code;
-  if (res.status === 401 && !path.startsWith('/auth/') && !WRONG_ANSWER.includes(code) && token() === sentToken) emitSignedOut();
+  if (res.status === 401 && !path.startsWith('/auth/') && !WRONG_ANSWER.includes(code) && token() === sentToken) emitSignedOut(code);
   return new ApiError(code, (data && data.message) || fallback.message, (data && data.meta) || {});
 }
 

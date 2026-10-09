@@ -63,7 +63,8 @@ authRoutes.post(
   }
 );
 
-// Admin sign-in: password (emails a code), resend the code, verify it (records the device from User-Agent)
+// Admin sign-in: password (emails a code), resend the code, verify it (records the device from User-Agent;
+// the new session replaces the account's earlier one: newest sign-in wins)
 authRoutes.post('/admin/start', authLimiter, validate({ body: schemas.adminStart }), async (req, res) => {
   res.json(await auth.adminStartSignIn(req.valid.body));
 });
@@ -73,7 +74,8 @@ authRoutes.post('/admin/resend', authLimiter, validate({ body: schemas.adminRese
 authRoutes.post('/admin/verify', authLimiter, validate({ body: schemas.adminVerify }), async (req, res) => {
   res.json(await auth.adminVerifyCode(req.valid.body, req.get('User-Agent') || ''));
 });
-// The screen locked after inactivity: { ticket, password } -> a new session, no emailed code (wrong passwords count as sign-in failures)
+// The screen locked after inactivity: { ticket, password } -> a new session, no emailed code (wrong passwords count as sign-in failures;
+// SESSION_REPLACED when the account signed in again elsewhere since)
 authRoutes.post('/admin/unlock', authLimiter, validate({ body: schemas.adminUnlock }), async (req, res) => {
   res.json(await auth.adminUnlock(req.valid.body));
 });
