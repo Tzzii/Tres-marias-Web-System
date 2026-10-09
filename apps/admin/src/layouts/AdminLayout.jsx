@@ -17,7 +17,8 @@ import { useAuth } from '../auth.js';
 
 /**
  * The admin frame (top bar, sidebar on desktop, bottom tabs on phones) around every admin screen
- * (1r–1y), with the notifications and the sidebar badge counts.
+ * (1r–1y), with the notifications (requests, payments to verify, QR Ph payments received, feedback,
+ * messages) and the sidebar badge counts.
  */
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -75,6 +76,30 @@ export default function AdminLayout() {
     awaitingList.forEach((p) =>
       list.push({ id: `pay:${p.id}`, title: 'Payment to Verify', body: `${p.customerName} sent ${peso(p.amount)} via ${p.methodLabel} for ${p.eventName}.`, at: p.submittedAt, to: `/reports?tab=payments&verify=${p.id}` })
     );
+    // One notification per QR Ph payment, which PayMongo verifies by itself (2026-10-09): no admin saw it, so
+    // this is how the admin hears that a downpayment came in or that a reservation is now fully paid. A
+    // balance payment counts as "fully paid" when it is the reservation's newest verified payment and the
+    // reservation is Confirmed (or Completed) now. Bank transfers have "Payment to Verify" above, and cash
+    // is recorded by the admin, so neither gets one.
+    const reservationOf = new Map(data.reservations.map((r) => [r.ref, r]));
+    const newestVerified = new Map(); // ref -> its newest verified payment
+    data.payments.forEach((p) => {
+      const newest = newestVerified.get(p.ref);
+      if (p.status === 'verified' && (!newest || p.verifiedAt > newest.verifiedAt)) newestVerified.set(p.ref, p);
+    });
+    data.payments
+      .filter((p) => p.status === 'verified' && p.method === 'qrph')
+      .forEach((p) => {
+        const r = reservationOf.get(p.ref);
+        const fullyPaid = p.kind === 'full' || (p.kind === 'balance' && newestVerified.get(p.ref) === p && Boolean(r) && ['confirmed', 'completed'].includes(r.status));
+        const receipt = p.receiptNo ? ` (${p.receiptNo})` : '';
+        const [title, body] = fullyPaid
+          ? ['Fully Paid', `${p.customerName} paid ${peso(p.amount)} via QR Ph for ${p.eventName}. The reservation is now fully paid${receipt}.`]
+          : p.kind === 'downpayment'
+            ? ['Downpayment Received', `${p.customerName} paid a ${peso(p.amount)} downpayment via QR Ph for ${p.eventName}${receipt}.`]
+            : ['Balance Payment Received', `${p.customerName} paid ${peso(p.amount)} toward the balance via QR Ph for ${p.eventName}${receipt}.`];
+        list.push({ id: `paid:${p.id}`, title, body, at: p.verifiedAt || p.submittedAt, to: `/reservations/${p.ref}` });
+      });
     // One notification per review the admin has not read yet
     const unreadFeedback = data.feedbacks.filter((f) => !f.readByAdmin);
     unreadFeedback.forEach((f) =>
