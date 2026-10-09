@@ -434,7 +434,7 @@ CREATE TABLE qr_payments (
 -- PayMongo webhook events already handled (Phase 8B). The primary key makes a retried
 -- event a duplicate-key error, so it is never processed twice.
 CREATE TABLE webhook_events (
-  id          VARCHAR(64)     NOT NULL,                     -- PayMongo event id, evt_…
+  id          VARCHAR(255)    NOT NULL,                     -- PayMongo event id, evt_… (test ones run to 70+ characters, e.g. evt_qr_…_expired_test_src_…; was 64 until 2026-10-09)
   type        VARCHAR(64)     NOT NULL,                     -- e.g. payment.paid
   livemode    BOOLEAN         NOT NULL DEFAULT 0,
   received_at BIGINT UNSIGNED NOT NULL,
