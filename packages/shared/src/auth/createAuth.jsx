@@ -19,8 +19,10 @@ import { startChangePolling } from '../services/poller.js';
  *   out (unlockUntil, the end of the sign-in session) or the server refusing it ends the lock, and the
  *   next sign-in needs the emailed code again. Customers (no lockOnIdle) are signed out as before.
  * - The session also ends when the API rejects its token (expired, edited, or older than a password
- *   change): the login page then says why (?reason=expired). A token the server replaces (after a
- *   customer changes or resets the password in My profile) is saved here.
+ *   change): the login page then says why (?reason=expired). An admin session ended by a newer sign-in
+ *   of the same account on another device or tab (SESSION_REPLACED: newest sign-in wins) gets
+ *   ?reason=replaced instead. A token the server replaces (after a customer changes or resets the
+ *   password in My profile) is saved here.
  *   While signed in, the portal also polls for changes made elsewhere (services/poller.js), so pages
  *   show the other portal's writes within about 15 seconds.
  * - <RequireAuth> sends signed-out visitors to the login page (a locked one to the lock screen) and
@@ -119,7 +121,7 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
       return { session: null, endReason: lock ? 'idle' : null, locked: lock };
     });
     const [session, setSession] = useState(initial.session);
-    const [endReason, setEndReason] = useState(initial.endReason); // why the session ended ('idle', 'signed_out', 'expired')
+    const [endReason, setEndReason] = useState(initial.endReason); // why the session ended ('idle', 'signed_out', 'expired', 'replaced')
     const [locked, setLocked] = useState(initial.locked); // the lock record while the screen is locked, else null
     const lastWrite = useRef(0); // time activity was last saved
 
@@ -235,7 +237,8 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
     }, [followOtherTab]);
 
     // The API rejected this session's token (services/http.js): end the session and say why on the login page
-    useEffect(() => onSignedOut(() => signOut('expired')), [signOut]);
+    // ('replaced' when a newer sign-in of the same admin account took over, else 'expired')
+    useEffect(() => onSignedOut((code) => signOut(code === 'SESSION_REPLACED' ? 'replaced' : 'expired')), [signOut]);
 
     // Signed in: watch for changes made elsewhere until sign-out (services/poller.js)
     const signedIn = Boolean(session);
@@ -273,7 +276,8 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
   /**
    * Route guard: shows the page when signed in. Otherwise it redirects, with ?next=, to the lock screen
    * (`lockPath`) while the session is locked, else to login (or idlePath after a timeout) with
-   * ?reason=idle (inactivity) or ?reason=expired (the server ended the session).
+   * ?reason=idle (inactivity), ?reason=expired (the server ended the session) or ?reason=replaced (the
+   * account signed in again on another device or tab).
    */
   function RequireAuth({ children }) {
     const { isAuthenticated, endReason, locked } = useAuth();
@@ -282,7 +286,7 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
       const params = new URLSearchParams();
       params.set('next', location.pathname + location.search);
       if (locked) return <Navigate to={`${lockPath}?${params.toString()}`} replace />;
-      if (endReason === 'idle' || endReason === 'expired') params.set('reason', endReason);
+      if (endReason === 'idle' || endReason === 'expired' || endReason === 'replaced') params.set('reason', endReason);
       const target = endReason === 'idle' ? idlePath : loginPath;
       return <Navigate to={`${target}?${params.toString()}`} replace />;
     }

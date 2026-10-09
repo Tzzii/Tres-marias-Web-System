@@ -211,15 +211,14 @@ function ProfileCard({ profile, onEditName, onChangeEmail, onChangeMobile }) {
 
 /**
  * Sign-in activity: this session, the sign-in before it, and failed attempts.
- * If the account was signed in again after this session started (another device or tab),
- * that newer sign-in is shown as a warning instead of the previous one.
+ * Only the newest sign-in of an account works (2026-10-09): a sign-in on another device or tab ends
+ * this session at once, so this page never shows a session that a newer one has replaced.
  */
 function ActivityCard({ profile, session, onLogout }) {
   const mine = session && session.user;
   // Sessions started before sign-in tracking existed have no signedInAt; fall back to the latest record
   const signedInAt = (mine && mine.signedInAt) || profile.lastSignInAt;
   const device = (mine && mine.device) || profile.lastSignInDevice || 'This browser';
-  const newerElsewhere = Boolean(mine && mine.signedInAt && profile.lastSignInAt && profile.lastSignInAt > mine.signedInAt);
 
   return (
     <DashCard sx={{ gridArea: 'activity', display: 'flex', flexDirection: 'column' }}>
@@ -234,16 +233,10 @@ function ActivityCard({ profile, session, onLogout }) {
           </Typography>
         </Box>
 
-        {newerElsewhere ? (
-          <AlertBanner tone="locked" title="Newer sign-in to your account">
-            {profile.lastSignInDevice || 'Another browser'} · {formatWhen(profile.lastSignInAt)}. If this wasn't you, change your password now.
-          </AlertBanner>
-        ) : (
-          <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>Previous sign-in</Typography>
-            <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{formatWhen(profile.previousSignInAt, 'None recorded')}</Typography>
-          </Box>
-        )}
+        <Box>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>Previous sign-in</Typography>
+          <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{formatWhen(profile.previousSignInAt, 'None recorded')}</Typography>
+        </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2 }}>
           <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>Failed attempts before this sign-in</Typography>

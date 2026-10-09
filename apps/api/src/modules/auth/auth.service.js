@@ -9,7 +9,7 @@ import { ApiError } from '../../lib/ApiError.js';
 import { newId } from '../../lib/ids.js';
 import { checkSecret, hashSecret, newCode } from '../../lib/passwords.js';
 import { now } from '../../lib/time.js';
-import { readToken, readUnlockTicket, signToken, signUnlockTicket } from '../../lib/tokens.js';
+import { readToken, readUnlockTicket, sessionReplaced, signToken, signUnlockTicket } from '../../lib/tokens.js';
 import * as messages from './auth.messages.js';
 import * as repo from './auth.repo.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
@@ -560,19 +560,22 @@ export async function adminResendCode(challengeId) {
 
 /**
  * An admin session as the page keeps it: { token, user, unlockTicket, unlockUntil }. The unlock ticket
- * (lib/tokens.js) ends with the token, at `unlockUntil` (ms); with the password it reopens the session
- * after the screen locks for inactivity, without a new emailed code (adminUnlock).
+ * (lib/tokens.js) belongs to the same sign-in as the token (its `sid`) and ends with it, at `unlockUntil`
+ * (ms); with the password it reopens the session after the screen locks for inactivity, without a new
+ * emailed code (adminUnlock), as long as no newer sign-in has replaced it.
  */
 function adminSession(admin, token, user) {
-  const { exp } = readToken(token);
-  return { token, user, unlockTicket: signUnlockTicket(admin, exp), unlockUntil: exp * 1000 };
+  const { exp, sid } = readToken(token);
+  return { token, user, unlockTicket: signUnlockTicket(admin, sid, exp), unlockUntil: exp * 1000 };
 }
 
 /**
  * Stage 2: verify the code and open the admin session. Records the sign-in (previous and last
- * sign-in, the device from the User-Agent header, and the failures since the last sign-in).
- * `signedInAt` and `device` stay with this session so My account can tell it apart from newer
- * sign-ins elsewhere. The session comes with its unlock ticket (adminSession).
+ * sign-in, the device from the User-Agent header, and the failures since the last sign-in) with a
+ * new session id: newest sign-in wins, so the account's earlier session (another device or tab)
+ * stops working at its next request (SESSION_REPLACED, middleware/auth.js).
+ * `signedInAt` and `device` stay with this session, shown on My account as "This session".
+ * The session comes with its unlock ticket (adminSession).
  */
 export async function adminVerifyCode({ challengeId, code }, userAgent = '') {
   const at = now();
@@ -593,14 +596,19 @@ export async function adminVerifyCode({ challengeId, code }, userAgent = '') {
     throw wrongAnswer('admin-code', attempt, new ApiError('INVALID_CODE', 'That code is incorrect.'));
   }
 
-  // Correct code: clear the counter, spend the request, record the sign-in and return the session
+  // Correct code: clear the counter, spend the request, record the sign-in (it becomes the only one
+  // allowed) and return the session
   await clearAttempts('admin-code', email);
   const device = describeDevice(userAgent);
+  const sessionId = newId('ses');
   await tx(async (conn) => {
     if (!(await repo.markChallengeUsed(conn, challenge.id, at))) throw expired;
-    await repo.recordAdminSignIn(conn, admin.id, { at, device });
+    await repo.recordAdminSignIn(conn, admin.id, { at, device, sessionId });
   });
-  const token = signToken({ id: admin.id, role: 'admin', name: admin.name, passwordChangedAt: admin.passwordChangedAt }, { ttl: config.jwt.adminTtl });
+  const token = signToken(
+    { id: admin.id, role: 'admin', name: admin.name, passwordChangedAt: admin.passwordChangedAt, sessionId },
+    { ttl: config.jwt.adminTtl }
+  );
   return adminSession(admin, token, { ...publicAdmin(admin), signedInAt: at, device });
 }
 
@@ -609,18 +617,21 @@ export async function adminVerifyCode({ challengeId, code }, userAgent = '') {
  * no emailed code (the owner's rule, 2026-10-03). `ticket` is the unlock ticket handed out at sign-in.
  * It must still be valid (it ends when the sign-in session would have, JWT_ADMIN_TTL after the code
  * sign-in) and the password must not have changed since; otherwise CHALLENGE_EXPIRED and the admin signs
- * in again with a code. Wrong passwords count in the same 'admin' lockout as the sign-in form (keyed by
- * email): the 5th locks the account for RULES.loginLockMinutes (LOCKED), and the page then sends the
- * admin to the full sign-in. The new token ends when the old session would have, never later.
+ * in again with a code. When the account has signed in again since (on another device or tab), the ticket's
+ * sign-in is over: SESSION_REPLACED, checked before the password, and the page says why at the sign-in.
+ * Wrong passwords count in the same 'admin' lockout as the sign-in form (keyed by email): the 5th locks
+ * the account for RULES.loginLockMinutes (LOCKED), and the page then sends the admin to the full sign-in.
+ * The new token keeps the ticket's sign-in (`sid`) and ends when the old session would have, never later.
  * Returns { token, user, unlockTicket, unlockUntil } (the same ticket; user without signedInAt/device,
  * which the page keeps from the sign-in).
  */
 export async function adminUnlock({ ticket, password }) {
   const ended = new ApiError('CHALLENGE_EXPIRED', 'Your session has ended. Please sign in again.');
   const claims = typeof ticket === 'string' ? readUnlockTicket(ticket) : null;
-  if (!claims) throw ended;
+  if (!claims || typeof claims.sid !== 'string') throw ended;
   const admin = await repo.findAdminById(claims.sub);
-  if (!admin || (Number(admin.passwordChangedAt) || 0) !== claims.pwv) throw ended;
+  if (!admin || (Number(admin.passwordChangedAt) || 0) !== claims.pwv || !admin.sessionId) throw ended;
+  if (claims.sid !== admin.sessionId) throw sessionReplaced();
   if (typeof password !== 'string' || !password) throw new ApiError('INVALID', 'Enter your password.', { field: 'password' });
 
   const address = normaliseEmail(admin.email);
@@ -630,7 +641,10 @@ export async function adminUnlock({ ticket, password }) {
     throw wrongAnswer('admin', attempt, new ApiError('INVALID_CREDENTIALS', 'Incorrect password.', { field: 'password' }));
   }
   await clearAttempts('admin', address);
-  const token = signToken({ id: admin.id, role: 'admin', name: admin.name, passwordChangedAt: admin.passwordChangedAt }, { expiresAt: claims.exp });
+  const token = signToken(
+    { id: admin.id, role: 'admin', name: admin.name, passwordChangedAt: admin.passwordChangedAt, sessionId: claims.sid },
+    { expiresAt: claims.exp }
+  );
   return { token, user: publicAdmin(admin), unlockTicket: ticket, unlockUntil: claims.exp * 1000 };
 }
 

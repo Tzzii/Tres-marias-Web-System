@@ -32,7 +32,8 @@ import { useAuth } from '../auth.js';
  * - Wrong passwords count as sign-in failures: the 5th locks the account for RULES.loginLockMinutes, the
  *   lock screen ends, and the admin signs in again at /login (with the code) once the lockout is over.
  * - When the sign-in session is over (the ticket ran out, or the password was changed elsewhere), the lock
- *   ends too and /login says the session has ended.
+ *   ends too and /login says the session has ended. When the account signed in again on another device or
+ *   tab meanwhile (SESSION_REPLACED: newest sign-in wins), /login says that instead (?reason=replaced).
  * - "Not you? Sign in with another account" ends the lock right away.
  * With no lock (e.g. this address opened by hand), the page goes on to the dashboard or the sign-in.
  */
@@ -68,7 +69,7 @@ export default function UnlockPage() {
     setError('');
     try {
       const result = await authApi.adminUnlock({ ticket: locked.unlockTicket, password, email: locked.user.email });
-      // Keep the sign-in time and device from the code sign-in (My account tells sessions apart by them)
+      // Keep the sign-in time and device from the code sign-in (My account shows them as "This session")
       signIn({ ...result, user: { ...locked.user, ...result.user } }, { remember: locked.persistent });
       navigate(next, { replace: true });
     } catch (e) {
@@ -79,9 +80,11 @@ export default function UnlockPage() {
         // Too many wrong passwords: the lock screen ends; the full sign-in opens again after the lockout
         setLockedUntil(e.meta && e.meta.lockedUntil ? e.meta.lockedUntil : Date.now() + RULES.loginLockMinutes * 60000);
         signOut();
-      } else if (e.code === 'CHALLENGE_EXPIRED') {
-        signOut('expired');
-        navigate(`/login?reason=expired&next=${encodeURIComponent(next)}`, { replace: true });
+      } else if (e.code === 'CHALLENGE_EXPIRED' || e.code === 'SESSION_REPLACED') {
+        // The sign-in session is over: it ran out, or a newer sign-in replaced it
+        const reason = e.code === 'SESSION_REPLACED' ? 'replaced' : 'expired';
+        signOut(reason);
+        navigate(`/login?reason=${reason}&next=${encodeURIComponent(next)}`, { replace: true });
       } else {
         if (e.code === 'INVALID_CREDENTIALS') setAttemptsLeft((n) => Math.max(1, n - 1));
         setError(e.message);

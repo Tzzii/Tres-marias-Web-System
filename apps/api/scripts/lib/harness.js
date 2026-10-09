@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 // config.js first: it loads apps/api/.env (the database, JWT_SECRET) and fixes the time zone
 import { config } from '../../src/config.js';
 import { closePool, pool } from '../../src/db.js';
+import { newId } from '../../src/lib/ids.js';
 import { hashSecret } from '../../src/lib/passwords.js';
 import { signToken } from '../../src/lib/tokens.js';
 
@@ -20,7 +21,8 @@ import { signToken } from '../../src/lib/tokens.js';
  *   the live one in Phase 13.
  * - Sessions are made the way the API makes them: signed with JWT_SECRET from apps/api/.env (tokenFor),
  *   so the scripts never type a password or read an emailed code. Against --base that means running the
- *   script on the server itself, where its .env is.
+ *   script on the server itself, where its .env is. An admin token carries the admin's current sign-in
+ *   (session id, newest sign-in wins), so a browser signed in as that admin stays signed in.
  * - Test customers are written straight into the database named in apps/api/.env (createTestCustomer),
  *   with addresses @example.test that can never receive mail. The scripts write test records (bookings,
  *   payments, messages), so they refuse to run without --writes-test-data: run them on a database you will
@@ -175,18 +177,31 @@ export const nextIp = () => {
 
 /**
  * A session token for an account, signed like the API signs one (lib/tokens.js). `account` is
- * { id, name, passwordChangedAt }; `role` 'customer' or 'admin'. `expiresAt` (seconds) instead of the
- * one-hour default makes, e.g., a token that has already expired.
+ * { id, name, passwordChangedAt, sessionId (admins: the sign-in allowed now, from adminAccount) };
+ * `role` 'customer' or 'admin'. `expiresAt` (seconds) instead of the one-hour default makes, e.g., a
+ * token that has already expired.
  */
 export const tokenFor = (account, role, { expiresAt } = {}) =>
-  signToken({ id: account.id, role, name: account.name, passwordChangedAt: account.passwordChangedAt }, expiresAt ? { expiresAt } : { ttl: '1h' });
+  signToken(
+    { id: account.id, role, name: account.name, passwordChangedAt: account.passwordChangedAt, sessionId: account.sessionId },
+    expiresAt ? { expiresAt } : { ttl: '1h' }
+  );
 
-/** The first admin account: { id, name, email, passwordChangedAt }. */
+/**
+ * The first admin account: { id, name, email, passwordChangedAt, sessionId }. An admin token is good only
+ * for the account's current sign-in (session_id), so tokenFor uses that one: a browser signed in as this
+ * admin is not signed out by the tests. When nobody has signed in yet (session_id empty), the account is
+ * given a session id the way a sign-in gives one.
+ */
 export async function adminAccount() {
-  const [rows] = await pool.query('SELECT id, name, email, password_changed_at FROM admins ORDER BY id LIMIT 1');
-  if (!rows.length) throw new Error('The database has no admin account. Seed it first (npm run seed:api or seed:starter).');
-  const row = rows[0];
-  return { id: row.id, name: row.name, email: row.email, passwordChangedAt: row.password_changed_at };
+  const read = async () => (await pool.query('SELECT id, name, email, password_changed_at, session_id FROM admins ORDER BY id LIMIT 1'))[0][0];
+  let row = await read();
+  if (!row) throw new Error('The database has no admin account. Seed it first (npm run seed:api or seed:starter).');
+  if (!row.session_id) {
+    await pool.query('UPDATE admins SET session_id = ? WHERE id = ? AND session_id IS NULL', [newId('ses'), row.id]);
+    row = await read();
+  }
+  return { id: row.id, name: row.name, email: row.email, passwordChangedAt: row.password_changed_at, sessionId: row.session_id };
 }
 
 /** A strong random password for a test account (letters and digits, so every password rule passes). */
@@ -213,6 +228,37 @@ export async function createTestCustomer(label, password = randomPassword()) {
     [customer.id, `Test ${label}`, customer.name, customer.email, customer.mobile, await hashSecret(password), Date.now()]
   );
   return customer;
+}
+
+/**
+ * A test admin written straight into the database, for signing in through the API with the password and
+ * the emailed code (newest sign-in wins, security test #20): "Security Test Admin", an @example.test address
+ * and `password`. Its id starts with "adm-sectest-", so it sorts after the real admin (adminAccount).
+ * Remove it with removeTestAdmin when done: it is a working admin account.
+ * Returns { id, name, email, password, passwordChangedAt: null }.
+ */
+export async function createTestAdmin(password = randomPassword()) {
+  const admin = {
+    id: `adm-sectest-${crypto.randomBytes(8).toString('hex')}`,
+    name: 'Security Test Admin',
+    email: `sectest-admin-${Date.now().toString(36)}${crypto.randomBytes(2).toString('hex')}@example.test`,
+    password,
+    passwordChangedAt: null
+  };
+  await pool.query(
+    `INSERT INTO admins (id, name, email, mobile, password_hash, role, created_at)
+     VALUES (?, ?, ?, '', ?, 'Administrator', ?)`,
+    [admin.id, admin.name, admin.email, await hashSecret(password), Date.now()]
+  );
+  return admin;
+}
+
+/** Delete a test admin from createTestAdmin, with its code requests, sign-in counters and kept emails. */
+export async function removeTestAdmin(admin) {
+  await pool.query('DELETE FROM auth_challenges WHERE admin_id = ?', [admin.id]);
+  await pool.query('DELETE FROM login_attempts WHERE identifier IN (?, ?)', [admin.email, admin.id]);
+  await pool.query("DELETE FROM outbox WHERE channel = 'email' AND to_address = ?", [admin.email]);
+  await pool.query('DELETE FROM admins WHERE id = ?', [admin.id]);
 }
 
 /** The newest email the log mail driver kept for an address (dev only: an smtp driver keeps none), or null. */

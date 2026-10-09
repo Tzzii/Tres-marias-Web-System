@@ -39,6 +39,7 @@ const toAdmin = (row) =>
     role: row.role,
     createdAt: row.created_at,
     passwordChangedAt: row.password_changed_at,
+    sessionId: row.session_id, // the sign-in allowed now (newest sign-in wins); null before the first one
     lastSignInAt: row.last_sign_in_at,
     lastSignInDevice: row.last_sign_in_device,
     previousSignInAt: row.previous_sign_in_at,
@@ -109,19 +110,22 @@ export async function addAdminFailedAttempt(id) {
 /**
  * Record a completed sign-in: the old "last sign-in" becomes the previous one, and the failures
  * counted since then move to failed_since_last_sign_in before the counter restarts at 0.
+ * `sessionId` becomes the only sign-in allowed (newest sign-in wins): tokens of the earlier sign-in
+ * stop working (middleware/auth.js).
  * MySQL runs a single-table UPDATE's assignments left to right, each seeing the ones before it, so
  * every column is copied before it is overwritten: keep this order.
  */
-export async function recordAdminSignIn(conn, id, { at, device }) {
+export async function recordAdminSignIn(conn, id, { at, device, sessionId }) {
   await conn.query(
     `UPDATE admins
         SET previous_sign_in_at = last_sign_in_at,
             last_sign_in_at = ?,
             last_sign_in_device = ?,
             failed_since_last_sign_in = failed_attempts,
-            failed_attempts = 0
+            failed_attempts = 0,
+            session_id = ?
       WHERE id = ?`,
-    [at, device, id]
+    [at, device, sessionId, id]
   );
 }
 
@@ -142,12 +146,16 @@ export async function updateAdminContact(conn, id, field, value) {
 }
 
 /**
- * What middleware/auth.js needs to accept a token: the account's current name and when its password
- * last changed, or null when the account no longer exists. `role` picks the table.
+ * What middleware/auth.js needs to accept a token: the account's current name, when its password
+ * last changed and, for an admin, the sign-in allowed now (sessionId; customers have none), or null
+ * when the account no longer exists. `role` picks the table.
  */
 export async function findSessionAccount(role, id) {
-  const table = role === 'admin' ? 'admins' : 'customers';
-  const row = first(await pool.query('SELECT name, password_changed_at FROM ?? WHERE id = ?', [table, id]));
+  if (role === 'admin') {
+    const row = first(await pool.query('SELECT name, password_changed_at, session_id FROM admins WHERE id = ?', [id]));
+    return row && { name: row.name, passwordChangedAt: row.password_changed_at, sessionId: row.session_id };
+  }
+  const row = first(await pool.query('SELECT name, password_changed_at FROM customers WHERE id = ?', [id]));
   return row && { name: row.name, passwordChangedAt: row.password_changed_at };
 }
 

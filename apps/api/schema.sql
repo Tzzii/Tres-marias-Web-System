@@ -76,7 +76,8 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ============================================================================
 
 -- Admin accounts: two-stage sign-in (password, then an emailed code) and the
--- sign-in history shown on My account. Never deleted.
+-- sign-in history shown on My account. Never deleted. One sign-in at a time per
+-- account: the newest sign-in wins (session_id, 2026-10-09).
 CREATE TABLE admins (
   id                        VARCHAR(40)     NOT NULL,             -- adm-…
   name                      VARCHAR(200)    NOT NULL,             -- first and last name, up to 80 characters
@@ -86,6 +87,7 @@ CREATE TABLE admins (
   role                      VARCHAR(40)     NOT NULL DEFAULT 'Administrator', -- job title shown in the UI; the token role is always 'admin'
   created_at                BIGINT UNSIGNED NOT NULL,
   password_changed_at       BIGINT UNSIGNED NULL,                 -- tokens made before this are refused (a change signs out every session)
+  session_id                VARCHAR(40)     NULL,                 -- the sign-in allowed now (ses-…); tokens of any other sign-in are refused
   last_sign_in_at           BIGINT UNSIGNED NULL,
   last_sign_in_device       VARCHAR(255)    NOT NULL DEFAULT '',  -- e.g. "Chrome · Windows", from the User-Agent
   previous_sign_in_at       BIGINT UNSIGNED NULL,                 -- the sign-in before the last one
