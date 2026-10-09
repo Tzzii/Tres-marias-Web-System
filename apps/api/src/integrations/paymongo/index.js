@@ -52,8 +52,10 @@ async function call(path, attributes) {
 
 /**
  * Open a single-use QR Ph code for an exact amount in whole pesos: Payment Intent (qrph only) -> qrph
- * Payment Method (expiring after PAYMONGO_QR_EXPIRY_SECONDS) -> attach. Returns { intentId, qrImage (a
- * data:image/png;base64 URL), expiresAt (milliseconds, PayMongo's own time), testUrl ('' in live mode) }.
+ * Payment Method (expiring after PAYMONGO_QR_EXPIRY_SECONDS) -> attach. Returns { intentId, codeId (the
+ * QR Ph code's qr_…, which a qr.expired event names instead of the intent; '' when PayMongo gave none),
+ * qrImage (a data:image/png;base64 URL), expiresAt (milliseconds, PayMongo's own time), testUrl ('' in
+ * live mode) }.
  */
 export async function createQrPh({ amount, description, metadata }) {
   const intent = await call('/payment_intents', {
@@ -73,6 +75,7 @@ export async function createQrPh({ amount, description, metadata }) {
   const expiresAt = Date.parse(code.expires_at);
   return {
     intentId: intent.id,
+    codeId: typeof code.id === 'string' ? code.id : '',
     qrImage: code.image_url,
     expiresAt: Number.isFinite(expiresAt) ? expiresAt : Date.now() + config.paymongo.qrExpirySeconds * 1000,
     testUrl: attached.attributes.livemode ? '' : code.test_url || ''

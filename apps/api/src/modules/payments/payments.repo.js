@@ -169,6 +169,7 @@ const toQr = (row) => ({
   customerId: row.customer_id,
   amount: row.amount,
   intentId: row.intent_id,
+  codeId: row.code_id ?? '',
   ...(row.qr_image !== undefined ? { qrImage: row.qr_image } : {}),
   status: row.status,
   expiresAt: row.expires_at,
@@ -181,15 +182,15 @@ const toQr = (row) => ({
 });
 
 // Every column but the image (a base64 PNG of about 14 KB), which only the first display needs
-const QR_COLUMNS = `q.id, q.ref, q.customer_id, q.amount, q.intent_id, q.status, q.expires_at, q.created_at, q.last_checked_at,
+const QR_COLUMNS = `q.id, q.ref, q.customer_id, q.amount, q.intent_id, q.code_id, q.status, q.expires_at, q.created_at, q.last_checked_at,
        q.paid_at, q.payment_id, q.provider_payment_id, q.failure_reason`;
 
-/** Save a new QR, pending until PayMongo reports it paid. */
+/** Save a new QR, pending until PayMongo reports it paid; `codeId` is PayMongo's qr_… (null when it gave none). */
 export async function insertQr(conn, qr) {
   await conn.query(
-    `INSERT INTO qr_payments (id, ref, customer_id, amount, intent_id, qr_image, status, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-    [qr.id, qr.ref, qr.customerId, qr.amount, qr.intentId, qr.qrImage, qr.expiresAt, qr.createdAt]
+    `INSERT INTO qr_payments (id, ref, customer_id, amount, intent_id, code_id, qr_image, status, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+    [qr.id, qr.ref, qr.customerId, qr.amount, qr.intentId, qr.codeId || null, qr.qrImage, qr.expiresAt, qr.createdAt]
   );
 }
 
@@ -241,6 +242,15 @@ export async function findQrs(db, { customerId, ref, status } = {}) {
 /** The QR of a PayMongo Payment Intent (pi_…), or null: how a webhook finds its QR. */
 export async function findQrByIntent(db, intentId) {
   const row = first(await db.query(`SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.intent_id = ?`, [intentId]));
+  return row && toQr(row);
+}
+
+/**
+ * The QR of a PayMongo QR Ph code (qr_…), or null: how a qr.expired event, which names the code and not
+ * the intent, finds its QR. QRs made before 2026-10-09 have no code id, so they are never found this way.
+ */
+export async function findQrByCode(db, codeId) {
+  const row = first(await db.query(`SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.code_id = ?`, [codeId]));
   return row && toQr(row);
 }
 

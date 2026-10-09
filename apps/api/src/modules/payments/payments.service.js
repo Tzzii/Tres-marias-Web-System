@@ -46,7 +46,8 @@ const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // A GCash QR still counts as open for QR_GRACE_MS (2 minutes, domain/payment.js, which the pages share)
 // after PayMongo's expiry: a payment started in its last seconds may still be on its way, so no other
-// payment or new QR may start before it is settled.
+// payment or new QR may start before it is settled. PayMongo's own qr.expired event closes it at once
+// instead (handlePaymongoEvent), since PayMongo then says the code can no longer be paid.
 // How often a waiting QR is checked with PayMongo when its page asks (in case the webhook is late or
 // never comes), and how often once it is past its time
 const QR_CHECK_MS = 60 * 1000;
@@ -639,8 +640,8 @@ async function settleQr(qr, intent, event = null) {
 }
 
 /**
- * Close a waiting QR as 'expired' (past its time and the grace, PayMongo says unpaid) or 'failed' (PayMongo
- * reported the payment failed), with an audit entry. `event` is the webhook event when there is one.
+ * Close a waiting QR as 'expired' (past its time and the grace and PayMongo says unpaid, or PayMongo's
+ * qr.expired event) or 'failed' (PayMongo reported the payment failed), with an audit entry. `event` is the webhook event when there is one.
  * A QR that is no longer pending is left alone. Returns true when this call changed it.
  */
 async function closeQr(qr, status, { reason = '', event = null } = {}) {
@@ -739,7 +740,7 @@ export async function startQrPayment(customer, { ref, amount }) {
   const answer = await tx(async (conn) => {
     const again = await qrRules(conn, customer, ref, value, { lock: true });
     if (again.existing) return { existingId: again.existing.id };
-    const qr = { id: newId('qr'), ref, customerId: customer.id, amount: value, intentId: made.intentId, qrImage: made.qrImage, expiresAt: made.expiresAt, createdAt: now() };
+    const qr = { id: newId('qr'), ref, customerId: customer.id, amount: value, intentId: made.intentId, codeId: made.codeId, qrImage: made.qrImage, expiresAt: made.expiresAt, createdAt: now() };
     await repo.insertQr(conn, qr);
     await reservationsRepo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Opened a QR Ph payment of ${pesoText(value)}.` });
     return qrView({ ...qr, status: 'pending', receiptNo: '' });
@@ -816,35 +817,47 @@ export async function listQrPayments({ customerId, ref } = {}) {
   return rows.filter(({ qr }) => ref == null || qr.ref === ref).map(qrRecord);
 }
 
+// PayMongo's events for a QR Ph code that ended unpaid: qr.expired is what it sends, qrph.expired what older docs name
+const EXPIRY_EVENTS = ['qr.expired', 'qrph.expired'];
+
 /**
  * A webhook event from PayMongo, already checked for its signature (paymongo.webhook.js):
  *   payment.paid    the QR's intent is read back from PayMongo (the event alone is never trusted) and,
  *                   once it says succeeded for the QR's amount, the payment is recorded (settleQr)
  *   payment.failed  the QR is marked failed with PayMongo's reason, so the customer can open a new one
- *   qrph.expired    the QR is checked with PayMongo (expired only once past the grace)
- * Any other event, or one for a QR we don't have, is ignored. That includes qr.expired, which is what
- * PayMongo actually sent for our QR Ph codes in test mode (2026-09-30): it names the QR code, not the
- * intent, and nothing depends on it, since a QR's own expires_at and its intent decide (refreshQr).
- * Throws when the work could not be done
+ *   qr.expired      PayMongo ended the QR Ph code unpaid: its time ran out, or "Expire Test Payment" on a
+ *                   test QR's page (2026-10-09). The event names the code (qr_…), not the intent, so the
+ *                   QR is found by its code id; QRs made before then have none and are ignored, and their
+ *                   own time closes them (refreshQr). The intent is still read first: paid -> recorded;
+ *                   a payment being processed -> left open for payment.paid or payment.failed; otherwise
+ *                   the QR closes as expired at once, without the 2-minute grace, because PayMongo itself
+ *                   says the code can no longer be paid (a payment it still reported later would be
+ *                   recorded all the same: settleQr takes an expired QR).
+ *   qrph.expired    the name in PayMongo's older docs, handled like qr.expired (found by intent or code)
+ * Any other event, or one for a QR we don't have, is ignored. Throws when the work could not be done
  * (PayMongo or the database unreachable, or the intent not yet succeeded), so the webhook answers 500
  * and PayMongo sends it again. Returns what happened, for the log.
  */
 export async function handlePaymongoEvent(event) {
   const type = event.attributes && event.attributes.type;
-  const resource = event.attributes && event.attributes.data;
-  const intentId = resource && resource.attributes && resource.attributes.payment_intent_id;
-  if (!['payment.paid', 'payment.failed', 'qrph.expired'].includes(type)) return 'ignored';
-  const qr = intentId ? await repo.findQrByIntent(pool, intentId) : null;
+  const resource = (event.attributes && event.attributes.data) || {};
+  const attrs = resource.attributes || {};
+  if (!['payment.paid', 'payment.failed', ...EXPIRY_EVENTS].includes(type)) return 'ignored';
+  const intentId = attrs.payment_intent_id;
+  const codeId = EXPIRY_EVENTS.includes(type) && typeof resource.id === 'string' && resource.id.startsWith('qr_') ? resource.id : '';
+  const qr = intentId ? await repo.findQrByIntent(pool, intentId) : codeId ? await repo.findQrByCode(pool, codeId) : null;
   if (!qr) return 'ignored';
   if (type === 'payment.paid') {
-    const intent = await getIntent(intentId);
-    if (intent.status !== 'succeeded' || !intent.paid) throw new Error(`intent ${intentId} is ${intent.status}, not succeeded yet`);
+    const intent = await getIntent(qr.intentId);
+    if (intent.status !== 'succeeded' || !intent.paid) throw new Error(`intent ${qr.intentId} is ${intent.status}, not succeeded yet`);
     return (await settleQr(qr, intent, event)) ? 'paid' : 'already recorded';
   }
   if (type === 'payment.failed') {
-    const attrs = resource.attributes || {};
     return (await closeQr(qr, 'failed', { reason: String(attrs.failed_message || attrs.failed_code || ''), event })) ? 'failed' : 'already closed';
   }
-  await refreshQr(qr, { force: true });
-  return 'checked';
+  if (qr.status !== 'pending') return 'already closed';
+  const intent = await getIntent(qr.intentId);
+  if (intent.status === 'succeeded' && intent.paid) return (await settleQr(qr, intent, event)) ? 'paid' : 'already recorded';
+  if (intent.status === 'processing') return 'still processing';
+  return (await closeQr(qr, 'expired', { event })) ? 'expired' : 'already closed';
 }
