@@ -617,7 +617,11 @@ function LogisticsCard({ r, closed, onSave }) {
  * asks for two more things before it can be sent: the price of the equipment for the extra guests (0 waives
  * it) and the count of each package item that does not grow with the guests (food warmers, pitchers, water
  * jugs, waiters), shown to the customer instead of "to confirm". Plates, glasses, cutlery, chairs and tables
- * grow by themselves. A quotation that is out of date (a new guest count) can be re-sent as it is.
+ * grow by themselves.
+ *
+ * Other charges and Discount are optional: a blank one is sent as 0. A sent quotation can always be re-sent,
+ * also with nothing changed (e.g. the customer asks for it again); a line under the form then says the same
+ * quotation goes out once more. A quotation that is out of date (a new guest count) is re-sent the same way.
  *
  * An equipment rental lists its items at the prices they were booked at and any damage charges;
  * the admin only sets the delivery fee (standard RENTAL.deliveryFee, more for a large order).
@@ -708,9 +712,21 @@ function QuotationCard({ r, closed, onSend }) {
   const missingPrice = r.addonIds.some((id) => !Number(values.addonPrices[id]));
   // Extra guests need their equipment priced (0 is allowed) and every item to confirm counted
   const missingExtra = extraGuests > 0 && (values.extraGuestsCharge === '' || confirmItems.some((item) => itemCount(item.name) === '' || countError(itemCount(item.name))));
-  // Only allow sending if nothing was sent yet, something is different from the last one sent, or the
-  // booking changed since it was sent (out of date), so it can be re-sent as it is
-  const changed = !r.quotation || r.quotationStale || JSON.stringify(values) !== JSON.stringify(initial());
+  // What the server receives: every blank amount (Other charges, Discount, …) is sent as 0
+  const toSend = (v) => ({
+    addonPrices: Object.fromEntries(Object.entries(v.addonPrices).map(([id, price]) => [id, Number(price) || 0])),
+    // Only while there are extra guests; the server ignores both otherwise
+    ...(extraGuests ? { extraGuestsCharge: Number(v.extraGuestsCharge) || 0, itemCounts: Object.fromEntries(confirmItems.map((item) => [item.name, Number((v.itemCounts || {})[item.name] ?? '')])) } : {}),
+    deliveryFee: Number(v.deliveryFee) || 0,
+    otherCharges: Number(v.otherCharges) || 0,
+    otherLabel: v.otherLabel,
+    discount: Number(v.discount) || 0,
+    note: v.note
+  });
+  // True when nothing was sent yet, the booking changed since it was sent (out of date), or what would be
+  // sent differs from the last one (a blank and a 0 are the same amount). It never blocks the button: with
+  // nothing changed, the same quotation can still be re-sent, and a line says so.
+  const changed = !r.quotation || r.quotationStale || JSON.stringify(toSend(values)) !== JSON.stringify(toSend(initial()));
   const peso0 = { startAdornment: <InputAdornment position="start">₱</InputAdornment> };
 
   return (
@@ -820,22 +836,14 @@ function QuotationCard({ r, closed, onSend }) {
           <FormField id="q-note" label="Note to the customer" optional multiline minRows={2} value={values.note} onChange={set('note')} inputProps={{ maxLength: 300 }} sx={{ mt: 1 }} />
           {missingPrice && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Enter a price for each additional charge to send the quotation.</Typography>}
           {missingExtra && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Enter the price for the extra guests and the count of each item to confirm to send the quotation.</Typography>}
+          {!changed && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Nothing has changed since the last quotation. Re-sending it sends the same quotation to the customer again.</Typography>}
           <BusyButton
             fullWidth
             busy={busy}
-            disabled={anyInvalid || Boolean(discountError) || missingPrice || missingExtra || !changed}
+            disabled={anyInvalid || Boolean(discountError) || missingPrice || missingExtra}
             onClick={async () => {
               setBusy(true);
-              await onSend({
-                addonPrices: Object.fromEntries(Object.entries(values.addonPrices).map(([id, price]) => [id, Number(price) || 0])),
-                // Only while there are extra guests; the server ignores both otherwise
-                ...(extraGuests ? { extraGuestsCharge: Number(values.extraGuestsCharge) || 0, itemCounts: Object.fromEntries(confirmItems.map((item) => [item.name, Number(itemCount(item.name))])) } : {}),
-                deliveryFee: Number(values.deliveryFee) || 0,
-                otherCharges: Number(values.otherCharges) || 0,
-                otherLabel: values.otherLabel,
-                discount: Number(values.discount) || 0,
-                note: values.note
-              });
+              await onSend(toSend(values));
               setBusy(false);
             }}
             sx={{ mt: 2 }}
