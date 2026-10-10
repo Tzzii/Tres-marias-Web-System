@@ -11,11 +11,15 @@ const ICONS = {
   corporate: 'corporate',
   graduation: 'congratulatory',
   reunion: 'party',
-  other: 'event-default'
+  other: 'other'
 };
 
-// Image path for an occasion; unknown occasions use the default event icon
-export const themeIconSrc = (occasion) => `/images/icons/${ICONS[String(occasion || '').toLowerCase()] || 'event-default'}.svg`;
+// Image path for an occasion. "Other" and an occasion the customer typed for it ("Baby Shower") use the
+// gift box (other.svg); no occasion at all uses the default event icon (a serving dome).
+export const themeIconSrc = (occasion) => {
+  const name = String(occasion || '').trim().toLowerCase();
+  return `/images/icons/${name ? ICONS[name] || 'other' : 'event-default'}.svg`;
+};
 
 /** Square tile showing the occasion's icon. */
 export function ThemeIcon({ occasion, size = 72, sx }) {

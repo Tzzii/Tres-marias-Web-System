@@ -67,7 +67,9 @@ export const RULES = {
    * After this much inactivity a customer is signed out, and an admin's screen locks: the admin unlocks it
    * with the password alone (no emailed code) until the session itself runs out (JWT_ADMIN_TTL).
    */
-  idleMinutes: 15
+  idleMinutes: 15,
+  /** How long after sending a chat message its writer may edit or delete it (the owner's choice, 2026-10-10; domain/messages.js). */
+  messageEditMinutes: 60
 };
 
 // Dropdown options used across the forms
@@ -82,6 +84,31 @@ export const OCCASIONS = [
   'Graduation',
   'Other'
 ];
+
+/**
+ * The occasion that opens a text box on the booking form ("Your occasion", OCCASION_OTHER_RANGE characters).
+ * The booking saves the customer's own words as its occasion ("Baby Shower"), so every page shows the real
+ * one; bookingOccasion() is the check the booking form and the server share.
+ */
+export const OCCASION_OTHER = 'Other';
+export const OCCASION_OTHER_RANGE = { min: 2, max: 40 };
+
+/**
+ * The occasion a booking saves, from what the form sent: `picked` is the dropdown's value and `typed` the
+ * "Your occasion" box (only read for OCCASION_OTHER). Returns { occasion } or { problem: { field, message } },
+ * the field being 'occasion' (nothing picked) or 'occasionOther' (the box). The typed words are trimmed and
+ * their inner spaces made single; when they name a listed occasion ("wedding") that one is saved ("Wedding").
+ */
+export function bookingOccasion(picked, typed) {
+  if (typeof picked !== 'string' || !OCCASIONS.includes(picked)) return { problem: { field: 'occasion', message: 'Choose the occasion.' } };
+  if (picked !== OCCASION_OTHER) return { occasion: picked };
+  const words = typeof typed === 'string' ? typed.trim().replace(/\s+/g, ' ') : '';
+  const { min, max } = OCCASION_OTHER_RANGE;
+  if (words.length < min) return { problem: { field: 'occasionOther', message: `Type your occasion (at least ${min} characters).` } };
+  if (words.length > max) return { problem: { field: 'occasionOther', message: `Keep your occasion to ${max} characters.` } };
+  const listed = OCCASIONS.find((name) => name.toLowerCase() === words.toLowerCase());
+  return { occasion: listed || words };
+}
 
 /**
  * What the customer is booking, chosen before the package:

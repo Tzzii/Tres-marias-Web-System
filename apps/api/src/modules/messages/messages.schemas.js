@@ -21,6 +21,14 @@ export const sendBody = z.object({
   ref: passThrough
 });
 
+// A message in a thread, from the URL (…/threads/:id/messages/:messageId); an unknown one is a 404 from the service
+export const messageParams = z.object({ id: z.string(), messageId: z.string() });
+
+// PATCH …/threads/:id/messages/:messageId { body }: the new text, held to 2,000 characters by the service like a new message
+export const editBody = z.object({
+  body: z.string({ error: 'Write a message first.' }).max(10000, { error: 'Messages can be up to 2,000 characters.' }).default('')
+});
+
 // GET /api/admin/threads?customerId=… : one customer's conversation (the admin's chat buttons look it up first)
 export const listQuery = z.object({ customerId: passThrough });
 

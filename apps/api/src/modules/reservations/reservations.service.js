@@ -20,11 +20,11 @@ import {
   DEFAULT_PRICE_PER_PLATE,
   DISH_CATEGORIES,
   MENU_LINE_MAX,
-  OCCASIONS,
   RENTAL,
   RENTAL_SERVICE,
   RULES,
   SERVICE_TYPES,
+  bookingOccasion,
   includesFood,
   isRental
 } from '@tm/shared/src/services/config.js';
@@ -61,8 +61,9 @@ import * as repo from './reservations.repo.js';
  * - The customer is always the signed-in one (from the token), and every answer to a customer leaves
  *   out the admin's private `notes`. The admin's name in the activity log and in chat messages is the
  *   signed-in admin's (req.user.name).
- * - The date must be a real "YYYY-MM-DD" day, the start time "HH:MM", the occasion one of OCCASIONS,
- *   and required text is checked after trimming (spaces alone are not an event name or a venue).
+ * - The date must be a real "YYYY-MM-DD" day, the start time "HH:MM", the occasion one of OCCASIONS (for
+ *   "Other", the customer's own words from `occasionOther` are saved instead: bookingOccasion), and
+ *   required text is checked after trimming (spaces alone are not an event name or a venue).
  * - A quotation's amounts must be whole pesos from 0 to MAX_AMOUNT, and a logistics edit needs the
  *   venue, city and address (the admin page never sends less, but the server never trusts the page).
  * - A booking, an accepted quotation, a logistics edit and a rented-items edit read the availability map and
@@ -216,6 +217,16 @@ function stylingOf(value) {
 }
 
 /**
+ * The occasion the booking saves (bookingOccasion, the booking form's own check): one of OCCASIONS, or for
+ * "Other" the customer's words in `occasionOther` ("Baby Shower"). INVALID on 'occasion' or 'occasionOther'.
+ */
+function occasionOf(form) {
+  const { occasion, problem } = bookingOccasion(clean(form.occasion), clean(form.occasionOther));
+  if (problem) throw invalid(problem.message, problem.field);
+  return occasion;
+}
+
+/**
  * An event's start and end time, checked against the day's other events (the booking form's checks, in
  * the same order): the start must be open (another event's window, or too little time before the next one,
  * TIME_UNAVAILABLE on startTime), the end must be 2 to 6 hours after it, on the hour or half hour (INVALID on
@@ -303,10 +314,9 @@ async function eventBooking(conn, pkg, form) {
   if (stockProblem) throw invalid(stockProblem.message, stockProblem.field);
 
   const eventName = clean(form.eventName);
-  const occasion = clean(form.occasion);
   const venue = { name: clean(form.venueName), address: clean(form.venueAddress), city: clean(form.city), accessNotes: clean(form.accessNotes) };
-  if (!eventName || !occasion || !startTime || !venue.name || !venue.address || !venue.city) throw invalid('Please complete every required field.');
-  if (!OCCASIONS.includes(occasion)) throw invalid('Choose the occasion.', 'occasion');
+  if (!eventName || !clean(form.occasion) || !startTime || !venue.name || !venue.address || !venue.city) throw invalid('Please complete every required field.');
+  const occasion = occasionOf(form);
 
   // The buffet price per person as it stands now, copied onto the booking (the fallback as in catalog.service.js)
   const pricePerPlate = Number(await catalogRepo.getPricePerPlate(conn)) || DEFAULT_PRICE_PER_PLATE;
@@ -382,9 +392,8 @@ async function rentalBooking(conn, pkg, form) {
   const fulfilment = form.fulfilment;
   if (!['pickup', 'delivery'].includes(fulfilment)) throw invalid('Choose pick up or delivery.', 'fulfilment');
   const eventName = clean(form.eventName);
-  const occasion = clean(form.occasion);
-  if (!eventName || !occasion || !startTime) throw invalid('Please complete every required field.');
-  if (!OCCASIONS.includes(occasion)) throw invalid('Choose the occasion.', 'occasion');
+  if (!eventName || !clean(form.occasion) || !startTime) throw invalid('Please complete every required field.');
+  const occasion = occasionOf(form);
   const place = { name: clean(form.venueName), address: clean(form.venueAddress), city: clean(form.city) };
   if (fulfilment === 'delivery' && (!place.name || !place.address || !place.city)) {
     throw invalid('Tell us where to deliver the items.', 'venueAddress');

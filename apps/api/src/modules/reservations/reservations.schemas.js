@@ -24,7 +24,8 @@ export const refParams = z.object({ ref: z.string() });
 
 /**
  * POST /api/reservations: the booking form. Lengths follow the columns (event_name 120, occasion 40,
- * venue_name 160, venue_address 255, city 120). The notes are TEXT, kept to 2,000 characters (the
+ * venue_name 160, venue_address 255, city 120); `occasionOther` (the "Your occasion" box of "Other") is
+ * saved as the occasion, so it has the occasion's 40 too. The notes are TEXT, kept to 2,000 characters (the
  * form allows 500); each menu line is cut to MENU_LINE_MAX by the service. `endTime` (an event's, not a
  * rental's) and `agreeTerms` (the "I agree to the Terms of Service" tick, must be true) are checked there too,
  * and so is `styling` (the theme, colour motif and design details: cleanStyling and stylingProblem in
@@ -35,6 +36,7 @@ export const createBody = z.object({
   serviceType: passThrough,
   eventName: text(120),
   occasion: text(40),
+  occasionOther: text(40),
   date: passThrough,
   startTime: passThrough,
   endTime: passThrough,

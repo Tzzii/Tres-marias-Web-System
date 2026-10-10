@@ -197,6 +197,77 @@ export function colorName(hex) {
 /** True when a motif already has this colour: the same metallic, or the same code. */
 export const hasColor = (colors, color) => colors.some((c) => (color.metallic ? c.metallic && c.name === color.name : !c.metallic && c.hex === color.hex));
 
+/**
+ * The colours that go well with each main colour, hand-picked the way event stylists pair them (a colour
+ * wheel alone gives odd shades): the key is a name from COLOR_NAMES or METALLICS, and so is every match,
+ * best first. Added 2026-10-10 for the colour picker's "Goes well with …" row.
+ */
+const COLOR_MATCHES = {
+  White: ['Gold', 'Sage Green', 'Blush Pink', 'Navy Blue', 'Silver'],
+  Ivory: ['Gold', 'Champagne', 'Sage Green', 'Dusty Rose', 'Burgundy'],
+  Cream: ['Gold', 'Sage Green', 'Terracotta', 'Dusty Blue', 'Brown'],
+  Beige: ['White', 'Sage Green', 'Terracotta', 'Brown', 'Gold'],
+  Nude: ['Ivory', 'Blush Pink', 'Rose Gold', 'Sage Green', 'Champagne'],
+  Champagne: ['Ivory', 'Blush Pink', 'Gold', 'Dusty Rose', 'Sage Green'],
+  'Blush Pink': ['Ivory', 'Gold', 'Sage Green', 'Dusty Rose', 'Champagne'],
+  'Baby Pink': ['White', 'Baby Blue', 'Lavender', 'Silver', 'Mint'],
+  'Dusty Rose': ['Ivory', 'Mauve', 'Sage Green', 'Rose Gold', 'Burgundy'],
+  Mauve: ['Dusty Rose', 'Ivory', 'Plum', 'Sage Green', 'Silver'],
+  Fuchsia: ['White', 'Gold', 'Purple', 'Baby Pink', 'Teal'],
+  Red: ['White', 'Gold', 'Black', 'Ivory', 'Forest Green'],
+  Maroon: ['Gold', 'Ivory', 'Blush Pink', 'Navy Blue', 'Champagne'],
+  Burgundy: ['Ivory', 'Gold', 'Blush Pink', 'Navy Blue', 'Forest Green'],
+  Coral: ['White', 'Peach', 'Teal', 'Gold', 'Mint'],
+  Peach: ['Ivory', 'Coral', 'Sage Green', 'Gold', 'Dusty Blue'],
+  Orange: ['White', 'Teal', 'Gold', 'Brown', 'Navy Blue'],
+  Terracotta: ['Cream', 'Sage Green', 'Mustard', 'Dusty Rose', 'Copper'],
+  Mustard: ['Navy Blue', 'White', 'Terracotta', 'Olive', 'Gray'],
+  Yellow: ['White', 'Gray', 'Baby Blue', 'Mint', 'Navy Blue'],
+  'Sage Green': ['Ivory', 'Dusty Rose', 'Champagne', 'Gold', 'Olive'],
+  Mint: ['White', 'Baby Pink', 'Peach', 'Gold', 'Gray'],
+  Olive: ['Cream', 'Terracotta', 'Mustard', 'Gold', 'Brown'],
+  Emerald: ['Gold', 'Ivory', 'Champagne', 'Black', 'Blush Pink'],
+  'Forest Green': ['Ivory', 'Gold', 'Burgundy', 'Cream', 'Copper'],
+  Teal: ['White', 'Gold', 'Coral', 'Navy Blue', 'Mustard'],
+  'Tiffany Blue': ['White', 'Silver', 'Blush Pink', 'Gold', 'Navy Blue'],
+  'Baby Blue': ['White', 'Silver', 'Navy Blue', 'Baby Pink', 'Champagne'],
+  'Dusty Blue': ['Ivory', 'Navy Blue', 'Blush Pink', 'Silver', 'Champagne'],
+  'Royal Blue': ['White', 'Gold', 'Silver', 'Baby Blue', 'Yellow'],
+  'Navy Blue': ['White', 'Gold', 'Blush Pink', 'Burgundy', 'Silver'],
+  Lavender: ['White', 'Lilac', 'Silver', 'Sage Green', 'Plum'],
+  Lilac: ['Ivory', 'Lavender', 'Sage Green', 'Silver', 'Mauve'],
+  Purple: ['Gold', 'White', 'Lavender', 'Silver', 'Fuchsia'],
+  Plum: ['Gold', 'Blush Pink', 'Ivory', 'Mauve', 'Forest Green'],
+  Brown: ['Cream', 'Beige', 'Sage Green', 'Terracotta', 'Gold'],
+  Gray: ['White', 'Blush Pink', 'Navy Blue', 'Silver', 'Yellow'],
+  Charcoal: ['White', 'Gold', 'Blush Pink', 'Dusty Blue', 'Silver'],
+  Black: ['White', 'Gold', 'Red', 'Silver', 'Ivory'],
+  Gold: ['White', 'Ivory', 'Black', 'Navy Blue', 'Burgundy'],
+  Silver: ['White', 'Navy Blue', 'Baby Blue', 'Lavender', 'Black'],
+  'Rose Gold': ['Ivory', 'Blush Pink', 'Champagne', 'Gray', 'Dusty Rose'],
+  Copper: ['Cream', 'Forest Green', 'Terracotta', 'Navy Blue', 'Brown']
+};
+
+// A name from COLOR_NAMES or METALLICS as a motif colour ({ hex, name } or { hex, name, metallic: true })
+function namedColor(name) {
+  const metal = METALLICS.find((m) => m.name === name);
+  if (metal) return { hex: metal.hex, name: metal.name, metallic: true };
+  const named = COLOR_NAMES.find(([n]) => n === name);
+  return named ? { hex: named[1], name: named[0] } : null;
+}
+
+/**
+ * The colours suggested under the motif once it has a main colour (the first): those that go well with
+ * it (COLOR_MATCHES, by the main colour's name), best first, leaving out the names the motif already has
+ * (a picked "#9DB08A" is Sage Green too, so Sage Green is not offered again). [] when the motif is empty.
+ * Each is a motif colour, ready to add.
+ */
+export function matchingColors(colors) {
+  const main = colors && colors[0];
+  if (!main) return [];
+  return (COLOR_MATCHES[main.name] || []).map(namedColor).filter((color) => color && !colors.some((c) => c.name === color.name));
+}
+
 /** The way a theme reads on the pages and printouts: the customer's own words for "Other", else the chip's name. */
 export const themeLabel = (styling) => (!styling ? '' : styling.theme === THEME_OTHER ? styling.themeOther : styling.theme);
 

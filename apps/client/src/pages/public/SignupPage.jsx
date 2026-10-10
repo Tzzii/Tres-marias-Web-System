@@ -13,6 +13,7 @@ import {
   BusyButton,
   FormField,
   MobileField,
+  PasswordChecklist,
   PasswordField,
   TERMS_UPDATED,
   authApi,
@@ -153,7 +154,11 @@ export default function SignupPage() {
         <FormField id="signup-lastName" label="Last name" required autoComplete="family-name" value={values.lastName} onChange={set('lastName')} error={errors.lastName} disabled={busy} />
         <FormField id="signup-email" label="Email" required type="email" autoComplete="email" value={values.email} onChange={set('email')} error={errors.email} hint="We email a code to this address to confirm it is yours." disabled={busy} />
         <MobileField id="signup-mobile" label="Mobile number" required value={values.mobile} onChange={set('mobile')} error={errors.mobile} hint="We text you about event-day updates only." disabled={busy} />
-        <PasswordField id="signup-password" label="Password" required autoComplete="new-password" value={values.password} onChange={set('password')} error={errors.password} hint="8 characters or more, with a number" disabled={busy} />
+        <Box>
+          <PasswordField id="signup-password" label="Password" required autoComplete="new-password" value={values.password} onChange={set('password')} error={errors.password} disabled={busy} />
+          {/* What the password still needs, ticked live (the server checks the same rule) */}
+          <PasswordChecklist value={values.password} />
+        </Box>
         <PasswordField id="signup-confirm" label="Confirm password" required autoComplete="new-password" value={values.confirm} onChange={set('confirm')} error={errors.confirm} disabled={busy} />
 
         <Box>

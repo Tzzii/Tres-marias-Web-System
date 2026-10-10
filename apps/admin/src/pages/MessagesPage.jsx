@@ -117,6 +117,10 @@ export default function MessagesPage() {
           headerAction={t && <Button size="small" variant="outlined" onClick={() => navigate(`/customers?open=${t.customerId}`)}>Customer</Button>}
           // Send a reply as the admin; the customer sees it in their Chat page
           onSend={(body) => messageApi.sendMessage(activeId, { side: 'admin', senderName: user.name, body })}
+          // Edit or delete a reply the admin typed, within 60 minutes of sending (never an automatic message);
+          // an edited or deleted message of either side has "View history"
+          onEdit={(messageId, body) => messageApi.editMessage(activeId, messageId, { side: 'admin', body })}
+          onDelete={(messageId) => messageApi.deleteMessage(activeId, messageId, { side: 'admin' })}
           // Clicking an attachment loads its reservation, then opens the document preview
           onOpenAttachment={async (attachment) => {
             try {

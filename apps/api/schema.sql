@@ -456,6 +456,9 @@ CREATE TABLE threads (
 
 -- Chat messages (the thread's `messages` array). Automatic messages from reservations,
 -- payments and feedback replies are written here too, tagged with their reservation.
+-- Since 2026-10-10 a message typed in the chat box (`typed`) can be edited or deleted by its own side
+-- for 60 minutes (RULES.messageEditMinutes). Nothing is erased: an edit moves the old text into `history`
+-- and a delete only sets `deleted_at`, so the admin can still read every version ("View history").
 CREATE TABLE messages (
   id               VARCHAR(40)     NOT NULL,                -- m-…
   thread_id        VARCHAR(40)     NOT NULL,
@@ -467,6 +470,10 @@ CREATE TABLE messages (
   read_by_customer BOOLEAN         NOT NULL DEFAULT 0,
   read_by_admin    BOOLEAN         NOT NULL DEFAULT 0,
   attachment       JSON            NULL,                    -- { name, kind: quotation|receipt|contract, ref, paymentId? }
+  typed            BOOLEAN         NOT NULL DEFAULT 0,      -- 1 = written in the chat box (editable); 0 = automatic, or sent before 2026-10-10
+  edited_at        BIGINT UNSIGNED NULL,                    -- when `body` was last changed, or NULL
+  deleted_at       BIGINT UNSIGNED NULL,                    -- when its writer deleted it (the text is kept), or NULL
+  history          JSON            NULL,                    -- the earlier texts, oldest first: [{ body, at }] (`at` = when that text was written)
   PRIMARY KEY (id),
   KEY idx_messages_thread_at (thread_id, at),
   KEY idx_messages_ref (ref),

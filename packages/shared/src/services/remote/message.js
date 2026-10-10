@@ -40,6 +40,15 @@ export async function markThreadRead(threadId, side) {
 export const sendMessage = (threadId, { side, body, ref = null } = {}) => http.post(`${base(side)}/${segment(threadId)}/messages`, { body, ref });
 
 /**
+ * Change the text of a message `side` typed (1–2,000 characters), within 60 minutes of sending
+ * (messageChangeable in domain/messages.js; the server checks it too). Returns the message.
+ */
+export const editMessage = (threadId, messageId, { side, body } = {}) => http.patch(`${base(side)}/${segment(threadId)}/messages/${segment(messageId)}`, { body });
+
+/** Delete a message `side` typed, within 60 minutes of sending; both sides then see "This message was deleted". Returns the message. */
+export const deleteMessage = (threadId, messageId, { side } = {}) => http.delete(`${base(side)}/${segment(threadId)}/messages/${segment(messageId)}`);
+
+/**
  * Find the customer's conversation, starting it on first use: { id }. The admin names the customer
  * (`customerId`); a customer always opens their own.
  */

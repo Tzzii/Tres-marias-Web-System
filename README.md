@@ -10,8 +10,8 @@ the same business rules (`packages/shared/src/domain`), so a page and the server
 | **Admin Dashboard** | Tres Marias admin | http://localhost:5174 | `apps/admin` |
 | **API** | Both portals (never a person) | http://localhost:4000/api | `apps/api` |
 
-Stack: React 18 · Vite 5 · MUI 6 (components) · React Router 6 · modular CSS tokens · JavaScript (ES2020+) ·
-Express 5 · MySQL 8 · JWT sessions · bcrypt · zod.
+Stack: React 18 · Vite 6 · MUI 6 (components) · React Router 7 · modular CSS tokens · JavaScript (ES2020+) ·
+Express 5 · MySQL 8 · JWT sessions · bcrypt · zod · Node.js 20 or newer.
 
 ---
 
@@ -96,7 +96,8 @@ npm run dev          # API + Customer Portal + Admin Dashboard together
 
 `npm run dev` starts the API on http://localhost:4000 (check http://localhost:4000/api/health),
 the Customer Portal on http://localhost:5173 and the Admin Dashboard on http://localhost:5174.
-Each can also run alone: `npm run dev:api`, `npm run dev:client`, `npm run dev:admin`.
+Each can also run alone: `npm run dev:api`, `npm run dev:client`, `npm run dev:admin`. The API restarts by
+itself when its files change (`node --watch`, built into Node; nodemon is no longer used).
 
 **The API is needed for every page.** Sign-in, sign-up, the catalogue, the calendar, reservations,
 chat, payments, customers, reviews, inventory, outsourcing, the Dashboard and Reports all come from the
@@ -115,9 +116,11 @@ kept in `apps/api/uploads/proofs` (git-ignored), never in a public folder. The Q
 greyed out until `apps/api/.env` has both `PAYMONGO_SECRET_KEY` (a `sk_test_…` key while developing;
 the `sk_live_…` key goes on the live server only) and `PAYMONGO_WEBHOOK_SECRET` (the `whsk_…`
 secret of the webhook created in the PayMongo dashboard, pointing at `/api/webhooks/paymongo`
-through a tunnel such as `cloudflared tunnel --url http://localhost:4000` while developing). In test
-mode the API prints each QR's test link (`[PAYMONGO TEST] …`) for simulating the payment; never scan
-and pay a test QR.
+through a tunnel such as `cloudflared tunnel --url http://localhost:4000` while developing, with the
+events `payment.paid`, `payment.failed` and `qr.expired`). In test mode the API prints each QR's test
+link (`[PAYMONGO TEST] …`) for simulating the payment; never scan and pay a test QR. A QR Ph payment is
+verified by PayMongo, so the admin hears of it from the bell (Downpayment Received, Balance Payment
+Received or Fully Paid) instead of a "Payment to Verify".
 
 The API needs MySQL 8. First time only:
 
@@ -131,8 +134,11 @@ The API needs MySQL 8. First time only:
 
 When an update adds a table (Phase 12 added `signup_requests` and `password_changes`) or a column (the
 3 October 2026 revisions added `reservations.end_time`, `calendar_blocks.note` and the `terms_version`
-columns), a database that already holds data gets it with `npm run db:migrate`: it creates the tables
-and adds the columns `schema.sql` has and the database lacks, and changes nothing else.
+columns; 8 October `reservations.styling`; 9 October `admins.session_id` and `qr_payments.code_id`;
+10 October `messages.typed`, `edited_at`, `deleted_at` and `history` for editing and deleting chat messages), a
+database that already holds data gets it with `npm run db:migrate`: it creates the tables and adds the
+columns `schema.sql` has and the database lacks, lengthens a text (`VARCHAR`) column that `schema.sql`
+made longer (9 October: `webhook_events.id` to 255; it never shortens one), and changes nothing else.
 
 Each portal reads `VITE_API_URL` (where the API is) from its own `.env.local` (copy its `.env.example`).
 The full backend plan is in `docs/backend-development-phases.md`.
@@ -191,12 +197,17 @@ a password change in My profile (the current password and the emailed code). The
 every request gets a new random one. In development `apps/api/.env` has `MAIL_DRIVER=log`, so nothing is
 really sent: each message is printed in the API's terminal and saved in the `outbox` table. For real
 email, set `MAIL_DRIVER=smtp` and the `SMTP_*` settings (for example a Gmail App Password, or Mailtrap
-for a test inbox). SMS is for notifications and outsourcing requests only.
+for a test inbox). SMS is only for outsourcing requests to partners.
 
 **Lockouts.** 5 wrong passwords lock an account for 5 minutes, and 5 wrong codes pause code entry
 for 2 minutes. At most 5 code emails an hour go to one customer address. The API keeps these in the
 database, so clearing the browser's data does not lift them; `npm run seed:api` does (it reloads the
 sample data), and so does a finished password reset for that account.
+
+**One admin session at a time.** Signing in to the admin account (password and code) on another device or
+tab signs the older session out: the server keeps the current one in `admins.session_id` and answers an
+older token with `401 SESSION_REPLACED`, and the sign-in page says "You were signed out because your
+account was signed in on another device." Customer accounts can stay signed in on several devices.
 
 **Where the seed data is:** `apps/api/src/seedData/seed.js` holds the business data (packages,
 additional charges, dishes, settings, the admin account and the inventory) and is on GitHub. The sample
@@ -252,7 +263,7 @@ the database in `apps/api/.env`, so nothing else needs to be running:
 
 ```bash
 npm run audit:routes -- --writes-test-data    # every route with no token, a customer's and the admin's -> docs/route-audit.md
-npm run test:security -- --writes-test-data   # the 19 security tests (+ checks of the email codes) -> docs/security-tests.md
+npm run test:security -- --writes-test-data   # the 20 security tests (+ 3 extra checks) -> docs/security-tests.md
 ```
 
 They add test customers, bookings and payments (addresses `@example.test`), which is why they ask for

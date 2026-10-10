@@ -10,7 +10,7 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
-import { PortalShell, TERMS_VERSION, authApi, formatDate, messageApi, pendingStep, reservationApi, useNotify, useResource } from '@tm/shared';
+import { PortalShell, TERMS_VERSION, authApi, formatDate, messageApi, messagePreview, pendingStep, reservationApi, useNotify, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
 import TermsUpdateDialog from '../components/TermsUpdateDialog.jsx';
 
@@ -83,7 +83,7 @@ export default function PortalLayout() {
     data.threads.forEach((t) => {
       unread += t.unread;
       if (t.unread && t.lastMessage) {
-        list.push({ id: `msg:${t.lastMessage.id}`, title: 'New Message From Admin', body: t.lastMessage.body, at: t.lastMessage.at, to: '/portal/messages' });
+        list.push({ id: `msg:${t.lastMessage.id}`, title: 'New Message From Admin', body: messagePreview(t.lastMessage), at: t.lastMessage.at, to: '/portal/messages' });
       }
     });
     // Newest first, keep the latest 20

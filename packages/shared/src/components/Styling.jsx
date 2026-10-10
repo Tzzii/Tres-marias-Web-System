@@ -19,6 +19,7 @@ import {
   hasColor,
   hexToRgb,
   hsvToRgb,
+  matchingColors,
   readHex,
   rgbToHex,
   rgbToHsv,
@@ -37,7 +38,8 @@ import { Pill } from './Pill.jsx';
  *   StylingFields     the theme chips (with "Other" and its text box), the colour motif and the design
  *                     details: the booking form's section 4 and the admin's Edit Theme and Colors dialog
  *   ColorMotifPicker  the colour picker: a shade area and a hue bar, the colour code, the metallic
- *                     buttons and the colours picked so far (up to MAX_MOTIF_COLORS, the first is the main one)
+ *                     buttons, the colours picked so far (up to MAX_MOTIF_COLORS, the first is the main one)
+ *                     and the colours that go well with the main one, to add with a tap
  *   StylingSummary    what was chosen, read only: the reservation pages (customer and admin) and the printouts
  *   ColorSwatch       one colour's small square, also printed (print-color-adjust keeps it on paper)
  */
@@ -83,6 +85,8 @@ const markerSx = { position: 'absolute', width: 16, height: 16, borderRadius: '5
  * "Looks like: Sage Green", and adds it; Gold, Silver, Rose Gold and Copper are buttons of their own.
  * Both the area and the bar also move with the arrow keys. `colors` are the motif's colours so far
  * ([{ hex, name, metallic? }]), `onChange(next)` gets the new list; a colour is removed with its ×.
+ * Once there is a main colour, "Goes well with Sage Green" suggests up to five colours that match it
+ * (matchingColors in domain/styling.js), each added with a tap; it hides when the motif is full.
  * `error` is the server's or the form's message about the colours.
  */
 export function ColorMotifPicker({ id, colors, onChange, error }) {
@@ -94,6 +98,8 @@ export function ColorMotifPicker({ id, colors, onChange, error }) {
   // The colour now chosen: the code as typed when it is a full code, else the picker's
   const current = readHex(code) || rgbToHex(hsvToRgb(hue, saturation, value));
   const full = colors.length >= MAX_MOTIF_COLORS;
+  // Colours that go well with the main (first) colour, not yet in the motif
+  const suggestions = full ? [] : matchingColors(colors);
 
   // Move the picker and write its colour into the code box
   const pick = (next) => {
@@ -224,6 +230,22 @@ export function ColorMotifPicker({ id, colors, onChange, error }) {
             </Box>
           ))}
         </Box>
+
+        {/* Suggestions for the main colour: a tap adds one to the motif */}
+        {suggestions.length > 0 && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography sx={{ mb: 0.75, fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>
+              Goes well with {colors[0].name} · tap to add
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {suggestions.map((color) => (
+                <Button key={color.name} size="small" variant="outlined" onClick={() => add(color)} aria-label={`Add ${color.name}`} startIcon={<ColorSwatch color={color} size={14} sx={{ borderRadius: '50%' }} />} sx={{ borderRadius: 999, textTransform: 'none', fontSize: 12.5 }}>
+                  {color.name}
+                </Button>
+              ))}
+            </Box>
+          </Box>
+        )}
       </Box>
     </Box>
   );

@@ -79,6 +79,9 @@ export default function MessagesPage() {
           onClearComposeTag={() => setTopic(null)}
           // Send as the customer, tagged with the chosen event if any; the admin sees it in their inbox
           onSend={(body) => messageApi.sendMessage(threadId.data, { side: 'customer', senderName: user.name, body, customerId: user.id, ref: topic ? topic.ref : null })}
+          // Edit or delete a message the customer typed, within 60 minutes of sending (the server checks it)
+          onEdit={(messageId, body) => messageApi.editMessage(threadId.data, messageId, { side: 'customer', body })}
+          onDelete={(messageId) => messageApi.deleteMessage(threadId.data, messageId, { side: 'customer' })}
           onOpenAttachment={openAttachment}
         />
       )}

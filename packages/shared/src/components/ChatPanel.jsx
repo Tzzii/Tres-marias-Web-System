@@ -1,18 +1,31 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import InputBase from '@mui/material/InputBase';
+import Link from '@mui/material/Link';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import { DELETED_MESSAGE_TEXT, MESSAGE_CHANGE_MS, messageChangeable, messagePreview } from '../domain/messages.js';
+import { RULES } from '../services/config.js';
 import { tokens } from '../theme/tokens.js';
+import { ConfirmDialog } from './AppDialog.jsx';
+import { MessageHistoryDialog } from './MessageHistory.jsx';
 import { LightSurface } from './Surface.jsx';
 import { formatClock, formatDate, formatRelative, initials, parseISODate, toISODate, todayISO } from '../utils/format.js';
 
@@ -30,11 +43,27 @@ import { formatClock, formatDate, formatRelative, initials, parseISODate, toISOD
  * On a page (not embedded), phones and small tablets fit the card between its top edge and the
  * bottom tab bar, so the text box is always on screen without scrolling the page.
  * `compact` always uses the one-pane phone layout, for narrow windows on any screen size.
+ *
+ * Editing and deleting (2026-10-10), when the page passes `onEdit(messageId, body)` and `onDelete(messageId)`:
+ * a message this side typed has a ⋮ button (on hover with a mouse, always on touch screens) with Edit and
+ * Delete, for RULES.messageEditMinutes after sending (messageChangeable; the server checks it too). An
+ * edited message says "Edited" under it; a deleted one reads "This message was deleted" on both sides.
+ * Automatic messages (quotations, receipts ...) never have the button. On the admin's side, an edited or
+ * deleted message (either side's) also has "View history": every version, with Print and Save PDF.
  */
-export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, loadingThread, onSend, onOpenAttachment, threadTitle, threadSubtitle, headerAction, emptyText, composeTag, onClearComposeTag, embedded = false, compact = false, single = false }) {
+export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, loadingThread, onSend, onEdit, onDelete, onOpenAttachment, threadTitle, threadSubtitle, headerAction, emptyText, composeTag, onClearComposeTag, embedded = false, compact = false, single = false }) {
   const [text, setText] = useState(''); // message being typed
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  // Editing and deleting this side's own typed messages (only when the page passes onEdit and onDelete)
+  const canChange = Boolean(onEdit && onDelete);
+  const [clock, setClock] = useState(() => Date.now()); // moves every 30 s, so a ⋮ goes away once its time is up
+  const [menu, setMenu] = useState({ anchor: null, message: null }); // the open ⋮ menu; `message` stays while it closes
+  const [editing, setEditing] = useState(null); // { id, text } of the message being edited
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [deleting, setDeleting] = useState(null); // the message waiting for "Delete Message?"
+  const [history, setHistory] = useState(null); // the message whose history is open (admin)
   const scroller = useRef(null); // the scrolling messages area
   const panel = useRef(null); // the whole card, measured to fit it on phones
   const phone = useMediaQuery((theme) => theme.breakpoints.down('md')); // phones and small tablets (the bottom tab bar shows)
@@ -67,11 +96,41 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
   }, [thread?.messages?.length, activeId]);
 
-  // Clear the text box when switching conversations
+  // Clear the text box, and stop any edit, when switching conversations
   useEffect(() => {
     setText('');
     setError('');
+    setEditing(null);
+    setEditError('');
+    setMenu((m) => ({ ...m, anchor: null }));
   }, [activeId]);
+
+  // Keep the clock moving while messages can be changed, so the ⋮ of a message older than the limit goes away
+  useEffect(() => {
+    if (!canChange) return undefined;
+    const timer = setInterval(() => setClock(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [canChange]);
+
+  // Save the edited text (the server refuses it after the time limit; its message shows under the box)
+  const saveEdit = async () => {
+    if (!editing || editBusy) return;
+    if (!editing.text.trim()) {
+      setEditError('Write a message first.');
+      return;
+    }
+    setEditBusy(true);
+    setEditError('');
+    try {
+      await onEdit(editing.id, editing.text);
+      setEditing(null);
+    } catch (e) {
+      setEditError(e.message);
+    } finally {
+      setEditBusy(false);
+    }
+  };
+  const closeMenu = () => setMenu((m) => ({ ...m, anchor: null }));
 
   // Send the typed message (ignored if empty or already sending)
   const send = async () => {
@@ -136,7 +195,7 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                     {side === 'admin' ? t.customerEmail : 'Tres Marias Catering'}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 12.5, color: t.unread ? tokens.textPrimary : tokens.textMuted }}>{t.lastMessage ? t.lastMessage.body : 'No messages yet'}</Typography>
+                    <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 12.5, color: t.unread ? tokens.textPrimary : tokens.textMuted }}>{t.lastMessage ? messagePreview(t.lastMessage) : 'No messages yet'}</Typography>
                     {t.unread > 0 && <Box sx={{ minWidth: 18, height: 18, px: 0.5, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700, color: '#fff', backgroundColor: tokens.red }}>{t.unread}</Box>}
                   </Box>
                 </Box>
@@ -175,6 +234,10 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
               ) : (
                 thread.messages.map((m, i) => {
                   const mine = m.from === side; // my messages go on the right in dark bubbles
+                  const deleted = Boolean(m.deletedAt);
+                  const isEditing = Boolean(editing && editing.id === m.id);
+                  // My own typed message, still inside the time limit: it gets the ⋮ (Edit, Delete)
+                  const changeable = canChange && !isEditing && messageChangeable(m, side, clock);
                   // Show a date divider before the first message of each day
                   const newDay = i === 0 || dayLabel(thread.messages[i - 1].at) !== dayLabel(m.at);
                   return (
@@ -182,8 +245,21 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                       {newDay && (
                         <Typography sx={{ textAlign: 'center', my: 1.5, fontSize: 11.5, fontWeight: 700, color: tokens.textMuted }}>{dayLabel(m.at)}</Typography>
                       )}
-                      <Box sx={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', mb: 1.25 }}>
-                        <Box sx={{ maxWidth: { xs: '85%', sm: '72%' } }}>
+                      {/* With a mouse the ⋮ shows while the pointer is over the message; on touch screens it always shows */}
+                      <Box sx={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', alignItems: 'center', gap: 0.25, mb: 1.25, '&:hover .tm-msg-more': { opacity: 1 } }}>
+                        {changeable && (
+                          <IconButton
+                            className="tm-msg-more"
+                            size="small"
+                            aria-label="Message options"
+                            aria-haspopup="menu"
+                            onClick={(e) => setMenu({ anchor: e.currentTarget, message: m })}
+                            sx={{ flexShrink: 0, color: tokens.textMuted, '@media (hover: hover)': { opacity: menu.anchor && menu.message.id === m.id ? 1 : 0 }, '&:focus-visible': { opacity: 1 } }}
+                          >
+                            <MoreVertRoundedIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        <Box sx={{ maxWidth: { xs: '85%', sm: '72%' }, ...(isEditing && { width: { xs: '85%', sm: '72%' } }) }}>
                           {/* Sender above the other side's bubbles: "Admin" for customers, the customer's name for the admin */}
                           {!mine && <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: tokens.textMuted, mb: 0.25, ml: 0.5 }}>{side === 'customer' ? 'Admin' : m.senderName}</Typography>}
                           {/* The event this message is about */}
@@ -195,6 +271,40 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                               </Box>
                             </Box>
                           )}
+                          {isEditing ? (
+                            // The message being edited: Enter saves, Shift+Enter adds a line, Esc cancels
+                            <Box sx={{ p: 1, borderRadius: 2, border: `1px solid ${tokens.borderFocus}`, backgroundColor: '#fff' }}>
+                              <InputBase
+                                autoFocus
+                                multiline
+                                maxRows={6}
+                                value={editing.text}
+                                onChange={(e) => {
+                                  setEditing({ ...editing, text: e.target.value });
+                                  setEditError('');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    saveEdit();
+                                  } else if (e.key === 'Escape') setEditing(null);
+                                }}
+                                inputProps={{ 'aria-label': 'Edit your message', maxLength: 2000 }}
+                                sx={{ width: '100%', px: 0.75, fontSize: 14, '@media (pointer: coarse)': { fontSize: 16 }, color: tokens.textPrimary }}
+                              />
+                              <Box sx={{ mt: 0.75, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                                <Button size="small" onClick={() => setEditing(null)} disabled={editBusy} sx={{ color: tokens.textSecondary }}>Cancel</Button>
+                                <Button size="small" variant="contained" onClick={saveEdit} disabled={editBusy || !editing.text.trim()}>{editBusy ? 'Saving…' : 'Save'}</Button>
+                              </Box>
+                              {editError && <Typography role="alert" sx={{ mt: 0.5, px: 0.75, fontSize: 12.5, color: tokens.redPress }}>{editError}</Typography>}
+                            </Box>
+                          ) : deleted ? (
+                            // A deleted message keeps its place, without its text
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, px: 1.75, py: 1.1, borderRadius: 2, fontSize: 13, fontStyle: 'italic', color: tokens.textMuted, border: `1px dashed ${tokens.borderInput}` }}>
+                              <BlockRoundedIcon sx={{ fontSize: 16 }} />
+                              {DELETED_MESSAGE_TEXT}
+                            </Box>
+                          ) : (
                           <Box sx={{ px: 1.75, py: 1.1, borderRadius: 2, borderTopRightRadius: mine ? 4 : 16, borderTopLeftRadius: mine ? 16 : 4, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: mine ? tokens.onInk : tokens.textPrimary, backgroundColor: mine ? tokens.ink : tokens.cardLight, border: mine ? 'none' : `1px solid ${tokens.cardLightBorder}` }}>
                             {m.body}
                             {m.attachment && (
@@ -207,10 +317,21 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
                               </ButtonBase>
                             )}
                           </Box>
+                          )}
                           <Typography sx={{ mt: 0.25, fontSize: 11, color: tokens.textMuted, textAlign: mine ? 'right' : 'left', mx: 0.5 }}>
                             {formatClock(m.at)}
+                            {m.editedAt && !deleted ? ' · Edited' : ''}
                             {/* "read" appears under my message once the other side has seen it */}
-                            {mine && (side === 'customer' ? m.readByAdmin : m.readByCustomer) ? ' · read' : ''}
+                            {mine && !deleted && (side === 'customer' ? m.readByAdmin : m.readByCustomer) ? ' · read' : ''}
+                            {/* The admin can read every version of an edited or deleted message (the server sends them to the admin only) */}
+                            {side === 'admin' && (m.editedAt || deleted) && (
+                              <>
+                                {' · '}
+                                <Link component="button" type="button" onClick={() => setHistory(m)} sx={{ fontSize: 11, fontWeight: 600, color: tokens.goldDark, verticalAlign: 'baseline' }}>
+                                  View history
+                                </Link>
+                              </>
+                            )}
                           </Typography>
                         </Box>
                       </Box>
@@ -270,6 +391,55 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
         )}
       </Box>
     </Box>
+
+    {/* A message's ⋮ menu: Edit, Delete, and until when they are offered */}
+    <Menu anchorEl={menu.anchor} open={Boolean(menu.anchor)} onClose={closeMenu} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+      <MenuItem
+        onClick={() => {
+          setEditing({ id: menu.message.id, text: menu.message.body });
+          setEditError('');
+          closeMenu();
+        }}
+      >
+        <ListItemIcon><EditOutlinedIcon fontSize="small" /></ListItemIcon>
+        Edit
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setDeleting(menu.message);
+          closeMenu();
+        }}
+        sx={{ color: tokens.redPress }}
+      >
+        <ListItemIcon sx={{ color: 'inherit' }}><DeleteOutlineRoundedIcon fontSize="small" /></ListItemIcon>
+        Delete
+      </MenuItem>
+      {menu.message && (
+        <Typography sx={{ px: 2, pt: 0.75, pb: 0.5, fontSize: 11.5, color: tokens.textMuted }}>
+          Until {formatClock(menu.message.at + MESSAGE_CHANGE_MS)} ({RULES.messageEditMinutes} minutes after sending)
+        </Typography>
+      )}
+    </Menu>
+
+    <ConfirmDialog
+      open={Boolean(deleting)}
+      onClose={() => setDeleting(null)}
+      title="Delete Message?"
+      description={
+        side === 'customer'
+          ? 'You and our team will see "This message was deleted" instead. We keep the original text as a record of the conversation, as our Privacy Policy explains.'
+          : 'The customer will see "This message was deleted" instead. The text stays in View history as a record.'
+      }
+      confirmLabel="Delete"
+      tone="danger"
+      onConfirm={async () => {
+        await onDelete(deleting.id);
+        setDeleting(null);
+      }}
+    />
+
+    {/* The admin's record of an edited or deleted message */}
+    {side === 'admin' && <MessageHistoryDialog open={Boolean(history)} onClose={() => setHistory(null)} message={history} conversation={threadTitle} />}
     </LightSurface>
   );
 }

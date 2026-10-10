@@ -204,7 +204,7 @@ export async function adminAccount() {
   return { id: row.id, name: row.name, email: row.email, passwordChangedAt: row.password_changed_at, sessionId: row.session_id };
 }
 
-/** A strong random password for a test account (letters and digits, so every password rule passes). */
+/** A strong random password for a test account (upper and lower case, digits and a hyphen, so every password rule passes). */
 export const randomPassword = () => `Test-${crypto.randomBytes(9).toString('base64url')}9a`;
 
 /**

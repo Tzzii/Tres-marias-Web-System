@@ -21,6 +21,8 @@ export { DashCard, CardTitle, StatCard, DetailRow, Field } from './components/Da
 export { Pill, StatusChip, PaymentStatusChip, QrStatusChip, BalanceChip, FeedbackStatusChip } from './components/Pill.jsx';
 export { StatusPipeline } from './components/StatusPipeline.jsx';
 export { FieldLabel, FormField, SelectField, PasswordField, MobileField } from './components/FormField.jsx';
+// The live "Password needs" list (and strength bar) under every new-password field
+export { PasswordChecklist } from './components/PasswordChecklist.jsx';
 export { BrandLogo, BrandMark, LOGO_SRC } from './components/Brand.jsx';
 export { AppDialog, BusyButton, ConfirmDialog } from './components/AppDialog.jsx';
 export { OtpInput } from './components/OtpInput.jsx';
@@ -36,6 +38,8 @@ export { BarChart, RankBars } from './components/BarChart.jsx';
 export { DataTable, Pager } from './components/DataTable.jsx';
 export { DocumentDialog, documentsFor } from './components/DocumentDialog.jsx';
 export { PackageItemList } from './components/PackageItems.jsx';
+// A buffet's menu: each category's dishes as radio buttons, plus "Others" with a text box (booking form, admin's Edit Menu)
+export { MenuPicker } from './components/MenuPicker.jsx';
 export { ScrollToTop, NotFoundPage } from './components/Routing.jsx';
 export { ChatPanel } from './components/ChatPanel.jsx';
 // The booking's "Theme and Colors": the form fields (booking form, admin dialog), the colour picker and the read-only summary
@@ -58,7 +62,7 @@ export { saveElementAsPdf } from './utils/savePdf.js';
 // Saving a file with the computer's "Save as" window where the browser allows it (TXT exports, Save PDF)
 export { askWhereToSave, canAskWhereToSave, saveFile, writeTo } from './utils/saveFile.js';
 
-export { BUSINESS, RULES, OCCASIONS, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
+export { BUSINESS, RULES, OCCASIONS, OCCASION_OTHER, OCCASION_OTHER_RANGE, bookingOccasion, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
 export { computeQuote, extraGuestsFor, isRentalPackage } from './services/pricing.js';
 // A package's items for the guest count (plates and chairs grow, warmers and waiters are confirmed in the quotation)
 export { ITEM_COUNT_MAX, bookingExtraGuests, bookingItems, formatBookingItem, itemGrows, itemsToConfirm, packageItemsFor, usesGuestRule } from './domain/packageItems.js';
@@ -76,6 +80,8 @@ export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/c
 export { qrState, referenceProblem } from './domain/payment.js';
 // An additional charge's own price, its sizes and its packages (the admin's form and the booking form use the same rules as the services)
 export { MAX_ADDON_SIZES, PACKAGE_INCLUDES_MAX, addonPriceMap, flattenAddons, readAddonPrice, readAddonSizes } from './domain/catalog.js';
+// Editing and deleting chat messages: who may and until when, the admin's "View history" versions, previews
+export { DELETED_MESSAGE_TEXT, MESSAGE_CHANGE_MS, messageChangeable, messagePreview, messageVersions } from './domain/messages.js';
 // The theme list, colour names and checks of the booking's "Theme and Colors" (the services check the same)
 export { MAX_MOTIF_COLORS, STYLING_THEMES, THEME_OTHER, THEME_UNDECIDED, cleanStyling, decorReminders, stylingEmpty, stylingProblem, stylingToDiscuss, themeLabel } from './domain/styling.js';
 export { ApiError } from './services/errors.js';
