@@ -13,7 +13,8 @@ import { RULES } from '@tm/shared/src/services/config.js';
  *   `DB_PORT=3310 npm run db:reset` points one run at another database.
  * - NODE_ENV=production adds the go-live rules (Phase 12): a long JWT_SECRET, a DB_PASSWORD, real email
  *   (MAIL_DRIVER=smtp and the business's own MAIL_FROM), a real SMS driver unless ALLOW_SMS_LOG=true,
- *   and CORS_ORIGINS set to the live portals (no localhost default). Each one stops the start-up.
+ *   CORS_ORIGINS set to the live portals (no localhost default), and CLIENT_URL on https:// and not
+ *   localhost (every customer email links to it, 2026-10-10). Each one stops the start-up.
  * - The process always runs on Manila time, set here before anything reads the clock: "today",
  *   lead-time checks and the reservation ref all depend on the business's local date, and a VPS
  *   usually runs on UTC. It is fixed on purpose, not a setting, so a host's TZ=UTC cannot shift dates.
@@ -119,7 +120,9 @@ export const config = {
     live: text('PAYMONGO_SECRET_KEY').startsWith('sk_live_')
   },
 
-  clientUrl: text('CLIENT_URL', 'http://localhost:5173')
+  // The customer website's address, with no trailing slash: every link in a customer email starts with it
+  // (modules/notify), never with the request's Host or Origin
+  clientUrl: text('CLIENT_URL', 'http://localhost:5173').replace(/\/+$/, '')
 };
 
 // Settings that must be right before real customers use the system
@@ -165,6 +168,10 @@ if (isProduction) {
   // The localhost default is development only: the live portals' own https:// addresses must be listed
   if (config.corsOrigins.some((origin) => origin === '*' || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin))) {
     problems.push('CORS_ORIGINS must list only the live portals in production (no "*", no localhost).');
+  }
+  // Customer emails link to the website (2026-10-10): a link to localhost or plain http would be broken or unsafe
+  if (!/^https:\/\//i.test(config.clientUrl) || /^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(config.clientUrl)) {
+    problems.push("CLIENT_URL must be the live website's https:// address in production (e.g. https://tresmariascater.com), not localhost.");
   }
 }
 

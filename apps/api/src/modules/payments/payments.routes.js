@@ -129,7 +129,7 @@ export const paymentReservationRoutes = express.Router();
 paymentReservationRoutes.post('/:ref/cash-payments', validate({ params: schemas.refParams, body: schemas.cashBody }), async (req, res) => {
   res.status(201).json(await payments.recordCashPayment(req.valid.params.ref, req.valid.body.amount, req.user));
 });
-// A reminder in the customer's chat -> { ok: true }
+// A reminder in the customer's chat, and by email at most once per booking every 12 hours -> { ok: true, emailed }
 paymentReservationRoutes.post('/:ref/payment-reminder', validate({ params: schemas.refParams }), async (req, res) => {
   res.json(await payments.sendPaymentReminder(req.valid.params.ref, req.user));
 });

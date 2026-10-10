@@ -83,7 +83,11 @@ export async function rejectPayment(paymentId, reason) {
 /** Admin: record cash collected on site (₱1 up to the balance); returns the verified payment. */
 export const recordCashPayment = (ref, amount) => http.post(`/admin/reservations/${segment(ref)}/cash-payments`, { amount });
 
-/** Admin: remind the customer in their chat about the downpayment or the balance -> { ok: true }. */
+/**
+ * Admin: remind the customer about the downpayment or the balance, in their chat every time and by email
+ * at most once per booking every 12 hours -> { ok: true, emailed } (emailed: false when the email was
+ * skipped because one already went out, or could not be queued).
+ */
 export const sendPaymentReminder = (ref) => http.post(`/admin/reservations/${segment(ref)}/payment-reminder`, {});
 
 /** Admin: record money returned to the customer: { amount, method, referenceNo, sentOn, reason } -> the refund. */

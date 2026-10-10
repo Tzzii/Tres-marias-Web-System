@@ -115,7 +115,8 @@ Content-Type: application/json
 
 { "amount": 1000 }
 
-### Send the customer a payment reminder in their chat
+### Send the customer a payment reminder: in their chat every time, by email at most once per booking every
+### 12 hours (Phase 13A) -> { "ok": true, "emailed": true | false }
 POST {{api}}/admin/reservations/{{ref}}/payment-reminder
 Authorization: Bearer {{adminToken}}
 

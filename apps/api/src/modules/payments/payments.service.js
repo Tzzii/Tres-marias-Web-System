@@ -12,6 +12,7 @@ import { newId, nextCounter } from '../../lib/ids.js';
 import { isISODate, now, todayISO } from '../../lib/time.js';
 import { bumpStamp } from '../changes/changes.repo.js';
 import { postAdminMessage } from '../messages/messages.repo.js';
+import { emailedRecently, queueCustomerEmail } from '../notify/notify.service.js';
 import * as reservationsRepo from '../reservations/reservations.repo.js';
 import * as repo from './payments.repo.js';
 
@@ -33,6 +34,12 @@ import * as repo from './payments.repo.js';
  * The customer is always req.user (from the token); so is the admin named in the audit trail and chat.
  * PayMongo is never called while a transaction is open: a QR is made before its row is saved, and a
  * webhook's payment is read from PayMongo before it is recorded.
+ *
+ * Customer emails (Phase 13A, modules/notify): a payment received, a bank transfer rejected, a QR Ph
+ * payment that failed and the payment reminder also go to the customer by email, queued in the same
+ * transaction after every check passed and the change is written (queueCustomerEmail, after the chat
+ * message), and sent only after the commit, so a refused or rolled-back action sends nothing. The
+ * recipient is always the booking's customer (reservation.customerId, from the database).
  */
 
 // Reservation statuses that can take payments (approved and later, but not declined or cancelled)
@@ -62,6 +69,8 @@ const settling = new Set();
 // Who PayMongo's confirmations are from in the audit trail, and who the automatic chat messages are from
 const PAYMONGO_NAME = 'PayMongo';
 const TEAM_NAME = 'Tres Marias team';
+// At most one payment reminder EMAIL per booking in this time (the chat reminder is posted every time)
+const REMINDER_EMAIL_GAP_MS = 12 * 60 * 60 * 1000;
 
 // "₱1,200"
 const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
@@ -238,15 +247,22 @@ export async function submitPayment(customer, { ref, method, amount, referenceNo
 
 /**
  * After a payment is verified (or recorded verified): move the status forward (statusForPayments: full
- * payment -> Confirmed, downpayment reached -> Downpayment paid), log it, and send the receipt in the
- * customer's chat. `row` is the reservation as read before this payment counted; `payment` the verified
- * record; `actorName` the admin, or PayMongo for a GCash QR; `senderName` who the chat message is from
- * (the admin, or the Tres Marias team for PayMongo's confirmations).
+ * payment -> Confirmed, downpayment reached -> Downpayment paid), log it, send the receipt in the
+ * customer's chat, and queue the 'payment_received' email (Phase 13A) with what was paid so far and the
+ * balance left, both counting this payment, and the status before and after. `row` is the reservation as
+ * read before this payment counted; `payment` the verified record; `actorName` the admin, or PayMongo for
+ * a GCash QR; `senderName` who the chat message is from (the admin, or the Tres Marias team for
+ * PayMongo's confirmations).
+ * It covers a bank transfer the admin verified, cash the admin recorded (also after the event) and a
+ * QR Ph payment (settleQr). It runs once per payment, so the email goes once: verifyPayment refuses a
+ * payment already handled, and settleQr calls it only when it really records the QR payment (a paid QR
+ * is left alone), so the webhook, its retries and the page's polling never send a second email.
  */
 async function applyVerifiedPayment(conn, row, payment, actorName, senderName = actorName) {
   const reservation = row.reservation;
   const payments = [...row.payments.filter((p) => p.id !== payment.id), payment];
-  const status = statusForPayments(reservation.status, financials(reservation, payments, row.refunds));
+  const money = financials(reservation, payments, row.refunds);
+  const status = statusForPayments(reservation.status, money);
   await reservationsRepo.insertActivity(conn, reservation.ref, {
     at: now(),
     actor: actorName,
@@ -267,6 +283,19 @@ async function applyVerifiedPayment(conn, row, payment, actorName, senderName = 
     { name: `Receipt-${payment.receiptNo}.pdf`, kind: 'receipt', ref: reservation.ref, paymentId: payment.id },
     senderName
   );
+  await queueCustomerEmail(conn, {
+    customerId: reservation.customerId,
+    ref: reservation.ref,
+    purpose: 'payment_received',
+    data: {
+      reservation,
+      payment: { amount: payment.amount, method: payment.method, receiptNo: payment.receiptNo, verifiedAt: payment.verifiedAt },
+      paidSoFar: money.paid,
+      balance: money.balance,
+      statusBefore: reservation.status,
+      statusAfter: status
+    }
+  });
 }
 
 /**
@@ -320,7 +349,8 @@ export async function verifyPayment(id, admin) {
 
 /**
  * Admin: turn down a waiting bank transfer with a reason (at least 5 characters) the customer sees in
- * the payment history and in their chat.
+ * the payment history, in their chat and in the 'payment_rejected' email (Phase 13A), which is queued
+ * only once the payment is marked rejected (a payment already handled is refused and sends nothing).
  */
 export async function rejectPayment(id, reason, admin) {
   const text = String(reason || '').trim();
@@ -339,6 +369,12 @@ export async function rejectPayment(id, reason, admin) {
       null,
       admin.name
     );
+    await queueCustomerEmail(conn, {
+      customerId: reservation.customerId,
+      ref: reservation.ref,
+      purpose: 'payment_rejected',
+      data: { reservation, payment: { amount: payment.amount, method: payment.method, submittedAt: payment.submittedAt }, reason: text }
+    });
     return enrich({ payment: { ...payment, status: 'rejected', rejectReason: text }, eventName: reservation.eventName, eventDate: reservation.date, customerName: row.customerName ?? '' });
   });
 }
@@ -392,10 +428,28 @@ export async function recordCashPayment(ref, amount, admin) {
 }
 
 /**
- * Admin: message the customer about the downpayment or the remaining balance (approved bookings and
- * later). Before the minimum downpayment is reached it asks for at least the rest of it (they may pay
- * more, up to the whole balance); after that, for the balance, which can be paid in parts before the
- * event day. "is due on" while the date is ahead, "was due on" once it has passed. -> { ok: true }
+ * The sentence of a payment reminder that says what is due, for the chat message and the reminder email
+ * alike (sendPaymentReminder). `money` is financials() of the booking. Before the minimum downpayment is
+ * reached it asks for at least the rest of it (they may pay more, up to the whole balance); after that,
+ * for the balance, which can be paid in parts before the event day. "is due on" while the date is ahead,
+ * "was due on" once it has passed.
+ */
+function reminderDue(reservation, money) {
+  const tense = (iso) => (daysFromToday(iso) < 0 ? 'was' : 'is');
+  const least = Math.min(money.downpayment - money.paid, money.balance);
+  return !money.downpaymentPaid && reservation.downpaymentDue
+    ? `${money.paid > 0 ? `The rest of your downpayment, at least ${pesoText(least)},` : `A downpayment of at least ${pesoText(least)}`} ${tense(reservation.downpaymentDue)} due on ${formatDate(reservation.downpaymentDue)}.${least < money.balance ? ` You can pay more, up to the full balance of ${pesoText(money.balance)}.` : ''}`
+    : `The remaining balance of ${pesoText(money.balance)} ${tense(reservation.date)} due on the event day, ${formatDate(reservation.date)}. You can pay it in parts before then.`;
+}
+
+/**
+ * Admin: remind the customer about the downpayment or the remaining balance (approved bookings and
+ * later), in their chat and by email (Phase 13A, 'payment_reminder'), both with reminderDue's sentence.
+ * The chat message is posted every time; the email goes at most once per booking every 12 hours
+ * (REMINDER_EMAIL_GAP_MS, counted from the outbox by emailedRecently), so repeated clicks don't flood the
+ * customer's inbox. Two reminders at once wait for each other on the booking's lock, so the second sees
+ * the first one's email. -> { ok: true, emailed }: `emailed` is true when the email was queued, false
+ * when one already went out in the last 12 hours or none could be queued (e.g. no email address).
  */
 export async function sendPaymentReminder(ref, admin) {
   return tx(async (conn) => {
@@ -404,14 +458,14 @@ export async function sendPaymentReminder(ref, admin) {
     if (!PAYABLE.includes(reservation.status)) throw new ApiError('INVALID_STATE', 'Reminders can be sent once the reservation is approved.');
     const money = financials(reservation, row.payments, row.refunds);
     if (money.balance <= 0) throw new ApiError('INVALID_STATE', 'This reservation is already fully paid.');
-    const tense = (iso) => (daysFromToday(iso) < 0 ? 'was' : 'is');
-    const least = Math.min(money.downpayment - money.paid, money.balance);
-    const due = !money.downpaymentPaid && reservation.downpaymentDue
-      ? `${money.paid > 0 ? `The rest of your downpayment, at least ${pesoText(least)},` : `A downpayment of at least ${pesoText(least)}`} ${tense(reservation.downpaymentDue)} due on ${formatDate(reservation.downpaymentDue)}.${least < money.balance ? ` You can pay more, up to the full balance of ${pesoText(money.balance)}.` : ''}`
-      : `The remaining balance of ${pesoText(money.balance)} ${tense(reservation.date)} due on the event day, ${formatDate(reservation.date)}. You can pay it in parts before then.`;
+    const due = reminderDue(reservation, money);
     await postAdminMessage(conn, reservation, `A friendly reminder for ${reservation.eventName}: ${due}`, null, admin.name);
     await reservationsRepo.insertActivity(conn, ref, { at: now(), actor: admin.name, text: 'Sent a payment reminder.' });
-    return { ok: true };
+    const recent = await emailedRecently(conn, { purpose: 'payment_reminder', ref: reservation.ref, withinMs: REMINDER_EMAIL_GAP_MS });
+    const outboxId = recent
+      ? null
+      : await queueCustomerEmail(conn, { customerId: reservation.customerId, ref: reservation.ref, purpose: 'payment_reminder', data: { reservation, dueText: due } });
+    return { ok: true, emailed: Boolean(outboxId) };
   });
 }
 
@@ -582,12 +636,13 @@ async function noteEvent(conn, event) {
 /**
  * Record a GCash QR that PayMongo says was paid (`intent` from getIntent: succeeded, with its payment):
  * a verified payment (method 'qrph', PayMongo's pay_… as the reference, no proof, the next receipt
- * number), the status moved like any verified payment, the receipt in the customer's chat, and the QR
- * marked paid. Money received can't be refused: on a cancelled booking, or above the balance (e.g. a
- * lower quotation meanwhile), it is still recorded, with an audit entry asking for a refund; it then
- * shows under "Refunds to Send". Safe to run twice (the webhook, a retry, and the page's own check can
- * meet): the QR's row is locked and a paid QR is left alone. `event` is the webhook event, noted in the
- * same transaction. Returns true when this call recorded it.
+ * number), the status moved like any verified payment, the receipt in the customer's chat and the
+ * 'payment_received' email (applyVerifiedPayment), and the QR marked paid. Money received can't be
+ * refused: on a cancelled booking, or above the balance (e.g. a lower quotation meanwhile), it is still
+ * recorded, with an audit entry asking for a refund; it then shows under "Refunds to Send". Safe to run
+ * twice (the webhook, a retry, and the page's own check can meet): the QR's row is locked and a paid QR
+ * is left alone, before applyVerifiedPayment, so the chat message and the email go only once. `event`
+ * is the webhook event, noted in the same transaction. Returns true when this call recorded it.
  */
 async function settleQr(qr, intent, event = null) {
   if (intent.amount !== qr.amount * 100) {
@@ -643,6 +698,10 @@ async function settleQr(qr, intent, event = null) {
  * Close a waiting QR as 'expired' (past its time and the grace and PayMongo says unpaid, or PayMongo's
  * qr.expired event) or 'failed' (PayMongo reported the payment failed), with an audit entry. `event` is the webhook event when there is one.
  * A QR that is no longer pending is left alone. Returns true when this call changed it.
+ * A 'failed' close this call made also queues the 'qr_payment_failed' email (Phase 13A) with the booking
+ * and the amount, never PayMongo's reason (that stays in the audit entry and the admin's QR list). Only
+ * the call that closes the QR sends it, so a resent payment.failed event (which finds it closed) sends
+ * nothing. The customer is told by email only: closeQr posts no chat message. An expired QR sends no email.
  */
 async function closeQr(qr, status, { reason = '', event = null } = {}) {
   let closed = false;
@@ -659,6 +718,17 @@ async function closeQr(qr, status, { reason = '', event = null } = {}) {
         ? `The QR Ph payment of ${pesoText(qr.amount)} expired without being paid.`
         : `The QR Ph payment of ${pesoText(qr.amount)} did not go through${reason ? `: ${reason}` : '.'}`
     });
+    if (status === 'failed') {
+      const [row] = await reservationsRepo.findReservations(conn, { ref: qr.ref });
+      if (row) {
+        await queueCustomerEmail(conn, {
+          customerId: row.reservation.customerId,
+          ref: row.reservation.ref,
+          purpose: 'qr_payment_failed',
+          data: { reservation: row.reservation, amount: qr.amount }
+        });
+      }
+    }
     closed = true;
   });
   if (closed) await bumpStamp().catch((err) => console.error('[payments] change stamp:', err.message));
@@ -825,6 +895,7 @@ const EXPIRY_EVENTS = ['qr.expired', 'qrph.expired'];
  *   payment.paid    the QR's intent is read back from PayMongo (the event alone is never trusted) and,
  *                   once it says succeeded for the QR's amount, the payment is recorded (settleQr)
  *   payment.failed  the QR is marked failed with PayMongo's reason, so the customer can open a new one
+ *                   (they are told by email, without the reason: closeQr)
  *   qr.expired      PayMongo ended the QR Ph code unpaid: its time ran out, or "Expire Test Payment" on a
  *                   test QR's page (2026-10-09). The event names the code (qr_…), not the intent, so the
  *                   QR is found by its code id; QRs made before then have none and are ignored, and their

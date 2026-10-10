@@ -18,6 +18,8 @@
     "db:roundtrip": "npm run db:roundtrip -w apps/api",
     "audit:routes": "npm run audit:routes -w apps/api --",
     "test:security": "npm run test:security -w apps/api --",
+    "email:preview": "npm run email:preview -w apps/api",
+    "test:email": "npm run test:email -w apps/api",
     "dev:client": "node scripts/vite-run.mjs dev client",
     "dev:client:phone": "node scripts/vite-run.mjs dev client --host",
     "dev:admin": "node scripts/vite-run.mjs dev admin",
