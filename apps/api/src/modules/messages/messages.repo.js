@@ -6,7 +6,9 @@ import { now } from '../../lib/time.js';
  * SQL for the chat (docs §7.1: the repo holds SQL only; the rules are in messages.service.js). Each
  * customer has one conversation with the admin (threads, UNIQUE customer_id), created on first use.
  * Records come back in the shape the chat pages use: a message is { id, from,
- * senderName, body, ref, at, readByCustomer, readByAdmin, attachment }.
+ * senderName, body, ref, at, readByCustomer, readByAdmin, attachment, typed, editedAt, deletedAt, history }
+ * (the last four since 2026-10-10: a typed message can be edited or deleted, and every earlier text is kept;
+ * messages.service.js decides what each side is sent).
  *
  * The messages of a thread are in time order (at, then id): the table keeps no other order. Automatic
  * messages written by other modules (the thank-you after a booking, a change request, a refund notice,
@@ -36,7 +38,11 @@ const toMessage = (row) => ({
   at: row.at,
   readByCustomer: Boolean(row.read_by_customer),
   readByAdmin: Boolean(row.read_by_admin),
-  attachment: parseJson(row.attachment)
+  attachment: parseJson(row.attachment),
+  typed: Boolean(row.typed),
+  editedAt: row.edited_at ?? null,
+  deletedAt: row.deleted_at ?? null,
+  history: parseJson(row.history) || []
 });
 
 /* ============================ Reads ============================ */
@@ -137,7 +143,7 @@ export async function customerThreadId(conn, customerId) {
  * Add a message to the customer's conversation, tagged with the reservation it is about (`ref`, or
  * null). It starts read for the side that wrote it and unread for the other. Returns { threadId, message }.
  */
-export async function postMessage(conn, { customerId, ref = null, from, senderName, body, attachment = null }) {
+export async function postMessage(conn, { customerId, ref = null, from, senderName, body, attachment = null, typed = false }) {
   const threadId = await customerThreadId(conn, customerId);
   const message = {
     id: newId('m'),
@@ -148,18 +154,42 @@ export async function postMessage(conn, { customerId, ref = null, from, senderNa
     at: now(),
     readByCustomer: from === 'customer',
     readByAdmin: from === 'admin',
-    attachment
+    attachment,
+    typed,
+    editedAt: null,
+    deletedAt: null,
+    history: []
   };
   await conn.query(
-    `INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [message.id, threadId, from, senderName, body, ref, message.at, message.readByCustomer, message.readByAdmin, toJson(attachment)]
+    `INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment, typed)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [message.id, threadId, from, senderName, body, ref, message.at, message.readByCustomer, message.readByAdmin, toJson(attachment), typed]
   );
   return { threadId, message };
 }
 
 /**
- * A message from the Tres Marias team in the customer's chat, e.g. the thank-you after a booking.
+ * One message of a thread, its row locked until the transaction ends (an edit or a delete), or null. The
+ * lookup ignores case (the column's collation), so the caller compares the id.
+ */
+export async function lockMessage(conn, threadId, messageId) {
+  const row = first(await conn.query('SELECT * FROM messages WHERE id = ? AND thread_id = ? FOR UPDATE', [messageId, threadId]));
+  return row && toMessage(row);
+}
+
+/** Save an edited message: its new text, the earlier texts (`history`, oldest first) and when it was edited. */
+export async function editMessageBody(conn, messageId, { body, history, editedAt }) {
+  await conn.query('UPDATE messages SET body = ?, history = ?, edited_at = ? WHERE id = ?', [body, toJson(history), editedAt, messageId]);
+}
+
+/** Mark a message deleted at `deletedAt`. Its text stays in `body`, as a record only the admin can read. */
+export async function markMessageDeleted(conn, messageId, deletedAt) {
+  await conn.query('UPDATE messages SET deleted_at = ? WHERE id = ?', [deletedAt, messageId]);
+}
+
+/**
+ * A message from the Tres Marias team in the customer's chat, e.g. the thank-you after a booking. Automatic
+ * (not `typed`), so it can never be edited or deleted.
  * `reservation` needs { ref, customerId }; `attachment` is null or { name, kind, ref }; `senderName`
  * is the signed-in admin's name (req.user.name) or 'Tres Marias team' for automatic messages.
  */

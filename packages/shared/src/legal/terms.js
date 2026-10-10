@@ -17,11 +17,14 @@ import { cancelWindowText } from '../domain/cancellation.js';
  * is written for a small catering business under Philippine law, but it is not legal advice.
  */
 
-/** The version customers agree to (a date, "YYYY-MM-DD"); stored on accounts and bookings. */
-export const TERMS_VERSION = '2026-10-09';
+/**
+ * The version customers agree to (a date, "YYYY-MM-DD"); stored on accounts and bookings. 2026-10-10: editing
+ * and deleting chat messages (and the earlier text we keep), and the stronger password rule.
+ */
+export const TERMS_VERSION = '2026-10-10';
 
 /** The same date in words, for "Last updated" at the top of both pages. */
-export const TERMS_UPDATED = '9 October 2026';
+export const TERMS_UPDATED = '10 October 2026';
 
 // "₱3,000"
 const pesos = (amount) => `₱${Number(amount).toLocaleString('en-PH')}`;
@@ -50,7 +53,7 @@ export function termsOfService({ minDownpayment } = {}) {
     section('account', 'Your Account', [], [
       'You must be at least 18 years old, or have a parent or guardian make the booking for you.',
       'Give your real name, a working email address and mobile number, and keep them up to date. We send sign-up and password codes and booking updates to them.',
-      'Keep your password to yourself. You are responsible for what is done with your account. If you think someone else has used it, change your password and tell us right away.',
+      'Choose a password of at least 8 characters with a lowercase and an uppercase letter, a number and a special character (such as ! or -), and keep it to yourself. You are responsible for what is done with your account. If you think someone else has used it, change your password and tell us right away.',
       'We may suspend or close an account that gives false details, sends fake payment proof, abuses our team in the chat, or tries to break or misuse the website.'
     ]),
     section('reservations', 'Reservations', [], [
@@ -59,6 +62,12 @@ export function termsOfService({ minDownpayment } = {}) {
       'Until you accept the quotation, your date is not held, so another booking may take it; if that happens, we help you find another date or time. Your date is held for you once you accept the quotation. It is secured once your downpayment is verified; the booking is then confirmed and your contract is final.',
       'A date can be closed by us (for example, a private event). The calendar shows the reason when you tap the date.',
       'To change the date, time, guest count or anything else, use "Request a change" on your reservation or message us. Changes depend on what is still available and may change the price.'
+    ]),
+    section('messages', 'Messages With Our Team', [], [
+      'Use the chat in your account to talk to us about your bookings. Be respectful; the chat is a record of what we discuss.',
+      `You can edit or delete a message you typed within ${RULES.messageEditMinutes} minutes of sending it. An edited message is marked "Edited", and a deleted one shows as "This message was deleted" to both you and us. Our team can do the same with the messages they type.`,
+      'Messages our system sends, such as quotations, receipts, contracts and notices about your booking, cannot be edited or deleted.',
+      'We keep the earlier text of an edited or deleted message as a record of the conversation. Only our team can see it, and we may refer to it if there is a disagreement about your booking. Our Privacy Policy explains how it is kept.'
     ]),
     section('prices', 'Prices and Quotations', [], [
       'A package has a fixed price. A buffet adds a price per person, multiplied by your guest count; the price per person is the one in force when you send your request, so a later price change never affects your booking.',
@@ -124,7 +133,7 @@ export function privacyPolicy() {
       'Account details: your name, email address, mobile number and, if you give it, your company. Your password is stored only in a scrambled form (a hash) that no one, including us, can read.',
       'Event details: the event name and occasion, date and time, guest count, venue address and access notes, your menu choices and food notes (including allergies you tell us about).',
       'Payment details: amounts, payment methods, bank reference numbers and the receipt photos you upload, and the receipts we issue. QR Ph payments are processed by PayMongo; we never see your GCash, Maya or bank login or card details.',
-      'Messages and reviews: what you write in the chat with our team, change requests, and the reviews you send us.',
+      'Messages and reviews: what you write in the chat with our team (including the earlier text of a message you edit or delete), change requests, and the reviews you send us.',
       'Security records: when you sign in, failed sign-in attempts, and the kind of device and browser used (for example, "Chrome on Windows"), to protect your account.',
       'Browser storage: your browser keeps your sign-in so you stay signed in. We do not use advertising or tracking cookies.'
     ]),
@@ -133,6 +142,7 @@ export function privacyPolicy() {
       'To record payments, issue receipts and keep the records that tax and business laws require.',
       'To send you sign-up and password codes and updates about your bookings by email, and event-day texts to your mobile number.',
       'To keep accounts and payments safe: stopping repeated wrong passwords, fake receipts and other misuse (our legitimate interest).',
+      'To keep a true record of what was said in the chat: when you or our team edit or delete a typed message, we keep its earlier text, which only our team can see, in case there is a disagreement about a booking (our legitimate interest).',
       'To show your review on our website, only if you sent one and our team chose to publish it.'
     ]),
     section('share', 'Who We Share It With', [
@@ -149,11 +159,11 @@ export function privacyPolicy() {
       'Your account, for as long as you keep it. You may ask us to close it.',
       'Bookings, payments, receipts and refunds, for as long as tax and accounting laws require, after which they are deleted or made anonymous.',
       `Sign-up, password and other codes stop working after ${RULES.codeValidMinutes} minutes.`,
-      'Chat messages, for as long as the bookings they belong to are kept.'
+      'Chat messages, including the earlier text of edited or deleted messages, for as long as the bookings they belong to are kept.'
     ]),
     section('protect', 'How We Protect It', [], [
       'The website uses an encrypted connection (HTTPS).',
-      'Passwords and one-time codes are stored only as hashes. Admin sign-in needs a password and a code sent by email.',
+      'Passwords and one-time codes are stored only as hashes. Every password needs at least 8 characters with a lowercase and an uppercase letter, a number and a special character. Admin sign-in needs a password and a code sent by email.',
       'Only our authorised staff can see your bookings and payments, and every change they make to a booking is recorded.',
       'Receipt photos can be seen only by you and our team.',
       'If a breach puts your information at risk, we will tell the National Privacy Commission and you within 72 hours of knowing about it, as the NPC requires.'

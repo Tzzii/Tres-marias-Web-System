@@ -24,8 +24,10 @@ import {
   FormField,
   INVENTORY_CATEGORIES,
   ListSkeleton,
-  MENU_LINE_MAX,
+  MenuPicker,
   OCCASIONS,
+  OCCASION_OTHER,
+  OCCASION_OTHER_RANGE,
   PageHeader,
   RENTAL,
   RENTAL_SERVICE,
@@ -36,6 +38,7 @@ import {
   StylingSummary,
   TimeField,
   addonPriceMap,
+  bookingOccasion,
   calendarApi,
   catalogApi,
   cleanStyling,
@@ -84,7 +87,7 @@ const SECTIONS = [
 ];
 
 // Which section each field lives in (used to scroll to the first error)
-const FIELD_SECTION = { eventName: 'details', occasion: 'details', date: 'details', startTime: 'details', endTime: 'details', agreeTerms: 'review', guests: 'details', serviceType: 'service', packageId: 'package', rentalItems: 'items', foodNotes: 'food', fulfilment: 'venue', venueName: 'venue', venueAddress: 'venue', city: 'venue' };
+const FIELD_SECTION = { eventName: 'details', occasion: 'details', occasionOther: 'details', date: 'details', startTime: 'details', endTime: 'details', agreeTerms: 'review', guests: 'details', serviceType: 'service', packageId: 'package', rentalItems: 'items', foodNotes: 'food', fulfilment: 'venue', venueName: 'venue', venueAddress: 'venue', city: 'venue' };
 
 /**
  * The section an error belongs to. Menu dishes, add-on quantities and rented items have one field per id,
@@ -114,8 +117,9 @@ const lowestPackagePrice = (addon) => {
 // `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental, and
 // `endTime` only by an event (2 to 6 hours after the start; blank until the customer picks it).
 // `styling` is an event's theme, colour motif and design details (section 4, optional; domain/styling.js).
+// `occasionOther` is the "Your occasion" box shown for the occasion "Other" (saved as the occasion itself).
 const EMPTY_STYLING = { theme: '', themeOther: '', colors: [], notes: '' };
-const EMPTY = { eventName: '', occasion: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', styling: EMPTY_STYLING, venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
+const EMPTY = { eventName: '', occasion: '', occasionOther: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', styling: EMPTY_STYLING, venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
 
 // A draft's styling in the form's shape: a draft saved before the section existed, or one changed by hand
 // in the browser, still loads (only known themes, real colour codes and text are kept, by cleanStyling)
@@ -152,6 +156,9 @@ const AVAILABILITY = {
  * many of each rentable item they need, sees each item's availability on their date, and chooses
  * pick up (free) or delivery (standard fee). Every price is known, so its total is exact.
  *
+ * The occasion "Other" opens a "Your occasion" box (2 to 40 characters); the booking saves those words as
+ * its occasion ("Baby Shower"), so every page shows the real one (bookingOccasion in the shared config).
+ *
  * An event has a start and an end time (2 to 6 hours, maybe past midnight); a rental only the time the
  * items are picked up or delivered. Before sending, the customer ticks "I agree to the Terms of Service",
  * which is not kept in the draft: it is asked again for every request.
@@ -179,6 +186,8 @@ export default function BookEventPage() {
   const chipBar = useRef(null); // phone / tablet row of section chips
   const touched = useRef(false); // true once the customer changes something (don't autosave before that)
   const initialised = useRef(false); // true once the form has been pre-filled
+  const occasionBox = useRef(null); // the "Your occasion" box of "Other"
+  const justPickedOther = useRef(false); // focus that box only when "Other" was just chosen, never on load
 
   // Start from the saved draft and/or what was picked while browsing (package, date, start time,
   // guests, occasion). Picks made after the draft was saved (e.g. "Reserve this date" on another
@@ -202,7 +211,8 @@ export default function BookEventPage() {
     const serviceFor = pkg && isRentalPackage(pkg) ? { serviceType: RENTAL_SERVICE } : pkg && isRental(base.serviceType) ? { serviceType: EMPTY.serviceType } : {};
     setForm({
       ...base,
-      ...(picks.occasion ? { occasion: picks.occasion } : {}),
+      // An occasion picked while browsing replaces the draft's; the draft's own words stay only with "Other"
+      ...(picks.occasion ? { occasion: picks.occasion, ...(picks.occasion === OCCASION_OTHER ? {} : { occasionOther: '' }) } : {}),
       ...(picks.startTime ? { startTime: picks.startTime } : {}),
       ...(picks.endTime ? { endTime: picks.endTime } : {}),
       ...(picks.guests ? { guests: String(picks.guests) } : {}),
@@ -211,6 +221,12 @@ export default function BookEventPage() {
     });
     if (hasDraft) setSavedAt(draft.savedAt);
   }, [catalog.data, user.id, params]);
+
+  // Put the cursor in "Your occasion" right after "Other" is chosen
+  useEffect(() => {
+    if (form.occasion === OCCASION_OTHER && justPickedOther.current && occasionBox.current) occasionBox.current.focus();
+    justPickedOther.current = false;
+  }, [form.occasion]);
 
   // Autosave the draft shortly after each change
   useEffect(() => {
@@ -261,8 +277,6 @@ export default function BookEventPage() {
   const rental = isRental(form.serviceType);
   // True when the booking includes our food, and so a menu and a per-person charge
   const buffet = includesFood(form.serviceType);
-  // The dishes still offered in one menu category
-  const dishesIn = (category) => (data ? data.dishes.filter((d) => d.category === category) : []);
   // Every additional charge, size and package by id. A charge with sizes stays ticked in addonIds while the
   // customer fills in its sizes, but only the sizes given a count are booked, never the charge itself; a
   // charge with packages likewise books only the package picked.
@@ -351,6 +365,12 @@ export default function BookEventPage() {
     });
   };
 
+  // Choose the occasion. Leaving "Other" empties its box; choosing it puts the cursor there (see the effect above).
+  const pickOccasion = (value) => {
+    justPickedOther.current = value === OCCASION_OTHER;
+    update({ occasion: value, ...(value === OCCASION_OTHER ? {} : { occasionOther: '' }) });
+  };
+
   // Change the theme, the colours or the design details (section 4), and clear those parts' messages;
   // a new theme also clears the message under the "Other" box
   const updateStyling = (patch) => {
@@ -437,8 +457,8 @@ export default function BookEventPage() {
     });
   };
 
-  // Write the menu line for one category. It is the customer's own words, so it may name
-  // more than one dish, e.g. "Lechon kawali and pork barbecue".
+  // Write the menu line for one category: a dish picked from the list, or under "Others" the customer's
+  // own words, which may name more than one dish, e.g. "Lechon kawali and pork barbecue" (MenuPicker).
   const setDish = (category, text) => {
     update({ menu: { ...form.menu, [category]: text } });
     setErrors((e) => {
@@ -458,7 +478,9 @@ export default function BookEventPage() {
   const validate = () => {
     const e = {};
     if (form.eventName.trim().length < 3) e.eventName = 'Give your event a name (at least 3 characters).';
-    if (!form.occasion) e.occasion = 'Choose the occasion.';
+    // An occasion from the list, or for "Other" the customer's own words (the server checks the same)
+    const occasionCheck = bookingOccasion(form.occasion, form.occasionOther).problem;
+    if (occasionCheck) e[occasionCheck.field] = occasionCheck.message;
     if (!agreed) e.agreeTerms = 'Please read and agree to the Terms of Service before sending your request.';
     if (rental) return { ...e, ...validateRental() };
     if (!form.date) e.date = 'Choose your event date.';
@@ -489,10 +511,10 @@ export default function BookEventPage() {
     // The theme and colours are optional; only "Other" with nothing typed, or text that is too long, is wrong
     const stylingCheck = stylingProblem(styling);
     if (stylingCheck) e[stylingCheck.field] = stylingCheck.message;
-    // A buffet needs something written on every line; catering only has no menu at all
+    // A buffet needs a dish picked, or something written under "Others", for every part; catering only has no menu at all
     if (buffet) {
       DISH_CATEGORIES.forEach(({ key, label }) => {
-        if ((form.menu[key] || '').trim().length < 2) e[`menu.${key}`] = `Tell us what you would like for your ${label.toLowerCase()}.`;
+        if ((form.menu[key] || '').trim().length < 2) e[`menu.${key}`] = `Pick your ${label.toLowerCase()}, or choose Others and write what you would like.`;
       });
     }
     // A ticked charge with sizes needs a count for at least one size, and one with packages a package
@@ -625,7 +647,7 @@ export default function BookEventPage() {
   // Additional charges and the theme and colours are optional, so those sections are ticked only once
   // something is chosen (and, for the theme, nothing in it is wrong).
   const sectionDone = {
-    details: form.eventName && form.occasion && form.date && form.startTime && (rental || (form.endTime && form.guests)),
+    details: form.eventName && !bookingOccasion(form.occasion, form.occasionOther).problem && form.date && form.startTime && (rental || (form.endTime && form.guests)),
     service: Boolean(form.serviceType),
     package: Boolean(pkg),
     styling: !stylingEmpty(styling) && !stylingProblem(styling),
@@ -702,7 +724,22 @@ export default function BookEventPage() {
             <Section id="details" index={sectionNo('details')} title="Event Details" subtitle={rental ? 'Tell us what the items are for and when you need them' : 'Tell us about the celebration'}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <FormField id="f-eventName" label="Event name" required value={form.eventName} onChange={(e) => update({ eventName: e.target.value })} error={errors.eventName} placeholder="e.g. Santos–Reyes Wedding Reception" sx={{ gridColumn: { sm: '1 / -1' } }} inputProps={{ maxLength: 80 }} />
-                <SelectField id="f-occasion" label="Occasion" required value={form.occasion} onChange={(e) => update({ occasion: e.target.value })} options={OCCASIONS} placeholder="Select an occasion" error={errors.occasion} sx={{ gridColumn: { sm: '1 / -1' } }} />
+                <SelectField id="f-occasion" label="Occasion" required value={form.occasion} onChange={(e) => pickOccasion(e.target.value)} options={OCCASIONS} placeholder="Select an occasion" error={errors.occasion} sx={{ gridColumn: { sm: '1 / -1' } }} />
+                {/* "Other": the customer names the occasion, and the booking saves their words as its occasion */}
+                {form.occasion === OCCASION_OTHER && (
+                  <FormField
+                    ref={occasionBox}
+                    id="f-occasionOther"
+                    label="Your occasion"
+                    required
+                    value={form.occasionOther}
+                    onChange={(e) => update({ occasionOther: e.target.value })}
+                    error={errors.occasionOther}
+                    placeholder="e.g. Baby Shower, Despedida, Housewarming"
+                    inputProps={{ maxLength: OCCASION_OTHER_RANGE.max }}
+                    sx={{ gridColumn: { sm: '1 / -1' } }}
+                  />
+                )}
                 {/* Calendar always open across the full row; tapping a date picks it and lists the times already booked */}
                 <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
                   {/* A rental takes no event slot, so only too-soon and blocked days are greyed out */}
@@ -891,37 +928,11 @@ export default function BookEventPage() {
 
             {/* Only for a buffet: one dish from each category, and unlimited water and juice for everyone */}
             {buffet && (
-              <Section id="food" index={sectionNo('food')} title="Your Menu" subtitle={`Write what you would like for each part of the menu. ${peso(data.pricePerPlate)} per person covers all of it.`}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                  {DISH_CATEGORIES.map(({ key, label }) => {
-                    // The admin's dish list is offered as autocomplete, but anything can be typed,
-                    // so a customer who wants two pork dishes just writes both on the pork line.
-                    const suggestions = dishesIn(key);
-                    return (
-                      <Box key={key} sx={{ minWidth: 0 }}>
-                        <FormField
-                          id={`f-dish-${key}`}
-                          label={label}
-                          required
-                          value={form.menu[key] || ''}
-                          onChange={(e) => setDish(key, e.target.value)}
-                          error={errors[`menu.${key}`]}
-                          placeholder={suggestions.length ? `e.g. ${suggestions[0].name}` : `Your ${label.toLowerCase()}`}
-                          hint={suggestions.length ? `We often cook: ${suggestions.slice(0, 4).map((d) => d.name).join(', ')}` : undefined}
-                          inputProps={{ maxLength: MENU_LINE_MAX, list: `dishes-${key}`, autoComplete: 'off' }}
-                        />
-                        {/* Native autocomplete: suggests, never restricts */}
-                        <Box component="datalist" id={`dishes-${key}`}>
-                          {suggestions.map((d) => (
-                            <option key={d.id} value={d.name} />
-                          ))}
-                        </Box>
-                      </Box>
-                    );
-                  })}
-                </Box>
+              <Section id="food" index={sectionNo('food')} title="Your Menu" subtitle={`Pick a dish for each part of the menu, or choose Others to write your own. ${peso(data.pricePerPlate)} per person covers all of it.`}>
+                {/* The admin's dishes as radio buttons, with "Others" and a text box for anything else */}
+                <MenuPicker idPrefix="f-dish" menu={form.menu} dishes={data.dishes} onChange={setDish} errors={errors} required />
                 <AlertBanner tone="info" sx={{ mt: 2 }}>
-                  Write it however you like. You can ask for more than one dish on a line, for example "Lechon kawali and pork barbecue" for your pork.
+                  Want something not on the list, or two dishes for one part? Choose Others and write it, for example "Lechon kawali and pork barbecue" for your pork.
                 </AlertBanner>
                 {/* Fixed for every buffet, so it is shown rather than asked */}
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
@@ -1139,14 +1150,7 @@ export default function BookEventPage() {
                 />
                 {errors.agreeTerms && <Typography role="alert" sx={{ mt: 0.5, fontSize: 12.5, fontWeight: 600, color: tokens.redPress }}>{errors.agreeTerms}</Typography>}
               </Box>
-              <Box sx={{ mt: 2.5, display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>
-                <BusyButton size="large" busy={busy} onClick={submit}>
-                  Submit reservation request
-                </BusyButton>
-                <Button size="large" variant="outlined" onClick={saveAndExit} disabled={busy}>
-                  Save as draft
-                </Button>
-              </Box>
+              {/* Submit and Save as draft sit with the total: the summary card on wide screens, the price bar below on phones and tablets */}
             </Section>
           </Box>
 
@@ -1203,25 +1207,35 @@ export default function BookEventPage() {
                       ? 'Enter your guest count to see the buffet price'
                       : `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
               </Typography>
+              {/* The form's two buttons, next to the price (2026-10-10; before, they were also under Review and Submit) */}
               <BusyButton fullWidth size="large" busy={busy} onClick={submit} sx={{ mt: 2 }}>
                 Submit request
               </BusyButton>
+              <Button fullWidth size="large" variant="outlined" onClick={saveAndExit} disabled={busy} sx={{ mt: 1 }}>
+                Save as draft
+              </Button>
             </DashCard>
           </Box>
         </Box>
       )}
 
       {/* Phone / tablet sticky price bar (1o), sitting right on top of the phone tab bar
-          (--tm-bottom-nav is its height, set by PortalShell; 0px where there is no tab bar) */}
+          (--tm-bottom-nav is its height, set by PortalShell; 0px where there is no tab bar), with the
+          form's two buttons: Save draft and Submit request */}
       {data && (
-        <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--tm-bottom-nav, 0px)', zIndex: 1090, display: { xs: 'flex', lg: 'none' }, alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 2, py: 1.25, backgroundColor: '#fff', borderTop: `1px solid ${tokens.cardLightBorder}`, boxShadow: '0 -10px 30px -12px rgba(0,0,0,0.4)' }}>
-          <Box>
-            <Typography sx={{ fontSize: 11, color: tokens.textMuted }}>{rental ? 'Rental total' : buffet && quote.plates ? `Package + buffet for ${quote.plates}` : 'Starting total'}</Typography>
+        <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--tm-bottom-nav, 0px)', zIndex: 1090, display: { xs: 'flex', lg: 'none' }, alignItems: 'center', justifyContent: 'space-between', gap: { xs: 1, sm: 2 }, px: 2, py: 1.25, backgroundColor: '#fff', borderTop: `1px solid ${tokens.cardLightBorder}`, boxShadow: '0 -10px 30px -12px rgba(0,0,0,0.4)' }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography noWrap sx={{ fontSize: 11, color: tokens.textMuted }}>{rental ? 'Rental total' : buffet && quote.plates ? `Package + buffet for ${quote.plates}` : 'Starting total'}</Typography>
             <Typography sx={{ fontSize: 19, fontWeight: 800, color: tokens.textPrimary, lineHeight: 1.1 }}>{rental ? (rentalChosen.length ? peso(knownTotal) : 'Pick your items') : pkg ? `${peso(knownTotal)}${plusQuoted}` : 'Pick a package'}</Typography>
           </Box>
-          <BusyButton busy={busy} onClick={submit} sx={{ px: 3, bgcolor: tokens.ink, color: tokens.onInk, '&:hover': { bgcolor: tokens.inkHover } }}>
-            Submit request
-          </BusyButton>
+          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+            <Button variant="outlined" onClick={saveAndExit} disabled={busy} sx={{ px: { xs: 1.5, sm: 2.5 }, whiteSpace: 'nowrap' }}>
+              Save draft
+            </Button>
+            <BusyButton busy={busy} onClick={submit} sx={{ px: { xs: 2, sm: 3 }, whiteSpace: 'nowrap', bgcolor: tokens.ink, color: tokens.onInk, '&:hover': { bgcolor: tokens.inkHover } }}>
+              Submit request
+            </BusyButton>
+          </Box>
         </Box>
       )}
     </>

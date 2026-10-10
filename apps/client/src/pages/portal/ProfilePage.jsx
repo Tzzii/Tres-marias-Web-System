@@ -13,6 +13,7 @@ import {
   FormField,
   MobileField,
   PageHeader,
+  PasswordChecklist,
   PasswordField,
   authApi,
   collectErrors,
@@ -146,7 +147,7 @@ export default function ProfilePage() {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <DashCard component="form" noValidate onSubmit={savePassword}>
-            <CardTitle subtitle="8 characters or more, with a number">Change Password</CardTitle>
+            <CardTitle subtitle="8 characters or more, with a lowercase and an uppercase letter, a number and a special character">Change Password</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box>
                 <PasswordField id="pw-current" label="Current password" autoComplete="current-password" value={pw.current} onChange={(e) => { setPw((p) => ({ ...p, current: e.target.value })); setPwErrors({}); }} error={pwErrors.current} />
@@ -154,7 +155,11 @@ export default function ProfilePage() {
                   Forgot your current password?
                 </Link>
               </Box>
-              <PasswordField id="pw-next" label="New password" autoComplete="new-password" value={pw.next} onChange={(e) => { setPw((p) => ({ ...p, next: e.target.value })); setPwErrors({}); }} error={pwErrors.next} />
+              <Box>
+                <PasswordField id="pw-next" label="New password" autoComplete="new-password" value={pw.next} onChange={(e) => { setPw((p) => ({ ...p, next: e.target.value })); setPwErrors({}); }} error={pwErrors.next} />
+                {/* What the new password still needs, ticked live */}
+                <PasswordChecklist value={pw.next} />
+              </Box>
               <PasswordField id="pw-confirm" label="Confirm new password" autoComplete="new-password" value={pw.confirm} onChange={(e) => { setPw((p) => ({ ...p, confirm: e.target.value })); setPwErrors({}); }} error={pwErrors.confirm} />
               <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>We email you a code to confirm the change before the new password is saved.</Typography>
               <Box>

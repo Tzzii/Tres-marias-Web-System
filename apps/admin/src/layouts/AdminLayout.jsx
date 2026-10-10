@@ -12,7 +12,7 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
-import { PortalShell, authApi, feedbackApi, formatDate, messageApi, outsourceApi, paymentApi, pendingStep, peso, reservationApi, useResource } from '@tm/shared';
+import { PortalShell, authApi, feedbackApi, formatDate, messageApi, messagePreview, outsourceApi, paymentApi, pendingStep, peso, reservationApi, useResource } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
 /**
@@ -111,7 +111,7 @@ export default function AdminLayout() {
     let unreadCount = 0;
     data.threads.forEach((t) => {
       unreadCount += t.unread;
-      if (t.unread && t.lastMessage) list.push({ id: `msg:${t.lastMessage.id}`, title: `Message from ${t.customerName}`, body: t.lastMessage.body, at: t.lastMessage.at, to: `/messages?thread=${encodeURIComponent(t.id)}` });
+      if (t.unread && t.lastMessage) list.push({ id: `msg:${t.lastMessage.id}`, title: `Message from ${t.customerName}`, body: messagePreview(t.lastMessage), at: t.lastMessage.at, to: `/messages?thread=${encodeURIComponent(t.id)}` });
     });
     // Newest first, and keep only the latest 25
     list.sort((a, b) => b.at - a.at);

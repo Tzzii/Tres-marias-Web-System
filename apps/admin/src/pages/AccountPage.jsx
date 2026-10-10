@@ -6,8 +6,6 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
 import {
   AlertBanner,
@@ -22,11 +20,10 @@ import {
   MobileField,
   OtpInput,
   PageHeader,
+  PasswordChecklist,
   PasswordField,
   Pill,
   RULES,
-  adminPasswordChecks,
-  adminPasswordStrength,
   authApi,
   formatClock,
   formatCountdown,
@@ -363,10 +360,6 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
     setFormError('');
   };
 
-  const checks = adminPasswordChecks(values.next);
-  const strength = adminPasswordStrength(values.next);
-  const strengthColor = ['', tokens.red, '#d97706', '#65a30d', tokens.green][strength.score];
-
   // Check all three fields, then ask the service to change the password
   const save = async (e) => {
     e.preventDefault();
@@ -415,25 +408,8 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
         <PasswordField id="pw-current" label="Current password" autoComplete="current-password" autoFocus value={values.current} onChange={set('current')} error={errors.current} disabled={busy} />
         <Box>
           <PasswordField id="pw-next" label="New password" autoComplete="new-password" value={values.next} onChange={set('next')} error={errors.next} disabled={busy} />
-          {/* Strength bar: four segments filled by score */}
-          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }} aria-live="polite">
-            <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.5 }}>
-              {[1, 2, 3, 4].map((i) => (
-                <Box key={i} sx={{ height: 5, borderRadius: 999, backgroundColor: strength.score >= i ? strengthColor : tokens.cardLightBorder, transition: 'background-color 0.2s ease' }} />
-              ))}
-            </Box>
-            <Typography sx={{ width: 48, textAlign: 'right', fontSize: 12, fontWeight: 700, color: strengthColor || tokens.textMuted }}>{strength.label}</Typography>
-          </Box>
-          {/* Live checklist; the symbol is optional */}
-          <Box component="ul" sx={{ m: 0, mt: 1, p: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
-            {checks.map((c) => (
-              <Box component="li" key={c.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: 12, color: c.met ? tokens.green : tokens.textMuted }}>
-                {c.met ? <CheckRoundedIcon sx={{ fontSize: 15 }} /> : <CloseRoundedIcon sx={{ fontSize: 15 }} />}
-                {c.label}
-                {!c.required && ' (optional)'}
-              </Box>
-            ))}
-          </Box>
+          {/* Live strength bar and checklist: every check is required (the same rule as the customers') */}
+          <PasswordChecklist value={values.next} />
         </Box>
         <PasswordField id="pw-confirm" label="Confirm new password" autoComplete="new-password" value={values.confirm} onChange={set('confirm')} error={errors.confirm} disabled={busy} />
       </Box>

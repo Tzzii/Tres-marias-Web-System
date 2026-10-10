@@ -11,6 +11,8 @@
 @customerToken = paste-a-customer-token
 @adminToken = paste-an-admin-token
 @thread = th-0001
+# A message id from the conversation above (GET …/threads/{{thread}}), for editing and deleting (2026-10-10)
+@message = paste-a-message-id
 
 ### ---------------------------------------------------------------- Customer
 
@@ -37,6 +39,20 @@ Authorization: Bearer {{customerToken}}
 Content-Type: application/json
 
 { "body": "Hello po, can we add a cake table?", "ref": null }
+
+### Edit a message the customer typed, within 60 minutes of sending -> the message, with editedAt. The earlier
+### text is kept for the admin (the customer's copy has no history). The admin's or an automatic message: 403
+### FORBIDDEN; deleted, or sent over 60 minutes ago: 409 INVALID_STATE; empty: 400
+PATCH {{api}}/threads/{{thread}}/messages/{{message}}
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "body": "Hello po, can we add two cake tables?" }
+
+### Delete a message the customer typed, within 60 minutes -> the message with deletedAt and body ''. Both sides
+### then see "This message was deleted"; the text stays in the database for the admin's View history
+DELETE {{api}}/threads/{{thread}}/messages/{{message}}
+Authorization: Bearer {{customerToken}}
 
 ### ---------------------------------------------------------------- Admin
 
@@ -69,6 +85,17 @@ Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 { "body": "Yes, we can add one cake table." }
+
+### Edit a reply the admin typed, within 60 minutes -> the message with its history (earlier texts, oldest first)
+PATCH {{api}}/admin/threads/{{thread}}/messages/{{message}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "body": "Yes po, we can add one cake table." }
+
+### Delete a reply the admin typed, within 60 minutes -> the message with deletedAt (the admin still gets its text)
+DELETE {{api}}/admin/threads/{{thread}}/messages/{{message}}
+Authorization: Bearer {{adminToken}}
 
 ### ---------------------------------------------------------------- Change stamp
 

@@ -8,6 +8,7 @@ import {
   AppDialog,
   BusyButton,
   FormField,
+  PasswordChecklist,
   PasswordField,
   RULES,
   authApi,
@@ -151,7 +152,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
       onClick: proceed
     },
     code: { title: 'Enter the Code', description: '', action: 'Verify', onClick: () => verify() },
-    password: { title: 'Create a New Password', description: 'Use 8 characters or more, with at least one number.', action: 'Save password', onClick: save }
+    password: { title: 'Create a New Password', description: 'Use 8 characters or more, with a lowercase and an uppercase letter, a number and a special character.', action: 'Save password', onClick: save }
   };
   const current = STEPS[step];
 
@@ -211,7 +212,11 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
 
         {step === 'password' && (
           <>
-            <PasswordField id="reset-password" label="New password" required autoComplete="new-password" value={values.password} onChange={(e) => { setValues((v) => ({ ...v, password: e.target.value })); setErrors((er) => ({ ...er, password: '' })); }} error={errors.password} disabled={busy} autoFocus />
+            <Box>
+              <PasswordField id="reset-password" label="New password" required autoComplete="new-password" value={values.password} onChange={(e) => { setValues((v) => ({ ...v, password: e.target.value })); setErrors((er) => ({ ...er, password: '' })); }} error={errors.password} disabled={busy} autoFocus />
+              {/* What the new password still needs, ticked live */}
+              <PasswordChecklist value={values.password} />
+            </Box>
             <PasswordField id="reset-confirm" label="Confirm new password" required autoComplete="new-password" value={values.confirm} onChange={(e) => { setValues((v) => ({ ...v, confirm: e.target.value })); setErrors((er) => ({ ...er, confirm: '' })); }} error={errors.confirm} disabled={busy} />
           </>
         )}

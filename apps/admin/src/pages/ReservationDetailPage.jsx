@@ -27,7 +27,7 @@ import {
   FormField,
   ITEM_COUNT_MAX,
   ListSkeleton,
-  MENU_LINE_MAX,
+  MenuPicker,
   PackageItemList,
   PageHeader,
   PaymentStatusChip,
@@ -955,9 +955,10 @@ function CashDialog({ open, onClose, r, onSubmit }) {
 
 /**
  * Dialog for the admin to change what the customer is having (e.g. after agreeing it in chat):
- * the service type, the four menu lines and the note. Each line is free text, the same as on the
- * booking form, so a line can name more than one dish. Switching between Buffet and Catering only
- * changes the total, so the customer is messaged and the quotation is left flagged until re-sent.
+ * the service type, the four menu lines and the note. Each line is picked the same way as on the
+ * booking form (MenuPicker: the dishes as radio buttons, or "Others" with a text box that can name
+ * more than one dish). Switching between Buffet and Catering only changes the total, so the customer
+ * is messaged and the quotation is left flagged until re-sent.
  */
 function MenuDialog({ open, onClose, r, onSubmit }) {
   const start = () => ({ serviceType: r.serviceType, menu: { ...(r.menu || {}) }, foodNotes: r.foodNotes || '' });
@@ -976,15 +977,15 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key) => (e) => { setValues((v) => ({ ...v, [key]: e.target.value })); setError(''); };
-  const setDish = (category) => (e) => { setValues((v) => ({ ...v, menu: { ...v.menu, [category]: e.target.value } })); setError(''); };
+  const setDish = (category, text) => { setValues((v) => ({ ...v, menu: { ...v.menu, [category]: text } })); setError(''); };
 
   const changed = JSON.stringify(values) !== JSON.stringify(start());
-  // A buffet needs something written on every line before it can be saved
+  // A buffet needs a dish (or something under "Others") for every part before it can be saved
   const incomplete = buffet && DISH_CATEGORIES.some(({ key }) => (values.menu[key] || '').trim().length < 2);
 
   // Save; errors from the server stay in the dialog
   const save = async () => {
-    if (incomplete) return setError('Fill in all four lines of the menu.');
+    if (incomplete) return setError('Pick a dish, or write one under Others, for all four parts of the menu.');
     setBusy(true);
     try {
       await onSubmit(buffet ? values : { ...values, menu: {} });
@@ -1001,6 +1002,8 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
       open={open}
       onClose={onClose}
       busy={busy}
+      maxWidth="md"
+      fullScreenOnMobile
       title="Edit Menu"
       description="What we are serving at this event. Re-send the quotation if the total changes."
       actions={
@@ -1015,28 +1018,8 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
       {error && <AlertBanner tone="error" sx={{ mb: 2 }}>{error}</AlertBanner>}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <SelectField id="menu-service" label="Booking" value={values.serviceType} onChange={set('serviceType')} options={SERVICE_TYPES} hint={buffet ? `Charged ${peso(r.pricePerPlate)} per person for ${r.guests} guests` : 'Equipment and setup only, with no per-person charge'} />
-        {/* Only a buffet has a menu. Free text, with the dish list offered as autocomplete. */}
-        {buffet &&
-          DISH_CATEGORIES.map(({ key, label }) => {
-            const suggestions = dishes.filter((d) => d.category === key);
-            return (
-              <Box key={key}>
-                <FormField
-                  id={`menu-${key}`}
-                  label={label}
-                  value={values.menu[key] || ''}
-                  onChange={setDish(key)}
-                  placeholder={suggestions.length ? `e.g. ${suggestions[0].name}` : `The ${label.toLowerCase()}`}
-                  inputProps={{ maxLength: MENU_LINE_MAX, list: `menu-dishes-${key}`, autoComplete: 'off' }}
-                />
-                <Box component="datalist" id={`menu-dishes-${key}`}>
-                  {suggestions.map((d) => (
-                    <option key={d.id} value={d.name} />
-                  ))}
-                </Box>
-              </Box>
-            );
-          })}
+        {/* Only a buffet has a menu: the dishes on offer as radio buttons, or "Others" with a text box */}
+        {buffet && <MenuPicker idPrefix="menu" menu={values.menu} dishes={dishes} onChange={setDish} />}
         <FormField id="menu-notes" label="Note about the food" multiline minRows={3} value={values.foodNotes} onChange={set('foodNotes')} inputProps={{ maxLength: 500 }} hint="Allergies, a vegetarian portion, serving time. Does not change the price." />
       </Box>
     </AppDialog>

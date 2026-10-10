@@ -25,8 +25,9 @@ const segment = (ref) => encodeURIComponent(String(ref || ''));
 
 // The fields the booking form sends (the page also keeps drafts and typed quantities in its form state);
 // endTime is an event's (2 to 6 hours after the start), agreeTerms the "I agree to the Terms of Service" tick,
-// styling an event's theme, colour motif and design details ({ theme, themeOther, colors, notes }, domain/styling.js)
-const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'date', 'startTime', 'endTime', 'agreeTerms', 'guests', 'menu', 'foodNotes', 'styling', 'addonIds', 'addonQty', 'venueName', 'venueAddress', 'city', 'accessNotes', 'fulfilment', 'rentalItems'];
+// styling an event's theme, colour motif and design details ({ theme, themeOther, colors, notes }, domain/styling.js),
+// occasionOther the customer's own occasion when they picked "Other" (saved as the occasion: bookingOccasion in config.js)
+const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'occasionOther', 'date', 'startTime', 'endTime', 'agreeTerms', 'guests', 'menu', 'foodNotes', 'styling', 'addonIds', 'addonQty', 'venueName', 'venueAddress', 'city', 'accessNotes', 'fulfilment', 'rentalItems'];
 
 // Reload the availability map after a write that can change it (no change event of its own). The
 // write is saved either way, so a failed reload is not an error: the map catches up on its next load.
