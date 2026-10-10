@@ -4,9 +4,14 @@ import { now } from '../../lib/time.js';
 
 let transport = null; // made on the first send, so importing this file needs no SMTP settings and opens nothing
 
+// How long to wait for the SMTP server to connect, greet and answer (ms), so a stuck server makes a send fail
+// fast instead of hanging: one-time codes then show "try again", and customer emails are marked failed
+const SMTP_TIMEOUT_MS = 15000;
+
 /**
  * The nodemailer transport for config.mail.smtp (Gmail with an App Password, Mailtrap, or any SMTP server),
- * created once and reused. Port 465 speaks TLS from the start; 587 upgrades with STARTTLS.
+ * created once and reused. Port 465 speaks TLS from the start; 587 upgrades with STARTTLS. Connecting,
+ * the server's greeting and each answer may take up to SMTP_TIMEOUT_MS (added 2026-10-10).
  */
 function getTransport() {
   if (!transport) {
@@ -16,7 +21,10 @@ function getTransport() {
       host,
       port,
       secure: port === 465,
-      auth: user ? { user, pass } : undefined
+      auth: user ? { user, pass } : undefined,
+      connectionTimeout: SMTP_TIMEOUT_MS,
+      greetingTimeout: SMTP_TIMEOUT_MS,
+      socketTimeout: SMTP_TIMEOUT_MS
     });
   }
   return transport;

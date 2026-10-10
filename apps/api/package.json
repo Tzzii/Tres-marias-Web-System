@@ -14,7 +14,9 @@
     "db:ping": "node scripts/db-ping.js",
     "db:roundtrip": "node scripts/db-roundtrip.js",
     "audit:routes": "node scripts/route-audit.js",
-    "test:security": "node scripts/security-tests.js"
+    "test:security": "node scripts/security-tests.js",
+    "email:preview": "node scripts/email-preview.js",
+    "test:email": "node scripts/email-test.js"
   },
   "dependencies": {
     "@tm/shared": "*",

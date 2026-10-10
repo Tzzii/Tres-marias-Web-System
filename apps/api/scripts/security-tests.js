@@ -81,6 +81,8 @@ const productionEnv = (extra = {}) => ({
   MAIL_FROM: 'Tres Marias <no-reply@tresmarias.test>',
   ALLOW_SMS_LOG: 'true',
   CORS_ORIGINS: 'https://tresmarias.test',
+  // The https:// website address the customer emails link to (Phase 13A: production refuses localhost)
+  CLIENT_URL: 'https://tresmarias.test',
   PAYMONGO_SECRET_KEY: '',
   PAYMONGO_WEBHOOK_SECRET: '',
   UPLOAD_DIR,
@@ -653,9 +655,9 @@ async function runTests(call, fx) {
   });
 
   await test('E2', 'Production refuses unsafe settings', 'The API does not start', async (ok) => {
-    const run = await runApiBriefly(productionEnv({ MAIL_DRIVER: 'log', SMS_DRIVER: 'log', ALLOW_SMS_LOG: 'false', CORS_ORIGINS: 'http://localhost:5173', JWT_SECRET: 'short' }));
+    const run = await runApiBriefly(productionEnv({ MAIL_DRIVER: 'log', SMS_DRIVER: 'log', ALLOW_SMS_LOG: 'false', CORS_ORIGINS: 'http://localhost:5173', CLIENT_URL: 'http://localhost:5173', JWT_SECRET: 'short' }));
     ok(!run.started && run.code === 1, `NODE_ENV=production with development settings: ${run.started ? 'it started!' : `stopped (exit ${run.code})`}`);
-    for (const needle of ['MAIL_DRIVER must be "smtp" in production', 'SMS_DRIVER must be a real SMS provider', 'CORS_ORIGINS must list only the live portals', 'JWT_SECRET must be at least 32']) {
+    for (const needle of ['MAIL_DRIVER must be "smtp" in production', 'SMS_DRIVER must be a real SMS provider', 'CORS_ORIGINS must list only the live portals', 'CLIENT_URL must be the live website', 'JWT_SECRET must be at least 32']) {
       ok(run.output.includes(needle), `It says: "${needle} …"`);
     }
     const good = await runApiBriefly(productionEnv({ DB_PORT: String(await freePort()) }), 4000);

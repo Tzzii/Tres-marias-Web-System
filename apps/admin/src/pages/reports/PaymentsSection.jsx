@@ -226,11 +226,14 @@ export default function PaymentsSection() {
     }
   };
 
-  // Send the customer a reminder about their unpaid balance
+  // Send the customer a reminder about their unpaid balance: always in their chat, by email at most once
+  // every 12 hours per booking (the server says whether this one emailed)
   const remind = async (ref) => {
     try {
-      await paymentApi.sendPaymentReminder(ref);
-      notify('Reminder sent to the customer.');
+      const result = await paymentApi.sendPaymentReminder(ref);
+      notify(result && result.emailed
+        ? 'Reminder sent in chat and by email.'
+        : 'Reminder sent in chat. An email reminder already went out in the last 12 hours, so no email this time.');
     } catch (e) {
       notify(e.message, 'error');
     }

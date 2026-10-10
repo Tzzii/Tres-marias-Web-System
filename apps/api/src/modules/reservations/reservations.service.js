@@ -41,6 +41,7 @@ import { lockAvailability } from '../calendar/calendar.repo.js';
 import { availabilityMap } from '../calendar/calendar.service.js';
 import * as catalogRepo from '../catalog/catalog.repo.js';
 import { postAdminMessage, postCustomerMessage } from '../messages/messages.repo.js';
+import { queueCustomerEmail } from '../notify/notify.service.js';
 import { openQrError, openQrIn } from '../payments/payments.service.js';
 import * as repo from './reservations.repo.js';
 
@@ -74,7 +75,10 @@ import * as repo from './reservations.repo.js';
  *   customer's and the admin's cancellation until it is paid or expires: its payment may still arrive.
  * The automatic chat messages (thank-you, change request, refund notice, quotation, approval …) are
  * saved in the same transaction as the change they are about; the chat (modules/messages, Phase 7)
- * shows them.
+ * shows them. The quotation, the approval, the confirmation, a decline, a cancellation (Phase 13A) and
+ * the completion with its testimonial invite (Phase 13B) also email the booking's customer
+ * (notify.service.js queueCustomerEmail): queued in that same transaction after the change is written,
+ * and sent only once it commits.
  * Lock order for every write, so two of them never deadlock: the availability lock (only when the
  * write takes or moves a slot or rental stock), then the booking's row (lockOwner), then the chat thread.
  */
@@ -494,7 +498,9 @@ export async function createReservation(customer, form) {
  * verified (so that payment can't be verified after the cancellation) or while a GCash QR for it is open
  * (its payment may still arrive). A refusal carries that rule's
  * code and reason, the same answer as the summary's `onlineCancel`. When money was paid, an unread
- * message from the customer tells the team it has to be returned. A cancelled approved booking frees
+ * message from the customer tells the team it has to be returned. Every cancellation (paid or not) also
+ * emails the customer a 'reservation_cancelled' notice (Phase 13A), queued after the change is written
+ * and sent once it commits. A cancelled approved booking frees
  * its slot (the portals then reload the availability map). Returns the customer's view of its summary.
  * Lock order as every write (Phase 6A): the booking's row (lockOwner), then the chat thread.
  */
@@ -520,6 +526,13 @@ export async function cancelReservation(ref, customer, reason) {
         customer.name
       );
     }
+    // The email goes in every case, paid or not (the chat message above only when money was paid)
+    await queueCustomerEmail(conn, {
+      customerId: row.reservation.customerId,
+      ref: row.reservation.ref,
+      purpose: 'reservation_cancelled',
+      data: { reservation: row.reservation, by: 'customer', reason: text, paid: money.paid, at: now() }
+    });
     const [updated] = await repo.findReservations(conn, { ref });
     return withoutNotes(summarize(updated));
   });
@@ -555,8 +568,9 @@ export async function requestChange(ref, customer, message) {
  * time clear, the stock free), checked under the availability lock so two acceptances never take the
  * last slot; when it was taken meanwhile, the customer is asked to message us. Then the status moves to
  * Approved with the downpayment due date, the activity log keeps who accepted which amount, the
- * customer's acceptance goes into their chat (unread for the admin, so the team sees it) and the
- * payment instruction (approvalMessage) follows with the quotation attached. Only the first quotation
+ * customer's acceptance goes into their chat (unread for the admin, so the team sees it), the
+ * payment instruction (approvalMessage) follows with the quotation attached, and a 'reservation_approved'
+ * email (Phase 13A) is queued with the total and the downpayment, sent once it commits. Only the first quotation
  * is accepted: one re-sent after this applies when it is sent (sendQuotation). Returns the customer's
  * view of its summary. Lock order as every slot write: the availability lock, the booking's row, the chat.
  */
@@ -582,7 +596,14 @@ export async function acceptQuotation(ref, customer, sentAt) {
     await repo.updateReservation(conn, ref, { status: approved.status, downpaymentDue: approved.downpaymentDue });
     await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Accepted the quotation (${pesoText(quote.net)}). The reservation is approved.` });
     await postCustomerMessage(conn, reservation, `I accept the quotation for ${reservation.eventName}: ${pesoText(quote.net)}.`, customer.name);
-    await postAdminMessage(conn, reservation, approvalMessage(approved, financials(approved, row.payments, row.refunds)), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, 'Tres Marias team');
+    const money = financials(approved, row.payments, row.refunds);
+    await postAdminMessage(conn, reservation, approvalMessage(approved, money), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, 'Tres Marias team');
+    await queueCustomerEmail(conn, {
+      customerId: reservation.customerId,
+      ref: reservation.ref,
+      purpose: 'reservation_approved',
+      data: { reservation: approved, total: money.total, downpayment: money.downpayment, acceptedAt: now() }
+    });
     const [updated] = await repo.findReservations(conn, { ref });
     return withoutNotes(summarize(updated));
   });
@@ -731,7 +752,14 @@ function extraGuestValues(pkg, reservation, values) {
  * Confirmed), or back to Approved with a new due date when the payments fall below the downpayment.
  * It may be lower than what was paid: the quotation is sent as it is (a sent quotation is never edited
  * afterwards), the chat says how much was paid above it and that it will be returned, and the audit
- * trail keeps the old and new totals and the overpaid amount. Returns the booking's summary.
+ * trail keeps the old and new totals and the overpaid amount.
+ *
+ * Next to the chat message, a 'quotation_ready' email (Phase 13A) is queued with the same facts: 'new'
+ * (a pending request's first quotation), 'revised' (a pending request re-quoted) or 'updated' (re-sent
+ * after acceptance), the net, the note, the total before, the status before and after, what is still
+ * needed for the downpayment and by when (only when the status moved back to Approved), the overpaid
+ * amount and the damage lines on a rental's quotation. Sent once the transaction commits.
+ * Returns the booking's summary.
  */
 export async function sendQuotation(ref, values, admin) {
   return adminWrite(ref, async (conn, row) => {
@@ -778,12 +806,17 @@ export async function sendQuotation(ref, values, admin) {
 
     // The new total may change where the booking stands; back at Approved it gets a new due date
     let extra = '';
+    // What is still needed for the downpayment and by when, for the email (only when moved back to Approved)
+    let downpaymentStillNeeded = 0;
+    let downpaymentDue = null;
     const money = financials(quoted, payments, refunds);
     const status = statusForPayments(reservation.status, money);
     if (status !== reservation.status) {
       saved.status = status;
       if (status === 'approved') {
         saved.downpaymentDue = downpaymentDueFor(reservation.date);
+        downpaymentStillNeeded = money.downpayment - money.paid;
+        downpaymentDue = saved.downpaymentDue;
         log.push('Status moved back to Approved: the payments are below the minimum downpayment.');
         extra = ` Please pay ${pesoText(money.downpayment - money.paid)} more by ${formatDate(saved.downpaymentDue)} to reach the minimum downpayment of ${pesoText(money.downpayment)}.`;
       } else {
@@ -803,11 +836,35 @@ export async function sendQuotation(ref, values, admin) {
     await repo.updateReservation(conn, ref, saved);
     for (const text of log) await logAdmin(conn, ref, admin, text);
     await postAdminMessage(conn, reservation, `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`, { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
+    // `reservation` is the booking before this send: a pending one with a quotation already is re-quoted
+    const variant = reservation.status === 'pending' ? (reservation.quotation ? 'revised' : 'new') : 'updated';
+    await queueCustomerEmail(conn, {
+      customerId: reservation.customerId,
+      ref: reservation.ref,
+      purpose: 'quotation_ready',
+      data: {
+        reservation: { ...reservation, ...saved },
+        variant,
+        net: quote.net,
+        note,
+        totalBefore,
+        statusBefore: reservation.status,
+        statusAfter: status,
+        downpaymentStillNeeded,
+        downpaymentDue,
+        overpaid: after.overpaid,
+        // The quotation's damage lines (a rental's only; computeQuote drops lines with no pieces)
+        damageLines: quote.damageCharges.map((line) => ({ name: line.name, qty: line.qty, amount: line.total }))
+      }
+    });
     return savedSummary(conn, ref);
   });
 }
 
-/** Admin: decline a pending request, with a reason (5+ characters) sent to the customer's chat. Returns the summary. */
+/**
+ * Admin: decline a pending request, with a reason (5+ characters) sent to the customer's chat and in a
+ * 'reservation_declined' email (Phase 13A, sent once the transaction commits). Returns the summary.
+ */
 export async function declineReservation(ref, reason, admin) {
   const text = reasonOf(reason);
   return adminWrite(ref, async (conn, { reservation }) => {
@@ -815,26 +872,35 @@ export async function declineReservation(ref, reason, admin) {
     await repo.updateReservation(conn, ref, { status: 'declined', declineReason: text });
     await logAdmin(conn, ref, admin, `Declined the reservation. Reason: ${text}`);
     await postAdminMessage(conn, reservation, `We are sorry, we are unable to accept ${reservation.eventName}. ${text}`, null, admin.name);
-    return savedSummary(conn, ref);
-  });
-}
-
-/** Admin: confirm a booking once its downpayment is verified; the contract becomes available in the customer's Documents. Returns the summary. */
-export async function confirmReservation(ref, admin) {
-  return adminWrite(ref, async (conn, { reservation }) => {
-    if (reservation.status !== 'downpayment_paid') throw new ApiError('INVALID_STATE', 'The downpayment must be verified before the booking is confirmed.');
-    await repo.updateReservation(conn, ref, { status: 'confirmed' });
-    await logAdmin(conn, ref, admin, 'Confirmed the booking.');
-    await postAdminMessage(conn, reservation, `${reservation.eventName} is now confirmed. Your contract is available in Documents.`, { name: `Contract-${ref}.pdf`, kind: 'contract', ref }, admin.name);
+    await queueCustomerEmail(conn, { customerId: reservation.customerId, ref: reservation.ref, purpose: 'reservation_declined', data: { reservation, reason: text } });
     return savedSummary(conn, ref);
   });
 }
 
 /**
- * Admin: mark a confirmed event completed, on or after its date, and invite a testimonial. A rental can
- * only be completed once every rented piece is back (no inventory_allocations left) and the customer
- * holds a quotation with any damage charges on it, because a completed booking can't be re-quoted.
- * Returns the summary.
+ * Admin: confirm a booking once its downpayment is verified; the contract becomes available in the
+ * customer's Documents, said in their chat and in a 'booking_confirmed' email with the balance left
+ * (Phase 13A, sent once the transaction commits). Returns the summary.
+ */
+export async function confirmReservation(ref, admin) {
+  return adminWrite(ref, async (conn, row) => {
+    const { reservation } = row;
+    if (reservation.status !== 'downpayment_paid') throw new ApiError('INVALID_STATE', 'The downpayment must be verified before the booking is confirmed.');
+    await repo.updateReservation(conn, ref, { status: 'confirmed' });
+    await logAdmin(conn, ref, admin, 'Confirmed the booking.');
+    await postAdminMessage(conn, reservation, `${reservation.eventName} is now confirmed. Your contract is available in Documents.`, { name: `Contract-${ref}.pdf`, kind: 'contract', ref }, admin.name);
+    const { balance } = financials(reservation, row.payments, row.refunds);
+    await queueCustomerEmail(conn, { customerId: reservation.customerId, ref: reservation.ref, purpose: 'booking_confirmed', data: { reservation, balance } });
+    return savedSummary(conn, ref);
+  });
+}
+
+/**
+ * Admin: mark a confirmed event completed, on or after its date, and invite a testimonial, in the
+ * customer's chat and in an 'event_completed' email (Phase 13B, sent once the transaction commits). A
+ * rental can only be completed once every rented piece is back (no inventory_allocations left) and the
+ * customer holds a quotation with any damage charges on it, because a completed booking can't be
+ * re-quoted (so the damage charges were already emailed with that quotation). Returns the summary.
  */
 export async function completeReservation(ref, admin) {
   return adminWrite(ref, async (conn, row) => {
@@ -848,6 +914,7 @@ export async function completeReservation(ref, admin) {
     await repo.updateReservation(conn, ref, { status: 'completed' });
     await logAdmin(conn, ref, admin, 'Marked the event as completed.');
     await postAdminMessage(conn, reservation, `Thank you for celebrating with Tres Marias! We would love to hear how ${reservation.eventName} went. You can leave a testimonial from your account.`, null, admin.name);
+    await queueCustomerEmail(conn, { customerId: reservation.customerId, ref: reservation.ref, purpose: 'event_completed', data: { reservation } });
     return savedSummary(conn, ref);
   });
 }
@@ -858,7 +925,8 @@ export async function completeReservation(ref, admin) {
  * verification (PENDING_PAYMENT: verify or reject it first), while the customer's GCash QR for it is open
  * (PENDING_PAYMENT: its payment may still arrive) and while pieces are still checked out for it (record
  * their return first). Saves cancelled_by = 'admin', releases the date, keeps the reason in
- * the audit trail and tells the customer in their chat; when money was paid the message says it will be
+ * the audit trail and tells the customer in their chat and in a 'reservation_cancelled' email (Phase 13A,
+ * sent once the transaction commits); when money was paid the message says it will be
  * returned, and the booking shows under "Refunds to Send". Returns the summary.
  */
 export async function cancelReservationByAdmin(ref, reason, admin) {
@@ -877,6 +945,12 @@ export async function cancelReservationByAdmin(ref, reason, admin) {
     await logAdmin(conn, ref, admin, `Cancelled the reservation. Reason: ${text}`);
     const refund = money.paid > 0 ? ` We'll return ${pesoText(money.paid)} and tell you here when it's sent.` : '';
     await postAdminMessage(conn, reservation, `We are sorry, we had to cancel ${reservation.eventName} on ${formatDate(reservation.date)}. ${asSentence(text)}${refund}`, null, admin.name);
+    await queueCustomerEmail(conn, {
+      customerId: reservation.customerId,
+      ref: reservation.ref,
+      purpose: 'reservation_cancelled',
+      data: { reservation, by: 'admin', reason: text, paid: money.paid, at: now() }
+    });
     return savedSummary(conn, ref);
   });
 }

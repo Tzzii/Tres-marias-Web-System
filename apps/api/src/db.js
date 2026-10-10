@@ -67,14 +67,27 @@ pool.on('connection', (conn) => {
  * give the connection back. Every write that touches more than one row goes through here (§7.7),
  * and so does anything that locks rows with SELECT … FOR UPDATE (e.g. nextCounter).
  * A connection whose rollback also failed (e.g. the link dropped) is discarded, not reused.
+ *
+ * After-commit hooks (2026-10-10, for the customer emails of modules/notify): inside `fn`,
+ * `conn.afterCommit(hook)` registers work that must happen only once the change is saved, e.g.
+ * sending an email the transaction queued. The hooks run, in the order they were added, only after
+ * commit() succeeded, never after a rollback, and each one on its own without holding up the answer:
+ * a hook that fails is only logged. The connection is pooled and reused, so the hook list belongs to
+ * this one transaction and `afterCommit` is taken off the connection again before it is given back.
  */
 export async function tx(fn) {
   const conn = await pool.getConnection();
+  const hooks = [];
+  conn.afterCommit = (hook) => {
+    hooks.push(hook);
+  };
   let broken = false;
+  let committed = false;
   try {
     await conn.beginTransaction();
     const result = await fn(conn);
     await conn.commit();
+    committed = true;
     return result;
   } catch (err) {
     try {
@@ -84,8 +97,17 @@ export async function tx(fn) {
     }
     throw err;
   } finally {
+    delete conn.afterCommit;
     if (broken) conn.destroy();
     else conn.release();
+    // Saved: start the hooks now, each in the background, so a slow or failing one never delays or breaks the answer
+    if (committed) {
+      hooks.forEach((hook) => {
+        Promise.resolve()
+          .then(hook)
+          .catch((err) => console.error('[db] An after-commit task failed:', err.message));
+      });
+    }
   }
 }
 
