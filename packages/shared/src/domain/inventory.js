@@ -269,13 +269,14 @@ export const rentalReturnText = (ref, good, damaged) => `Returned ${good + damag
  * out is INVALID_STATE (409, like a second verify of a payment; INVALID before Phase 12).
  * Returns { problem } or { moves: [{ item, qty }] }.
  */
-export function rentalCheckOut(reservation, itemById) {
+export function rentalCheckOut(reservation, itemById, dispatched = {}) {
   if (!HOLDS_DATE.includes(reservation.status)) return { problem: refuse('INVALID_STATE', 'Approve the rental before checking out its items.') };
   const moves = [];
   for (const line of reservation.rentalItems || []) {
     const item = itemById(line.itemId);
     if (!item) return { problem: refuse('NOT_FOUND', 'Item not found.') };
-    const qty = line.qty - (item.allocations[reservation.ref] || 0);
+    // Returned pieces still count as dispatched: a scheduled retry must never send them out again.
+    const qty = line.qty - Math.max(item.allocations[reservation.ref] || 0, dispatched[line.itemId] || 0);
     if (qty > 0) moves.push({ item, qty });
   }
   if (!moves.length) return { problem: refuse('INVALID_STATE', 'Everything on this rental is already checked out.') };
@@ -286,6 +287,22 @@ export function rentalCheckOut(reservation, itemById) {
     return { problem: refuse('OUT_OF_STOCK', `Not enough available: ${named.join(', ')}.`) };
   }
   return { moves };
+}
+
+/** Confirmed equipment rentals are dispatched at their pickup/delivery time, on that business day. */
+export function rentalCheckoutDue(reservation, { date, time }) {
+  return isRental(reservation.serviceType) && reservation.status === 'confirmed' &&
+    reservation.date === date && /^\d{2}:\d{2}$/.test(reservation.startTime || '') && reservation.startTime <= time;
+}
+
+/** Upgrade fallback for checkouts made before the durable dispatch ledger existed. */
+export function legacyRentalDispatched(item, ref) {
+  const logged = (item.history || []).reduce((sum, entry) => {
+    if (entry.ref !== ref) return sum;
+    const match = /^Checked out (\d+) pcs for ([^.]+)\./.exec(entry.text);
+    return match && match[2] === ref ? sum + Number(match[1]) : sum;
+  }, 0);
+  return Math.max(logged, item.allocations[ref] || 0);
 }
 
 /**

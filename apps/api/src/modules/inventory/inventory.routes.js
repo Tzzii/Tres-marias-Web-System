@@ -34,6 +34,9 @@ inventoryAdminRoutes.post('/archive', validate({ body: schemas.archiveBody }), a
 inventoryAdminRoutes.get('/rentals/:ref', validate({ params: schemas.refParams }), async (req, res) => {
   res.json(await inventory.listReservationEquipment(req.valid.params.ref));
 });
+inventoryAdminRoutes.get('/rentals/:ref/checkout-state', validate({ params: schemas.refParams }), async (req, res) => {
+  res.json(await inventory.rentalCheckoutState(req.valid.params.ref));
+});
 inventoryAdminRoutes.post('/rentals/:ref/check-out', validate({ params: schemas.refParams }), async (req, res) => {
   res.json(await inventory.checkOutRental(req.valid.params.ref, req.user));
 });

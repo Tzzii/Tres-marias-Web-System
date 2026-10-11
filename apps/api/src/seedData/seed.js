@@ -38,7 +38,7 @@ const cateringItems = ({ guests, warmers, warmerName, tables, pitchers, jugs, wa
     [guests, 'Chairs'],
     [pitchers, 'Stainless Pitchers'],
     [jugs, 'Water Jug'],
-    ...(waiters ? [[waiters, 'Waiters/Dishwashers']] : [])
+    ...(waiters ? [[waiters, 'Helpers']] : [])
   ]);
 
 // What both wedding packages include besides their counts
@@ -92,7 +92,7 @@ const PACKAGES = [
     name: 'Classic Full Service',
     price: 12000,
     guests: 100,
-    description: 'Everything in Classic for up to 100 guests, with 2 waiters/dishwashers.',
+    description: 'Everything in Classic for up to 100 guests, with 2 helpers.',
     items: cateringItems({ guests: 100, warmers: 8, warmerName: 'Food Warmers', tables: 10, pitchers: 4, jugs: 1, waiters: 2 }),
     mood: 1
   },
@@ -112,7 +112,7 @@ const PACKAGES = [
     name: 'Premier Full Service',
     price: 15000,
     guests: 150,
-    description: 'Everything in Premier for up to 150 guests, with 3 waiters/dishwashers.',
+    description: 'Everything in Premier for up to 150 guests, with 3 helpers.',
     items: cateringItems({ guests: 150, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 15, pitchers: 4, jugs: 1, waiters: 3 }),
     mood: 2
   },
@@ -132,7 +132,7 @@ const PACKAGES = [
     name: 'Grand Full Service',
     price: 20000,
     guests: 200,
-    description: 'Everything in Grand for up to 200 guests, with 4 waiters/dishwashers.',
+    description: 'Everything in Grand for up to 200 guests, with 4 helpers.',
     items: cateringItems({ guests: 200, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 20, pitchers: 6, jugs: 2, waiters: 4 }),
     mood: 3
   },
@@ -142,7 +142,7 @@ const PACKAGES = [
     name: 'Signature Wedding',
     price: 25000,
     guests: 150,
-    description: 'A full reception setup for up to 150 guests: presidential table, tent, arc, stage, cake and water tables, with 6 waiters/dishwashers.',
+    description: 'A full reception setup for up to 150 guests: presidential table, tent, arc, stage, cake and water tables, with 6 helpers.',
     items: items([
       [5, 'Elegant Food Warmers'],
       [150, 'Plates'],
@@ -154,7 +154,7 @@ const PACKAGES = [
       [2, 'Water Jugs'],
       [4, 'Pitchers'],
       [2, 'Dessert Plates'],
-      [6, 'Waiters/Dishwashers'],
+      [6, 'Helpers'],
       [null, 'Tent (20x20)'],
       ...WEDDING_EXTRAS
     ]),
@@ -167,7 +167,7 @@ const PACKAGES = [
     name: 'Royal Wedding',
     price: 30000,
     guests: 170,
-    description: 'A full reception setup for up to 170 guests: presidential table, a larger tent, arc, stage, cake and water tables, with 8 waiters/dishwashers.',
+    description: 'A full reception setup for up to 170 guests: presidential table, a larger tent, arc, stage, cake and water tables, with 8 helpers.',
     items: items([
       [5, 'Elegant Food Warmers'],
       [170, 'Plates'],
@@ -179,7 +179,7 @@ const PACKAGES = [
       [2, 'Water Jugs'],
       [5, 'Pitchers'],
       [4, 'Dessert Plates'],
-      [8, 'Waiters/Dishwashers'],
+      [8, 'Helpers'],
       [null, 'Tent (20x40)'],
       ...WEDDING_EXTRAS
     ]),
@@ -215,6 +215,7 @@ const PACKAGES = [
  * photo and video packages have no price yet, so they are set in each quotation until the admin adds one.
  */
 const ADDONS = [
+  { id: 'add-dessert', name: 'Dessert', description: 'Your choice of dessert, with flavor and presentation requests. Priced separately in your quotation.' },
   { id: 'add-stage', name: 'Stage decoration', description: 'Backdrop and styling for the stage or program area.' },
   { id: 'add-balloons', name: 'Balloon decoration', description: 'Balloon arches, garlands or columns in your motif.' },
   { id: 'add-tent', name: 'Tent', description: 'A tent over the dining area for outdoor venues.' },
@@ -224,7 +225,7 @@ const ADDONS = [
   // One charge for both (merged 2026-10-01; there was a separate Videographer before)
   { id: 'add-photographer', name: 'Photographer and videographer', description: 'Event photographer and videographer, with edited photos and a highlights video after the event.', hasPackages: true },
   // The only charge counted by the piece: the customer says how many, and the admin prices one of them
-  { id: 'add-waiters', name: 'Waiter/Dishwasher', description: 'Extra waiters or dishwashers on top of what your package includes.', hasQuantity: true },
+  { id: 'add-waiters', name: 'Helper', description: 'Extra helpers on top of what your package includes.', hasQuantity: true },
   // The Tent's sizes, priced per piece once the admin sets them
   // Each books its tent in the inventory (inventorySeed.js ADDON_LINKS), so a booking holds it on the date
   { id: 'add-tent-10x10', parentId: 'add-tent', name: '10 × 10', description: '', hasQuantity: true },
@@ -293,7 +294,8 @@ export const DISHES = [
     ['bbq', 'Pork Barbecue'],
     ['adobo-gata', 'Pork Adobo sa Gata'],
     ['humba', 'Pork Humba'],
-    ['sisig', 'Pork Sisig']
+    ['sisig', 'Pork Sisig'],
+    ['kare-kare', 'Kare-Kare']
   ]],
   ['chicken', [
     ['inasal', 'Chicken Inasal'],
@@ -316,7 +318,6 @@ export const DISHES = [
   ]],
   ['vegetable', [
     ['chopsuey', 'Chopsuey'],
-    ['kare-kare', 'Kare-Kare'],
     ['buttered', 'Buttered Mixed Vegetables'],
     ['lumpiang-gulay', 'Lumpiang Gulay'],
     ['pinakbet', 'Pinakbet'],

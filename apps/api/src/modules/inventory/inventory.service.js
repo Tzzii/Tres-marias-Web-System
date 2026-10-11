@@ -13,6 +13,8 @@ import {
   itemProblem,
   rentalCheckOut,
   rentalCheckOutText,
+  rentalCheckoutDue,
+  legacyRentalDispatched,
   rentalDamage,
   rentalProblem,
   rentalReturn,
@@ -25,7 +27,7 @@ import { isRental } from '@tm/shared/src/services/config.js';
 import { pool, tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { newId, nextCounter } from '../../lib/ids.js';
-import { now } from '../../lib/time.js';
+import { businessClock, now } from '../../lib/time.js';
 import { lockAvailability } from '../calendar/calendar.repo.js';
 import * as catalogRepo from '../catalog/catalog.repo.js';
 import { postAdminMessage } from '../messages/messages.repo.js';
@@ -144,6 +146,23 @@ export async function listReservationEquipment(ref) {
   return Object.fromEntries(rows.filter((row) => row.ref === ref).map((row) => [row.itemId, row.qty]));
 }
 
+// Ledger values win; old audit history supplies quantities until an item first enters the ledger.
+async function dispatchedFor(conn, ref, items) {
+  const saved = await repo.rentalDispatches(conn, ref);
+  return Object.fromEntries(items.map((item) => [item.id, Math.max(item.allocations[ref] || 0, saved[item.id] ?? legacyRentalDispatched(item, ref))]));
+}
+
+/** Current pieces out and lifetime dispatch counts for the rental card. */
+export async function rentalCheckoutState(ref) {
+  const [row] = await reservationsRepo.findReservations(pool, { ref });
+  if (!row || row.reservation.ref !== ref || !isRental(row.reservation.serviceType)) throw new ApiError('NOT_FOUND', 'Rental not found.');
+  const { items } = await repo.findItems(pool, { ids: row.reservation.rentalItems.map((line) => line.itemId) });
+  return {
+    out: Object.fromEntries((await repo.equipmentOut(pool, ref)).map((line) => [line.itemId, line.qty])),
+    dispatched: await dispatchedFor(pool, ref, items)
+  };
+}
+
 /* ============================ Items ============================ */
 
 /**
@@ -243,6 +262,15 @@ export async function moveInventoryStock(id, action, input, admin) {
 
     // Only a check-out or a return moves pieces between places: the one place it names (a booking, or 'none')
     const { counts } = move;
+    if (action === 'checkout' && booking) {
+      const [row] = await reservationsRepo.findReservations(conn, { ref: booking.ref });
+      if (isRental(row.reservation.serviceType)) {
+        const dispatched = await dispatchedFor(conn, booking.ref, [item]);
+        const booked = row.reservation.rentalItems.find((line) => line.itemId === item.id)?.qty || 0;
+        if (booked && dispatched[item.id] + input.qty > booked) throw new ApiError('INVALID_STATE', 'These rented pieces have already been checked out.');
+        await repo.setRentalDispatch(conn, booking.ref, item.id, dispatched[item.id] + input.qty, now());
+      }
+    }
     if (action === 'checkout' || action === 'return') await repo.setAllocation(conn, item.id, move.ref, counts.allocations[move.ref] || 0);
     await repo.updateItem(conn, item.id, { damaged: counts.damaged, total: counts.total, lowStockAt: counts.lowStockAt });
     await logMove(conn, item, move.text, move.ref, admin);
@@ -299,18 +327,29 @@ async function lockedRental(conn, ref) {
  * to In use. Every item is checked before anything moves, so a short or archived item never leaves the
  * rental half checked out (OUT_OF_STOCK). Returns { lines: how many items were checked out }.
  */
-export async function checkOutRental(ref, admin) {
-  return tx(async (conn) => {
+export async function checkOutRental(ref, admin, { automatic = false, clock = businessClock(), transact = tx } = {}) {
+  return transact(async (conn) => {
     await lockAvailability(conn);
     const { reservation } = await lockedRental(conn, ref);
+    // Re-read under the locks: a cancellation, reschedule or manual checkout may have won the race.
+    if (automatic && !rentalCheckoutDue(reservation, clock)) return { lines: 0, changed: false };
     const { items } = await repo.findItems(conn, { ids: (reservation.rentalItems || []).map((line) => line.itemId), lock: true });
-    const plan = rentalCheckOut(reservation, (itemId) => items.find((item) => item.id === itemId) || null);
-    if (plan.problem) throw toError(plan.problem);
+    const dispatched = await dispatchedFor(conn, ref, items);
+    const plan = rentalCheckOut(reservation, (itemId) => items.find((item) => item.id === itemId) || null, dispatched);
+    if (plan.problem) {
+      if (!automatic) throw toError(plan.problem);
+      if (plan.problem.code === 'INVALID_STATE') return { lines: 0, changed: false };
+      const text = `Automatic checkout could not proceed: ${plan.problem.message} Restore stock or update the rental items; it will retry automatically.`;
+      const changed = (await repo.lastAutomaticNotice(conn, ref)) !== text;
+      if (changed) await reservationsRepo.insertActivity(conn, ref, { at: now(), actor: admin.name, text });
+      return { lines: 0, changed, problem: plan.problem.code };
+    }
     for (const { item, qty } of plan.moves) {
       await repo.setAllocation(conn, item.id, reservation.ref, (item.allocations[reservation.ref] || 0) + qty);
+      await repo.setRentalDispatch(conn, ref, item.id, dispatched[item.id] + qty, now());
       await logMove(conn, item, rentalCheckOutText(qty, reservation.ref), reservation.ref, admin);
     }
-    return { lines: plan.moves.length };
+    return { lines: plan.moves.length, changed: true };
   });
 }
 
@@ -320,8 +359,8 @@ export async function checkOutRental(ref, admin) {
  * disposed of later) and are charged to the customer at each item's damage fee (chargeDamage). Rows of
  * the same item are added together; every row is checked before anything moves. Returns { pieces, damaged }.
  */
-export async function returnRental(ref, returns, admin) {
-  return tx(async (conn) => {
+export async function returnRental(ref, returns, admin, { transact = tx } = {}) {
+  return transact(async (conn) => {
     await lockAvailability(conn);
     const booking = await lockedRental(conn, ref);
     const { reservation } = booking;

@@ -9,7 +9,6 @@ import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineR
 import {
   AlertBanner,
   AppDialog,
-  BUFFET_DRINKS,
   BUSINESS,
   BusyButton,
   CardTitle,
@@ -28,6 +27,11 @@ import {
   ITEM_COUNT_MAX,
   ListSkeleton,
   MenuPicker,
+  DessertFields,
+  DESSERT_ADDON_ID,
+  menuProblem,
+  buffetDrinks,
+  dessertSummary,
   PackageItemList,
   PageHeader,
   PaymentStatusChip,
@@ -57,6 +61,7 @@ import {
   formatDate,
   formatDateTime,
   formatMobile,
+  formatTime,
   includesFood,
   inventoryApi,
   isRental,
@@ -264,11 +269,12 @@ export default function ReservationDetailPage() {
               )}
               <Divider sx={{ my: 2 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {includesFood(r.serviceType) && <Field label="Drinks">{BUFFET_DRINKS} for every guest</Field>}
+                {includesFood(r.serviceType) && <Field label="Drinks">{buffetDrinks(r.menu)} for every guest</Field>}
                 {/* Charges counted by the piece show how many the customer asked for */}
                 <Field label="Additional charges">
                   {r.addons.length ? r.addons.map((a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name)).join(', ') : 'None'}
                 </Field>
+                {dessertSummary(r.menu) && <Field label="Dessert (additional charge)">{dessertSummary(r.menu)}</Field>}
                 {r.foodNotes && <Field label="Note from the customer">{r.foodNotes}</Field>}
               </Box>
             </DashCard>
@@ -616,7 +622,7 @@ function LogisticsCard({ r, closed, onSave }) {
  * An event with more guests than its package's default (the owner's rule, 2026-10-09; domain/packageItems.js)
  * asks for two more things before it can be sent: the price of the equipment for the extra guests (0 waives
  * it) and the count of each package item that does not grow with the guests (food warmers, pitchers, water
- * jugs, waiters), shown to the customer instead of "to confirm". Plates, glasses, cutlery, chairs and tables
+ * jugs, helpers), shown to the customer instead of "to confirm". Plates, glasses, cutlery, chairs and tables
  * grow by themselves.
  *
  * Other charges and Discount are optional: a blank one is sent as 0. A sent quotation can always be re-sent,
@@ -989,14 +995,15 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
 
   const changed = JSON.stringify(values) !== JSON.stringify(start());
   // A buffet needs a dish (or something under "Others") for every part before it can be saved
-  const incomplete = buffet && DISH_CATEGORIES.some(({ key }) => (values.menu[key] || '').trim().length < 2);
+  const menuCheck = menuProblem(values.menu, { buffet, dessert: r.addonIds.includes(DESSERT_ADDON_ID) });
+  const incomplete = Boolean(menuCheck);
 
   // Save; errors from the server stay in the dialog
   const save = async () => {
-    if (incomplete) return setError('Pick a dish, or write one under Others, for all four parts of the menu.');
+    if (incomplete) return setError(menuCheck.message);
     setBusy(true);
     try {
-      await onSubmit(buffet ? values : { ...values, menu: {} });
+      await onSubmit(values);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1028,6 +1035,8 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
         <SelectField id="menu-service" label="Booking" value={values.serviceType} onChange={set('serviceType')} options={SERVICE_TYPES} hint={buffet ? `Charged ${peso(r.pricePerPlate)} per person for ${r.guests} guests` : 'Equipment and setup only, with no per-person charge'} />
         {/* Only a buffet has a menu: the dishes on offer as radio buttons, or "Others" with a text box */}
         {buffet && <MenuPicker idPrefix="menu" menu={values.menu} dishes={dishes} onChange={setDish} />}
+        {buffet && <FormField id="menu-juice" label="Preferred juice" optional value={values.menu.juice || ''} onChange={(e) => setDish('juice', e.target.value)} inputProps={{ maxLength: 120 }} hint="Unlimited water remains included." />}
+        {r.addonIds.includes(DESSERT_ADDON_ID) && <DessertFields idPrefix="menu-dessert" value={values.menu.dessert} onChange={(v) => setDish('dessert', v)} />}
         <FormField id="menu-notes" label="Note about the food" multiline minRows={3} value={values.foodNotes} onChange={set('foodNotes')} inputProps={{ maxLength: 500 }} hint="Allergies, a vegetarian portion, serving time. Does not change the price." />
       </Box>
     </AppDialog>
@@ -1115,11 +1124,11 @@ function StylingDialog({ open, onClose, r, onSubmit }) {
  */
 function RentalCard({ r, closed, onEdit, onCheckOut, onReturn }) {
   // Pieces checked out for this rental right now, { itemId: pieces }; refreshes when the inventory changes
-  const { data } = useResource(() => inventoryApi.listReservationEquipment(r.ref), [r.ref]);
-  const out = data || {};
+  const { data } = useResource(() => inventoryApi.rentalCheckoutState(r.ref), [r.ref]);
+  const out = data?.out || {};
   const piecesOut = Object.values(out).reduce((sum, qty) => sum + qty, 0);
   // Some booked pieces are not out yet
-  const toCheckOut = r.rentalItems.some((line) => line.qty > (out[line.itemId] || 0));
+  const toCheckOut = Boolean(data) && r.rentalItems.some((line) => line.qty > Math.max(out[line.itemId] || 0, data.dispatched[line.itemId] || 0));
   const damage = r.damageCharges || [];
 
   return (
@@ -1150,10 +1159,14 @@ function RentalCard({ r, closed, onEdit, onCheckOut, onReturn }) {
           {r.quotationStale ? ' Re-send the quotation so the customer owes it.' : ' Included in the quotation.'}
         </AlertBanner>
       )}
-      {r.status === 'pending' && <Typography sx={{ mt: 1.5, fontSize: 12.5, color: tokens.textSecondary }}>The items can be checked out once the rental is approved.</Typography>}
+      {!closed && toCheckOut && <Typography sx={{ mt: 1.5, fontSize: 12.5, color: tokens.textSecondary }}>
+        {r.status === 'confirmed'
+          ? `Items check out automatically on ${formatDate(r.date)} at ${formatTime(r.startTime)}, the scheduled ${r.fulfilment === 'delivery' ? 'delivery' : 'pickup'} time. Check the audit trail if stock is short.`
+          : 'Items are reserved for the rental date once approved. Automatic checkout starts after confirmation, at the scheduled pickup or delivery time.'}
+      </Typography>}
       {!closed && ((HOLDS.includes(r.status) && toCheckOut) || piecesOut > 0) && (
         <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {HOLDS.includes(r.status) && toCheckOut && <Button variant="contained" onClick={onCheckOut}>Check out items</Button>}
+          {HOLDS.includes(r.status) && toCheckOut && <Button variant="outlined" onClick={onCheckOut}>Check out now</Button>}
           {piecesOut > 0 && <Button variant="outlined" onClick={onReturn}>Record return</Button>}
         </Box>
       )}

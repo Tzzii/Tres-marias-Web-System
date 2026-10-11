@@ -109,6 +109,30 @@ export async function equipmentOut(db, ref) {
   return rows.map((row) => ({ itemId: row.item_id, ref: row.reservation_ref, qty: row.qty }));
 }
 
+/** Durable quantities already sent out; caller holds the availability and booking locks for writes. */
+export async function rentalDispatches(db, ref) {
+  const [rows] = await db.query('SELECT item_id, qty FROM rental_dispatches WHERE reservation_ref = ?', [ref]);
+  return Object.fromEntries(rows.map((row) => [row.item_id, row.qty]));
+}
+
+export async function setRentalDispatch(conn, ref, itemId, qty, at) {
+  await conn.query(`INSERT INTO rental_dispatches (reservation_ref, item_id, qty, dispatched_at) VALUES (?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE qty = ?, dispatched_at = ?`, [ref, itemId, qty, at, qty, at]);
+}
+
+/** Only today's confirmed rentals: avoid retroactively dispatching historical bookings on upgrade. */
+export async function dueRentals(db, { date, time }) {
+  const [rows] = await db.query(`SELECT ref FROM reservations WHERE service_type = 'Equipment rental'
+    AND status = 'confirmed' AND date = ? AND start_time <= ? ORDER BY start_time, created_at, ref`, [date, time]);
+  return rows.map((row) => row.ref);
+}
+
+export async function lastAutomaticNotice(db, ref) {
+  const row = first(await db.query(`SELECT text FROM reservation_activity
+    WHERE reservation_ref = ? AND actor = 'Automatic inventory' ORDER BY id DESC LIMIT 1`, [ref]));
+  return row?.text || '';
+}
+
 /* ============================ Writes (inside a transaction) ============================ */
 
 /** Save a new item. A name already in use (any case or accent) fails with ER_DUP_ENTRY (UNIQUE name). */

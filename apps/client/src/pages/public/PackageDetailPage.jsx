@@ -203,7 +203,7 @@ export default function PackageDetailPage() {
                   Food and Additional Charges
                 </Typography>
                 <Typography sx={{ mt: 0.5, mb: 2.5, fontSize: 13.5, lineHeight: 1.75, color: site.inkSoft }}>
-                  Food is not part of the package. On the reservation form you choose a buffet, where you pick one pork, chicken, fish and vegetable dish and we charge per person on top of this package, or catering only, where you get the equipment above and cook the food yourself. You can add any of the extras below; one without a price shown is priced in your quotation.
+                  Food is not part of the package. On the reservation form you choose a buffet, where you pick four dishes, with up to two per category and we charge per person on top of this package, or catering only, where you get the equipment above and cook the food yourself. You can add any of the extras below; one without a price shown is priced in your quotation.
                 </Typography>
                 {/* Extras the customer can tick on the form, with the price when the admin set one (else priced per
                     event); a charge with sizes lists each size, e.g. "Tent · 10 × 10 ₱4,500 each / 10 × 20", and a

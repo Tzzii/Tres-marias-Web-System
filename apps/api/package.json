@@ -18,8 +18,14 @@
     "test:realtime": "node --test scripts/realtime-tests.js",
     "test:outsource": "node --test scripts/outsource-tests.js scripts/outsource-email-tests.js",
     "test:mobile": "node --test scripts/mobile-tests.js",
+    "test:inventory": "node --test scripts/inventory-tests.js",
+    "test:labels": "node --test scripts/helper-label-tests.js",
+    "test:inventory:db": "node --test scripts/inventory-db-tests.js",
     "email:preview": "node scripts/email-preview.js",
-    "test:email": "node scripts/email-test.js"
+    "test:email": "node scripts/email-test.js",
+    "test:booking": "node --test scripts/booking-options-tests.js",
+    "catalog:update": "node scripts/catalog-booking-update.js",
+    "test:booking:db": "node --test scripts/booking-options-db-tests.js"
   },
   "dependencies": {
     "@tm/shared": "*",

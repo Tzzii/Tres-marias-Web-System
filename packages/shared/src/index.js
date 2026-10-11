@@ -39,6 +39,8 @@ export { DataTable, Pager } from './components/DataTable.jsx';
 export { DocumentDialog, documentsFor } from './components/DocumentDialog.jsx';
 export { PackageItemList } from './components/PackageItems.jsx';
 // A buffet's menu: each category's dishes as radio buttons, plus "Others" with a text box (booking form, admin's Edit Menu)
+export { DessertFields } from './components/DessertFields.jsx';
+export { DESSERT_ADDON_ID, DESSERT_CHOICES, dishesInMenu, menuCount, menuProblem, cleanMenu, buffetDrinks, dessertSummary } from './domain/menu.js';
 export { MenuPicker } from './components/MenuPicker.jsx';
 export { ScrollToTop, NotFoundPage } from './components/Routing.jsx';
 export { ChatPanel } from './components/ChatPanel.jsx';
@@ -64,7 +66,7 @@ export { askWhereToSave, canAskWhereToSave, saveFile, writeTo } from './utils/sa
 
 export { BUSINESS, RULES, OCCASIONS, OCCASION_OTHER, OCCASION_OTHER_RANGE, bookingOccasion, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, OUTSOURCE_OTHER, OUTSOURCE_OTHER_RANGE, FEEDBACK_CATEGORIES } from './services/config.js';
 export { computeQuote, extraGuestsFor, isRentalPackage } from './services/pricing.js';
-// A package's items for the guest count (plates and chairs grow, warmers and waiters are confirmed in the quotation)
+// A package's items for the guest count (plates and chairs grow, warmers and helpers are confirmed in the quotation)
 export { ITEM_COUNT_MAX, bookingExtraGuests, bookingItems, formatBookingItem, itemGrows, itemsToConfirm, packageItemsFor, usesGuestRule } from './domain/packageItems.js';
 // Event times (an end time 2 to 6 hours after the start, maybe past midnight) and a blocked date's note for customers
 export { blockNote, endTimeOptions, endTimeProblem, endsNextDay, eventHours, shiftEndTime } from './domain/availability.js';

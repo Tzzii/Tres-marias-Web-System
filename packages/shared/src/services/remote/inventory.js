@@ -63,5 +63,10 @@ export async function listReservationEquipment(ref) {
   return http.get(`/admin/inventory/rentals/${segment(ref)}`);
 }
 
+export async function rentalCheckoutState(ref) {
+  if (!ref) throw rentalNotFound();
+  return http.get(`/admin/inventory/rentals/${segment(ref)}/checkout-state`);
+}
+
 // The "no event" key: the same as the server's (domain/inventory.js)
 export { NO_EVENT };

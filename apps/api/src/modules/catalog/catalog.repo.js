@@ -1,4 +1,5 @@
 import { nestAddons } from '@tm/shared/src/domain/catalog.js';
+import { helperLabel } from '@tm/shared/src/utils/helperLabels.js';
 import { pool } from '../../db.js';
 import { parseJson, toJson } from '../../lib/json.js';
 
@@ -34,8 +35,8 @@ const toPackage = (row) =>
     kind: row.kind,
     price: row.price,
     guests: row.guests,
-    description: row.description,
-    items: parseJson(row.items, []),
+    description: helperLabel(row.description),
+    items: parseJson(row.items, []).map((item) => ({ ...item, name: helperLabel(item.name) })),
     mood: row.mood,
     icon: row.icon,
     featured: Boolean(row.featured),
@@ -107,8 +108,8 @@ export async function setPackageArchived(id, archived) {
 const toAddonRow = (row) => ({
   id: row.id,
   parentId: row.parent_id,
-  name: row.name,
-  description: row.description,
+  name: helperLabel(row.name),
+  description: helperLabel(row.description),
   price: row.price === null ? null : Number(row.price), // null: priced in each quotation
   hasQuantity: Boolean(row.has_quantity),
   hasPackages: Boolean(row.has_packages), // a charge with packages: its child rows are packages
@@ -140,7 +141,9 @@ export async function findAddonById(id, db = pool) {
  * and the index agree.
  */
 export async function addonNameTaken(name, exceptId) {
-  const [rows] = await pool.query('SELECT 1 FROM addons WHERE parent_id IS NULL AND name = ? AND id <> ? LIMIT 1', [name, exceptId]);
+  const names = helperLabel(name).toLowerCase() === 'helper'
+    ? ['Helper', 'Waiter/Dishwasher', 'Water/Dishwasher'] : [name];
+  const [rows] = await pool.query('SELECT 1 FROM addons WHERE parent_id IS NULL AND name IN (?) AND id <> ? LIMIT 1', [names, exceptId]);
   return rows.length > 0;
 }
 
@@ -225,7 +228,7 @@ export async function setAddonArchived(id, archived, db = pool) {
 const DISH_COLUMNS = 'id, category, name, archived';
 
 // dishes row -> dish record (null stays null)
-const toDish = (row) => row && { id: row.id, category: row.category, name: row.name, archived: Boolean(row.archived) };
+const toDish = (row) => row && { id: row.id, category: /^kare[\s-]*kare$/i.test(row.name) ? 'pork' : row.category, name: row.name, archived: Boolean(row.archived) };
 
 /** Dishes in list order; without includeArchived, only the ones still suggested. */
 export async function listDishes({ includeArchived = false } = {}) {

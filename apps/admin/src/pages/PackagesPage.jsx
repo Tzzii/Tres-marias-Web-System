@@ -753,7 +753,7 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
                 label={
                   <Box>
                     <Typography sx={{ fontSize: 13.5 }}>Ask the customer how many</Typography>
-                    <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>For charges counted by the piece, such as extra waiters. The price is then the price of one.</Typography>
+                    <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>For charges counted by the piece, such as extra helpers. The price is then the price of one.</Typography>
                   </Box>
                 }
                 sx={{ alignItems: 'flex-start' }}

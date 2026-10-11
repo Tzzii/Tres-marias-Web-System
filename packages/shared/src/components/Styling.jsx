@@ -1,11 +1,10 @@
+import { RAINBOW_COLORS, themeColorSchemes } from '../domain/themeColors.js';
 import { useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
 import IconButton from '@mui/material/IconButton';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import {
@@ -15,14 +14,7 @@ import {
   THEME_OTHER,
   THEME_OTHER_RANGE,
   THEME_UNDECIDED,
-  colorName,
   hasColor,
-  hexToRgb,
-  hsvToRgb,
-  matchingColors,
-  readHex,
-  rgbToHex,
-  rgbToHsv,
   stylingEmpty,
   stylingToDiscuss,
   themeLabel,
@@ -37,9 +29,9 @@ import { Pill } from './Pill.jsx';
  * The "Theme and Colors" parts (domain/styling.js has the lists and the rules):
  *   StylingFields     the theme chips (with "Other" and its text box), the colour motif and the design
  *                     details: the booking form's section 4 and the admin's Edit Theme and Colors dialog
- *   ColorMotifPicker  the colour picker: a shade area and a hue bar, the colour code, the metallic
+ *   ColorMotifPicker  the ROYGBIV families, shade buttons, metallic
  *                     buttons, the colours picked so far (up to MAX_MOTIF_COLORS, the first is the main one)
- *                     and the colours that go well with the main one, to add with a tap
+ *                     with colors added or removed using buttons
  *   StylingSummary    what was chosen, read only: the reservation pages (customer and admin) and the printouts
  *   ColorSwatch       one colour's small square, also printed (print-color-adjust keeps it on paper)
  */
@@ -58,197 +50,31 @@ export function ColorSwatch({ color, size = 20, sx }) {
   return <Box component="span" aria-hidden sx={{ display: 'inline-block', flexShrink: 0, width: size, height: size, borderRadius: 1, border: `1px solid ${tokens.borderInput}`, background: swatchFill(color), ...keepOnPrint, ...sx }} />;
 }
 
-// Where a pointer is inside an element, each from 0 to 1
-const pointerSpot = (event, element) => {
-  const box = element.getBoundingClientRect();
-  const clamp = (n) => Math.min(1, Math.max(0, n));
-  return [clamp((event.clientX - box.left) / box.width), clamp((event.clientY - box.top) / box.height)];
-};
-
-// Mouse, touch and pen dragging on an element: `onSpot([x, y])` on the press and on every move until it is let go
-const dragHandlers = (onSpot) => ({
-  onPointerDown: (event) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    onSpot(pointerSpot(event, event.currentTarget));
-  },
-  onPointerMove: (event) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) onSpot(pointerSpot(event, event.currentTarget));
-  }
-});
-
-// The round marker on the shade area and the hue bar
-const markerSx = { position: 'absolute', width: 16, height: 16, borderRadius: '50%', border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.45)', transform: 'translate(-50%, -50%)', pointerEvents: 'none' };
-
-/**
- * The colour picker. The customer drags in the shade area (left to right: pale to strong; top to bottom:
- * light to dark) and along the hue bar, or types a colour code from Pinterest or Canva, sees
- * "Looks like: Sage Green", and adds it; Gold, Silver, Rose Gold and Copper are buttons of their own.
- * Both the area and the bar also move with the arrow keys. `colors` are the motif's colours so far
- * ([{ hex, name, metallic? }]), `onChange(next)` gets the new list; a colour is removed with its ×.
- * Once there is a main colour, "Goes well with Sage Green" suggests up to five colours that match it
- * (matchingColors in domain/styling.js), each added with a tap; it hides when the motif is full.
- * `error` is the server's or the form's message about the colours.
- */
+// ROYGBIV families open shade buttons; existing custom colors remain visible in saved motifs.
 export function ColorMotifPicker({ id, colors, onChange, error }) {
-  // Hue 0-360, saturation and value 0-1; it starts on a soft sage, a colour many motifs use
-  const [hsv, setHsv] = useState(() => rgbToHsv(hexToRgb('#9CAF88')));
-  const [code, setCode] = useState('#9CAF88'); // the colour code box, as typed
-  const [problem, setProblem] = useState(''); // "up to 5" or "already in your motif"
-  const [hue, saturation, value] = hsv;
-  // The colour now chosen: the code as typed when it is a full code, else the picker's
-  const current = readHex(code) || rgbToHex(hsvToRgb(hue, saturation, value));
-  const full = colors.length >= MAX_MOTIF_COLORS;
-  // Colours that go well with the main (first) colour, not yet in the motif
-  const suggestions = full ? [] : matchingColors(colors);
-
-  // Move the picker and write its colour into the code box
-  const pick = (next) => {
-    setHsv(next);
-    setCode(rgbToHex(hsvToRgb(...next)));
-    setProblem('');
-  };
-  const typeCode = (raw) => {
-    setCode(raw.slice(0, 7));
-    setProblem('');
-    const hex = readHex(raw);
-    if (hex) setHsv(rgbToHsv(hexToRgb(hex)));
-  };
-
-  // Add a colour unless the motif is full or already has it
-  const add = (color) => {
-    if (full) return setProblem(`You can pick up to ${MAX_MOTIF_COLORS} colors. Remove one first.`);
-    if (hasColor(colors, color)) return setProblem('That color is already in your motif.');
-    setProblem('');
-    onChange([...colors, color]);
-    return undefined;
-  };
-  const remove = (index) => {
-    setProblem('');
-    onChange(colors.filter((_, i) => i !== index));
-  };
-
-  // Arrow keys: the shade area moves saturation (left, right) and brightness (up, down); the bar moves the hue
-  const areaKeys = (event) => {
-    const step = { ArrowLeft: [-0.03, 0], ArrowRight: [0.03, 0], ArrowUp: [0, 0.03], ArrowDown: [0, -0.03] }[event.key];
-    if (!step) return;
-    event.preventDefault();
-    const clamp = (n) => Math.min(1, Math.max(0, n));
-    pick([hue, clamp(saturation + step[0]), clamp(value + step[1])]);
-  };
-  const hueKeys = (event) => {
-    const step = { ArrowLeft: -5, ArrowRight: 5, ArrowDown: -5, ArrowUp: 5 }[event.key];
-    if (!step) return;
-    event.preventDefault();
-    pick([(hue + step + 360) % 360, saturation, value]);
-  };
-
-  return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, gap: 2 }}>
-      <Box sx={{ minWidth: 0 }}>
-        {/* The shade area: the hue at full strength, washed white to the left and darkened to the bottom.
-            touch-action: none keeps the page from scrolling while a finger drags in it. */}
-        <Box
-          role="slider"
-          tabIndex={0}
-          aria-label="Color shade"
-          aria-valuetext={`${Math.round(saturation * 100)}% strength, ${Math.round(value * 100)}% brightness`}
-          onKeyDown={areaKeys}
-          {...dragHandlers(([x, y]) => pick([hue, x, 1 - y]))}
-          sx={{ position: 'relative', height: { xs: 150, sm: 170 }, borderRadius: 1.5, cursor: 'crosshair', touchAction: 'none', backgroundColor: `hsl(${hue}, 100%, 50%)`, backgroundImage: 'linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)', outline: 'none', '&:focus-visible': { boxShadow: `0 0 0 3px ${tokens.borderFocus}` } }}
-        >
-          <Box sx={{ ...markerSx, left: `${saturation * 100}%`, top: `${(1 - value) * 100}%`, backgroundColor: current }} />
-        </Box>
-        {/* The hue bar: every colour, left to right */}
-        <Box
-          role="slider"
-          tabIndex={0}
-          aria-label="Color"
-          aria-valuemin={0}
-          aria-valuemax={360}
-          aria-valuenow={Math.round(hue)}
-          onKeyDown={hueKeys}
-          {...dragHandlers(([x]) => pick([Math.min(359.9, x * 360), saturation, value]))}
-          sx={{ position: 'relative', mt: 1.25, height: 20, borderRadius: 1.5, cursor: 'pointer', touchAction: 'none', background: 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)', outline: 'none', '&:focus-visible': { boxShadow: `0 0 0 3px ${tokens.borderFocus}` } }}
-        >
-          <Box sx={{ ...markerSx, left: `${(hue / 360) * 100}%`, top: '50%', backgroundColor: `hsl(${hue}, 100%, 50%)` }} />
-        </Box>
-        {/* Metallics, which the picker can't show */}
-        <Typography sx={{ mt: 1.5, mb: 0.75, fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>Metallics</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-          {METALLICS.map((metal) => (
-            <Button key={metal.name} size="small" variant="outlined" onClick={() => add({ hex: metal.hex, name: metal.name, metallic: true })} startIcon={<ColorSwatch color={{ ...metal, metallic: true }} size={14} sx={{ borderRadius: '50%' }} />} sx={{ borderRadius: 999, textTransform: 'none', fontSize: 12.5 }}>
-              {metal.name}
-            </Button>
-          ))}
-        </Box>
-      </Box>
-
-      <Box sx={{ minWidth: 0 }}>
-        {/* The colour now chosen, its name and its code */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1 }}>
-          <ColorSwatch color={{ hex: current }} size={48} sx={{ borderRadius: 1.5 }} />
-          <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>Looks like: {colorName(current)}</Typography>
-            <TextField
-              id={`${id}-code`}
-              size="small"
-              value={code}
-              onChange={(e) => typeCode(e.target.value)}
-              onBlur={() => !readHex(code) && setCode(current)}
-              inputProps={{ 'aria-label': 'Color code', maxLength: 7, autoComplete: 'off', spellCheck: false }}
-              sx={{ mt: 0.5, width: 116, '& input': { fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize: 13, py: 0.6 } }}
-            />
-          </Box>
-        </Box>
-        <Button fullWidth variant="outlined" startIcon={<AddRoundedIcon />} onClick={() => add({ hex: current, name: colorName(current) })} sx={{ textTransform: 'none' }}>
-          Add this color
-        </Button>
-        {(problem || error) && (
-          <Typography role="alert" sx={{ mt: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.redPress }}>
-            {problem || error}
-          </Typography>
-        )}
-
-        {/* The motif so far: the first is the main colour */}
-        <Typography sx={{ mt: 1.5, mb: 0.75, fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>
-          {colors.length} of {MAX_MOTIF_COLORS} colors{colors.length ? ' · the first is your main color' : ''}
-        </Typography>
-        <Box component="ul" aria-label="Your color motif" sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          {colors.map((color, index) => (
-            <Box component="li" key={`${color.name}-${color.hex}`} sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, pr: 0.5, py: 0.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.cardLight }}>
-              <ColorSwatch color={color} size={22} />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary, display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  {color.name}
-                  {index === 0 && <Pill label="Main" dot={false} size="sm" bg="rgba(197,160,89,0.18)" fg="#8a6a2b" />}
-                </Typography>
-                <Typography sx={{ fontSize: 11.5, color: tokens.textMuted, fontFamily: color.metallic ? undefined : 'ui-monospace, SFMono-Regular, Consolas, monospace' }}>{color.metallic ? 'Metallic' : color.hex}</Typography>
-              </Box>
-              <IconButton size="small" aria-label={`Remove ${color.name}`} onClick={() => remove(index)} sx={{ color: tokens.textMuted }}>
-                <CloseRoundedIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          ))}
-        </Box>
-
-        {/* Suggestions for the main colour: a tap adds one to the motif */}
-        {suggestions.length > 0 && (
-          <Box sx={{ mt: 1.5 }}>
-            <Typography sx={{ mb: 0.75, fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>
-              Goes well with {colors[0].name} · tap to add
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-              {suggestions.map((color) => (
-                <Button key={color.name} size="small" variant="outlined" onClick={() => add(color)} aria-label={`Add ${color.name}`} startIcon={<ColorSwatch color={color} size={14} sx={{ borderRadius: '50%' }} />} sx={{ borderRadius: 999, textTransform: 'none', fontSize: 12.5 }}>
-                  {color.name}
-                </Button>
-              ))}
-            </Box>
-          </Box>
-        )}
-      </Box>
-    </Box>
-  );
+ const [family, setFamily] = useState('');
+ const [problem, setProblem] = useState('');
+ const add = (color) => {
+  if (colors.length >= MAX_MOTIF_COLORS) return setProblem(`You can pick up to ${MAX_MOTIF_COLORS} colors. Remove one first.`);
+  if (hasColor(colors, color)) return setProblem('That color is already in your motif.');
+  setProblem(''); onChange([...colors, color]);
+ };
+ const swatchButton = (color) => <Button key={color.hex} size="small" variant="outlined" onClick={() => add(color)} startIcon={<ColorSwatch color={color} size={18} />} sx={{ textTransform: 'none' }}>{color.name}</Button>;
+ const selected = RAINBOW_COLORS.find((c) => c.name === family);
+ return <Box id={id}>
+  <Typography sx={{ mb: 1, fontSize: 13, color: tokens.textSecondary }}>Pick a ROYGBIV color to see its shades, then add the shade you want.</Typography>
+  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+   {RAINBOW_COLORS.map((c) => <Button key={c.name} variant={family === c.name ? 'contained' : 'outlined'} aria-pressed={family === c.name} aria-controls={`${id}-shades`} onClick={() => { setFamily(c.name); setProblem(''); }} startIcon={<ColorSwatch color={c} size={18} />}>{c.name}</Button>)}
+  </Box>
+  {selected && <Box id={`${id}-shades`} sx={{ mt: 2 }}><Typography sx={{ mb: 1, fontWeight: 700 }}>{selected.name} shades</Typography><Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>{selected.shades.map(swatchButton)}</Box></Box>}
+  <Typography sx={{ mt: 2, mb: 1, fontWeight: 700 }}>Metallics</Typography>
+  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>{METALLICS.map((m) => swatchButton({ hex: m.hex, name: m.name, metallic: true }))}</Box>
+  {(problem || error) && <Typography role="alert" sx={{ mt: 1, color: tokens.redPress }}>{problem || error}</Typography>}
+  <Typography sx={{ mt: 2, mb: 1, fontWeight: 700 }}>{colors.length} of {MAX_MOTIF_COLORS} colors · first is your main color</Typography>
+  <Box component="ul" aria-label="Your color motif" sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+   {colors.map((c, i) => <Box component="li" key={c.hex + c.name} sx={{ display: 'flex', alignItems: 'center', gap: 1, border: `1px solid ${tokens.cardLightBorder}`, borderRadius: 1, pl: 1 }}><ColorSwatch color={c} /><Typography sx={{ fontSize: 13 }}>{c.name}{i === 0 ? ' (Main)' : ''}</Typography><IconButton aria-label={`Remove ${c.name}`} onClick={() => { setProblem(''); onChange(colors.filter((_, n) => n !== i)); }}><CloseRoundedIcon fontSize="small" /></IconButton></Box>)}
+  </Box>
+ </Box>;
 }
 
 // One theme chip; `picked` shows a tick and a dark border
@@ -315,6 +141,11 @@ export function StylingFields({ idPrefix, value, onChange, occasion, errors = {}
           <ThemeChip label={THEME_OTHER} dashed picked={value.theme === THEME_OTHER} onClick={() => pickTheme(THEME_OTHER)} />
           <ThemeChip label={THEME_UNDECIDED} dashed picked={value.theme === THEME_UNDECIDED} onClick={() => pickTheme(THEME_UNDECIDED)} />
         </Box>
+        {themeColorSchemes(value.theme).length > 0 && <Box sx={{ mt: 2 }}>
+          <Typography sx={{ mb: 1, fontWeight: 700, fontSize: 14 }}>Recommended color schemes for {value.theme}</Typography>
+          <Typography sx={{ mb: 1, fontSize: 12.5, color: tokens.textSecondary }}>Choose a scheme to apply it to your motif. You can adjust its colors below.</Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>{themeColorSchemes(value.theme).map((scheme) => <Button key={scheme.label} variant="outlined" onClick={() => onChange({ colors: scheme.colors })} sx={{ justifyContent: 'flex-start', gap: 1, flexWrap: 'wrap', textTransform: 'none' }}>{scheme.colors.map((c) => <ColorSwatch key={c.hex} color={c} />)}{scheme.label}</Button>)}</Box>
+        </Box>}
         {/* Their own theme when it is not in the list */}
         {value.theme === THEME_OTHER && (
           <FormField

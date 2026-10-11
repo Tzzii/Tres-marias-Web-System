@@ -1,5 +1,6 @@
 import { RENTAL_SERVICE } from '@tm/shared/src/services/config.js';
 import { HOLDS_DATE } from '@tm/shared/src/utils/status.js';
+import { helperItemCounts } from '@tm/shared/src/utils/helperLabels.js';
 import { toJson, parseJson } from '../../lib/json.js';
 
 /**
@@ -109,6 +110,9 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     // The Terms version the customer agreed to when booking ('' for bookings made before the form asked)
     termsVersion: row.terms_version || ''
   };
+  if (record.quotation?.itemCounts) {
+    record.quotation = { ...record.quotation, itemCounts: helperItemCounts(record.quotation.itemCounts) };
+  }
   if (row.service_type === RENTAL_SERVICE) {
     record.rentalItems = rentalLines.map((line) => ({ itemId: line.item_id, name: line.name, qty: line.qty, price: line.price, damageFee: line.damage_fee }));
     record.fulfilment = row.fulfilment;
@@ -326,7 +330,7 @@ export async function refsWithPrefix(conn, prefix) {
  * What the rental stock rules (rentalStock in @tm/shared/src/domain/reservation.js) need for one date:
  *   inventory     every item, in the order it was added (its EQ- code): { id, name, total, damaged,
  *                 lowStockAt, rentable, archived, rentPrice, damageFee,
- *                 allocations: { reservationRef: pieces checked out for bookings on the date } }
+ *                 allocations: { reservationRef or 'none': all pieces currently checked out } }
  *   reservations  the bookings on the date in a status that holds it (HOLDS_DATE), each rental with its
  *                 rentalItems: [{ itemId, qty }]
  */
@@ -340,9 +344,8 @@ export async function rentalStockInputs(db, date) {
       [date, HOLDS_DATE]
     ),
     db.query(
-      `SELECT a.item_id, a.reservation_ref, a.qty FROM inventory_allocations a JOIN reservations r ON r.ref = a.reservation_ref
-        WHERE r.date = ? AND r.status IN (?)`,
-      [date, HOLDS_DATE]
+      'SELECT item_id, reservation_ref, qty FROM inventory_allocations',
+      []
     ),
     // The additional charges of those bookings, for the pieces of stock-tracked ones (a tent size)
     db.query(

@@ -146,7 +146,7 @@ function packageValues(values, rental) {
  * "What's included" as [{ qty, name, grows }]: at least one item, each with a name, and a quantity that is
  * a whole number or null ("Buffet Table" has none). An item with a quantity also keeps `grows` when it is
  * sent (true: it grows with the guest count, like plates and chairs; false: its count above the package's
- * guests is set in the quotation, like waiters; domain/packageItems.js). Nothing else is kept.
+ * guests is set in the quotation, like helpers; domain/packageItems.js). Nothing else is kept.
  */
 function packageItems(list) {
   if (!Array.isArray(list) || list.length === 0) throw invalid('List at least one item.', 'items');
@@ -362,6 +362,7 @@ export async function saveDish(id, values) {
   if (id && !(await repo.findDishById(id))) throw new ApiError('NOT_FOUND', 'Dish not found.');
   if (await repo.dishNameTaken(values.category, name, id || '')) throw dishTaken();
 
+  if (/^kare[\s-]*kare$/i.test(name) && values.category !== 'pork') throw invalid('Kare-Kare belongs under Pork Dish.', 'category');
   const clean = { name, category: values.category };
   const savedId = id || newId('dish');
   try {

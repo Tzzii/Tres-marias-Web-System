@@ -1,12 +1,13 @@
 import { extraGuestsFor } from '../services/pricing.js';
 import { formatPackageItem } from '../utils/format.js';
+import { helperItemCounts, helperLabel } from '../utils/helperLabels.js';
 
 /**
  * How a package's "What's included" follows the guest count (the owner's rule, 2026-10-09). A package is
  * priced and equipped for its default guest count (`pkg.guests`). When a booking has more guests:
  *   - the items that grow with the guests (plates, glasses, spoons, forks, chairs, tables) go up in the
  *     same proportion, rounded up: 200 plates at 600 guests -> 600, 20 tables -> 60;
- *   - every other item with a count (food warmers, pitchers, water jugs, waiters) is "to confirm": the
+ *   - every other item with a count (food warmers, pitchers, water jugs, helpers) is "to confirm": the
  *     admin sets its count in the quotation (`itemCounts`, by item name), and until then it shows as
  *     "Elegant Food Warmers (to confirm)";
  *   - items without a count (Buffet Table, Arc, Stage) stay as they are;
@@ -45,13 +46,13 @@ export function itemGrows(item, pkg) {
  */
 export function packageItemsFor(pkg, guests, itemCounts = {}) {
   const extra = extraGuestsFor(pkg, guests);
-  const counts = itemCounts && typeof itemCounts === 'object' ? itemCounts : {};
+  const counts = helperItemCounts(itemCounts);
   return ((pkg && pkg.items) || []).map((item) => {
     const grows = itemGrows(item, pkg);
-    const base = { name: item.name, qty: item.qty ?? null, defaultQty: item.qty ?? null, grows, toConfirm: false };
+    const base = { name: helperLabel(item.name), qty: item.qty ?? null, defaultQty: item.qty ?? null, grows, toConfirm: false };
     if (!extra || !item.qty) return base;
     if (grows) return { ...base, qty: Math.ceil((item.qty * Number(guests)) / Number(pkg.guests)) };
-    const set = Number(counts[item.name]);
+    const set = Number(counts[base.name]);
     return Number.isInteger(set) && set > 0 ? { ...base, qty: set } : { ...base, toConfirm: true };
   });
 }
@@ -78,7 +79,7 @@ export const usesGuestRule = (reservation) => !reservation.quotation || reservat
  */
 export function bookingItems(reservation) {
   const pkg = reservation.package;
-  if (!usesGuestRule(reservation)) return ((pkg && pkg.items) || []).map((item) => ({ name: item.name, qty: item.qty ?? null, defaultQty: item.qty ?? null, grows: false, toConfirm: false }));
+  if (!usesGuestRule(reservation)) return ((pkg && pkg.items) || []).map((item) => ({ name: helperLabel(item.name), qty: item.qty ?? null, defaultQty: item.qty ?? null, grows: false, toConfirm: false }));
   return packageItemsFor(pkg, reservation.guests, reservation.quotation && reservation.quotation.itemCounts);
 }
 

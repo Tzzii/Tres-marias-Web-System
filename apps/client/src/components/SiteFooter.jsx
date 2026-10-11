@@ -63,7 +63,7 @@ export default function SiteFooter({ bottomSpace = false }) {
             <Typography sx={headingSx}>Packages</Typography>
             <Box sx={linkListSx}>
               {/* [URL slug, display name] for each package page link: the four tiers and both weddings.
-                  The Full Service versions are left out, since each one is its tier with waiters added. */}
+                  The Full Service versions are left out, since each one is its tier with helpers added. */}
               {[
                 ['petite', 'Petite'],
                 ['classic', 'Classic'],

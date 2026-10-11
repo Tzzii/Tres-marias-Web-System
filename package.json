@@ -21,6 +21,9 @@
     "test:realtime": "npm run test:realtime -w apps/api",
     "test:outsource": "npm run test:outsource -w apps/api",
     "test:mobile": "npm run test:mobile -w apps/api",
+    "test:inventory": "npm run test:inventory -w apps/api",
+    "test:labels": "npm run test:labels -w apps/api",
+    "test:inventory:db": "npm run test:inventory:db -w apps/api",
     "email:preview": "npm run email:preview -w apps/api",
     "test:email": "npm run test:email -w apps/api",
     "dev:client": "node scripts/vite-run.mjs dev client",
@@ -30,7 +33,10 @@
     "build:client": "node scripts/vite-run.mjs build client",
     "build:admin": "node scripts/vite-run.mjs build admin",
     "preview:client": "node scripts/vite-run.mjs preview client",
-    "preview:admin": "node scripts/vite-run.mjs preview admin"
+    "preview:admin": "node scripts/vite-run.mjs preview admin",
+    "test:booking": "npm run test:booking -w apps/api",
+    "catalog:update": "npm run catalog:update -w apps/api --",
+    "test:booking:db": "npm run test:booking:db -w apps/api"
   },
   "engines": {
     "node": ">=20"

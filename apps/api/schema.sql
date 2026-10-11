@@ -589,6 +589,19 @@ CREATE TABLE inventory_allocations (
   CONSTRAINT chk_inventory_allocations_qty CHECK (qty > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Lifetime quantities dispatched for a rental. Returns do not erase this ledger, so a scheduler
+-- retry, server restart or manual checkout cannot dispatch already-returned pieces again.
+CREATE TABLE rental_dispatches (
+  reservation_ref VARCHAR(40) NOT NULL,
+  item_id         VARCHAR(40) NOT NULL,
+  qty             INT NOT NULL,
+  dispatched_at   BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (reservation_ref, item_id),
+  CONSTRAINT fk_rental_dispatches_reservation FOREIGN KEY (reservation_ref) REFERENCES reservations (ref),
+  CONSTRAINT fk_rental_dispatches_item FOREIGN KEY (item_id) REFERENCES inventory_items (id),
+  CONSTRAINT chk_rental_dispatches_qty CHECK (qty > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- An item's history (the item's `history` array). Append-only.
 CREATE TABLE inventory_history (
   id      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

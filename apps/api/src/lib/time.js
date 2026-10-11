@@ -21,6 +21,15 @@ export function todayISO() {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+/** One consistent business-local date and minute, even when a run straddles midnight. */
+export function businessClock(instant = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: config.timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(instant).map((p) => [p.type, p.value]));
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
 /**
  * True for a calendar date written "YYYY-MM-DD" that names a real day, in the years a MySQL DATE
  * column holds (1000–9999). Read as UTC midnight, so no time zone can move it; the round trip catches

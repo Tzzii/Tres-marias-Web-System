@@ -1,3 +1,4 @@
+import { dishesInMenu } from './menu.js';
 import { BUSINESS, DISH_CATEGORIES, RENTAL, includesFood, isRental } from '../services/config.js';
 import { computeQuote } from '../services/pricing.js';
 import { formatDate, todayISO } from '../utils/format.js';
@@ -86,7 +87,8 @@ export function addonPieces(reservation, item) {
  *
  *   inventory     items with { id, total, damaged, addonId?, allocations: { reservationRef or 'none': pieces out } }
  *   reservations  records with { ref, date, status, serviceType, rentalItems, addonIds, addonQty }; the
- *                 server passes only the ones dated `date` (others are skipped here anyway)
+ *                 server passes only the ones dated `date` (others are skipped here anyway).
+ *                 All current allocations are included, even on other dates or with no event.
  */
 export function rentalStock({ inventory, reservations }, date, excludeRef) {
   const sameDay = reservations.filter((r) => r.date === date && r.ref !== excludeRef && HOLDS_DATE.includes(r.status));
@@ -94,9 +96,12 @@ export function rentalStock({ inventory, reservations }, date, excludeRef) {
   const events = sameDay.filter((r) => !isRental(r.serviceType));
   const stock = {};
   inventory.forEach((item) => {
-    const booked = rentals.reduce((sum, r) => sum + ((r.rentalItems || []).find((line) => line.itemId === item.id) || { qty: 0 }).qty, 0);
+    const booked = rentals.reduce((sum, r) => sum + Math.max(item.allocations[r.ref] || 0, ((r.rentalItems || []).find((line) => line.itemId === item.id) || { qty: 0 }).qty), 0);
     const atEvents = events.reduce((sum, r) => sum + Math.max(item.allocations[r.ref] || 0, addonPieces(r, item)), 0);
-    stock[item.id] = Math.max(0, item.total - item.damaged - booked - atEvents);
+    // Pieces still physically out for another date, a closed booking or no event cannot be rented yet.
+    const heldRefs = new Set(sameDay.map((r) => r.ref));
+    const elsewhere = Object.entries(item.allocations).reduce((sum, [ref, qty]) => sum + (ref !== excludeRef && !heldRefs.has(ref) ? qty : 0), 0);
+    stock[item.id] = Math.max(0, item.total - item.damaged - booked - atEvents - elsewhere);
   });
   return stock;
 }
@@ -202,5 +207,5 @@ export function approvalMessage(reservation, money) {
  */
 export function menuDishes(reservation) {
   if (!includesFood(reservation.serviceType) || !reservation.menu) return [];
-  return DISH_CATEGORIES.map(({ key, label }) => ({ key, label, name: reservation.menu[key] || '—' }));
+  return DISH_CATEGORIES.flatMap(({ key, label }) => dishesInMenu(reservation.menu, key).filter(Boolean).map((name, i) => ({ key: `${key}-${i}`, label, name })));
 }

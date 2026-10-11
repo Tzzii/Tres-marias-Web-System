@@ -1,3 +1,4 @@
+import { cleanMenu, menuProblem, DESSERT_ADDON_ID } from '@tm/shared/src/domain/menu.js';
 import { dateUnavailableReason, endTimeProblem, eventHours, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
 import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
 import { addonPriceMap, bookableAddons, flattenAddons, packagePickProblem } from '@tm/shared/src/domain/catalog.js';
@@ -18,8 +19,6 @@ import {
   BUSINESS,
   DEFAULT_MIN_DOWNPAYMENT,
   DEFAULT_PRICE_PER_PLATE,
-  DISH_CATEGORIES,
-  MENU_LINE_MAX,
   RENTAL,
   RENTAL_SERVICE,
   RULES,
@@ -30,6 +29,7 @@ import {
 } from '@tm/shared/src/services/config.js';
 import { TERMS_VERSION } from '@tm/shared/src/legal/terms.js';
 import { ITEM_COUNT_MAX, itemsToConfirm } from '@tm/shared/src/domain/packageItems.js';
+import { helperItemCounts } from '@tm/shared/src/utils/helperLabels.js';
 import { computeQuote, extraGuestsFor } from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
 import { daysFromToday, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
@@ -279,18 +279,6 @@ async function eventBooking(conn, pkg, form) {
   const serviceType = form.serviceType;
   if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose whether you want a buffet or catering only.', 'serviceType');
 
-  // A buffet names something for each of the four categories, in the customer's own words (a line may
-  // name two dishes); catering only carries no menu at all. A very long line is cut, not refused.
-  let menu = null;
-  if (includesFood(serviceType)) {
-    const wanted = plainObject(form.menu);
-    menu = {};
-    DISH_CATEGORIES.forEach(({ key, label }) => {
-      const line = clean(wanted[key]);
-      if (line.length < 2) throw invalid(`Tell us what you would like for your ${label.toLowerCase()}.`, `menu.${key}`);
-      menu[key] = cut(line, MENU_LINE_MAX);
-    });
-  }
   // The look the customer wants (optional): null when the section was left blank
   const styling = stylingOf(form.styling);
 
@@ -312,6 +300,10 @@ async function eventBooking(conn, pkg, form) {
     addonQty[addon.id] = many;
   });
   const addonIds = addons.map((addon) => addon.id);
+  const menuOptions = { buffet: includesFood(serviceType), dessert: addonIds.includes(DESSERT_ADDON_ID) };
+  const menuCheck = menuProblem(form.menu, menuOptions);
+  if (menuCheck) throw invalid(menuCheck.message, menuCheck.field);
+  const menu = cleanMenu(form.menu, menuOptions);
   // Stock-tracked charges (a tent size) need enough pieces free on the date. A pending request holds
   // none yet, so accepting the quotation checks again.
   const stockProblem = addonStockProblem(await repo.rentalStockInputs(conn, date), { addonIds, addonQty }, date, addons);
@@ -478,10 +470,10 @@ async function book(conn, customer, form) {
  * tried again in a new transaction with a fresh read of the refs, up to MAX_REF_ATTEMPTS times (the
  * availability lock already makes this rare). `customer` is req.user: { id, name }.
  */
-export async function createReservation(customer, form) {
+export async function createReservation(customer, form, { transact = tx } = {}) {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await tx((conn) => book(conn, customer, form));
+      return await transact((conn) => book(conn, customer, form));
     } catch (err) {
       if (attempt >= MAX_REF_ATTEMPTS || !isRefTaken(err)) throw err;
     }
@@ -717,7 +709,7 @@ function extraGuestValues(pkg, reservation, values) {
   const charge = values.extraGuestsCharge;
   if (charge === undefined || charge === null || charge === '') throw invalid(`Enter the price of the equipment for the ${extra} extra guests (0 to waive it).`, 'extraGuestsCharge');
   const extraGuestsCharge = quotationAmount(charge, 'extraGuestsCharge');
-  const sent = plainObject(values.itemCounts);
+  const sent = helperItemCounts(plainObject(values.itemCounts));
   const itemCounts = {};
   itemsToConfirm(pkg, reservation.guests).forEach((item) => {
     const count = toNumber(sent[item.name]);
@@ -740,7 +732,7 @@ function extraGuestValues(pkg, reservation, values) {
  * An event with more guests than its package's default (extraGuestsFor; domain/packageItems.js) needs two
  * more things, both required: `extraGuestsCharge`, the price of the equipment for those guests (0 is
  * allowed, to waive it), and `itemCounts`, the count of every package item that does not grow with the
- * guests ({ 'Elegant Food Warmers': 10, 'Waiters/Dishwashers': 12 }, whole numbers 1 to ITEM_COUNT_MAX).
+ * guests ({ 'Elegant Food Warmers': 10, 'Helpers': 12 }, whole numbers 1 to ITEM_COUNT_MAX).
  * Both are saved on the quotation; at or below the default they are ignored and saved as 0 and {}.
  *
  * A pending request's quotation is an offer the customer accepts (acceptQuotation), so it is only sent
@@ -1118,6 +1110,9 @@ async function updateRentalLogistics(conn, row, values, admin) {
   const { date } = values;
   if (!isISODate(date)) throw invalid('Choose the date you need the items.', 'date');
   const startTime = startTimeOf(values);
+  if ((date !== reservation.date || startTime !== reservation.startTime) && row.piecesOut > 0) {
+    throw invalid('Record the return of checked-out items before changing the pickup or delivery schedule.', 'date');
+  }
   if (date !== reservation.date) {
     if (daysFromToday(date) < 0) throw invalid('A rental cannot be moved to a past date.', 'date');
     const reason = dateUnavailableReason(date, await availabilityMap(conn), { enforceLeadTime: false, rental: true });
@@ -1184,17 +1179,11 @@ export async function updateMenu(ref, body, admin) {
     if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no menu. Edit the rented items instead.');
     const { serviceType } = values;
     if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose a buffet or catering only.', 'serviceType');
-    // A buffet names something for each of the four categories (cut at MENU_LINE_MAX); catering only has no menu
-    let menu = null;
-    if (includesFood(serviceType)) {
-      const wanted = plainObject(values.menu);
-      menu = {};
-      DISH_CATEGORIES.forEach(({ key, label }) => {
-        const line = clean(wanted[key]);
-        if (line.length < 2) throw invalid(`Fill in the ${label.toLowerCase()}.`, `menu.${key}`);
-        menu[key] = cut(line, MENU_LINE_MAX);
-      });
-    }
+    // Buffet dishes and optional juice/dessert use the same validation as the form.
+    const options = { buffet: includesFood(serviceType), dessert: reservation.addonIds.includes(DESSERT_ADDON_ID) };
+    const check = menuProblem(values.menu, options);
+    if (check) throw invalid(check.message, check.field);
+    const menu = cleanMenu(values.menu, options);
     const before = reservation.serviceType;
     await repo.updateReservation(conn, ref, { serviceType, menu, foodNotes: clean(values.foodNotes) });
     await logAdmin(conn, ref, admin, before === serviceType ? 'Updated the menu.' : `Changed the booking from ${before} to ${serviceType}.`);

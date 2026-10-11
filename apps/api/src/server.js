@@ -2,16 +2,19 @@ import http from 'node:http';
 import { config } from './config.js'; // first: loads apps/api/.env and sets TZ before anything reads the clock
 import { createApp } from './app.js';
 import { createRealtimeServer } from './realtime.js';
+import { createRentalCheckoutScheduler } from './modules/inventory/inventory.scheduler.js';
 
 /**
  * Start the API: `npm run dev:api` (node --watch: restarts on every save) or `npm start -w apps/api`.
  *
  * Uses http.createServer instead of app.listen() because in Express 5 app.listen passes a start-up
  * error (e.g. port in use) to its callback, which would print "ready" for a server that never started.
- * The database is not touched here: the API starts and answers /api/health even without MySQL.
+ * The checkout scheduler starts once listening. Its failures are logged separately, so the API
+ * still starts and answers /api/health even without MySQL.
  */
 const server = http.createServer(createApp());
 const realtime = createRealtimeServer(server);
+const rentalCheckout = createRentalCheckoutScheduler();
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -24,6 +27,7 @@ server.on('error', (err) => {
 
 server.listen(config.port, () => {
   console.log(`API ready on http://localhost:${config.port}/api/health (${config.env}, ${config.timeZone})`);
+  rentalCheckout.start();
 });
 
 /**
@@ -34,7 +38,7 @@ server.listen(config.port, () => {
 function shutdown(signal) {
   console.log(`${signal} received, stopping the API…`);
   // Socket.IO closes its connections and the attached HTTP server; wait for HTTP requests to drain.
-  void realtime.close().then(() => process.exit(0));
+  void Promise.all([rentalCheckout.stop(), realtime.close()]).then(() => process.exit(0));
   server.closeIdleConnections(); // keep-alive sockets with no request in flight would otherwise hold close() open
   setTimeout(() => process.exit(0), 5000).unref();
 }

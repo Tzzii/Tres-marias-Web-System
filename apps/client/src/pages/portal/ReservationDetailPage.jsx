@@ -13,7 +13,8 @@ import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import {
   AlertBanner,
   AppDialog,
-  BUFFET_DRINKS,
+  buffetDrinks,
+  dessertSummary,
   BUSINESS,
   BusyButton,
   CUSTOMER_EDITABLE,
@@ -276,11 +277,12 @@ export default function ReservationDetailPage() {
               )}
               <Divider sx={{ my: 2 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {includesFood(r.serviceType) && <Field label="Drinks">{BUFFET_DRINKS} for every guest</Field>}
+                {includesFood(r.serviceType) && <Field label="Drinks">{buffetDrinks(r.menu)} for every guest</Field>}
                 {/* Charges counted by the piece show how many were asked for */}
                 <Field label="Additional charges">
                   {r.addons.length ? r.addons.map((a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name)).join(', ') : 'None'}
                 </Field>
+                {dessertSummary(r.menu) && <Field label="Dessert (additional charge)">{dessertSummary(r.menu)}</Field>}
                 {r.foodNotes && <Field label="Your note about the food">{r.foodNotes}</Field>}
               </Box>
             </DashCard>

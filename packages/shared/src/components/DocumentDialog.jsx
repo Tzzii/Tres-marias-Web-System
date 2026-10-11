@@ -12,7 +12,8 @@ import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { cancelDeadline, cancelWindowText } from '../domain/cancellation.js';
 import { bookingExtraGuests, bookingItems, formatBookingItem } from '../domain/packageItems.js';
 import { stylingEmpty } from '../domain/styling.js';
-import { BUFFET_DRINKS, BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
+import { buffetDrinks, dessertSummary } from '../domain/menu.js';
+import { BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
 import { useNotify } from '../hooks/useNotify.jsx';
 import { tokens } from '../theme/tokens.js';
 import { formatDate, formatDateLong, formatDateTime, formatEventTime, formatMobile, formatTime, peso, toISODate } from '../utils/format.js';
@@ -253,9 +254,10 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     </Typography>
                     <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
                       {includesFood(detail.serviceType)
-                        ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${BUFFET_DRINKS.toLowerCase()}.`
+                        ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${buffetDrinks(detail.menu).toLowerCase()}.`
                         : 'Catering only: equipment and setup, no food.'}
                     </Typography>
+                    {dessertSummary(detail.menu) && <Typography sx={{ mt: 0.5, fontSize: 12.5 }}>Dessert (additional charge): {dessertSummary(detail.menu)}</Typography>}
                     {detail.foodNotes && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>Note: {detail.foodNotes}</Typography>}
                   </Box>
                 </Box>
@@ -327,8 +329,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                         contract keeps printing the rate it was actually agreed at. */}
                     {includesFood(detail.serviceType) ? (
                       <li>
-                        The buffet is served plated and charged per person at {peso(quote.pricePerPlate)} per plate, as shown above, multiplied by the guest count. It covers one pork, chicken, fish
-                        and vegetable dish with {BUFFET_DRINKS.toLowerCase()} for every guest.
+                        The buffet is served plated and charged per person at {peso(quote.pricePerPlate)} per plate, as shown above, multiplied by the guest count. It covers four dishes, with up to two in each category, and {buffetDrinks(detail.menu).toLowerCase()} for every guest.
                       </li>
                     ) : (
                       <li>This booking is catering only: equipment and setup, with no food and no per-person charge.</li>

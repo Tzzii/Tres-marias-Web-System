@@ -71,8 +71,8 @@ export function termsOfService({ minDownpayment } = {}) {
     ]),
     section('prices', 'Prices and Quotations', [], [
       'A package has a fixed price. A buffet adds a price per person, multiplied by your guest count; the price per person is the one in force when you send your request, so a later price change never affects your booking.',
-      'Each package is set up for its default guest count (shown on the package). If you have more guests, the plates, glasses, cutlery, chairs and tables grow with your guest count; we confirm the other items (such as food warmers and waiters) and price the equipment for the extra guests in your quotation. With fewer guests, the package price stays the same.',
-      'Additional charges you pick (for example, extra waiters) are priced in the quotation. The quotation you accept is the amount you owe.',
+      'Each package is set up for its default guest count (shown on the package). If you have more guests, the plates, glasses, cutlery, chairs and tables grow with your guest count; we confirm the other items (such as food warmers and helpers) and price the equipment for the extra guests in your quotation. With fewer guests, the package price stays the same.',
+      'Additional charges you pick (for example, extra helpers) are priced in the quotation. The quotation you accept is the amount you owe.',
       'If something that affects the price changes before you accept (for example, the guest count), we send a revised quotation and you accept that one instead.',
       'If something that affects the price changes after you accept (for example, the guest count, or damage charges on rented items), we tell you in your chat and send a revised quotation. The new amount applies only from the quotation we send you, never before. If the new total is lower than what you have paid, we return the difference.',
       'Extending the service beyond the agreed end time is charged per hour, as stated in your contract.'

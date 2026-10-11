@@ -25,6 +25,11 @@ import {
   INVENTORY_CATEGORIES,
   ListSkeleton,
   MenuPicker,
+  DessertFields,
+  DESSERT_ADDON_ID,
+  menuProblem,
+  buffetDrinks,
+  dessertSummary,
   OCCASIONS,
   OCCASION_OTHER,
   OCCASION_OTHER_RANGE,
@@ -94,6 +99,7 @@ const FIELD_SECTION = { eventName: 'details', occasion: 'details', occasionOther
  * and the theme and colours one per part ('styling.themeOther', 'styling.colors', 'styling.notes').
  */
 const sectionForField = (field) => {
+  if (field.startsWith('menu.dessert.')) return 'addons';
   if (field.startsWith('menu.')) return 'food';
   if (field.startsWith('styling.')) return 'styling';
   if (field.startsWith('addonQty.')) return 'addons';
@@ -141,15 +147,15 @@ const AVAILABILITY = {
 /**
  * 1f / 1o · Reservation form: one long page, sections on the left, live summary on the right.
  *
- * The customer first says what they are booking - a Buffet (our food, one dish from each of the
- * four categories, charged per person) or Catering only (the package's equipment on its own).
+ * The customer first says what they are booking - a Buffet (our food, four dishes, with up to two in each
+ * category, charged per person) or Catering only (the package's equipment on its own).
  * A buffet has a fixed price per person, so the running total on this page is a real figure, not
  * a placeholder; only the additional charges are still priced by the admin in the quotation.
  *
  * A package covers its default guest count. Once a package is picked and the guest count is above it
  * (the owner's rule, 2026-10-09; domain/packageItems.js), "includes" grows with the guests: plates,
  * glasses, cutlery, chairs and tables go up (200 -> 600), and the other counted items (food warmers,
- * pitchers, waiters) say "to confirm". The equipment for the extra guests shows as "To be quoted" in the
+ * pitchers, helpers) say "to confirm". The equipment for the extra guests shows as "To be quoted" in the
  * summary, so the total reads "₱20,000 + quoted": the admin prices it, and sets those counts, in the quotation.
  *
  * The third choice, Equipment rental, books the Equipment Rental package: the customer types how
@@ -165,7 +171,7 @@ const AVAILABILITY = {
  *
  * After the package, an event (not a rental) has "Theme and Colors": an optional theme (the ones popular
  * for the occasion first, "Other" with a text box, or "Not decided yet"), up to five colours from the colour
- * picker or the metallic buttons, and design details. It never changes the price.
+ * family shade buttons or the metallic buttons, and design details. It never changes the price.
  */
 export default function BookEventPage() {
   useDocumentTitle('Book an Event');
@@ -464,6 +470,8 @@ export default function BookEventPage() {
     setErrors((e) => {
       const next = { ...e };
       delete next[`menu.${category}`];
+      delete next['menu.total'];
+      if (category === 'dessert') { delete next['menu.dessert.name']; delete next['menu.dessert.description']; }
       return next;
     });
   };
@@ -511,12 +519,8 @@ export default function BookEventPage() {
     // The theme and colours are optional; only "Other" with nothing typed, or text that is too long, is wrong
     const stylingCheck = stylingProblem(styling);
     if (stylingCheck) e[stylingCheck.field] = stylingCheck.message;
-    // A buffet needs a dish picked, or something written under "Others", for every part; catering only has no menu at all
-    if (buffet) {
-      DISH_CATEGORIES.forEach(({ key, label }) => {
-        if ((form.menu[key] || '').trim().length < 2) e[`menu.${key}`] = `Pick your ${label.toLowerCase()}, or choose Others and write what you would like.`;
-      });
-    }
+    const menuCheck = menuProblem(form.menu, { buffet, dessert: bookedAddonIds.includes(DESSERT_ADDON_ID) });
+    if (menuCheck) e[menuCheck.field] = menuCheck.message;
     // A ticked charge with sizes needs a count for at least one size, and one with packages a package
     form.addonIds.forEach((id) => {
       const charge = addonById[id];
@@ -577,7 +581,7 @@ export default function BookEventPage() {
     const found = validate();
     setErrors(found);
     setFormError('');
-    const firstField = Object.keys(found)[0];
+    const firstField = Object.keys(found).sort((a, b) => SECTIONS.findIndex(([key]) => key === sectionForField(a)) - SECTIONS.findIndex(([key]) => key === sectionForField(b)))[0];
     if (firstField) {
       scrollTo(sectionForField(firstField));
       setFormError(`Please fix ${Object.keys(found).length === 1 ? 'the highlighted field' : `the ${Object.keys(found).length} highlighted fields`} before submitting.`);
@@ -597,7 +601,7 @@ export default function BookEventPage() {
               ...form,
               agreeTerms: agreed,
               guests: Number(form.guests),
-              menu: buffet ? form.menu : {},
+              menu: form.menu,
               styling,
               addonIds: bookedAddonIds,
               addonQty: Object.fromEntries(Object.entries(form.addonQty).map(([id, many]) => [id, Number(many)]))
@@ -642,7 +646,7 @@ export default function BookEventPage() {
   // Does any field in this section have an error? (turns its nav link red)
   const sectionHasError = (key) => Object.keys(errors).some((f) => sectionForField(f) === key);
   // Every category has its dish (a Catering only booking has no menu to fill in)
-  const menuComplete = DISH_CATEGORIES.every(({ key }) => (form.menu[key] || '').trim().length >= 2);
+  const menuComplete = !menuProblem(form.menu);
   // Which sections are complete (shows a green tick in the section nav).
   // Additional charges and the theme and colours are optional, so those sections are ticked only once
   // something is chosen (and, for the theme, nothing in it is wrong).
@@ -764,7 +768,7 @@ export default function BookEventPage() {
             <Section id="service" index={sectionNo('service')} title="What You Are Booking" subtitle="This decides whether we cook for you." error={errors.serviceType}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', xl: rentalPkg ? 'repeat(3, 1fr)' : '1fr 1fr' }, gap: 1.5 }}>
                 {[
-                  ['Buffet and Catering', 'We cook your food', `One pork, chicken, fish and vegetable dish, with ${BUFFET_DRINKS.toLowerCase()}. Charged ${peso(data.pricePerPlate)} per person.`],
+                  ['Buffet and Catering', 'We cook your food', `Four dishes, with up to two per category, and ${BUFFET_DRINKS.toLowerCase()}. Charged ${peso(data.pricePerPlate)} per person.`],
                   ['Catering only', 'Equipment and setup only', 'Tables, chairs, linens, food warmers and tableware. You provide the food, and there is no per-person charge.'],
                   // Only while the admin shows the Equipment Rental package
                   ...(rentalPkg ? [[RENTAL_SERVICE, 'Rent items only', `Pick the tables, chairs, linens, warmers or decor you need, priced per piece. Pick up in ${RENTAL.pickupAddress} or have them delivered.`]] : [])
@@ -802,7 +806,7 @@ export default function BookEventPage() {
                         {selected ? <CheckCircleRoundedIcon sx={{ color: tokens.ink }} /> : <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput }} />}
                       </Box>
                       <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{p.description}</Typography>
-                      <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                      <Box onClick={(e) => e.stopPropagation()} sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
                         <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>Default: {p.guests} guests</Typography>
                         <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>{peso(p.price)}</Typography>
                       </Box>
@@ -926,19 +930,20 @@ export default function BookEventPage() {
               </Section>
             )}
 
-            {/* Only for a buffet: one dish from each category, and unlimited water and juice for everyone */}
+            {/* Only for a buffet: four dishes in any allowed combination, plus included drinks */}
             {buffet && (
-              <Section id="food" index={sectionNo('food')} title="Your Menu" subtitle={`Pick a dish for each part of the menu, or choose Others to write your own. ${peso(data.pricePerPlate)} per person covers all of it.`}>
-                {/* The admin's dishes as radio buttons, with "Others" and a text box for anything else */}
+              <Section id="food" index={sectionNo('food')} title="Your Menu" subtitle={`Pick exactly 4 dishes, with up to 2 from any category, or add your own dish. ${peso(data.pricePerPlate)} per person covers all of it.`}>
+                {/* The admin's dishes as individual choices, with boxes for custom dishes */}
                 <MenuPicker idPrefix="f-dish" menu={form.menu} dishes={data.dishes} onChange={setDish} errors={errors} required />
                 <AlertBanner tone="info" sx={{ mt: 2 }}>
-                  Want something not on the list, or two dishes for one part? Choose Others and write it, for example "Lechon kawali and pork barbecue" for your pork.
+                  For a dish not on the list, use Add other dish and enter one dish per box. Dessert is selected separately under Additional Charges.
                 </AlertBanner>
                 {/* Fixed for every buffet, so it is shown rather than asked */}
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.25 }}>Drinks</Typography>
-                  <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{BUFFET_DRINKS} for every guest, included in the price per person.</Typography>
+                  <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>Unlimited water is included. Tell us which juice you prefer; we will confirm availability.</Typography>
                 </Box>
+                <FormField id="f-juice" label="Preferred juice" optional value={form.menu.juice || ''} onChange={(e) => setDish('juice', e.target.value)} error={errors['menu.juice']} placeholder="e.g. Orange, pineapple, or iced tea" inputProps={{ maxLength: 120 }} sx={{ mt: 2 }} />
                 <FormField id="f-foodNotes" label="Anything we should know about the food" optional multiline minRows={3} value={form.foodNotes} onChange={(e) => update({ foodNotes: e.target.value })} placeholder="Allergies, a vegetarian portion, softer food for elderly guests, serving time…" hint="This does not change the price. Our kitchen reads it before the event." inputProps={{ maxLength: 500 }} sx={{ mt: 2 }} />
               </Section>
             )}
@@ -1000,15 +1005,15 @@ export default function BookEventPage() {
                       </Box>
                     )}
                     {/* A charge with packages lists them with what each includes, so it takes the full width */}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: group.key === 'packages' ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.25 }}>
+                    <Box sx={{ display: 'grid', alignItems: 'start', gridTemplateColumns: group.key === 'packages' ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.25 }}>
                       {group.list.map((a) => {
                         const on = form.addonIds.includes(a.id);
                         const sized = hasSizes(a) && !a.hasPackages;
                         const packaged = hasSizes(a) && a.hasPackages;
                         const from = packaged ? lowestPackagePrice(a) : null;
                         return (
-                          <Box key={a.id} component="label" sx={{ display: 'flex', gap: 1, p: 1.5, borderRadius: 1.5, cursor: 'pointer', border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`, backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff' }}>
-                            <Checkbox checked={on} onChange={() => toggleAddon(a.id)} size="small" sx={{ p: 0.25, alignSelf: 'flex-start' }} />
+                          <Box key={a.id} onClick={(e) => { if (!e.target.closest('button,input,textarea,label,[role=combobox],[role=radio],[role=option],[role=listbox],.MuiCheckbox-root,.MuiFormControl-root')) toggleAddon(a.id); }} sx={{ display: 'flex', gap: 1, p: 1.5, borderRadius: 1.5, cursor: 'pointer', border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`, backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff' }}>
+                            <Checkbox inputProps={{ 'aria-label': a.name }} checked={on} onChange={() => toggleAddon(a.id)} size="small" sx={{ p: 0.25, alignSelf: 'flex-start' }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
                                 <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{a.name}</Typography>
@@ -1019,11 +1024,12 @@ export default function BookEventPage() {
                                 </Typography>
                               </Box>
                               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{a.description}</Typography>
+                              {a.id === DESSERT_ADDON_ID && on && <Box onClick={(e) => e.stopPropagation()} sx={{ mt: 1.5 }}><DessertFields idPrefix="f-dessert" value={form.menu.dessert} onChange={(value) => setDish('dessert', value)} errors={errors} /></Box>}
                               {/* Charges counted by the piece ask how many; the price is that of one */}
                               {a.hasQuantity && on && (
                                 <FormField
                                   id={`f-qty-${a.id}`}
-                                  label="How many do you need?"
+                                  label="Quantity"
                                   value={form.addonQty[a.id] || ''}
                                   onChange={(e) => updateAddonQty(a.id, e.target.value)}
                                   error={errors[`addonQty.${a.id}`]}
@@ -1034,7 +1040,7 @@ export default function BookEventPage() {
                               {/* A charge with sizes: how many of each size, blank for a size not wanted. A click on the
                                   rows (other than in a box) must not untick the charge, which the card's label would do. */}
                               {sized && on && (
-                                <Box onClick={(e) => e.target.tagName !== 'INPUT' && e.preventDefault()} sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}>
+                                <Box onClick={(e) => e.stopPropagation()} sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}>
                                   {a.sizes.map((s) => {
                                     const left = leftFor(s);
                                     return (
@@ -1051,7 +1057,7 @@ export default function BookEventPage() {
                                         </Box>
                                         <FormField
                                           id={`f-qty-${s.id}`}
-                                          label="How many"
+                                          label="Quantity"
                                           value={form.addonQty[s.id] || ''}
                                           onChange={(e) => updateAddonQty(s.id, e.target.value)}
                                           error={errors[`addonQty.${s.id}`]}
@@ -1068,7 +1074,7 @@ export default function BookEventPage() {
                               {/* A charge with packages: pick one, each with its price and what it includes. A click here
                                   must not untick the charge, which the card's label would do, so the label's action is cancelled. */}
                               {packaged && on && (
-                                <Box role="radiogroup" aria-label={`${a.name} package`} onClick={(e) => e.preventDefault()} sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}>
+                                <Box role="radiogroup" aria-label={`${a.name} package`} sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}>
                                   {a.sizes.map((s) => {
                                     const picked = Number(form.addonQty[s.id]) > 0;
                                     const left = leftFor(s);
@@ -1122,6 +1128,8 @@ export default function BookEventPage() {
             )}
 
             <Section id="review" index={sectionNo('review')} title="Review and Submit">
+              {!rental && buffet && <Typography sx={{ mb: 1, fontSize: 13 }}>{buffetDrinks(form.menu)}</Typography>}
+              {!rental && bookedAddonIds.includes(DESSERT_ADDON_ID) && <Typography sx={{ mb: 1, fontSize: 13 }}>Dessert: {dessertSummary(form.menu) || 'Choose a dessert in Additional Charges'} · additional charge</Typography>}
               {rental ? <RentalQuoteLines quote={quote} delivered={delivered} /> : <QuoteLines quote={quote} pkg={pkg} serviceType={form.serviceType} addons={chosenAddons} addonQty={form.addonQty} />}
               {/* The look chosen in section 4, as the quotation and contract will print it */}
               {!stylingEmpty(styling) && (

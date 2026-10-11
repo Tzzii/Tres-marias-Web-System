@@ -47,7 +47,7 @@ const TABLES = [
   'payments', 'refunds', 'qr_payments', 'webhook_events',
   'threads', 'messages', 'testimonials',
   'calendar_blocks', 'calendar_settings',
-  'inventory_items', 'inventory_allocations', 'inventory_history',
+  'inventory_items', 'inventory_allocations', 'rental_dispatches', 'inventory_history',
   'reservation_rental_items', 'reservation_damage_charges',
   'outbox',
   'outsource_partners', 'outsource_partner_history', 'outsource_contracts', 'outsource_deliveries', 'outsource_contract_history',
@@ -305,6 +305,7 @@ function toRows(data, hashes, now) {
       addon_id: i.addonId ?? null // the Tent size that books it (addons come before inventory_items)
     })),
     // One row per entry of the item's allocations object: { reservation ref or 'none': qty }
+    rental_dispatches: [],
     inventory_allocations: inventory.flatMap((i) =>
       Object.entries(i.allocations).map(([ref, qty]) => ({ item_id: i.id, reservation_ref: ref, qty }))
     ),

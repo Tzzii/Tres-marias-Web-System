@@ -34,13 +34,12 @@ const scheduleFadeIn = keyframes`
   to { opacity: 1; transform: translateY(0); }
 `;
 
-// Where the popup sits: 8px under the input and never flipped above it (it would jump when the schedule
-// opens and makes it taller), kept 12px inside the left and right edges of the screen. Defined once here
-// because the popup rebuilds its positioning whenever this list changes.
+// Prefer below the input, but flip above it when needed and keep both axes inside the viewport.
+// The card can scroll when its calendar/schedule is taller than the available screen.
 const POPUP_MODIFIERS = [
   { name: 'offset', options: { offset: [0, 8] } },
-  { name: 'flip', enabled: false },
-  { name: 'preventOverflow', options: { padding: 12 } }
+  { name: 'flip', options: { fallbackPlacements: ['top-start'], padding: 12 } },
+  { name: 'preventOverflow', options: { padding: 12, altAxis: true, tether: false } }
 ];
 
 /**
@@ -67,7 +66,7 @@ const POPUP_MODIFIERS = [
  */
 export function DateField({ id, label, value, onChange, error, hint, required, mode = 'booking', placeholder = 'Select a date', dark = false, disabled = false, inline = false, rental = false }) {
   const [anchor, setAnchor] = useState(null); // element the calendar popup opens under (null = closed)
-  const [inDialog, setInDialog] = useState(false); // true when the input sits inside a dialog, so the popup must show above it
+  const [inDialog, setInDialog] = useState(false); // the popup belongs to the dialog's focus scope and layer
   const [preview, setPreview] = useState(''); // date tapped in the popup whose booked times are shown (booking mode)
   const [peek, setPeek] = useState(''); // closed date tapped to see why it can't be booked (booking mode)
   const buttonRef = useRef(null); // the input-looking button, so the focus can go back to it
@@ -327,15 +326,16 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
         </Typography>
       )}
 
-      {/* The calendar popup. It is a Popper, not a Popover: a Popover is modal and locks the page's scrolling
-          while it is open, so a calendar taller than the screen (the schedule makes it grow) could hide
-          "Choose this date" with no way to scroll to it. The Popper leaves the page scrollable and follows the input.
+      {/* The popup follows the input, flips when space is limited, and scrolls internally on short screens.
+          In a dialog, portal into its container so the parent's focus trap includes the calendar,
+          while keeping it outside the scrolling body that would clip it.
           Layer: under the sticky site/portal headers like the rest of the page, or above the dialog the input is in.
           Keyboard: the focus moves into the popup when it opens, Tab stays inside it, Escape closes it. */}
       <LightSurface>
         <Popper
           open={Boolean(anchor)}
           anchorEl={anchor}
+          container={inDialog ? buttonRef.current?.closest('.MuiDialog-container') : undefined}
           placement="bottom-start"
           transition
           modifiers={POPUP_MODIFIERS}
@@ -358,7 +358,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
                       close(true);
                     }
                   }}
-                  sx={{ width: 320, maxWidth: 'calc(100vw - 24px)', borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, outline: 'none' }}
+                  sx={{ width: 320, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', overscrollBehavior: 'contain', borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, outline: 'none' }}
                 >
                   {/* A tap anywhere outside the popup closes it, except on the input (its own click toggles the popup) */}
                   <ClickAwayListener onClickAway={(event) => { if (!buttonRef.current || !buttonRef.current.contains(event.target)) close(); }}>
