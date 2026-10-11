@@ -1,7 +1,6 @@
-import { BUSINESS, RULES } from '@tm/shared/src/services/config.js';
-import { maskMobile } from '@tm/shared/src/utils/format.js';
 import { mailer } from '../../integrations/mailer/index.js';
 import { ApiError } from '../../lib/ApiError.js';
+import { CODE_EMAILS } from './code.emails.js';
 
 /**
  * The emails that carry one-time codes, sent through the mail port (integrations/mailer). With
@@ -12,16 +11,14 @@ import { ApiError } from '../../lib/ApiError.js';
  * contact-change codes, and the customer's codes for signing up, resetting a forgotten password and
  * changing the password in My profile. SMS is kept for notifications and outsourcing requests.
  *
+ * What each email says and how it looks is in code.emails.js (CODE_EMAILS, one builder per purpose): since
+ * 2026-10-11 they go out as HTML in the same look as the customer notices, with the plain-text version
+ * beside it (the log driver prints and keeps that one). This file only says who gets which email.
+ *
  * `meta` says what each message is about (never the code itself). A provider that refuses the
  * message becomes DELIVERY_FAILED, so the page shows "try again" instead of waiting for a code
  * that will never come; the caller then cancels or rewinds the request it had just saved.
  */
-
-// "Wilma W. Cabiscuelas" -> "Wilma", for the greeting
-const firstWord = (name) => String(name || '').split(' ')[0] || 'there';
-
-// The sign-off under every email
-const SIGNATURE = BUSINESS.name;
 
 // Send through a port; a failure is logged here (with the reason) and reported to the page without it
 async function deliver(port, message, what) {
@@ -39,18 +36,7 @@ export function sendSignInCode(admin, code, challengeId) {
     mailer,
     {
       to: admin.email,
-      subject: `Your ${BUSINESS.shortName} sign-in code`,
-      text: [
-        `Hi ${firstWord(admin.name)},`,
-        '',
-        `Your code to finish signing in to the ${BUSINESS.shortName} admin dashboard is:`,
-        '',
-        code,
-        '',
-        `It expires in ${RULES.codeValidMinutes} minutes. If you did not just try to sign in, change your password right away.`,
-        '',
-        SIGNATURE
-      ].join('\n'),
+      ...CODE_EMAILS.admin_sign_in({ name: admin.name, code }),
       meta: { purpose: 'admin_sign_in', adminId: admin.id, challengeId }
     },
     'sign-in code'
@@ -63,25 +49,11 @@ export function sendSignInCode(admin, code, challengeId) {
  * because codes are never sent by SMS.
  */
 export function sendContactCode(admin, { field, value }, code, challengeId) {
-  const isEmail = field === 'email';
   return deliver(
     mailer,
     {
-      to: isEmail ? value : admin.email,
-      subject: isEmail ? `Confirm your new email for ${BUSINESS.shortName}` : `Confirm your new mobile number for ${BUSINESS.shortName}`,
-      text: [
-        `Hi ${firstWord(admin.name)},`,
-        '',
-        isEmail
-          ? `Use this code to make ${value} the email of your ${BUSINESS.shortName} admin account:`
-          : `Use this code to make ${maskMobile(value)} the mobile number of your ${BUSINESS.shortName} admin account:`,
-        '',
-        code,
-        '',
-        `It expires in ${RULES.codeValidMinutes} minutes. If you did not ask for this change, change your password right away.`,
-        '',
-        SIGNATURE
-      ].join('\n'),
+      to: field === 'email' ? value : admin.email,
+      ...CODE_EMAILS.admin_contact_change({ name: admin.name, field, value, code }),
       meta: { purpose: 'admin_contact_change', adminId: admin.id, field, challengeId }
     },
     'confirmation code'
@@ -98,19 +70,7 @@ export function sendSignUpCode(request, code) {
     mailer,
     {
       to: request.email,
-      subject: `Your ${BUSINESS.shortName} sign-up code`,
-      text: [
-        `Hi ${firstWord(request.firstName)},`,
-        '',
-        `Your code to finish creating your ${BUSINESS.shortName} account is:`,
-        '',
-        code,
-        '',
-        `It expires in ${RULES.codeValidMinutes} minutes. Never share this code with anyone.`,
-        'If you did not sign up, you can ignore this email: no account is made without this code.',
-        '',
-        SIGNATURE
-      ].join('\n'),
+      ...CODE_EMAILS.customer_sign_up({ name: request.firstName, code }),
       meta: { purpose: 'customer_sign_up', requestId: request.id }
     },
     'sign-up code'
@@ -123,19 +83,7 @@ export function sendResetCode(customer, code, resetId) {
     mailer,
     {
       to: customer.email,
-      subject: `Your ${BUSINESS.shortName} password reset code`,
-      text: [
-        `Hi ${firstWord(customer.name)},`,
-        '',
-        `Use this code to choose a new password for your ${BUSINESS.shortName} account:`,
-        '',
-        code,
-        '',
-        `It expires in ${RULES.codeValidMinutes} minutes. Never share this code with anyone.`,
-        'If you did not ask to reset your password, you can ignore this email: your password stays the same.',
-        '',
-        SIGNATURE
-      ].join('\n'),
+      ...CODE_EMAILS.customer_password_reset({ name: customer.name, code }),
       meta: { purpose: 'customer_password_reset', customerId: customer.id, resetId }
     },
     'password reset code'
@@ -151,19 +99,7 @@ export function sendPasswordChangeCode(customer, code, changeId) {
     mailer,
     {
       to: customer.email,
-      subject: `Confirm your new ${BUSINESS.shortName} password`,
-      text: [
-        `Hi ${firstWord(customer.name)},`,
-        '',
-        `Use this code to confirm the new password of your ${BUSINESS.shortName} account:`,
-        '',
-        code,
-        '',
-        `It expires in ${RULES.codeValidMinutes} minutes. Never share this code with anyone.`,
-        'If you did not just change your password, do not use this code: your password stays the same. To be safe, choose a new one with "Forgot password?" on the Log in page.',
-        '',
-        SIGNATURE
-      ].join('\n'),
+      ...CODE_EMAILS.customer_password_change({ name: customer.name, code }),
       meta: { purpose: 'customer_password_change', customerId: customer.id, changeId }
     },
     'password change code'

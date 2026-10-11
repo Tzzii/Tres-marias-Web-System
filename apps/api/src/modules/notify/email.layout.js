@@ -3,9 +3,11 @@ import { lightPalette } from '@tm/shared/src/theme/palettes.js';
 import { config } from '../../config.js';
 
 /**
- * The one layout every customer email is drawn with (Phase 13A, 2026-10-10), so no email builds HTML by
- * joining strings itself. A builder (customer.emails.js) passes structured parts as plain text, and
- * renderEmail() returns the HTML and the plain-text version of the same email. On purpose:
+ * The one layout every email is drawn with (Phase 13A, 2026-10-10), so no email builds HTML by joining
+ * strings itself. A builder passes structured parts as plain text and gets back the HTML and the plain-text
+ * version of the same email: renderEmail() for the customer notices (customer.emails.js), and
+ * renderCodeEmail() for the one-time-code emails (modules/auth/code.emails.js; in this look since
+ * 2026-10-11, plain text only before). Both share one frame (frame()). On purpose:
  *
  * - Every value is escaped here (escapeHtml), so a customer's event name or an admin's reason with
  *   "<script>" or quotes is shown as text, never run or parsed as markup.
@@ -19,6 +21,8 @@ import { config } from '../../config.js';
  *   external CSS, fonts, images, scripts or tracking pixels.
  * - The footer has the business's details as plain text (project rule: no tel:/mailto: links anywhere) and
  *   says we never ask for a password or a one-time code.
+ * - A one-time-code email has no button and no link at all: the code is typed into the page that asked for
+ *   it. The code is never in the subject or the inbox preview line.
  */
 
 // The website's colours (apps/client/src/theme/siteTheme.js; the gold is the shared palette's)
@@ -135,35 +139,37 @@ function buttonBlock(button) {
 <p style="margin:0 0 18px;font-family:${SANS};font-size:12.5px;line-height:1.5;color:${C.inkMuted}">Or open this link: <a href="${href}" target="_blank" rel="noopener" style="color:${C.goldText};word-break:break-all">${href}</a></p>`;
 }
 
-// The footer lines, the same on every email (plain text: no tel: or mailto: links)
-const FOOTER = [
+// The one-time code, large in the middle of a sand card, with how long it works under it. The gaps between
+// the digits are letter-spacing, so copying the code gives the 6 digits with no spaces.
+function codeBlock(code, validMinutes) {
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:4px 0 18px;background:${C.sand};border:1px solid ${C.border};border-radius:10px;border-collapse:separate"><tr>
+<td align="center" style="padding:18px 14px">
+<p style="margin:0 0 6px;font-family:${SANS};font-size:13px;color:${C.inkSoft}">Your code</p>
+<p style="margin:0;padding-left:8px;font-family:${SANS};font-size:34px;line-height:1.2;font-weight:bold;letter-spacing:8px;color:${C.ink}">${escapeHtml(code)}</p>
+<p style="margin:8px 0 0;font-family:${SANS};font-size:13px;color:${C.inkSoft}">Expires in ${escapeHtml(validMinutes)} minutes</p>
+</td></tr></table>`;
+}
+
+// The footer lines (plain text: no tel: or mailto: links): the business's details, why this email came
+// (`reason`), and what we never ask for
+const footerLines = (reason) => [
   `${BUSINESS.name} · ${BUSINESS.address} · ${BUSINESS.phone}`,
-  "You're receiving this because you have a reservation with Tres Marias. For questions, message us from your account.",
+  reason,
   'We will never ask for your password or one-time code.'
 ];
 
-/**
- * One customer email as { html, text }, from plain-text parts (every one is escaped here):
- *   label        the small status label under the header, e.g. "Quotation Ready" (Title Case)
- *   tone         'info' (gold), 'success' (green) or 'attention' (red: rejected, failed, declined, cancelled)
- *   preheader    the inbox preview line, stating the fact, e.g. "Net total ₱45,000 · Accept it to approve your reservation."
- *   heading      the serif heading, e.g. "Your Quotation Is Ready"
- *   firstName    for "Hi {first name}," ("Hi there," when empty)
- *   intro        one or two short sentences (an array of paragraphs)
- *   details      [{ label, value, strong }] for the details card; amounts with strong: true
- *   sections     [{ heading, rows: [{ label, value }] }], lists under their own heading (e.g. damage charges)
- *   box          { title, text, tone } for the reason, the admin's note or the next step (left out when no text)
- *   after        paragraphs after the details and the box (e.g. "Your contract is in Documents.")
- *   button       { label, path }: the one button; `path` is a portal path (PORTAL_PATHS or reservationPath)
- *   security     a small note under the button, e.g. "If you didn't cancel this, change your password right away and message us."
- * The text version carries the same facts in the same order, with the link on a line of its own.
- */
-export function renderEmail({ label, tone = 'info', preheader = '', heading, firstName = '', intro = [], details = [], sections = [], box = null, after = [], button, security = '' }) {
-  const toneColors = TONES[tone] || TONES.info;
-  const greeting = `Hi ${oneLine(firstName) || 'there'},`;
-  const url = portalLink(button.path);
+// The footer of every customer notice (renderEmail)
+const FOOTER = footerLines("You're receiving this because you have a reservation with Tres Marias. For questions, message us from your account.");
 
-  const html = `<!DOCTYPE html>
+/**
+ * The frame every email shares, as one HTML page: the hidden inbox preview line, the ivory page, the white
+ * card with the espresso band (the wordmark as text), the status label in its tone's colours, the serif
+ * heading, then `body` (HTML made by the blocks above, so already escaped), the sign-off and the `footer`
+ * lines. `label`, `preheader`, `heading` and the footer lines are plain text, escaped here.
+ */
+function frame({ label, tone, preheader, heading, body, footer }) {
+  const toneColors = TONES[tone] || TONES.info;
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -184,24 +190,53 @@ export function renderEmail({ label, tone = 'info', preheader = '', heading, fir
 <tr><td style="padding:24px 28px 8px">
 <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${toneColors.bg};color:${toneColors.fg};font-family:${SANS};font-size:12px;font-weight:bold;letter-spacing:0.3px">${escapeHtml(label)}</span>
 <h1 style="margin:14px 0 16px;font-family:${SERIF};font-size:22px;line-height:1.3;font-weight:bold;color:${C.ink}">${escapeHtml(heading)}</h1>
-${paragraph(greeting)}
-${intro.filter(Boolean).map((text) => paragraph(text)).join('\n')}
-${detailsTable(details)}
-${sections.map(listSection).join('\n')}
-${boxBlock(box)}
-${after.filter(Boolean).map((text) => paragraph(text)).join('\n')}
-${buttonBlock(button)}
-${security ? `<p style="margin:0 0 18px;font-family:${SANS};font-size:12.5px;line-height:1.5;color:${C.inkSoft}">${multiline(security)}</p>` : ''}
+${body}
 <p style="margin:0 0 22px;font-family:${SANS};font-size:15px;line-height:1.6;color:${C.ink}">${escapeHtml(BUSINESS.name)}</p>
 </td></tr>
 <tr><td style="padding:16px 28px 22px;border-top:1px solid ${C.border};background:${C.page};border-radius:0 0 14px 14px">
-${FOOTER.map((line) => `<p style="margin:0 0 6px;font-family:${SANS};font-size:11.5px;line-height:1.5;color:${C.inkMuted}">${escapeHtml(line)}</p>`).join('\n')}
+${footer.map((line) => `<p style="margin:0 0 6px;font-family:${SANS};font-size:11.5px;line-height:1.5;color:${C.inkMuted}">${escapeHtml(line)}</p>`).join('\n')}
 </td></tr>
 </table>
 </td></tr>
 </table>
 </body>
 </html>`;
+}
+
+// The text version's lines as one text: no two empty lines in a row, the ends trimmed
+const joinLines = (lines) => lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n').trim();
+
+/**
+ * One customer email as { html, text }, from plain-text parts (every one is escaped here):
+ *   label        the small status label under the header, e.g. "Quotation Ready" (Title Case)
+ *   tone         'info' (gold), 'success' (green) or 'attention' (red: rejected, failed, declined, cancelled)
+ *   preheader    the inbox preview line, stating the fact, e.g. "Net total ₱45,000 · Accept it to approve your reservation."
+ *   heading      the serif heading, e.g. "Your Quotation Is Ready"
+ *   firstName    for "Hi {first name}," ("Hi there," when empty)
+ *   intro        one or two short sentences (an array of paragraphs)
+ *   details      [{ label, value, strong }] for the details card; amounts with strong: true
+ *   sections     [{ heading, rows: [{ label, value }] }], lists under their own heading (e.g. damage charges)
+ *   box          { title, text, tone } for the reason, the admin's note or the next step (left out when no text)
+ *   after        paragraphs after the details and the box (e.g. "Your contract is in Documents.")
+ *   button       { label, path }: the one button; `path` is a portal path (PORTAL_PATHS or reservationPath)
+ *   security     a small note under the button, e.g. "If you didn't cancel this, change your password right away and message us."
+ * The text version carries the same facts in the same order, with the link on a line of its own.
+ */
+export function renderEmail({ label, tone = 'info', preheader = '', heading, firstName = '', intro = [], details = [], sections = [], box = null, after = [], button, security = '' }) {
+  const greeting = `Hi ${oneLine(firstName) || 'there'},`;
+  const url = portalLink(button.path);
+
+  const body = [
+    paragraph(greeting),
+    intro.filter(Boolean).map((text) => paragraph(text)).join('\n'),
+    detailsTable(details),
+    sections.map(listSection).join('\n'),
+    boxBlock(box),
+    after.filter(Boolean).map((text) => paragraph(text)).join('\n'),
+    buttonBlock(button),
+    security ? `<p style="margin:0 0 18px;font-family:${SANS};font-size:12.5px;line-height:1.5;color:${C.inkSoft}">${multiline(security)}</p>` : ''
+  ].join('\n');
+  const html = frame({ label, tone, preheader, heading, body, footer: FOOTER });
 
   // The plain-text version: the same facts, the link on its own line
   const lines = ['TRES MARIAS CATERING SERVICES', oneLine(label), '', oneLine(heading), '', greeting, ''];
@@ -220,7 +255,59 @@ ${FOOTER.map((line) => `<p style="margin:0 0 6px;font-family:${SANS};font-size:1
   lines.push(`${oneLine(button.label)}:`, url, '');
   if (security) lines.push(String(security).trim(), '');
   lines.push(BUSINESS.name, '', '--', ...FOOTER);
-  const text = lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n').trim();
+
+  return { html, text: joinLines(lines) };
+}
+
+/**
+ * One one-time-code email as { html, text }, in the same frame as renderEmail (modules/auth/code.emails.js
+ * has one builder per purpose). From plain-text parts, every one escaped here:
+ *   label         the small status label under the header, e.g. "Sign-Up Code" (Title Case)
+ *   preheader     the inbox preview line; never the code, so a notification does not show it
+ *   heading       the serif heading, e.g. "Finish Creating Your Account"
+ *   firstName     for "Hi {first name}," ("Hi there," when empty)
+ *   intro         the sentence before the code, e.g. "Your code to finish creating your Tres Marias account is:"
+ *   code          the 6 digits, drawn large in a sand card with "Expires in {validMinutes} minutes" under it
+ *   validMinutes  how many minutes the code works
+ *   ifNotYou      what to do when they did not ask for the code, in a box titled "Never share this code with anyone"
+ *   reason        the footer's own "You're receiving this because ..." line
+ * No button and no link, on purpose: the code is typed into the page that asked for it.
+ * The text version carries the same facts in the same order, with the code on a line of its own (the log
+ * mail driver prints that version, and scripts/lib/harness.js codeIn() reads the code from that line).
+ */
+export function renderCodeEmail({ label, preheader = '', heading, firstName = '', intro, code, validMinutes, ifNotYou, reason }) {
+  const greeting = `Hi ${oneLine(firstName) || 'there'},`;
+  const digits = oneLine(code);
+  const footer = footerLines(reason);
+
+  const body = [
+    paragraph(greeting),
+    paragraph(intro),
+    codeBlock(digits, validMinutes),
+    boxBlock({ title: 'Never share this code with anyone', text: ifNotYou, tone: 'info' })
+  ].join('\n');
+  const html = frame({ label, tone: 'info', preheader, heading, body, footer });
+
+  const text = joinLines([
+    'TRES MARIAS CATERING SERVICES',
+    oneLine(label),
+    '',
+    oneLine(heading),
+    '',
+    greeting,
+    '',
+    String(intro).trim(),
+    '',
+    digits,
+    '',
+    `It expires in ${validMinutes} minutes. Never share this code with anyone.`,
+    String(ifNotYou).trim(),
+    '',
+    BUSINESS.name,
+    '',
+    '--',
+    ...footer
+  ]);
 
   return { html, text };
 }

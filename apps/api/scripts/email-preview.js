@@ -2,18 +2,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { addDays, todayISO } from '@tm/shared/src/utils/format.js';
+import { CODE_EMAILS } from '../src/modules/auth/code.emails.js';
 import { CUSTOMER_EMAILS } from '../src/modules/notify/customer.emails.js';
 import { escapeHtml } from '../src/modules/notify/email.layout.js';
 
 /**
- * `npm run email:preview` — every customer email (Phase 13A) with sample data, written to
- * apps/api/tmp/email-preview/<name>.html and <name>.txt, plus index.html listing each one's subject with
- * links to both versions. Open index.html in a browser to look them over.
+ * `npm run email:preview` — every customer email (Phase 13A) and every one-time-code email (2026-10-11)
+ * with sample data, written to apps/api/tmp/email-preview/<name>.html and <name>.txt, plus index.html
+ * listing each one's subject with links to both versions. Open index.html in a browser to look them over.
  *
  * No database and no mail: the builders are called directly with made-up bookings (dates counted from today,
- * so the cancel-deadline sentence shows both of its forms). The samples include a very long event name, an
- * event name and reasons with <script>, quotes and line breaks, so the escaping and the subject's cut can be
- * checked by eye. Links use CLIENT_URL from apps/api/.env (portalLink).
+ * so the cancel-deadline sentence shows both of its forms) and a made-up code. The samples include a very
+ * long event name, an event name and reasons with <script>, quotes and line breaks, so the escaping and the
+ * subject's cut can be checked by eye. Links use CLIENT_URL from apps/api/.env (portalLink).
  * Each email is also checked here: a subject on one line of at most 200 characters, and no raw <script in
  * the HTML. Exits with 1 when one fails. apps/api/tmp/ is ignored by git.
  */
@@ -53,6 +54,9 @@ const lateDeadline = booking({ ref: 'RES-2026-1018-04', eventName: 'Reyes 7th Bi
 const rental = booking({ ref: 'RES-2026-1015-05', eventName: 'Barangay Fiesta Equipment', serviceType: 'Equipment rental', startTime: '08:00', endTime: '', date: addDays(today, -3) });
 
 const payment = (fields) => ({ amount: 3000, method: 'bank', receiptNo: 'OR-1001', verifiedAt: Date.now(), ...fields });
+
+// A made-up one-time code for the code emails
+const SAMPLE_CODE = '176498';
 
 // Every variant: [file name, purpose, data] (firstName is what notify.service.js adds)
 const VARIANTS = [
@@ -112,8 +116,18 @@ const VARIANTS = [
   // Phase 13B: the completion with its testimonial invite (an event, and a rental thanked for renting)
   ['event-completed', 'event_completed', { reservation: { ...santos, date: addDays(today, -1) } }],
   ['event-completed-long-name', 'event_completed', { reservation: { ...longName, date: addDays(today, -1) } }],
-  ['rental-completed', 'event_completed', { reservation: rental }]
+  ['rental-completed', 'event_completed', { reservation: rental }],
+  // The one-time-code emails (code.emails.js): the builders take the account's name, not firstName
+  ['code-sign-up', 'customer_sign_up', { name: 'Athena', code: SAMPLE_CODE }],
+  ['code-password-reset', 'customer_password_reset', { name: 'Maria Santos', code: SAMPLE_CODE }],
+  ['code-password-change', 'customer_password_change', { name: 'Maria Santos', code: SAMPLE_CODE }],
+  ['code-admin-sign-in', 'admin_sign_in', { name: 'Wilma W. Cabiscuelas', code: SAMPLE_CODE }],
+  ['code-admin-new-email', 'admin_contact_change', { name: 'Wilma W. Cabiscuelas', field: 'email', value: 'new.address@example.com', code: SAMPLE_CODE }],
+  ['code-admin-new-mobile', 'admin_contact_change', { name: 'Wilma W. Cabiscuelas', field: 'mobile', value: '09259012345', code: SAMPLE_CODE }]
 ];
+
+// Every builder by purpose: the customer notices and the one-time-code emails (no purpose is in both)
+const BUILDERS = { ...CUSTOMER_EMAILS, ...CODE_EMAILS };
 
 /**
  * True when `text` has a character that could break a mail header line: C0 controls (CR, LF, tab…), DEL,
@@ -151,7 +165,7 @@ function main() {
   const rows = [];
   let failed = 0;
   for (const [name, purpose, data] of VARIANTS) {
-    const email = CUSTOMER_EMAILS[purpose]({ ...data, firstName: 'Maria' });
+    const email = BUILDERS[purpose]({ ...data, firstName: 'Maria' });
     fs.writeFileSync(path.join(OUT_DIR, `${name}.html`), email.html, 'utf8');
     fs.writeFileSync(path.join(OUT_DIR, `${name}.txt`), `Subject: ${email.subject}\n\n${email.text}\n`, 'utf8');
     const problems = problemsOf(email);
@@ -176,7 +190,7 @@ function main() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Customer Email Previews</title>
+<title>Email Previews</title>
 <style>
 body { margin: 0; padding: 24px 16px; background: #fbf7f0; color: #2b2622; font: 14px/1.5 'Segoe UI', Helvetica, Arial, sans-serif; }
 h1 { font: bold 22px Georgia, serif; margin: 0 0 4px; }
@@ -188,7 +202,7 @@ a { color: #8a6a2f; }
 </style>
 </head>
 <body>
-<h1>Customer Email Previews</h1>
+<h1>Email Previews</h1>
 <p>${rows.length} emails built with sample data on ${escapeHtml(today)} (npm run email:preview).</p>
 <table>
 <tr><th>Preview</th><th>Purpose</th><th>Subject</th></tr>

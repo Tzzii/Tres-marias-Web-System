@@ -1,16 +1,22 @@
 import { config } from '../src/config.js';
 import { closePool, pool, tx } from '../src/db.js';
 import { emailSubject, escapeHtml, oneLine, portalLink, reservationPath, shorten } from '../src/modules/notify/email.layout.js';
+import { CODE_EMAILS } from '../src/modules/auth/code.emails.js';
 import { CUSTOMER_EMAILS } from '../src/modules/notify/customer.emails.js';
 import { queueCustomerEmail, useMailerForTests } from '../src/modules/notify/notify.service.js';
+import { codeIn } from './lib/harness.js';
 
 /**
- * `npm run test:email` — checks of the customer email notices (Phase 13A, 2026-10-10):
+ * `npm run test:email` — checks of the customer email notices (Phase 13A, 2026-10-10) and of the
+ * one-time-code emails (their HTML look, 2026-10-11):
  *
  * 1. Every email (every purpose and variant, with a hostile event name and reason): the HTML escapes what
  *    people typed (no raw <script>, quotes escaped), the subject is one line (no CR/LF) of at most 200
  *    characters with a long event name cut short, every link in the HTML starts with CLIENT_URL and goes to
  *    a /portal/ page, the text version has the link on a line of its own, and nothing private is in it.
+ *    Every one-time-code email (code.emails.js) too: the code is shown once in the HTML and on a line of its
+ *    own in the text version (where codeIn() of scripts/lib/harness.js reads it), never in the subject or the
+ *    inbox preview line; no link, image or script at all; a typed name or new email address is escaped.
  * 2. The helpers themselves: escapeHtml, oneLine, shorten, emailSubject, portalLink, reservationPath.
  * 3. With a stub mailer and the local database (read, plus rows it removes again): a transaction that rolls
  *    back sends nothing and leaves no outbox row; a mailer that throws doesn't change the action's result,
@@ -97,6 +103,45 @@ check('event_completed: the button goes to Testimonials', completedEvent.html.in
 check('event_completed: subject thanks for celebrating', completedEvent.subject === `Thank you for celebrating with us: Santos Wedding (${reservation.ref})`, completedEvent.subject);
 check('event_completed: no peso amount in it', !completedEvent.text.includes('₱') && !completedRental.text.includes('₱'));
 check('event_completed rental: thanks for renting and says the items are back', completedRental.subject.startsWith('Thank you for renting with us') && completedRental.text.includes('All your rented items are back'), completedRental.subject);
+
+// The one-time-code emails: the code once in the HTML and on its own line in the text, no link, typed text
+// escaped (the greeting uses the name's first word, so the markup is put right against it)
+const CODE = '176498';
+const CODE_SAMPLES = [
+  ['customer_sign_up', { name: 'Ana<b>', code: CODE }],
+  ['customer_password_reset', { name: 'Ana<b> Santos', code: CODE }],
+  ['customer_password_change', { name: 'Ana<b> Santos', code: CODE }],
+  ['admin_sign_in', { name: 'Ana<b> Santos', code: CODE }],
+  ['admin_contact_change', { name: 'Ana<b> Santos', field: 'email', value: 'new"<script>alert(1)</script>@example.com', code: CODE }],
+  ['admin_contact_change', { name: 'Ana<b> Santos', field: 'mobile', value: '09259012345', code: CODE }]
+];
+const codePurposesSeen = new Set();
+for (const [purpose, data] of CODE_SAMPLES) {
+  codePurposesSeen.add(purpose);
+  const name = `${purpose}${data.field ? ` (${data.field})` : ''}`;
+  let email;
+  try {
+    email = CODE_EMAILS[purpose](data);
+  } catch (err) {
+    check(`${name}: builds`, false, err.message);
+    continue;
+  }
+  const { subject, html, text } = email;
+  const preheader = (/<div style="display:none[^>]*>([^<]*)</.exec(html) || [])[1] || '';
+  check(`${name}: subject is one line and has no code`, typeof subject === 'string' && subject.length > 0 && !/[\u0000-\u001f\u007f]/.test(subject) && !subject.includes(CODE), JSON.stringify(subject));
+  check(`${name}: the code is in the HTML once, not in the inbox preview line`, html.split(CODE).length === 2 && preheader.length > 0 && !preheader.includes(CODE), preheader);
+  check(`${name}: the text version has the code on a line of its own`, codeIn({ body: text }) === CODE, text);
+  check(`${name}: HTML has no raw <script> or <b> from data, the name is escaped`, !/<script/i.test(html) && !html.includes('Ana<b>') && html.includes('Hi Ana&lt;b&gt;,'), 'raw markup found');
+  check(`${name}: no link, tel:, mailto:, images, scripts or external CSS`, !/href=|<a\s|<img|<script|<link|@import|url\(/i.test(html), 'found one');
+  check(`${name}: says how long the code works and never to share it`, html.includes('Expires in 5 minutes') && html.includes('Never share this code with anyone') && text.includes('It expires in 5 minutes. Never share this code with anyone.'));
+  check(`${name}: footer lines present`, text.includes('We will never ask for your password or one-time code.') && html.includes('We will never ask for your password or one-time code.') && text.includes("You're receiving this because"));
+  check(`${name}: under 50 KB`, Buffer.byteLength(html) < 50 * 1024, `${Buffer.byteLength(html)} bytes`);
+  if (data.field === 'email') check(`${name}: the new address is shown escaped`, html.includes('new&quot;&lt;script&gt;'), 'escaped address not found');
+  if (data.field === 'mobile') check(`${name}: the new mobile number is shown masked`, text.includes('+63 925 ••• 2345') && !text.includes('09259012345') && !html.includes('9012345'));
+}
+check('every code email has a sample', Object.keys(CODE_EMAILS).every((p) => codePurposesSeen.has(p)), Object.keys(CODE_EMAILS).filter((p) => !codePurposesSeen.has(p)).join(', '));
+const noName = CODE_EMAILS.customer_sign_up({ name: '', code: CODE });
+check('a code email with no name greets "Hi there,"', noName.text.includes('Hi there,') && noName.html.includes('Hi there,'));
 
 // ---------------- 2. helpers ----------------
 check('escapeHtml', escapeHtml(`<a href="x">'&'</a>`) === '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
