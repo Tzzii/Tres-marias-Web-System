@@ -26,11 +26,11 @@ function bearer(req) {
 
 // The signed-in user behind the request: { user } when the token is usable, otherwise { user: null },
 // with replaced: true when it is an admin token whose sign-in a newer sign-in has replaced
-async function readSession(req) {
-  const token = bearer(req);
+export async function readSessionToken(token, findAccount = findSessionAccount) {
   const payload = token ? readToken(token) : null;
-  if (!payload || typeof payload.sub !== 'string' || (payload.role !== 'customer' && payload.role !== 'admin')) return { user: null };
-  const account = await findSessionAccount(payload.role, payload.sub);
+  if (!payload || typeof payload.sub !== 'string' || !payload.sub || payload.sub.length > 128 ||
+      !Number.isFinite(payload.exp) || (payload.role !== 'customer' && payload.role !== 'admin')) return { user: null };
+  const account = await findAccount(payload.role, payload.sub);
   if (!account || (Number(account.passwordChangedAt) || 0) !== payload.pwv) return { user: null };
   if (payload.role === 'admin') {
     // Newest sign-in wins: only the account's current sign-in may use the admin pages
@@ -39,6 +39,8 @@ async function readSession(req) {
   }
   return { user: { id: payload.sub, role: payload.role, name: account.name, exp: payload.exp } };
 }
+
+const readSession = (req) => readSessionToken(bearer(req));
 
 /**
  * A signed-in user is required: otherwise 401 UNAUTHENTICATED, or 401 SESSION_REPLACED for an admin

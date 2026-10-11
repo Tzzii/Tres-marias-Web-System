@@ -3,7 +3,7 @@ import { http } from './http.js';
 import { getCalendar } from './remote/calendar.js';
 
 /**
- * Change polling (docs/backend-development-phases.md Phase 7). While a portal is signed in,
+ * Recovery polling alongside Socket.IO (services/realtime.js). While a portal is signed in,
  * it asks the server for the change stamp every 15 seconds (GET /api/changes: a number that moves on
  * every saved write), but only while the tab is visible, and at once when a hidden tab comes back into
  * view. When the stamp moved since the last answer, the availability map is reloaded first, then one
@@ -13,13 +13,16 @@ import { getCalendar } from './remote/calendar.js';
  * A failed ask (offline, the server restarting, the rate limit) is just tried again at the next tick,
  * and the first answer after it also reloads every live page once, so a page that could not load
  * meanwhile recovers by itself. An ended session is handled by http.js (UNAUTHENTICATED signs the
- * portal out). createAuth starts it on sign-in.
+ * portal out). realtime.js starts it on sign-in.
  */
 
 const POLL_MS = 15 * 1000;
 
 /** Start polling. Returns stop(), which ends it (on sign-out). */
-export function startChangePolling() {
+export function startChangePolling({ onChange = async () => {
+  await getCalendar().catch(() => {});
+  emitChange();
+} } = {}) {
   let last = null; // the stamp of the last answer; null until the first one
   let asking = false; // an ask is on its way, so a slow answer never overlaps the next tick
   let missed = false; // the last ask failed: the next answer reloads the pages even if the stamp stayed
@@ -34,8 +37,7 @@ export function startChangePolling() {
       last = stamp;
       missed = false;
       if (moved && !stopped) {
-        await getCalendar().catch(() => {});
-        emitChange();
+        await onChange();
       }
     } catch (e) {
       missed = true; // tried again at the next tick

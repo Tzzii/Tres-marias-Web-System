@@ -10,7 +10,8 @@ import { http, sessionSide } from '../http.js';
  *   are not sent (the admin's `customerId` still names whose conversation to open).
  * - openThread() has no side of its own, so it goes by the portal that is signed in. It only reads when
  *   the conversation exists (no change event), and writes only to start one.
- * Messages written in the other portal show up through the change poller (services/poller.js).
+ * Messages written in the other portal show up through real-time invalidations (services/realtime.js),
+ * with stamp polling as recovery.
  */
 
 // A thread id in a URL path (never trust a path segment)

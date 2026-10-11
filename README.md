@@ -242,6 +242,15 @@ the server's own `.env`: choose a new, strong one there.
 - **Data.** Everything is in MySQL, behind the API. A browser keeps only the session (sessionStorage, or
   localStorage with "Remember me") and UI preferences: booking drafts, table columns, read
   notifications, the collapsed sidebar, the colour mode.
+- **Real-time updates.** Signed-in portals connect to Socket.IO at `/api/realtime/`. A saved write
+  sends a payload-free `change` event; the portal refreshes the calendar and its live resources
+  through the existing HTTP API. Events are batched for 500 ms and browser refreshes for 250 ms.
+  Reservations, messages, payments and customer details never travel over the socket. The JWT is
+  sent in handshake auth, not a URL. The server checks the same signature, expiry, password version
+  and current admin sign-in as HTTP, before every notification and every 15 seconds when idle.
+  Connections also close at JWT expiry. Both transports enforce `CORS_ORIGINS`, and client-sent
+  application events are refused. Refresh on reconnect / tab return catches missed updates;
+  the existing 15-second stamp polling remains a recovery path. Public visitors do not subscribe.
 - **Rules.** The server is the authority: every rule a page checks is checked again by the API, with
   the same code where it is pure (`packages/shared/src/domain`) and the same messages.
 - **Status pipeline.** Pending → Approved → Downpayment paid → Confirmed → Completed, plus
@@ -257,6 +266,11 @@ the server's own `.env`: choose a new, strong one there.
   customer as a message. Nothing reaches the public site until the admin publishes it.
 
 ## Security checks
+
+`npm run test:realtime` exercises real local HTTP and Socket.IO connections with controlled account
+and SQL fixtures, including forged / expired tokens, revoked sessions, origin checks, account
+isolation, connection limits, burst handling and portal recovery. It does not query or modify the
+configured database. Production dependency advisories can be checked with `npm audit --omit=dev`.
 
 Two scripts check the API the way the panel would (Phase 12). Each starts its own API process on
 the database in `apps/api/.env`, so nothing else needs to be running:
@@ -299,3 +313,30 @@ server {
 Both call the same API (for example `api.tresmarias.ph`, proxied to port 4000). The full deployment
 checklist (HTTPS, firewall, the production `.env`, the fresh start, backups) is Phase 13 of
 `docs/backend-development-phases.md`.
+
+For real-time updates, add this location inside the **API** Nginx server block, beside its existing
+`location /`. Keep the API bound behind the proxy / firewall, HTTPS enabled, and `CORS_ORIGINS`
+limited to the exact customer and admin origins:
+
+```nginx
+location /api/realtime/ {
+    proxy_pass http://127.0.0.1:4000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 75s;
+    proxy_buffering off;
+}
+```
+
+When updating an existing live site: install from the lockfile (`npm ci`), build both portals with
+their production `VITE_API_URL`, validate and reload the Nginx configuration, and restart the API.
+This change needs no database migration or data reset. Test with separate admin and customer
+sessions after deploying. Instant push currently covers one API process (the documented PM2
+setup); multiple workers still catch changes through polling and need a shared adapter for instant
+cross-worker delivery. LAN / preview testing also requires each browser's exact origin in
+`CORS_ORIGINS` (including its port); the Vite `/api` proxy supports WebSocket upgrades.

@@ -55,6 +55,9 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
   const [text, setText] = useState(''); // message being typed
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const sendPending = useRef(false); // block another send before React renders the busy state
+  const draftVersion = useRef(0); // edits made while a send is pending belong to the next draft
+  const conversationVersion = useRef(0); // returning to the same thread still starts a new draft
   // Editing and deleting this side's own typed messages (only when the page passes onEdit and onDelete)
   const canChange = Boolean(onEdit && onDelete);
   const [clock, setClock] = useState(() => Date.now()); // moves every 30 s, so a ⋮ goes away once its time is up
@@ -97,7 +100,9 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
   }, [thread?.messages?.length, activeId]);
 
   // Clear the text box, and stop any edit, when switching conversations
-  useEffect(() => {
+  useLayoutEffect(() => {
+    conversationVersion.current += 1;
+    draftVersion.current += 1;
     setText('');
     setError('');
     setEditing(null);
@@ -134,15 +139,23 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
 
   // Send the typed message (ignored if empty or already sending)
   const send = async () => {
-    if (!text.trim() || sending) return;
+    if (!text.trim() || sendPending.current) return;
+    const sentText = text;
+    const sentDraft = draftVersion.current;
+    const sentConversation = conversationVersion.current;
+    sendPending.current = true;
     setSending(true);
     setError('');
     try {
-      await onSend(text);
-      setText('');
+      await onSend(sentText);
+      // Only clear the draft that was sent; typing or switching threads creates a new one.
+      setText((current) =>
+        conversationVersion.current === sentConversation && draftVersion.current === sentDraft && current === sentText ? '' : current
+      );
     } catch (e) {
-      setError(e.message);
+      if (conversationVersion.current === sentConversation) setError(e.message);
     } finally {
+      sendPending.current = false;
       setSending(false);
     }
   };
@@ -366,7 +379,10 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
             >
               <InputBase
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => {
+                  draftVersion.current += 1;
+                  setText(e.target.value);
+                }}
                 // Enter sends; Shift+Enter adds a new line
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {

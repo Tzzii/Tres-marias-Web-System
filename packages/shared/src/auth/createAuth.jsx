@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Navigate, useLocation } from 'react-router-dom';
 import { RULES } from '../services/config.js';
 import { onSignedOut, onTokenRenewed } from '../services/events.js';
-import { startChangePolling } from '../services/poller.js';
+import { startRealtimeSync } from '../services/realtime.js';
 
 /**
  * Builds the session layer for one portal. Each portal gets its own storage key,
@@ -23,8 +23,8 @@ import { startChangePolling } from '../services/poller.js';
  *   of the same account on another device or tab (SESSION_REPLACED: newest sign-in wins) gets
  *   ?reason=replaced instead. A token the server replaces (after a customer changes or resets the
  *   password in My profile) is saved here.
- *   While signed in, the portal also polls for changes made elsewhere (services/poller.js), so pages
- *   show the other portal's writes within about 15 seconds.
+ *   While signed in, the portal receives Socket.IO invalidations (services/realtime.js), with a
+ *   15-second stamp check for recovery. Record access remains guarded by the HTTP API.
  * - <RequireAuth> sends signed-out visitors to the login page (a locked one to the lock screen) and
  *   brings them back to where they were going afterwards.
  * - `idlePath` (optional): where an idle timeout lands instead of the login page (when it doesn't lock).
@@ -240,9 +240,9 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
     // ('replaced' when a newer sign-in of the same admin account took over, else 'expired')
     useEffect(() => onSignedOut((code) => signOut(code === 'SESSION_REPLACED' ? 'replaced' : 'expired')), [signOut]);
 
-    // Signed in: watch for changes made elsewhere until sign-out (services/poller.js)
-    const signedIn = Boolean(session);
-    useEffect(() => (signedIn ? startChangePolling() : undefined), [signedIn]);
+    // Close on sign-out / lock and reconnect when a renewed or different token is saved.
+    const sessionToken = session?.token;
+    useEffect(() => (sessionToken ? startRealtimeSync(sessionToken, { getToken: () => readSession()?.token }) : undefined), [sessionToken]);
 
     // The API replaced the token (a customer changed or reset their password; older tokens stopped working).
     // Saved to storage right away, not in a state updater that React may run later: the API client

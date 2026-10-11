@@ -14,7 +14,7 @@ const sharedDir = path.resolve(appDir, '../../packages/shared');
 // (VITE_API_URL=http://localhost:4000/api), but on a phone "localhost" is the phone itself, so for
 // --host runs (npm run dev:client:phone) scripts/vite-run.mjs sets VITE_API_URL=/api and calls go
 // through here. xfwd adds X-Forwarded-For, so the API sees (and rate-limits) the phone's address.
-const apiProxy = { '/api': { target: 'http://localhost:4000', xfwd: true } };
+const apiProxy = { '/api': { target: 'http://localhost:4000', xfwd: true, ws: true } };
 
 export default defineConfig({
   root: appDir,

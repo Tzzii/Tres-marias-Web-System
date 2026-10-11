@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { config } from './config.js'; // first: loads apps/api/.env and sets TZ before anything reads the clock
 import { createApp } from './app.js';
+import { createRealtimeServer } from './realtime.js';
 
 /**
  * Start the API: `npm run dev:api` (node --watch: restarts on every save) or `npm start -w apps/api`.
@@ -10,6 +11,7 @@ import { createApp } from './app.js';
  * The database is not touched here: the API starts and answers /api/health even without MySQL.
  */
 const server = http.createServer(createApp());
+const realtime = createRealtimeServer(server);
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -31,7 +33,8 @@ server.listen(config.port, () => {
  */
 function shutdown(signal) {
   console.log(`${signal} received, stopping the API…`);
-  server.close(() => process.exit(0));
+  // Socket.IO closes its connections and the attached HTTP server; wait for HTTP requests to drain.
+  void realtime.close().then(() => process.exit(0));
   server.closeIdleConnections(); // keep-alive sockets with no request in flight would otherwise hold close() open
   setTimeout(() => process.exit(0), 5000).unref();
 }
