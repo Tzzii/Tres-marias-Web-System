@@ -135,7 +135,7 @@ export default function SignupPage() {
 
   return (
     <AuthLayout headline="One account, every celebration you host." perks={['Reserve dates and follow each request live', 'See quotations, contracts and receipts in one place', 'Save drafts and finish your booking any time']}>
-      <FormCard component="form" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
+      <FormCard component="form" autoComplete="off" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
         <Box>
           <Typography component="h1" sx={{ fontSize: 24, fontWeight: 700 }}>
             Sign Up
@@ -148,12 +148,12 @@ export default function SignupPage() {
 
         {/* Name in separate parts: first and middle side by side (stacked on phones), last name below */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-          <FormField id="signup-firstName" label="First name" required autoComplete="given-name" value={values.firstName} onChange={set('firstName')} error={errors.firstName} disabled={busy} />
-          <FormField id="signup-middleName" label="Middle name" optional autoComplete="additional-name" value={values.middleName} onChange={set('middleName')} disabled={busy} />
+          <FormField id="signup-firstName" label="First name" required autoComplete="off" value={values.firstName} onChange={set('firstName')} error={errors.firstName} disabled={busy} />
+          <FormField id="signup-middleName" label="Middle name" optional autoComplete="off" value={values.middleName} onChange={set('middleName')} disabled={busy} />
         </Box>
-        <FormField id="signup-lastName" label="Last name" required autoComplete="family-name" value={values.lastName} onChange={set('lastName')} error={errors.lastName} disabled={busy} />
-        <FormField id="signup-email" label="Email" required type="email" autoComplete="email" value={values.email} onChange={set('email')} error={errors.email} hint="We email a code to this address to confirm it is yours." disabled={busy} />
-        <MobileField id="signup-mobile" label="Mobile number" required value={values.mobile} onChange={set('mobile')} error={errors.mobile} hint="We text you about event-day updates only." disabled={busy} />
+        <FormField id="signup-lastName" label="Last name" required autoComplete="off" value={values.lastName} onChange={set('lastName')} error={errors.lastName} disabled={busy} />
+        <FormField id="signup-email" label="Email" required type="email" autoComplete="off" value={values.email} onChange={set('email')} error={errors.email} hint="We email a code to this address to confirm it is yours." disabled={busy} />
+        <MobileField id="signup-mobile" label="Mobile number" required autoComplete="off" value={values.mobile} onChange={set('mobile')} error={errors.mobile} hint="We text you about event-day updates only." disabled={busy} />
         <Box>
           <PasswordField id="signup-password" label="Password" required autoComplete="new-password" value={values.password} onChange={set('password')} error={errors.password} disabled={busy} />
           {/* What the password still needs, ticked live (the server checks the same rule) */}

@@ -1,4 +1,5 @@
 import { config } from '../src/config.js';
+import { RULES } from '@tm/shared/src/services/config.js';
 import { closePool, pool, tx } from '../src/db.js';
 import { emailSubject, escapeHtml, oneLine, portalLink, reservationPath, shorten } from '../src/modules/notify/email.layout.js';
 import { CODE_EMAILS } from '../src/modules/auth/code.emails.js';
@@ -133,7 +134,7 @@ for (const [purpose, data] of CODE_SAMPLES) {
   check(`${name}: the text version has the code on a line of its own`, codeIn({ body: text }) === CODE, text);
   check(`${name}: HTML has no raw <script> or <b> from data, the name is escaped`, !/<script/i.test(html) && !html.includes('Ana<b>') && html.includes('Hi Ana&lt;b&gt;,'), 'raw markup found');
   check(`${name}: no link, tel:, mailto:, images, scripts or external CSS`, !/href=|<a\s|<img|<script|<link|@import|url\(/i.test(html), 'found one');
-  check(`${name}: says how long the code works and never to share it`, html.includes('Expires in 5 minutes') && html.includes('Never share this code with anyone') && text.includes('It expires in 5 minutes. Never share this code with anyone.'));
+  check(`${name}: says how long the code works and never to share it`, html.includes(`Expires in ${RULES.codeValidMinutes} minutes`) && html.includes('Never share this code with anyone') && text.includes(`It expires in ${RULES.codeValidMinutes} minutes. Never share this code with anyone.`));
   check(`${name}: footer lines present`, text.includes('We will never ask for your password or one-time code.') && html.includes('We will never ask for your password or one-time code.') && text.includes("You're receiving this because"));
   check(`${name}: under 50 KB`, Buffer.byteLength(html) < 50 * 1024, `${Buffer.byteLength(html)} bytes`);
   if (data.field === 'email') check(`${name}: the new address is shown escaped`, html.includes('new&quot;&lt;script&gt;'), 'escaped address not found');

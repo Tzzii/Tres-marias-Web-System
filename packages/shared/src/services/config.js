@@ -61,8 +61,8 @@ export const RULES = {
   codeLength: 6,
   maxCodeAttempts: 5,
   codeLockMinutes: 2,
-  codeResendSeconds: 60,
-  codeValidMinutes: 5,
+  codeResendSeconds: 30,
+  codeValidMinutes: 2,
   /**
    * After this much inactivity a customer is signed out, and an admin's screen locks: the admin unlocks it
    * with the password alone (no emailed code) until the session itself runs out (JWT_ADMIN_TTL).
