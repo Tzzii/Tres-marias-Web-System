@@ -206,6 +206,56 @@ ${footer.map((line) => `<p style="margin:0 0 6px;font-family:${SANS};font-size:1
 // The text version's lines as one text: no two empty lines in a row, the ends trimmed
 const joinLines = (lines) => lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n').trim();
 
+// Standard request item lines become a real Item / Quantity table. Values still come from the
+// admin's final message, rather than a second copy of the contract that could disagree with their edits.
+function requestItemsTable(items) {
+  const cell = `padding:10px 12px;font-family:${SANS};font-size:14px;color:${C.ink};vertical-align:top;word-break:break-word;`;
+  return `<table width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:4px 0 18px;border:1px solid ${C.border};border-radius:10px;border-collapse:separate;table-layout:fixed">
+<colgroup><col width="65%"><col width="35%"></colgroup>
+<thead><tr bgcolor="${C.sand}"><th scope="col" align="left" style="${cell}">Item</th><th scope="col" align="right" style="${cell}white-space:nowrap">Quantity</th></tr></thead>
+<tbody>${items.map(item => `<tr><td style="${cell}border-top:1px solid ${C.border}">${escapeHtml(item.name)}</td><td align="right" style="${cell}border-top:1px solid ${C.border};font-weight:bold;white-space:nowrap">${escapeHtml(item.qty)} pcs</td></tr>`).join('')}</tbody>
+</table>`;
+}
+
+/** Partner request email: the same branded frame, with the final compose text as its source. */
+export function renderPartnerRequestEmail({ ref, text }) {
+  const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+  // The frame already names the business and request; remove only the exact generated opening line.
+  if (lines[0] === `${BUSINESS.name} · Outsourcing request ${ref}`) lines.shift();
+  const blocks = [];
+  let words = [];
+  let items = [];
+  let details = [];
+  const flushWords = () => { if (words.length) blocks.push(paragraph(words.join('\n'))); words = []; };
+  const flushItems = () => { if (items.length) blocks.push(requestItemsTable(items)); items = []; };
+  const flushDetails = () => { if (details.length) blocks.push(detailsTable(details)); details = []; };
+  for (const line of lines) {
+    const item = /^- (.+): ([1-9]\d*) pcs$/.exec(line);
+    const detail = /^(Needed on|Agreed amount:) (.+)$/.exec(line);
+    if (item) {
+      flushWords(); flushDetails();
+      items.push({ name: item[1], qty: item[2] });
+    } else if (detail) {
+      flushWords(); flushItems();
+      details.push({ label: detail[1].replace(/:$/, ''), value: detail[2], strong: detail[1].startsWith('Agreed') });
+    } else {
+      flushItems(); flushDetails();
+      if (!line.trim()) flushWords();
+      else words.push(line);
+    }
+  }
+  flushWords(); flushItems(); flushDetails();
+  const footer = footerLines('This request was sent to your business as an outsourcing partner of Tres Marias.');
+  const html = frame({
+    label: 'Partner Supply Request', tone: 'info',
+    preheader: `Supply request ${oneLine(ref)} from ${BUSINESS.name}. Please review the details and confirm availability.`,
+    heading: 'Outsourcing Request',
+    body: detailsTable([{ label: 'Request number', value: ref, strong: true }]) + blocks.join('\n'),
+    footer
+  });
+  return { html, text }; // The text fallback, SMS, outbox and downloaded request retain the exact final message.
+}
+
 /**
  * One customer email as { html, text }, from plain-text parts (every one is escaped here):
  *   label        the small status label under the header, e.g. "Quotation Ready" (Title Case)

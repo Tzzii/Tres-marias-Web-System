@@ -804,12 +804,12 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
             )}
             <FormField
               id={`contract-qty-${index}`}
-              label={isPhone || index === 0 ? 'How many' : undefined}
+              label={isPhone || index === 0 ? 'Quantity' : undefined}
               required={isPhone || index === 0}
               type="number"
               value={item.qty}
               onChange={setItem(index, 'qty')}
-              inputProps={{ min: 1, 'aria-label': 'How many' }}
+              inputProps={{ min: 1, 'aria-label': 'Quantity' }}
             />
             <IconButton
               aria-label="Remove item"

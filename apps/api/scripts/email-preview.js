@@ -5,6 +5,8 @@ import { addDays, todayISO } from '@tm/shared/src/utils/format.js';
 import { CODE_EMAILS } from '../src/modules/auth/code.emails.js';
 import { CUSTOMER_EMAILS } from '../src/modules/notify/customer.emails.js';
 import { escapeHtml } from '../src/modules/notify/email.layout.js';
+import { outsourceRequestEmail } from '../src/modules/outsource/outsource.emails.js';
+import { composeContractText } from '@tm/shared/src/domain/outsource.js';
 
 /**
  * `npm run email:preview` — every customer email (Phase 13A) and every one-time-code email (2026-10-11)
@@ -60,6 +62,17 @@ const SAMPLE_CODE = '176498';
 
 // Every variant: [file name, purpose, data] (firstName is what notify.service.js adds)
 const VARIANTS = [
+  ['partner-supply-request', 'outsourcing_request', {
+    ref: 'OUT-2026-0001',
+    body: composeContractText({ ref: 'OUT-2026-0001', partner: { name: 'Sample Studio', contactPerson: 'Rene' }, items: [{ name: 'Rectangular buffet table', qty: 40 }], needBy: '2026-10-17', amount: 700 })
+  }],
+  ['partner-supply-request-edited', 'outsourcing_request', {
+    ref: 'OUT-2026-0002',
+    body: 'Hi Sample Supplier,\n\nPlease supply the following:\n- Photo booth: 1 pcs\n- LED wall: 2 pcs\n\nNeeded on 18 Oct 2026 at Sample Venue.\nAgreed amount: ₱12,000.\nPlease arrive at 8:00 AM.\n\nPlease text or call +63 951 562 1060 to confirm.'
+  }],
+  ['partner-supply-request-hostile', 'outsourcing_request', {
+    ref: 'OUT-2026-0003', body: 'Hi <script>alert(1)</script> & Supplier,\n\n- Table "A" <b>: 4 pcs\n\nPlease keep my edited note.\n<iframe src="https://example.test"></iframe>'
+  }],
   ['quotation-new', 'quotation_ready', { reservation: santos, variant: 'new', net: 45000, note: '' }],
   ['quotation-revised', 'quotation_ready', { reservation: santos, variant: 'revised', net: 48500, note: `We added the extra dessert station you asked for.\n${HOSTILE_TEXT}` }],
   ['quotation-updated-back-to-approved', 'quotation_ready', {
@@ -127,7 +140,7 @@ const VARIANTS = [
 ];
 
 // Every builder by purpose: the customer notices and the one-time-code emails (no purpose is in both)
-const BUILDERS = { ...CUSTOMER_EMAILS, ...CODE_EMAILS };
+const BUILDERS = { ...CUSTOMER_EMAILS, ...CODE_EMAILS, outsourcing_request: outsourceRequestEmail };
 
 /**
  * True when `text` has a character that could break a mail header line: C0 controls (CR, LF, tab…), DEL,

@@ -34,6 +34,7 @@ import { isISODate, now, todayISO } from '../../lib/time.js';
 import { markOutbox, saveToOutbox } from '../../outbox/outbox.repo.js';
 import * as reservationsRepo from '../reservations/reservations.repo.js';
 import * as repo from './outsource.repo.js';
+import { outsourceRequestEmail, deliverPartnerRequest } from './outsource.emails.js';
 
 /**
  * Outsourcing on the server (docs/backend-development-phases.md Phase 10, §9.10): the partners Tres
@@ -279,12 +280,12 @@ function deliveryNote(ref, partnerName, results) {
  * 'failed', with the reason in the outbox row and on the server console. Returns the deliveries with
  * their `status`: 'sent', 'logged' or 'failed'.
  */
-async function deliverAll(contract, deliveries, subject) {
+async function deliverAll(contract, deliveries, email) {
   const results = [];
   for (const delivery of deliveries) {
     let outcome;
     try {
-      outcome = delivery.channel === 'email' ? await mailer.deliver({ to: delivery.to, subject, text: delivery.body }) : await sms.deliver({ to: delivery.to, body: delivery.body });
+      outcome = await deliverPartnerRequest(delivery, email, { mailer, sms });
     } catch (err) {
       console.error(`[outsource] ${contract.ref}: the ${CHANNEL_WORD[delivery.channel]} to ${delivery.to} could not be sent:`, err.message);
       outcome = { status: 'failed', providerId: null, error: err.message };
@@ -315,14 +316,14 @@ export async function sendContract(id, body, admin) {
 
     // One delivery per channel, every one of them carrying the identical text, each with its outbox row
     const at = now();
-    const subject = `Outsourcing request ${contract.ref} from ${BUSINESS.name}`;
+    const email = outsourceRequestEmail({ ref: contract.ref, body: text });
     const deliveries = contractDeliveries(partner, text, at);
     for (const delivery of deliveries) {
       const { id: outboxId } = await saveToOutbox(
         {
           channel: delivery.channel,
           to: delivery.to,
-          subject: delivery.channel === 'email' ? subject : null,
+          subject: delivery.channel === 'email' ? email.subject : null,
           body: text,
           status: 'queued',
           provider: delivery.channel === 'email' ? mailer.name : sms.name,
@@ -335,11 +336,11 @@ export async function sendContract(id, body, admin) {
     }
     await repo.updateContract(conn, contract.id, { body: text, status: 'sent', sentAt: at });
     await logContract(conn, contract, partner.name, sentText(deliveries), admin, sentActivityText(deliveries));
-    return { contract, partner, deliveries, subject };
+    return { contract, partner, deliveries, email };
   });
 
   // After the commit: hand each message over, then note on the contract any channel that did not go out
-  const results = await deliverAll(saved.contract, saved.deliveries, saved.subject);
+  const results = await deliverAll(saved.contract, saved.deliveries, saved.email);
   const undelivered = results.filter((r) => r.status !== 'sent');
   if (undelivered.length) {
     await tx(async (conn) => {
