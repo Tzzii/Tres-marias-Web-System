@@ -49,4 +49,4 @@ export async function setContractStatus(id, status, { note = '' } = {}) {
 }
 
 // Constants and pure helpers: the same code the server uses (domain/outsource.js)
-export { NO_EVENT, CONTRACT_STATUSES, channelsOf, composeContractText } from '../../domain/outsource.js';
+export { NO_EVENT, CONTRACT_STATUSES, channelsOf, composeContractText, partnerProblem, partnerServiceInput, partnerServiceCategory } from '../../domain/outsource.js';

@@ -62,7 +62,7 @@ export { saveElementAsPdf } from './utils/savePdf.js';
 // Saving a file with the computer's "Save as" window where the browser allows it (TXT exports, Save PDF)
 export { askWhereToSave, canAskWhereToSave, saveFile, writeTo } from './utils/saveFile.js';
 
-export { BUSINESS, RULES, OCCASIONS, OCCASION_OTHER, OCCASION_OTHER_RANGE, bookingOccasion, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, FEEDBACK_CATEGORIES } from './services/config.js';
+export { BUSINESS, RULES, OCCASIONS, OCCASION_OTHER, OCCASION_OTHER_RANGE, bookingOccasion, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, OUTSOURCE_OTHER, OUTSOURCE_OTHER_RANGE, FEEDBACK_CATEGORIES } from './services/config.js';
 export { computeQuote, extraGuestsFor, isRentalPackage } from './services/pricing.js';
 // A package's items for the guest count (plates and chairs grow, warmers and waiters are confirmed in the quotation)
 export { ITEM_COUNT_MAX, bookingExtraGuests, bookingItems, formatBookingItem, itemGrows, itemsToConfirm, packageItemsFor, usesGuestRule } from './domain/packageItems.js';

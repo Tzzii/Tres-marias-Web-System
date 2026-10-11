@@ -16,6 +16,8 @@
     "audit:routes": "node scripts/route-audit.js",
     "test:security": "node scripts/security-tests.js",
     "test:realtime": "node --test scripts/realtime-tests.js",
+    "test:outsource": "node --test scripts/outsource-tests.js",
+    "test:mobile": "node --test scripts/mobile-tests.js",
     "email:preview": "node scripts/email-preview.js",
     "test:email": "node scripts/email-test.js"
   },

@@ -1,5 +1,6 @@
 /** Field validators shared by every form. Each returns an error string or ''. */
 import { RULES } from '../services/config.js';
+import { compactMobile, readPhilippineMobile } from './mobile.js';
 
 // Basic email shape: something@something.xx (no spaces)
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -15,14 +16,23 @@ export const validateEmail = (value) => {
 };
 
 /**
- * Philippine mobile numbers: 09XXXXXXXXX or +639XXXXXXXXX. The example in the message is written the way
- * the number box shows it (MobileField, "+63" in front).
+ * Philippine mobile format and mobile ranges, shared by forms and the API. This cannot establish
+ * that the number is assigned, active or owned by the person entering it.
  */
 export const validateMobile = (value) => {
-  // Ignore spaces and dashes so "0917-123-4567" is accepted
-  const digits = String(value || '').replace(/[\s-]/g, '');
-  if (!digits) return 'Mobile number is required.';
-  return /^(09\d{9}|\+639\d{9})$/.test(digits) ? '' : 'Enter a valid mobile number, e.g. +63 917 123 4567.';
+  if (!compactMobile(value)) return 'Mobile number is required.';
+  const national = nationalMobileLength(value);
+  if (national !== null && national !== 10) return 'Enter exactly 10 digits after +63, e.g. 917 123 4567.';
+  return readPhilippineMobile(value) ? '' : 'Enter a valid Philippine mobile number, e.g. +63 917 123 4567.';
+};
+
+const nationalMobileLength = (value) => {
+  const compact = compactMobile(value);
+  if (!/^\+?\d+$/.test(compact)) return null;
+  if (compact.startsWith('+63')) return compact.length - 3;
+  if (compact.startsWith('63') && compact.length > 10) return compact.length - 2;
+  if (compact.startsWith('0')) return compact.length - 1;
+  return compact.startsWith('+') ? null : compact.length;
 };
 
 /**

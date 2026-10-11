@@ -8,7 +8,8 @@ import Typography from '@mui/material/Typography';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { tokens } from '../theme/tokens.js';
-import { nationalMobile } from '../utils/format.js';
+import { nationalMobile, mobileInputValue } from '../utils/mobile.js';
+import { validateMobile } from '../utils/validation.js';
 
 /**
  * Labelled inputs for light surfaces (design system: FormField). The label sits
@@ -101,19 +102,22 @@ const mobileCaret = (count) => count + (count > 3 ? 1 : 0) + (count > 6 ? 1 : 0)
 /**
  * Philippine mobile number input with a fixed "+63" in front. The person types the 10 digits after it and
  * the spaces appear as they type ("917 123 4567"); a pasted or autofilled "0917…", "+63 917…" or "63917…"
- * loses its prefix first (nationalMobile), and digits past the tenth are dropped. The cursor stays after
+ * loses its prefix first (nationalMobile). Extra digits and invalid text remain visible and are rejected.
+ * The cursor stays after
  * the digit it followed when a digit is typed or deleted in the middle.
  * `value` may be written any of those ways (e.g. the stored "09171234567"). `onChange` gets
  * { target: { value } } like a text box, with the number in its stored form: "0" + the digits
  * ("09171234567"), or '' when the box is empty, so validateMobile and the server read it as before.
  */
 export const MobileField = forwardRef(function MobileField(
-  { value, onChange, placeholder = '917 123 4567', autoComplete = 'tel', InputProps, ...props },
+  { value, onChange, placeholder = '917 123 4567', autoComplete = 'tel-national', InputProps, inputProps, error, hint, ...props },
   ref
 ) {
   const input = useRef(null);
   const caret = useRef(null); // cursor position to restore after the next render, or null
-  const digits = nationalMobile(value).slice(0, 10);
+  const digits = nationalMobile(value);
+  const numeric = /^\d*$/.test(digits);
+  const mobileError = digits && (digits.length >= 10 || !numeric) ? validateMobile(value) : '';
 
   // Put the cursor back where the person was typing; the reformatted value would otherwise send it to the end
   useLayoutEffect(() => {
@@ -133,12 +137,13 @@ export const MobileField = forwardRef(function MobileField(
   const handleChange = (e) => {
     const typed = e.target.value;
     const national = nationalMobile(typed);
-    const next = national.slice(0, 10);
     // Digits before the cursor, less the prefix that was removed from the front
     const before = typed.slice(0, e.target.selectionStart ?? typed.length).replace(/\D/g, '').length;
     const removed = typed.replace(/\D/g, '').length - national.length;
-    caret.current = mobileCaret(Math.min(next.length, Math.max(0, before - removed)));
-    if (onChange) onChange({ target: { value: next ? `0${next}` : '' } });
+    caret.current = /^\d*$/.test(national)
+      ? mobileCaret(Math.min(national.length, Math.max(0, before - removed)))
+      : Math.max(0, (e.target.selectionStart ?? typed.length) - (typed.length - national.length));
+    if (onChange) onChange({ target: { value: mobileInputValue(typed) } });
   };
 
   return (
@@ -147,9 +152,12 @@ export const MobileField = forwardRef(function MobileField(
       type="tel"
       autoComplete={autoComplete}
       placeholder={placeholder}
-      value={[digits.slice(0, 3), digits.slice(3, 6), digits.slice(6)].filter(Boolean).join(' ')}
+      value={numeric ? [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6)].filter(Boolean).join(' ') : digits}
       onChange={handleChange}
-      InputProps={{ ...InputProps, startAdornment: <InputAdornment position="start">+63</InputAdornment> }}
+      error={error || mobileError}
+      hint={hint ? `${hint} Philippine mobile: 10 digits after +63.` : 'Philippine mobile: 10 digits after +63.'}
+      inputProps={{ ...inputProps, inputMode: 'tel' }}
+      InputProps={{ ...InputProps, startAdornment: <InputAdornment position="start"><span title="Philippines country code" aria-label="Philippines country code +63">+63</span></InputAdornment> }}
       {...props}
     />
   );

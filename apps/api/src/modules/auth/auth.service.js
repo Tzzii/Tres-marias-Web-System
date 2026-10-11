@@ -697,7 +697,7 @@ export async function adminStartContactChange(adminId, { field, value, password 
   const clean = field === 'email' ? normaliseEmail(value) : cleanMobile(value);
   const problem = field === 'email' ? validateEmail(clean) : validateMobile(clean);
   if (problem) throw new ApiError('INVALID', problem, { field: 'value' });
-  if (clean === (field === 'email' ? normaliseEmail(admin.email) : admin.mobile)) {
+  if (clean === (field === 'email' ? normaliseEmail(admin.email) : cleanMobile(admin.mobile))) {
     throw new ApiError('INVALID', `This is already your ${field === 'email' ? 'email' : 'mobile number'}.`, { field: 'value' });
   }
   if (field === 'email' && (await repo.emailUsedByOtherAdmin(clean, adminId))) {

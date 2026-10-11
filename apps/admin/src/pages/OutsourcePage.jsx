@@ -36,6 +36,8 @@ import {
   FormField,
   MobileField,
   OUTSOURCE_SERVICES,
+  OUTSOURCE_OTHER,
+  OUTSOURCE_OTHER_RANGE,
   PageHeader,
   Pager,
   Pill,
@@ -223,8 +225,8 @@ export default function OutsourcePage() {
     return contracts
       .filter(byStatus)
       .filter(byDate)
-      .filter((c) => service === 'all' || c.service === service)
-      .filter((c) => !q || [c.partnerName, c.ref, c.eventName, c.itemsSummary].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
+      .filter((c) => service === 'all' || outsourceApi.partnerServiceCategory(c.service) === service)
+      .filter((c) => !q || [c.partnerName, c.ref, c.eventName, c.itemsSummary, c.service].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
   }, [contracts, query, service, when, status]);
 
   // The Partners tab shares the search box and the Service filter, and has its own Active / Archived switch
@@ -232,7 +234,7 @@ export default function OutsourcePage() {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     return partners
       .filter((p) => Boolean(p.archived) === showArchived)
-      .filter((p) => service === 'all' || p.service === service)
+      .filter((p) => service === 'all' || outsourceApi.partnerServiceCategory(p.service) === service)
       .filter((p) => !q || [p.name, p.contactPerson, p.email, p.mobile, p.service].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
   }, [partners, query, service, showArchived]);
 
@@ -869,7 +871,7 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
  * sent to whichever of the two is on file, so a partner who only texts still receives it.
  */
 function PartnerDialog({ open, partner, onClose, onSaved }) {
-  const [values, setValues] = useState({ name: '', service: '', contactPerson: '', email: '', mobile: '', address: '', notes: '' });
+  const [values, setValues] = useState({ name: '', service: '', serviceOther: '', contactPerson: '', email: '', mobile: '', address: '', notes: '' });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const id = partner && partner.id;
@@ -879,8 +881,8 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
     if (!open) return;
     setValues(
       partner
-        ? { name: partner.name, service: partner.service, contactPerson: partner.contactPerson, email: partner.email, mobile: partner.mobile, address: partner.address, notes: partner.notes }
-        : { name: '', service: '', contactPerson: '', email: '', mobile: '', address: '', notes: '' }
+        ? { name: partner.name, ...outsourceApi.partnerServiceInput(partner.service), contactPerson: partner.contactPerson, email: partner.email, mobile: partner.mobile, address: partner.address, notes: partner.notes }
+        : { name: '', service: '', serviceOther: '', contactPerson: '', email: '', mobile: '', address: '', notes: '' }
     );
     setErrors({});
   }, [open, id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -891,6 +893,12 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
   };
 
   const save = async () => {
+    const problem = outsourceApi.partnerProblem(values);
+    if (problem) {
+      setErrors({ [problem.meta.field]: problem.message });
+      document.getElementById(`partner-${problem.meta.field}`)?.focus();
+      return;
+    }
     setBusy(true);
     try {
       onSaved(await outsourceApi.savePartner(id || null, values), !id);
@@ -918,6 +926,22 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
         <FormField id="partner-name" label="Partner name" required value={values.name} onChange={set('name')} error={errors.name} inputProps={{ maxLength: 80 }} />
         <SelectField id="partner-service" label="What they supply" required placeholder="Choose" value={values.service} onChange={set('service')} error={errors.service} options={OUTSOURCE_SERVICES} />
+        {values.service === OUTSOURCE_OTHER && (
+          <FormField
+            id="partner-serviceOther"
+            label="Specify what they supply"
+            required
+            autoComplete="off"
+            value={values.serviceOther}
+            onChange={set('serviceOther')}
+            error={errors.serviceOther}
+            inputProps={{ maxLength: OUTSOURCE_OTHER_RANGE.max }}
+            placeholder="e.g. Photo booth, LED wall, or generators"
+            hint={`Enter ${OUTSOURCE_OTHER_RANGE.min}–${OUTSOURCE_OTHER_RANGE.max} characters.`}
+            sx={{ gridColumn: '1 / -1' }}
+            disabled={busy}
+          />
+        )}
         <FormField id="partner-contact" label="Contact person" optional value={values.contactPerson} onChange={set('contactPerson')} error={errors.contactPerson} inputProps={{ maxLength: 60 }} />
         <FormField id="partner-address" label="Address" optional value={values.address} onChange={set('address')} error={errors.address} inputProps={{ maxLength: 120 }} />
         <FormField

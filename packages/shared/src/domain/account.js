@@ -9,11 +9,13 @@
  * validatePassword, validateAdminPassword) live in utils/validation.js and are shared the same way.
  */
 
+import { storedMobile } from '../utils/mobile.js';
+
 /** An email as it is stored and compared: no surrounding spaces, lower case. */
 export const normaliseEmail = (email) => String(email || '').trim().toLowerCase();
 
-/** A mobile number as it is stored: spaces and dashes removed ("0917-123 4567" -> "09171234567"). */
-export const cleanMobile = (mobile) => String(mobile || '').replace(/[\s-]/g, '');
+/** Valid Philippine mobile numbers save consistently in domestic form ("09171234567"). */
+export const cleanMobile = storedMobile;
 
 /** A full name as it is stored: no surrounding spaces and one space between words. */
 export const cleanName = (name) => String(name || '').trim().replace(/\s+/g, ' ');

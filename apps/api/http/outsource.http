@@ -27,6 +27,13 @@ Content-Type: application/json
 
 { "name": "Malvar Chairs", "service": "Chairs and tables", "contactPerson": "Ana Reyes", "email": "", "mobile": "0918 765 4321", "address": "", "notes": "" }
 
+### Add a partner with a custom supply -> service is saved as "Photo booth"; grouped under Other
+POST {{api}}/admin/outsource/partners
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "Malvar Photo Booth", "service": "Other", "serviceOther": "Photo booth", "email": "booth@example.test", "mobile": "", "contactPerson": "", "address": "", "notes": "" }
+
 ### Edit a partner -> the partner (the history lists the fields that changed)
 PUT {{api}}/admin/outsource/partners/{{partner}}
 Authorization: Bearer {{adminToken}}

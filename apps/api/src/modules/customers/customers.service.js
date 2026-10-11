@@ -55,8 +55,8 @@ export async function getCustomer(customerId) {
  * Admin: correct a customer's email and mobile number (the customer owns the rest of their profile).
  * In this order: the email's format, then the mobile number's (INVALID with
  * meta.field), then the customer (NOT_FOUND), then that no other customer uses the email
- * (EMAIL_TAKEN). The email is saved trimmed and in lower case, the mobile number without spaces or
- * dashes (domain/account.js). The customer's row is locked while it changes. Returns the summary.
+ * (EMAIL_TAKEN). The email is saved trimmed and in lower case, the mobile number in domestic form
+ * (domain/account.js). The customer's row is locked while it changes. Returns the summary.
  */
 export async function updateCustomerContact(customerId, { email = '', mobile = '' } = {}) {
   const address = normaliseEmail(email);

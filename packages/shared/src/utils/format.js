@@ -1,4 +1,5 @@
 /** Currency, date and text formatting used by both portals. */
+import { nationalMobile } from './mobile.js';
 
 // Adds thousands separators in Philippine format, no decimals
 const pesoFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 });
@@ -170,20 +171,16 @@ export const pluralize = (count, singular, plural = `${singular}s`) => `${count}
 
 /**
  * The digits of a PH mobile number after +63 ("9171234567") however it is written: "0917 123 4567",
- * "09171234567", "+63 917 123 4567", "639171234567" or "+63 (0) 917 123 4567". Only the prefix is removed,
- * nothing is cut off, so a valid number gives 10 digits starting with 9. The number box (MobileField)
+ * "09171234567", "+63 917 123 4567" or "639171234567". Only one recognized prefix is removed;
+ * invalid characters and extra digits remain visible. A valid mobile gives 10 digits. MobileField
  * also runs it on every key, which is why a "63" in front is only dropped once there are more than 10 digits.
  */
-export const nationalMobile = (value = '') => {
-  let digits = String(value || '').replace(/\D/g, ''); // keep digits only
-  if (digits.length > 10 && digits.startsWith('63')) digits = digits.slice(2); // the country code
-  return digits.replace(/^0+/, ''); // the 0 of "0917…"
-};
+export { nationalMobile };
 
 /** "+63 917 123 4567" from a PH mobile number written any way nationalMobile reads; anything else is left as typed. */
 export const formatMobile = (value = '') => {
   const digits = nationalMobile(value);
-  if (!/^9\d{9}$/.test(digits)) return value; // not a standard number: leave as typed
+  if (!/^[89]\d{9}$/.test(digits)) return value; // not a standard number: leave as typed
   return `+63 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
 };
 

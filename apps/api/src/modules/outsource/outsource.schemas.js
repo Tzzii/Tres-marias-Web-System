@@ -31,12 +31,13 @@ export const listQuery = z.object({ includeArchived: querySwitch });
 
 /**
  * POST /api/admin/outsource/partners and PUT …/partners/:id: the partner dialog. Each text fits its
- * column; the mobile number is saved without spaces or dashes (13 characters at most once valid), so the
+ * column; a valid mobile number saves in domestic form (11 characters), so the
  * request may carry some spacing beyond the column's 20. What they supply is checked by the service.
  */
 export const partnerBody = z.object({
   name: text(120),
   service: passThrough,
+  serviceOther: passThrough,
   contactPerson: text(120),
   email: text(254),
   mobile: text(40),

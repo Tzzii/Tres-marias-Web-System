@@ -672,7 +672,7 @@ CREATE TABLE outbox (
 CREATE TABLE outsource_partners (
   id             VARCHAR(40)  NOT NULL,                     -- op-…
   name           VARCHAR(120) NOT NULL,                     -- unique regardless of case
-  service        VARCHAR(60)  NOT NULL,                     -- one of OUTSOURCE_SERVICES
+  service        VARCHAR(60)  NOT NULL,                     -- standard category or custom supply specified under Other
   contact_person VARCHAR(120) NOT NULL DEFAULT '',
   email          VARCHAR(254) NOT NULL DEFAULT '',
   mobile         VARCHAR(20)  NOT NULL DEFAULT '',

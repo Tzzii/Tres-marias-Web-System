@@ -210,7 +210,7 @@ export const BLOCK_NOTE_MAX = 120;
 export const INVENTORY_CATEGORIES = ['Furniture', 'Linens', 'Serving ware', 'Tableware', 'Kitchen', 'Tents and stage', 'Decor'];
 
 // What an outsourcing partner can supply, in display order. "Other" keeps the list open for
-// one-off arrangements without adding a category nobody else will use.
+// one-off arrangements: choosing it requires the admin to name what the partner supplies.
 export const OUTSOURCE_SERVICES = [
   'Chairs and tables',
   'Tents and canopies',
@@ -223,6 +223,9 @@ export const OUTSOURCE_SERVICES = [
   'Styling and flowers',
   'Other'
 ];
+
+export const OUTSOURCE_OTHER = 'Other';
+export const OUTSOURCE_OTHER_RANGE = { min: 2, max: 60 };
 
 // The parts of the service a customer rates one by one in a feedback, in display order.
 // `key` is what a feedback's `categories` object stores; the overall star rating is separate.

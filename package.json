@@ -19,6 +19,8 @@
     "audit:routes": "npm run audit:routes -w apps/api --",
     "test:security": "npm run test:security -w apps/api --",
     "test:realtime": "npm run test:realtime -w apps/api",
+    "test:outsource": "npm run test:outsource -w apps/api",
+    "test:mobile": "npm run test:mobile -w apps/api",
     "email:preview": "npm run email:preview -w apps/api",
     "test:email": "npm run test:email -w apps/api",
     "dev:client": "node scripts/vite-run.mjs dev client",

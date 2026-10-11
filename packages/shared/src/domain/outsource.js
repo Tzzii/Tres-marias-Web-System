@@ -1,7 +1,8 @@
-import { BUSINESS, OUTSOURCE_SERVICES } from '../services/config.js';
+import { BUSINESS, OUTSOURCE_SERVICES, OUTSOURCE_OTHER, OUTSOURCE_OTHER_RANGE } from '../services/config.js';
 import { formatDate, peso } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
-import { EMAIL_RE } from '../utils/validation.js';
+import { EMAIL_RE, validateMobile } from '../utils/validation.js';
+import { cleanMobile } from './account.js';
 
 /**
  * Outsourcing rules that need no stored data: the "no event" value, the contract statuses and the
@@ -47,13 +48,29 @@ export const channelsOf = (partner) => [...(partner.email ? ['email'] : []), ...
 
 /* ============================ Partners ============================ */
 
-// The email address (trimmed, lower case) and mobile number (without spaces or dashes) as saved
-const contactOf = (values) => ({ email: (values.email || '').trim().toLowerCase(), mobile: (values.mobile || '').replace(/[\s-]/g, '') });
+// The email address (trimmed, lower case) and valid PH mobile number (domestic form) as saved
+const contactOf = (values) => ({ email: (values.email || '').trim().toLowerCase(), mobile: cleanMobile(values.mobile) });
+
+/** Reopen a saved custom supply under Other, with the original words in its text field. */
+export const partnerServiceInput = (service = '') => ({
+  service: !service || OUTSOURCE_SERVICES.includes(service) ? service : OUTSOURCE_OTHER,
+  serviceOther: service && !OUTSOURCE_SERVICES.includes(service) ? service : ''
+});
+
+/** Custom supplies belong to Other in filters and in the partner list's category order. */
+export const partnerServiceCategory = (service) => !service || OUTSOURCE_SERVICES.includes(service) ? service : OUTSOURCE_OTHER;
+
+/** Normalize a typed supply and reuse a standard category when its name was typed under Other. */
+const suppliedService = (values) => {
+  if (values.service !== OUTSOURCE_OTHER) return values.service;
+  const words = typeof values.serviceOther === 'string' ? values.serviceOther.trim().replace(/\s+/g, ' ') : '';
+  return OUTSOURCE_SERVICES.find((service) => service.toLowerCase() === words.toLowerCase()) || words;
+};
 
 /**
  * What is wrong with a partner's details, or null: the partner dialog's rules, in its order. A name of
  * 2+ characters not already used (any case; `names` are the other partners' names, archived ones
- * included), a service from OUTSOURCE_SERVICES, and a way to reach them: an email address, a mobile
+ * included), a service from OUTSOURCE_SERVICES (Other needs a custom supply), and a way to reach them: an email address, a mobile
  * number or both (a partner with neither could never be sent a request), each well formed.
  */
 export function partnerProblem(values, { names = [] } = {}) {
@@ -61,10 +78,18 @@ export function partnerProblem(values, { names = [] } = {}) {
   if (name.length < 2) return invalid('Enter the partner name.', { field: 'name' });
   if (names.some((other) => other.toLowerCase() === name.toLowerCase())) return refuse('NAME_TAKEN', `"${name}" is already a partner.`, { field: 'name' });
   if (!OUTSOURCE_SERVICES.includes(values.service)) return invalid('Choose what they supply.', { field: 'service' });
+  if (values.service === OUTSOURCE_OTHER) {
+    const { min, max } = OUTSOURCE_OTHER_RANGE;
+    if (typeof values.serviceOther !== 'string' || suppliedService(values).length < min || suppliedService(values) === OUTSOURCE_OTHER) {
+      return invalid(`Specify what they supply (at least ${min} characters).`, { field: 'serviceOther' });
+    }
+    if (/[\u0000-\u001f\u007f\u2028\u2029]/.test(values.serviceOther)) return invalid('Keep the supply type on one line.', { field: 'serviceOther' });
+    if (suppliedService(values).length > max) return invalid(`Keep the supply type to ${max} characters.`, { field: 'serviceOther' });
+  }
   const { email, mobile } = contactOf(values);
   if (!email && !mobile) return invalid('Give an email address or a mobile number so requests can reach them.', { field: 'email' });
   if (email && !EMAIL_RE.test(email)) return invalid('Enter a valid email address.', { field: 'email' });
-  if (mobile && !/^(09\d{9}|\+639\d{9})$/.test(mobile)) return invalid('Enter a valid mobile number, e.g. +63 917 123 4567.', { field: 'mobile' });
+  if (mobile && validateMobile(mobile)) return invalid(validateMobile(mobile), { field: 'mobile' });
   return null;
 }
 
@@ -74,7 +99,7 @@ export function partnerProblem(values, { names = [] } = {}) {
  */
 export const partnerFields = (values) => ({
   name: (values.name || '').trim(),
-  service: values.service,
+  service: suppliedService(values),
   contactPerson: (values.contactPerson || '').trim(),
   ...contactOf(values),
   address: (values.address || '').trim(),
@@ -114,8 +139,8 @@ export function partnerStats(contracts) {
 /** A partner as the pages show it: the record, how it can be reached (`channels`) and its partnerStats(). */
 export const partnerView = (partner, stats) => ({ ...partner, channels: channelsOf(partner), ...stats });
 
-/** The order of the partner list: by OUTSOURCE_SERVICES, then by name. */
-export const partnerOrder = (a, b) => OUTSOURCE_SERVICES.indexOf(a.service) - OUTSOURCE_SERVICES.indexOf(b.service) || a.name.localeCompare(b.name);
+/** The order of the partner list: by category (custom supplies under Other), then by name. */
+export const partnerOrder = (a, b) => OUTSOURCE_SERVICES.indexOf(partnerServiceCategory(a.service)) - OUTSOURCE_SERVICES.indexOf(partnerServiceCategory(b.service)) || a.name.localeCompare(b.name);
 
 /* ============================ Contracts ============================ */
 
