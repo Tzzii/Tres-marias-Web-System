@@ -14,7 +14,7 @@ export function DashCard({ children, sx, component = 'section', ...rest }) {
         elevation={0}
         {...rest}
         sx={{
-          p: { xs: 2, sm: 2.5 },
+          p: { xs: 1.5, sm: 2, md: 2.5 },
           backgroundColor: tokens.cardLight,
           color: tokens.textPrimary,
           border: `1px solid ${tokens.cardLightBorder}`,
@@ -33,14 +33,14 @@ export function DashCard({ children, sx, component = 'section', ...rest }) {
 /** Card heading with optional subtitle and a right-side action (e.g. a button). */
 export function CardTitle({ children, action, subtitle, sx }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2, ...sx }}>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2, ...sx }}>
       <Box sx={{ minWidth: 0 }}>
         <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>
           {children}
         </Typography>
         {subtitle && <Typography sx={{ mt: 0.25, fontSize: 12.5, color: tokens.textMuted }}>{subtitle}</Typography>}
       </Box>
-      {action && <Box sx={{ flexShrink: 0 }}>{action}</Box>}
+      {action && <Box sx={{ minWidth: 0, maxWidth: '100%', display: 'flex', flexWrap: 'wrap', gap: 1 }}>{action}</Box>}
     </Box>
   );
 }
@@ -73,10 +73,10 @@ export function StatCard({ icon: Icon, tone = 'gold', label, value, meta, onClic
       </Box>
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={eyebrowSx}>{label}</Typography>
-        <Typography sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, color: loading ? tokens.placeholder : tokens.textPrimary }}>
+        <Typography sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, overflowWrap: 'anywhere', color: loading ? tokens.placeholder : tokens.textPrimary }}>
           {loading ? '—' : value}
         </Typography>
-        {meta && <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>{meta}</Typography>}
+        {meta && <Typography sx={{ fontSize: 11.5, overflowWrap: 'anywhere', color: tokens.textMuted }}>{meta}</Typography>}
       </Box>
     </Box>
   );
@@ -99,9 +99,9 @@ export function StatCard({ icon: Icon, tone = 'gold', label, value, meta, onClic
 /** Label / value pairs inside detail cards. */
 export function DetailRow({ label, children, sx }) {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2, py: 0.9, ...sx }}>
-      <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
-      <Typography component="div" sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary, textAlign: 'right' }}>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', columnGap: 2, rowGap: 0.5, py: 0.9, ...sx }}>
+      <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
+      <Typography component="div" sx={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere', fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary, textAlign: 'right' }}>
         {children}
       </Typography>
     </Box>

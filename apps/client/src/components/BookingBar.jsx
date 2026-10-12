@@ -73,10 +73,10 @@ export default function BookingBar({ onAvailable }) {
   };
 
   return (
-    <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, borderRadius: 3, backgroundColor: site.card, boxShadow: site.shadowPanel }}>
+    <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, minWidth: 0, containerType: 'inline-size', containerName: 'availability-form', borderRadius: 3, backgroundColor: site.card, boxShadow: site.shadowPanel }}>
       {/* Wide screens (lg): two rows of three (date, start, end / occasion, guests, button); the start time
           holds three dropdowns, so its column is a little wider. Below lg the fields sit two per row. */}
-      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1.1fr 1.15fr 1fr' }, gap: 2, alignItems: 'start' }}>
+      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container availability-form (min-width: 520px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }, '@container availability-form (min-width: 840px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }, '& > *': { minWidth: 0 }, gap: 2, alignItems: 'start' }}>
         {/* Own label (same style as the other three fields) above the shared date picker */}
         <Box>
           <Typography component="label" htmlFor="bar-date" sx={siteLabelSx}>
@@ -165,7 +165,7 @@ export default function BookingBar({ onAvailable }) {
           />
         </Box>
 
-        <Box sx={{ pt: { xs: 0, lg: 2.9 }, gridColumn: { sm: '1 / -1', lg: 'auto' } }}>
+        <Box sx={{ gridColumn: '1 / -1', '@container availability-form (min-width: 840px)': { pt: 2.9, gridColumn: 'auto' } }}>
           <Button type="submit" variant="contained" disabled={checking} fullWidth sx={{ height: 40, px: 3, borderRadius: 999, whiteSpace: 'nowrap' }}>
             {checking ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Check availability'}
           </Button>

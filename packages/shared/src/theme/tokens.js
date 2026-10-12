@@ -6,18 +6,18 @@
  * a fixed hex value, so the same `sx={{ color: tokens.textLight }}` follows the
  * portal's dark / light mode without any component having to know the mode.
  * The two sets of values live in theme/palettes.js; theme/colorMode.js writes
- * the chosen one onto <html>. The dark value is kept as the `var()` fallback, so
- * the design still holds if the mode was never applied.
+ * the chosen one onto <html>. The light value (the default mode) is kept as the
+ * `var()` fallback, so the design still holds if the mode was never applied.
  *
  * Sizes, fonts and animation curves are the same in both modes and stay literal.
  * MUI palettes cannot read `var()` (they measure contrast), so theme/createTheme.js
  * imports the raw values from palettes.js instead of the tokens below.
  */
-import { cssVarName, darkPalette } from './palettes.js';
+import { cssVarName, lightPalette } from './palettes.js';
 
-// bgBase -> 'var(--tm-bg-base, #0b0f19)'. Everything after the first comma is the fallback,
+// bgBase -> 'var(--tm-bg-base, #fbf7f0)'. Everything after the first comma is the fallback,
 // so multi-part gradients and shadows survive unchanged.
-const colorTokens = Object.fromEntries(Object.keys(darkPalette).map((key) => [key, `var(${cssVarName(key)}, ${darkPalette[key]})`]));
+const colorTokens = Object.fromEntries(Object.keys(lightPalette).map((key) => [key, `var(${cssVarName(key)}, ${lightPalette[key]})`]));
 
 export const tokens = {
   // Colours, gradients, textures and shadows (see palettes.js for the values)

@@ -113,7 +113,7 @@ export default function DashboardPage() {
       {draft && (
         <DashCard sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', borderLeft: `4px solid ${tokens.gold}` }}>
           <EditNoteRoundedIcon sx={{ fontSize: 30, color: tokens.goldDark }} />
-          <Box sx={{ flex: 1, minWidth: 200 }}>
+          <Box sx={{ flex: '1 1 200px', minWidth: 0, overflowWrap: 'anywhere' }}>
             <Typography sx={{ fontSize: 14.5, fontWeight: 700 }}>You have an unfinished reservation</Typography>
             <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
               {draft.form.eventName || 'Untitled event'}

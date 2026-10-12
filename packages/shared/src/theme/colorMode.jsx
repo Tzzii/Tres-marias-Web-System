@@ -5,9 +5,11 @@ import { PALETTES, cssVarName } from './palettes.js';
 /**
  * Dark / light mode for the customer portal and the admin dashboard.
  *
- * Dark is the navy shell both portals have always used; light is the warm ivory
- * and gold of the public website. The choice is remembered per browser and is
- * shared by every page of that portal (including its sign-in screen).
+ * Light (the warm ivory and gold of the public website) is the default; dark is
+ * the navy shell, used only after someone presses the toggle in the top bar.
+ * That press is remembered per browser and is shared by every page of that
+ * portal (including its sign-in screen). Nothing is saved until the toggle is
+ * pressed, so a browser that never pressed it always opens in light mode.
  *
  * How the switch reaches the UI: applyColorMode() writes the chosen palette onto
  * <html> as CSS custom properties, and theme/tokens.js reads those back as
@@ -20,19 +22,38 @@ import { PALETTES, cssVarName } from './palettes.js';
  * asked for less motion, get a plain colour fade instead.
  */
 
-const STORAGE_KEY = 'tm.theme';
+// A new key on purpose: the old 'tm.theme' was written on every visit (as 'dark', the old
+// default) even by people who never touched the toggle, so it can't tell a real choice apart.
+const STORAGE_KEY = 'tm.colorMode';
+const OLD_STORAGE_KEY = 'tm.theme';
 
 /** How long the reveal (and the fallback colour fade) lasts, in milliseconds. */
 const REVEAL_MS = 520;
 
-/** The saved mode, or dark when nothing is saved (or storage is blocked). */
+/** The mode picked with the toggle, or light when it was never pressed (or storage is blocked). */
 export const readColorMode = () => {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark';
+    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light';
   } catch (e) {
-    return 'dark';
+    return 'light';
   }
 };
+
+/** Remember a mode picked with the toggle. Private browsing: the mode still works, it just isn't remembered. */
+const saveColorMode = (mode) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, mode);
+  } catch (e) {
+    /* storage blocked */
+  }
+};
+
+// Clear the old key so it doesn't linger in DevTools; its value is ignored either way
+try {
+  localStorage.removeItem(OLD_STORAGE_KEY);
+} catch (e) {
+  /* storage blocked */
+}
 
 /**
  * Paint a mode: every palette value becomes a CSS custom property on <html>,
@@ -40,7 +61,7 @@ export const readColorMode = () => {
  * phones, form controls) is kept matching. Returns the mode that was applied.
  */
 export const applyColorMode = (mode) => {
-  const value = mode === 'light' ? 'light' : 'dark';
+  const value = mode === 'dark' ? 'dark' : 'light';
   if (typeof document === 'undefined') return value;
   const palette = PALETTES[value];
   const root = document.documentElement;
@@ -53,7 +74,7 @@ export const applyColorMode = (mode) => {
 };
 
 // Paint the saved mode while this module loads, before React's first render, so
-// someone who chose light mode never sees the navy shell flash on the way in.
+// someone who switched to dark mode never sees the ivory page flash on the way in.
 applyColorMode(readColorMode());
 
 /** True when the device is set to "reduce motion": then the mode changes with no animation at all. */
@@ -104,34 +125,34 @@ const revealFrom = (origin, change) => {
     .catch(() => {});
 };
 
-const ColorModeContext = createContext({ mode: 'dark', isLight: false, setMode: () => {}, toggleMode: () => {} });
+const ColorModeContext = createContext({ mode: 'light', isLight: true, setMode: () => {}, toggleMode: () => {} });
 
-/** Holds the current mode and keeps <html>, localStorage and the other open tabs matching. */
+/**
+ * Holds the current mode and keeps <html> and the other open tabs matching.
+ * The mode is saved only by `change` (a press of the toggle), never just for
+ * opening a page, so light stays the default until someone picks dark.
+ */
 export function ColorModeProvider({ children }) {
   const [mode, setMode] = useState(readColorMode);
 
-  // Repaint and remember whenever the mode changes
+  // Repaint whenever the mode changes
   useEffect(() => {
     applyColorMode(mode);
-    try {
-      localStorage.setItem(STORAGE_KEY, mode);
-    } catch (e) {
-      /* private browsing: the mode still works, it just isn't remembered */
-    }
   }, [mode]);
 
   // Follow the switch when the same portal is open in another tab
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key === STORAGE_KEY) setMode(e.newValue === 'light' ? 'light' : 'dark');
+      if (e.key === STORAGE_KEY) setMode(e.newValue === 'dark' ? 'dark' : 'light');
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // Paint the palette inside the transition as well as setting the React state, so the
-  // colours and the MUI theme both belong to the photograph the circle reveals.
+  // Remember the pick, then paint the palette inside the transition as well as setting the
+  // React state, so the colours and the MUI theme both belong to the photograph the circle reveals.
   const change = useCallback((next, origin) => {
+    saveColorMode(next);
     revealFrom(origin, () => {
       applyColorMode(next);
       setMode(next);
@@ -143,7 +164,7 @@ export function ColorModeProvider({ children }) {
       mode,
       isLight: mode === 'light',
       /** setMode('light' | 'dark', origin?) — `origin` is { x, y } for the circle to open from. */
-      setMode: (next, origin) => change(next === 'light' ? 'light' : 'dark', origin),
+      setMode: (next, origin) => change(next === 'dark' ? 'dark' : 'light', origin),
       /** toggleMode(origin?) — same, flipping to the other mode. */
       toggleMode: (origin) => change(mode === 'light' ? 'dark' : 'light', origin)
     }),
@@ -153,5 +174,5 @@ export function ColorModeProvider({ children }) {
   return <ColorModeContext.Provider value={value}>{children}</ColorModeContext.Provider>;
 }
 
-/** `{ mode, isLight, setMode, toggleMode }`. Safe outside the provider: it then reports dark. */
+/** `{ mode, isLight, setMode, toggleMode }`. Safe outside the provider: it then reports light. */
 export const useColorMode = () => useContext(ColorModeContext);

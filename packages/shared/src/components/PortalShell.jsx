@@ -500,8 +500,8 @@ export default function PortalShell({
         <Box className="tm-no-print" sx={{ width, flexShrink: 0, display: { xs: 'none', lg: 'block' }, transition: EASE }} />
 
         {/* On phones the bottom padding clears the tab bar (its height plus 32px), so the end of the page is never hidden under it */}
-        <Box component="main" id="main" tabIndex={-1} sx={{ flex: 1, minWidth: 0, outline: 'none', px: { xs: 1.5, sm: 2.5, md: 3 }, pt: { xs: 2, md: 3 }, pb: { xs: hasBottomNav ? 'calc(var(--tm-bottom-nav) + 32px)' : 4, md: 5 } }}>
-          <Box sx={{ maxWidth: 1400, mx: 'auto' }}>{children}</Box>
+        <Box component="main" id="main" tabIndex={-1} sx={{ flex: 1, minWidth: 0, outline: 'none', '--tm-sidebar-offset': { xs: '0px', lg: `${width}px` }, px: { xs: 1.5, sm: 2, md: 3 }, pt: { xs: 2, md: 3 }, pb: { xs: hasBottomNav ? 'calc(var(--tm-bottom-nav) + 32px)' : 4, md: 5 } }}>
+          <Box sx={{ maxWidth: 1800, mx: 'auto', minWidth: 0, containerType: 'inline-size', containerName: 'portal-content' }}>{children}</Box>
         </Box>
       </Box>
 

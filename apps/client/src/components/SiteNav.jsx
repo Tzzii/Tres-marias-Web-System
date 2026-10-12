@@ -105,7 +105,7 @@ export default function SiteNav() {
         }}
       >
         <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
-          <Toolbar disableGutters sx={{ height: 72, gap: 2, justifyContent: 'space-between' }}>
+          <Toolbar disableGutters sx={{ height: 72, gap: { xs: 1, sm: 2 }, justifyContent: 'space-between' }}>
             <BrandMark light={false} onClick={() => navigate('/')} />
 
             <Box component="ul" sx={{ display: { xs: 'none', lg: 'flex' }, gap: 3.5, listStyle: 'none', m: 0, p: 0 }}>
@@ -118,20 +118,18 @@ export default function SiteNav() {
               ))}
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: { xs: 0.5, sm: 1.25 } }}>
               {/* Signed in: account button. Signed out: Log in and Sign up. */}
               {user ? (
                 <Button
                   onClick={() => navigate('/portal')}
-                  sx={{ gap: 1, pl: 0.5, pr: 2, py: 0.5, fontSize: 13, borderRadius: 999, color: site.ink, border: `1px solid ${site.borderHover}`, '&:hover': { backgroundColor: site.goldTint } }}
+                  aria-label="Go to my account"
+                  sx={{ gap: 1, minWidth: 0, pl: 0.5, pr: { xs: 0.5, sm: 2 }, py: 0.5, fontSize: 13, borderRadius: 999, color: site.ink, border: `1px solid ${site.borderHover}`, '&:hover': { backgroundColor: site.goldTint } }}
                 >
                   {/* Same size and padding as the portal header, so the circle sits centred in the pill's rounded end */}
                   <Avatar sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, bgcolor: site.gold, color: site.ink }}>{initials(user.name)}</Avatar>
                   <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
                     {firstName(user.name)}'s account
-                  </Box>
-                  <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
-                    Account
                   </Box>
                 </Button>
               ) : (

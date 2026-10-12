@@ -517,14 +517,14 @@ function LogisticsCard({ r, closed, onSave }) {
 
   if (rental) {
     return (
-      <DashCard>
+      <DashCard sx={{ containerType: 'inline-size', containerName: 'logistics-form' }}>
         <CardTitle subtitle={closed ? 'This reservation is closed.' : 'Editable by admin'}>Rental and Logistics</CardTitle>
         {switching && (
           <AlertBanner tone="warning" sx={{ mb: 2 }} title="This changes the customer's total">
             {delivered ? `Delivery adds ${peso(RENTAL.deliveryFee)} (the standard fee).` : 'Pick up is free, so the delivery fee comes off.'} Saving posts a message telling the customer; the amount they owe only changes once you re-send the quotation.
           </AlertBanner>
         )}
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container logistics-form (min-width: 520px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
           <DateField id="l-date" label="Rental date" mode="any" value={values.date} onChange={set('date')} disabled={closed} />
           <TimeField id="l-start" label={delivered ? 'Delivery time' : 'Pick-up time'} value={values.startTime} onChange={set('startTime')} min={RULES.earliestStart} max={RULES.latestStart} step={30} disabled={closed} />
           <SelectField id="l-fulfilment" label="Pick up or delivery" value={values.fulfilment} onChange={set('fulfilment')} options={RENTAL_FULFILMENT} disabled={closed} sx={{ gridColumn: { sm: '1 / -1' } }} />
@@ -560,7 +560,7 @@ function LogisticsCard({ r, closed, onSave }) {
   }
 
   return (
-    <DashCard>
+    <DashCard sx={{ containerType: 'inline-size', containerName: 'logistics-form' }}>
       <CardTitle subtitle={closed ? 'This reservation is closed.' : 'Editable by admin'}>Event and Logistics</CardTitle>
       {/* Changing the guest count on a buffet changes what the customer owes, so say so plainly
           before it is saved. Saving tells the customer in their chat; only re-sending the
@@ -578,7 +578,7 @@ function LogisticsCard({ r, closed, onSave }) {
           {extraBefore || 'No'} → {extraNow || 'no'} guests above the package's {r.package.guests}. Their equipment and the items to confirm are set in the quotation, so {r.quotation ? 're-send it after saving. Saving posts a message telling the customer; the amount they owe only changes once you re-send the quotation.' : 'price them when you send it.'}
         </AlertBanner>
       )}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container logistics-form (min-width: 520px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
         <DateField id="l-date" label="Date" mode="any" value={values.date} onChange={set('date')} disabled={closed} />
         {/* Same hour / minute / AM-PM picker as the customer form: booking hours only, every 30 minutes */}
         <TimeField id="l-start" label="Start time" value={values.startTime} onChange={(v) => setValues((cur) => ({ ...cur, startTime: v, endTime: cur.endTime ? shiftEndTime(cur.startTime, cur.endTime, v) : '' }))} min={RULES.earliestStart} max={RULES.latestStart} step={30} disabled={closed} />

@@ -80,18 +80,33 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
   ];
 
   return (
-    <Box sx={{ minWidth: 0, ...sx }}>
+    <Box sx={{ minWidth: 0, containerType: 'inline-size', containerName: 'time-field', ...sx }}>
       {label && (
         <FieldLabel htmlFor={`${id}-hour`} required={required} optional={optional}>
           {label}
         </FieldLabel>
       )}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{
+        display: 'grid', alignItems: 'center', gap: 0.5,
+        gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+        '@container time-field (min-width: 232px)': {
+          gridTemplateColumns: 'minmax(64px, 1fr) auto minmax(64px, 1fr) minmax(76px, 1fr)'
+        },
+        '@container time-field (max-width: 143px)': {
+          gridTemplateColumns: 'minmax(0, 1fr)', '& > .time-colon': { display: 'none' }
+        }
+      }}>
         {parts.map((part, i) => (
           <Fragment key={part.key}>
             {/* ":" between the hour and minute dropdowns, like a clock */}
-            {i === 1 && <Box component="span" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textMuted }}>:</Box>}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
+            {i === 1 && <Box component="span" className="time-colon" aria-hidden="true" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textMuted }}>:</Box>}
+            <Box sx={{
+              minWidth: 0,
+              ...(part.key === 'meridiem' && {
+                gridColumn: '1 / -1',
+                '@container time-field (min-width: 232px)': { gridColumn: 'auto' }
+              })
+            }}>
               <TextField
                 id={`${id}-${part.key}`}
                 select
@@ -102,6 +117,11 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
                 value={part.selected}
                 onChange={(e) => pick({ [part.key]: e.target.value })}
                 SelectProps={{ displayEmpty: true, SelectDisplayProps: { 'aria-label': `${label || 'Time'} — ${part.label}` } }}
+                sx={{
+                  '& .MuiSelect-select': { pl: 1.25, pr: '28px !important', fontVariantNumeric: 'tabular-nums' },
+                  '& .MuiSelect-icon': { right: 3 },
+                  '@media (pointer: coarse)': { '& .MuiSelect-select': { minHeight: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center' } }
+                }}
               >
                 {/* Placeholder row for a value that isn't a pickable time yet */}
                 {!part.selected && (

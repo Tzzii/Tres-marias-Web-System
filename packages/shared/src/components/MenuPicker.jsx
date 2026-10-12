@@ -9,11 +9,11 @@ import { tokens } from '../theme/tokens.js';
 import { FormField } from './FormField.jsx';
 export function MenuPicker({ idPrefix, menu, dishes, onChange, errors = {} }) {
  const total = menuCount(menu);
- return <Box>
+ return <Box sx={{ minWidth: 0, containerType: 'inline-size', containerName: 'menu-fields' }}>
   <Typography aria-live="polite" sx={{ mb: 1.5, fontWeight: 700 }}>{total} of 4 dishes selected</Typography>
   <Typography sx={{ mb: 2, fontSize: 13, color: tokens.textSecondary }}>Choose up to 2 dishes per category. You may skip a category and use its choice in another category. Exactly 4 dishes are required.</Typography>
   {errors['menu.total'] && <Typography role="alert" sx={{ mb: 1, color: tokens.redPress }}>{errors['menu.total']}</Typography>}
-  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, alignItems: 'start', gap: 2 }}>
+  <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container menu-fields (min-width: 520px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }, alignItems: 'start', gap: 2 }}>
    {DISH_CATEGORIES.map(({ key, label }) => {
     const choices = dishesInMenu(menu, key);
     const offered = dishes.filter((d) => d.category === key);

@@ -127,6 +127,15 @@ const lowestPackagePrice = (addon) => {
 const EMPTY_STYLING = { theme: '', themeOther: '', colors: [], notes: '' };
 const EMPTY = { eventName: '', occasion: '', occasionOther: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', styling: EMPTY_STYLING, venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
 
+// The form can be narrow even on a laptop with the sidebar and summary open.
+// Add columns only when the form itself has room for readable controls.
+const FORM_COLUMNS = {
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  '@container booking-form (min-width: 560px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }
+};
+const SUMMARY_LAYOUT = '@container portal-content (min-width: 980px)';
+const WIDE_LAYOUT = '@container portal-content (min-width: 1280px)';
+
 // A draft's styling in the form's shape: a draft saved before the section existed, or one changed by hand
 // in the browser, still loads (only known themes, real colour codes and text are kept, by cleanStyling)
 const draftStyling = (value) => ({ ...EMPTY_STYLING, ...(cleanStyling(value) || {}) });
@@ -695,7 +704,7 @@ export default function BookEventPage() {
 
       {/* Phone / tablet: section chips (1o), labelled with each section's short name.
           A finished section shows a tick instead of its number, like the desktop list. */}
-      <Box ref={chipBar} className="tm-scroll" sx={{ display: { xs: 'flex', lg: 'none' }, position: 'sticky', top: tokens.headerHeight, zIndex: 5, gap: 0.75, overflowX: 'auto', mx: { xs: -1.5, sm: -2.5, md: -3 }, px: { xs: 1.5, sm: 2.5, md: 3 }, py: 1, mb: 2, backgroundColor: tokens.shellScrim, backdropFilter: 'blur(10px)' }}>
+      <Box ref={chipBar} className="tm-scroll" sx={{ display: 'flex', [WIDE_LAYOUT]: { display: 'none' }, position: 'sticky', top: tokens.headerHeight, zIndex: 5, gap: 0.75, overflowX: 'auto', py: 1, mb: 2, backgroundColor: tokens.shellScrim, backdropFilter: 'blur(10px)' }}>
         {sections.map(([key, , short], i) => (
           <ButtonBase key={key} data-section={key} onClick={() => scrollTo(key)} aria-current={active === key ? 'true' : undefined} sx={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.5, py: 0.75, borderRadius: 999, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', color: active === key ? tokens.onGold : sectionHasError(key) ? tokens.dangerSoft : tokens.textOnDarkSoft, backgroundColor: active === key ? tokens.gold : tokens.shellInset, border: `1px solid ${sectionHasError(key) ? 'rgba(239,68,68,0.5)' : 'transparent'}`, '@media (pointer: coarse)': { py: 1 } }}>
             {sectionDone[key] ? <CheckCircleRoundedIcon sx={{ fontSize: 15, color: active === key ? tokens.onGold : tokens.green }} /> : <span>{i + 1}</span>}
@@ -709,9 +718,9 @@ export default function BookEventPage() {
           <ListSkeleton rows={8} height={52} />
         </DashCard>
       ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '200px minmax(0, 1fr) 300px' }, gap: 2.5, alignItems: 'start', pb: { xs: 10, lg: 0 } }}>
+        <Box className="booking-layout" sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', [SUMMARY_LAYOUT]: { gridTemplateColumns: 'minmax(0, 1fr) 288px', pb: 0 }, [WIDE_LAYOUT]: { gridTemplateColumns: '180px minmax(0, 1fr) 288px' }, gap: { xs: 2, md: 2.5 }, alignItems: 'start', pb: '140px' }}>
           {/* ============ Left: on this page ============ */}
-          <Box component="nav" aria-label="Form sections" sx={{ display: { xs: 'none', lg: 'block' }, position: 'sticky', top: tokens.headerHeight + 24 }}>
+          <Box component="nav" aria-label="Form sections" sx={{ display: 'none', [WIDE_LAYOUT]: { display: 'block' }, position: 'sticky', top: tokens.headerHeight + 24 }}>
             <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.textOnDarkMuted, mb: 1, px: 1.5 }}>On This Page</Typography>
             {sections.map(([key, label], i) => (
               <ButtonBase key={key} onClick={() => scrollTo(key)} aria-current={active === key ? 'true' : undefined} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: 1.25, fontFamily: 'inherit', fontSize: 13.5, fontWeight: active === key ? 700 : 500, textAlign: 'left', color: active === key ? tokens.goldText : sectionHasError(key) ? tokens.dangerSoft : tokens.textOnDarkSoft, backgroundColor: active === key ? 'rgba(197,160,89,0.14)' : 'transparent', borderLeft: `3px solid ${active === key ? tokens.gold : 'transparent'}` }}>
@@ -722,11 +731,11 @@ export default function BookEventPage() {
           </Box>
 
           {/* ============ Middle: the form ============ */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 2.5 }, minWidth: 0, containerType: 'inline-size', containerName: 'booking-form' }}>
             {formError && <AlertBanner tone="error">{formError}</AlertBanner>}
 
             <Section id="details" index={sectionNo('details')} title="Event Details" subtitle={rental ? 'Tell us what the items are for and when you need them' : 'Tell us about the celebration'}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
                 <FormField id="f-eventName" label="Event name" required value={form.eventName} onChange={(e) => update({ eventName: e.target.value })} error={errors.eventName} placeholder="e.g. Santos–Reyes Wedding Reception" sx={{ gridColumn: { sm: '1 / -1' } }} inputProps={{ maxLength: 80 }} />
                 <SelectField id="f-occasion" label="Occasion" required value={form.occasion} onChange={(e) => pickOccasion(e.target.value)} options={OCCASIONS} placeholder="Select an occasion" error={errors.occasion} sx={{ gridColumn: { sm: '1 / -1' } }} />
                 {/* "Other": the customer names the occasion, and the booking saves their words as its occasion */}
@@ -766,7 +775,7 @@ export default function BookEventPage() {
             {/* Asked before the package, because it decides whether there is a menu to fill in and
                 how the price is worked out. Every package can be booked either way. */}
             <Section id="service" index={sectionNo('service')} title="What You Are Booking" subtitle="This decides whether we cook for you." error={errors.serviceType}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', xl: rentalPkg ? 'repeat(3, 1fr)' : '1fr 1fr' }, gap: 1.5 }}>
+              <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 1.5 }}>
                 {[
                   ['Buffet and Catering', 'We cook your food', `Four dishes, with up to two per category, and ${BUFFET_DRINKS.toLowerCase()}. Charged ${peso(data.pricePerPlate)} per person.`],
                   ['Catering only', 'Equipment and setup only', 'Tables, chairs, linens, food warmers and tableware. You provide the food, and there is no per-person charge.'],
@@ -796,7 +805,7 @@ export default function BookEventPage() {
 
             {!rental && (
             <Section id="package" index={sectionNo('package')} title="Package" subtitle="Any package works for any occasion. Each one shows its default guest count, so pick the one closest to yours." error={errors.packageId}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+              <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 1.5 }}>
                 {packages.map((p) => {
                   const selected = p.id === form.packageId;
                   return (
@@ -950,7 +959,7 @@ export default function BookEventPage() {
 
             {rental ? (
               <Section id="venue" index={sectionNo('venue')} title="Pick Up or Delivery" error={errors.fulfilment}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+                <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 1.5 }}>
                   {[
                     ['pickup', 'Pick up', `Free. Collect the items at ${RENTAL.pickupAddress}.`],
                     ['delivery', 'Delivery', `${peso(RENTAL.deliveryFee)} standard fee. A large order may be quoted a different delivery fee.`]
@@ -969,7 +978,7 @@ export default function BookEventPage() {
                 </Box>
                 {/* Where to deliver: the same fields as an event venue */}
                 {delivered && (
-                  <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                  <Box sx={{ mt: 2, display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
                     <FormField id="f-venueName" label="Place name" required value={form.venueName} onChange={(e) => update({ venueName: e.target.value })} error={errors.venueName} placeholder="e.g. Santos Residence" />
                     <FormField id="f-venueAddress" label="Delivery address" required value={form.venueAddress} onChange={(e) => update({ venueAddress: e.target.value })} error={errors.venueAddress} placeholder="Street, barangay" />
                     <FormField id="f-city" label="City" required value={form.city} onChange={(e) => update({ city: e.target.value })} error={errors.city} placeholder="e.g. Lipa City" />
@@ -979,7 +988,7 @@ export default function BookEventPage() {
               </Section>
             ) : (
             <Section id="venue" index={sectionNo('venue')} title="Venue and Logistics">
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
                 <FormField id="f-venueName" label="Venue name" required value={form.venueName} onChange={(e) => update({ venueName: e.target.value })} error={errors.venueName} placeholder="e.g. The Glass Garden" />
                 <FormField id="f-venueAddress" label="Venue address" required value={form.venueAddress} onChange={(e) => update({ venueAddress: e.target.value })} error={errors.venueAddress} placeholder="Street, barangay" />
                 <FormField id="f-city" label="City" required value={form.city} onChange={(e) => update({ city: e.target.value })} error={errors.city} placeholder="e.g. Pasig City" />
@@ -1163,7 +1172,7 @@ export default function BookEventPage() {
           </Box>
 
           {/* ============ Right: live summary ============ */}
-          <Box sx={{ display: { xs: 'none', lg: 'block' }, position: 'sticky', top: tokens.headerHeight + 24 }}>
+          <Box sx={{ minWidth: 0, [SUMMARY_LAYOUT]: { position: 'sticky', top: tokens.headerHeight + 24 }, '@media (max-height: 799px)': { position: 'static' } }}>
             <DashCard>
               <CardTitle>Your Reservation</CardTitle>
               {(rental
@@ -1187,16 +1196,16 @@ export default function BookEventPage() {
                     ['Additional charges', chosenAddons.length || 'None']
                   ]
               ).map(([label, value]) => (
-                <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75 }}>
-                  <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{value}</Typography>
+                <Box key={label} sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: 1.5, rowGap: 0.25, py: 0.75 }}>
+                  <Typography sx={{ minWidth: 0, fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
+                  <Typography sx={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere', fontSize: 13, fontWeight: 700 }}>{value}</Typography>
                 </Box>
               ))}
               <Divider sx={{ my: 1.5 }} />
               {/* The package price plus, for a buffet, the food: both are known now, so this is a real figure.
                   Extra guests add "+ quoted": their equipment is priced in the quotation. */}
               <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted }}>{rental ? 'Rental total' : 'Starting total'}</Typography>
-              <Typography sx={{ fontSize: 28, fontWeight: 800 }}>
+              <Typography sx={{ fontSize: 28, fontWeight: 800, overflowWrap: 'anywhere' }}>
                 {pkg && (!rental || rentalChosen.length) ? peso(knownTotal) : '—'}
                 {pkg && plusQuoted && <Box component="span" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textSecondary }}>{plusQuoted}</Box>}
               </Typography>
@@ -1216,10 +1225,10 @@ export default function BookEventPage() {
                       : `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
               </Typography>
               {/* The form's two buttons, next to the price (2026-10-10; before, they were also under Review and Submit) */}
-              <BusyButton fullWidth size="large" busy={busy} onClick={submit} sx={{ mt: 2 }}>
+              <BusyButton fullWidth size="large" busy={busy} onClick={submit} sx={{ mt: 2, display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}>
                 Submit request
               </BusyButton>
-              <Button fullWidth size="large" variant="outlined" onClick={saveAndExit} disabled={busy} sx={{ mt: 1 }}>
+              <Button fullWidth size="large" variant="outlined" onClick={saveAndExit} disabled={busy} sx={{ mt: 1, display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}>
                 Save as draft
               </Button>
             </DashCard>
@@ -1231,12 +1240,12 @@ export default function BookEventPage() {
           (--tm-bottom-nav is its height, set by PortalShell; 0px where there is no tab bar), with the
           form's two buttons: Save draft and Submit request */}
       {data && (
-        <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--tm-bottom-nav, 0px)', zIndex: 1090, display: { xs: 'flex', lg: 'none' }, alignItems: 'center', justifyContent: 'space-between', gap: { xs: 1, sm: 2 }, px: 2, py: 1.25, backgroundColor: '#fff', borderTop: `1px solid ${tokens.cardLightBorder}`, boxShadow: '0 -10px 30px -12px rgba(0,0,0,0.4)' }}>
+        <Box className="booking-actions" sx={{ position: 'fixed', left: 'var(--tm-sidebar-offset, 0px)', right: 0, bottom: 'var(--tm-bottom-nav, 0px)', zIndex: 1090, display: 'flex', [SUMMARY_LAYOUT]: { display: 'none' }, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: { xs: 1, sm: 2 }, px: { xs: 1.5, sm: 2 }, py: 1.25, backgroundColor: tokens.cardLight, color: tokens.textPrimary, borderTop: `1px solid ${tokens.cardLightBorder}`, boxShadow: '0 -10px 30px -12px rgba(0,0,0,0.4)' }}>
           <Box sx={{ minWidth: 0 }}>
             <Typography noWrap sx={{ fontSize: 11, color: tokens.textMuted }}>{rental ? 'Rental total' : buffet && quote.plates ? `Package + buffet for ${quote.plates}` : 'Starting total'}</Typography>
-            <Typography sx={{ fontSize: 19, fontWeight: 800, color: tokens.textPrimary, lineHeight: 1.1 }}>{rental ? (rentalChosen.length ? peso(knownTotal) : 'Pick your items') : pkg ? `${peso(knownTotal)}${plusQuoted}` : 'Pick a package'}</Typography>
+            <Typography sx={{ fontSize: 19, fontWeight: 800, color: tokens.textPrimary, lineHeight: 1.1, overflowWrap: 'anywhere' }}>{rental ? (rentalChosen.length ? peso(knownTotal) : 'Pick your items') : pkg ? `${peso(knownTotal)}${plusQuoted}` : 'Pick a package'}</Typography>
           </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', gap: 1, maxWidth: '100%', '@media (max-width: 399px)': { width: '100%', '& > button': { flex: 1, minWidth: 0 } } }}>
             <Button variant="outlined" onClick={saveAndExit} disabled={busy} sx={{ px: { xs: 1.5, sm: 2.5 }, whiteSpace: 'nowrap' }}>
               Save draft
             </Button>
@@ -1287,14 +1296,14 @@ function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
   return (
     <Box sx={{ borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, overflow: 'hidden' }}>
       {rows.map(([label, value]) => (
-        <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, px: 2, py: 1.25, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
-          <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>{label}</Typography>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{value}</Typography>
+        <Box key={label} sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: 2, rowGap: 0.5, px: 2, py: 1.25, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
+          <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 13.5, color: tokens.textSecondary }}>{label}</Typography>
+          <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 13.5, fontWeight: 600 }}>{value}</Typography>
         </Box>
       ))}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, px: 2, py: 1.5, backgroundColor: tokens.surfaceSubtle }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: 2, rowGap: 0.5, px: 2, py: 1.5, backgroundColor: tokens.surfaceSubtle }}>
         <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Starting total</Typography>
-        <Typography sx={{ fontSize: 16, fontWeight: 800 }}>{pkg ? `${peso(quote.net)}${quote.extraGuests ? ' + quoted' : ''}` : '—'}</Typography>
+        <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 16, fontWeight: 800 }}>{pkg ? `${peso(quote.net)}${quote.extraGuests ? ' + quoted' : ''}` : '—'}</Typography>
       </Box>
     </Box>
   );

@@ -58,7 +58,7 @@ export function DataTable({ columns, rows, rowKey, onRowClick, loading, empty, m
   if (asCards) return <CardList columns={columns} rows={rows} rowKey={rowKey} onRowClick={onRowClick} />;
 
   return (
-    <TableContainer className="tm-scroll" sx={{ overflowX: 'auto', mx: { xs: -2, sm: 0 }, width: { xs: 'calc(100% + 32px)', sm: '100%' } }}>
+    <TableContainer className="tm-scroll" sx={{ overflowX: 'auto', maxWidth: '100%', width: '100%' }}>
       <Table size={dense ? 'small' : 'medium'} sx={{ minWidth }}>
         <TableHead>
           <TableRow>

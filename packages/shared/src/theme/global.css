@@ -3,33 +3,34 @@
  * tokens/colors.css + tokens/typography.css). MUI components read the JS mirror
  * in tokens.js; plain CSS and inline styles can use these.
  *
- * The values below are the dark (navy) scheme, used until theme/colorMode.js
- * writes the chosen scheme onto <html>. From then on <html> wins, so body,
- * scrollbars and everything styled with var(--tm-...) follow the mode switch.
+ * The values below are the light (warm ivory) scheme, the default, used until
+ * theme/colorMode.jsx writes the chosen scheme onto <html>. From then on <html>
+ * wins, so body, scrollbars and everything styled with var(--tm-...) follow the
+ * mode switch.
  */
 :root {
-  --tm-bg-base: #0b0f19;
-  --tm-bg-deep: #080c14;
-  --tm-bg-panel: #0f1626;
-  --tm-header-bg: #0f172a;
+  --tm-bg-base: #fbf7f0;
+  --tm-bg-deep: #f3eadb;
+  --tm-bg-panel: #ffffff;
+  --tm-header-bg: #fdfbf6;
 
   --tm-gold: #c5a059;
   --tm-gold-light: #dfba73;
   --tm-gold-dark: #9d7c38;
-  --tm-gold-glow: rgba(197, 160, 89, 0.3);
-  --tm-on-gold: #0b0f19;
+  --tm-gold-glow: rgba(197, 160, 89, 0.35);
+  --tm-on-gold: #2b2622;
 
   --tm-card-light: #ffffff;
-  --tm-card-light-border: #e2e8f0;
-  --tm-card-dark: #101828;
-  --tm-card-dark-border: rgba(197, 160, 89, 0.18);
+  --tm-card-light-border: #e8dcc6;
+  --tm-card-dark: #ffffff;
+  --tm-card-dark-border: #e8dcc6;
 
-  --tm-text-primary: #0f172a;
-  --tm-text-secondary: #475569;
-  --tm-text-muted: #64748b;
-  --tm-text-light: #f8fafc;
-  --tm-text-on-dark-soft: #b6c0d0;
-  --tm-text-on-dark-muted: #7d8798;
+  --tm-text-primary: #2b2622;
+  --tm-text-secondary: #5e554d;
+  --tm-text-muted: #8a8078;
+  --tm-text-light: #2b2622;
+  --tm-text-on-dark-soft: #5e554d;
+  --tm-text-on-dark-muted: #8a8078;
 
   --tm-green: #10b981;
   --tm-amber: #f59e0b;
@@ -42,7 +43,7 @@
   --tm-radius-pill: 999px;
 
   --tm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html {

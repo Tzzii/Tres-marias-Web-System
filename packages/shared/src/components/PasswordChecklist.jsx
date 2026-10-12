@@ -33,7 +33,7 @@ export function PasswordChecklist({ id, value = '', sx }) {
           <Box component="li" key={c.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: 12, color: c.met ? tokens.green : tokens.textMuted }}>
             {c.met ? <CheckRoundedIcon sx={{ fontSize: 15 }} /> : <CloseRoundedIcon sx={{ fontSize: 15 }} />}
             {c.label}
-            <Box component="span" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{c.met ? ' (done)' : ' (missing)'}</Box>
+            <Box component="span" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{c.met ? ' (done)' : ' (missing)'}</Box>
           </Box>
         ))}
       </Box>

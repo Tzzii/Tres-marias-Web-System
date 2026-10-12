@@ -96,8 +96,8 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, alignItems: 'center', justifyContent: 'space-between', gap: 1, rowGap: 1.5, mb: small ? 1 : 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: { xs: '1 1 100%', sm: '0 0 auto' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, rowGap: 1.5, mb: small ? 1 : 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: { xs: '1 1 100%', sm: '0 1 auto' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
           <IconButton size="small" onClick={() => shift(-1)} aria-label="Previous month">
             <ChevronLeftRoundedIcon />
           </IconButton>

@@ -28,7 +28,7 @@ export function AppDialog({ open, onClose, title, description, children, actions
         fullScreen={fullScreenOnMobile && isPhone}
         aria-labelledby="app-dialog-title"
       >
-        <Box sx={{ px: { xs: 2.5, sm: 3 }, pt: 2.5, pb: description ? 1 : 1.5, display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        <Box sx={{ px: { xs: 1.5, sm: 3 }, pt: 2.5, pb: description ? 1 : 1.5, display: 'flex', alignItems: 'flex-start', gap: 2 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography id="app-dialog-title" component="h2" sx={{ fontSize: 18, fontWeight: 700, color: tokens.textPrimary }}>
               {title}
@@ -39,9 +39,9 @@ export function AppDialog({ open, onClose, title, description, children, actions
             <CloseRoundedIcon fontSize="small" />
           </IconButton>
         </Box>
-        {children && <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 1.5, overflowY: 'auto' }}>{children}</Box>}
+        {children && <Box sx={{ px: { xs: 1.5, sm: 3 }, py: 1.5, minWidth: 0, overflowY: 'auto', overflowWrap: 'anywhere', overscrollBehavior: 'contain' }}>{children}</Box>}
         {actions && (
-          <Box sx={{ px: { xs: 2.5, sm: 3 }, pt: 1.5, pb: 2.5, display: 'flex', gap: 1.25, justifyContent: 'flex-end', flexWrap: 'wrap' }}>{actions}</Box>
+          <Box sx={{ px: { xs: 1.5, sm: 3 }, pt: 1.5, pb: 2.5, display: 'flex', gap: 1.25, justifyContent: 'flex-end', flexWrap: 'wrap', '& > button': { maxWidth: '100%', '@media (max-width: 399px)': { flex: '1 1 100%' } } }}>{actions}</Box>
         )}
       </Dialog>
     </LightSurface>

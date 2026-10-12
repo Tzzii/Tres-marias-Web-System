@@ -1,10 +1,11 @@
 /**
  * The two colour schemes the portals can wear.
  *
- * - `darkPalette`: the navy shell that both portals have always used.
- * - `lightPalette`: the "Warm Ivory & Gold" look of the public website
- *   (apps/client/src/theme/siteTheme.js), so switching to light mode makes the
- *   portal match the page customers browse before they sign in.
+ * - `lightPalette` (the default): the "Warm Ivory & Gold" look of the public
+ *   website (apps/client/src/theme/siteTheme.js), so the portal matches the page
+ *   customers browse before they sign in.
+ * - `darkPalette`: the navy shell, used only after someone presses the dark
+ *   mode toggle in the portal top bar.
  *
  * Both objects must hold exactly the same keys: theme/colorMode.js writes every
  * key onto <html> as a CSS custom property, and theme/tokens.js reads them back
@@ -17,7 +18,7 @@
 /** camelCase token name -> CSS custom property, e.g. bgBase -> --tm-bg-base, mood0 -> --tm-mood-0. */
 export const cssVarName = (key) => `--tm-${key.replace(/[A-Z0-9]+/g, (part) => `-${part.toLowerCase()}`)}`;
 
-/** The navy scheme (default). */
+/** The navy scheme (dark mode, only after the toggle is pressed). */
 export const darkPalette = {
   // Shell backgrounds
   bgBase: '#0b0f19',
