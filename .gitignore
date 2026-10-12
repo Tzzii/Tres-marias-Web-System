@@ -14,3 +14,11 @@ apps/api/src/seedData/sample/
 .claude/
 design-backup/
 docs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local helper scripts
+scripts/capability-guide/
+scripts/ui-responsive-check.mjs
