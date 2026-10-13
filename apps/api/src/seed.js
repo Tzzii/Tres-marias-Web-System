@@ -53,7 +53,7 @@ export const TABLES = [
   'reservation_rental_items', 'reservation_damage_charges',
   'outbox',
   'outsource_partners', 'outsource_partner_history', 'outsource_contracts', 'outsource_deliveries', 'outsource_contract_history',
-  'counters', 'login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes'
+  'counters', 'login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes', 'customer_email_changes'
 ];
 
 // --starter: load the fresh start (starterData()) instead of the demo data
@@ -100,7 +100,7 @@ function starterData(business, now) {
 /**
  * The seed as table rows: { table: [row, …] }, each row an object keyed by column name.
  * Tables left out (qr_payments, webhook_events, outbox, login_attempts, auth_challenges,
- * password_resets, signup_requests, password_changes) have no sample data and stay empty. Columns left out take their schema.sql
+ * password_resets, signup_requests, password_changes, customer_email_changes) have no sample data and stay empty. Columns left out take their schema.sql
  * default, e.g. the admin's sign-in history and a delivery's outbox_id.
  * `hashes` maps each account id to its bcrypt hash; `now` stamps the two settings rows.
  */

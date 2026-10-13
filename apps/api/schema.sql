@@ -34,6 +34,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS password_changes;
+DROP TABLE IF EXISTS customer_email_changes;
 DROP TABLE IF EXISTS signup_requests;
 DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS auth_challenges;
@@ -800,8 +801,9 @@ CREATE TABLE counters (
 -- Scopes: 'customer', 'admin' (password, keyed by email), 'admin-code', 'reset-code', 'signup-code'
 -- (codes, keyed by email), 'change-code' (password-change code, keyed by customer id),
 -- 'customer-reauth', 'admin-reauth' (current password before a change, keyed by account id),
+-- 'email-change-code' (customer email-change code, keyed by customer id),
 -- 'admin-contact' (contact-change code, keyed by admin id) and 'code-email' (codes emailed to one
--- customer address for sign-up, reset or password change, keyed by email: 5 in a row, then an
+-- customer address for sign-up, reset, password change or email change, keyed by email: 5 in a row, then an
 -- hour's pause; it replaced 'reset-sms' in Phase 12, when customer codes moved from SMS to email).
 CREATE TABLE login_attempts (
   scope        VARCHAR(20)     NOT NULL,
@@ -889,9 +891,27 @@ CREATE TABLE password_changes (
   CONSTRAINT fk_password_changes_customer FOREIGN KEY (customer_id) REFERENCES customers (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- A signed-in customer's email change waiting for its emailed code (My profile): the current
+-- password was checked first, and the new address is saved only after the code sent to that new
+-- address is entered. This proves ownership before the login email changes.
+CREATE TABLE customer_email_changes (
+  id          VARCHAR(40)     NOT NULL,                     -- emc-…, handed to the browser as challengeId
+  customer_id VARCHAR(40)     NOT NULL,
+  new_email   VARCHAR(254)    NOT NULL,                     -- lower-case; checked for uniqueness again at confirmation
+  code_hash   VARCHAR(255)    NOT NULL,
+  expires_at  BIGINT UNSIGNED NOT NULL,
+  resend_at   BIGINT UNSIGNED NOT NULL,
+  attempts    INT             NOT NULL DEFAULT 0,
+  used_at     BIGINT UNSIGNED NULL,
+  created_at  BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_customer_email_changes_customer (customer_id),
+  CONSTRAINT fk_customer_email_changes_customer FOREIGN KEY (customer_id) REFERENCES customers (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================================
 -- Rows the API needs even before any data is loaded. The seeder (src/seed.js) empties
--- and refills every table, these three included, with the seed's values.
+-- and refills every table, including these settings and counters, with the seed's values.
 -- ============================================================================
 
 -- The one catalogue settings row: the buffet price per person and the minimum downpayment, as in the seed

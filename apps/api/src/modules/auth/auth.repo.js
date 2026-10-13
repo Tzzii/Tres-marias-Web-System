@@ -82,6 +82,17 @@ export async function updateCustomerProfile(id, { firstName, middleName, lastNam
   );
 }
 
+/** True when a customer other than `customerId` already signs in with this email. */
+export async function emailUsedByOtherCustomer(email, customerId) {
+  const [rows] = await pool.query('SELECT 1 FROM customers WHERE email = ? AND id <> ? LIMIT 1', [email, customerId]);
+  return rows.length > 0;
+}
+
+/** Save a confirmed new customer login email inside the confirmation transaction. */
+export async function updateCustomerEmail(conn, id, email) {
+  await conn.query('UPDATE customers SET email = ? WHERE id = ?', [email, id]);
+}
+
 /**
  * Save a new password hash and when it changed (tokens made before `at` stop working). Pass `conn`
  * to make it part of a transaction (a finished password reset); by default it uses the pool.
@@ -406,6 +417,65 @@ export async function addChangeAttempt(id) {
 /** Spend the request, only if it was not spent yet: false when another request got there first. */
 export async function markChangeUsed(conn, id, at) {
   const [result] = await conn.query('UPDATE password_changes SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  return result.affectedRows === 1;
+}
+
+/* ============================ Customer email changes waiting for their code ============================ */
+
+const toEmailChange = (row) =>
+  row && {
+    id: row.id,
+    customerId: row.customer_id,
+    newEmail: row.new_email,
+    codeHash: row.code_hash,
+    expiresAt: row.expires_at,
+    resendAt: row.resend_at,
+    attempts: row.attempts,
+    usedAt: row.used_at,
+    createdAt: row.created_at
+  };
+
+/** The customer email-change request with this id (used or not), or null. */
+export const findEmailChange = async (id) =>
+  toEmailChange(first(await pool.query('SELECT * FROM customer_email_changes WHERE id = ?', [id])));
+
+/** Save a new customer email-change request. */
+export async function insertEmailChange(change) {
+  await pool.query(
+    `INSERT INTO customer_email_changes (id, customer_id, new_email, code_hash, expires_at, resend_at, attempts, used_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
+    [change.id, change.customerId, change.newEmail, change.codeHash, change.expiresAt, change.resendAt, change.createdAt]
+  );
+}
+
+/** Remove this customer's earlier waiting email changes, so only the newest code works. */
+export async function deleteEmailChangesFor(customerId) {
+  await pool.query('DELETE FROM customer_email_changes WHERE customer_id = ? AND used_at IS NULL', [customerId]);
+}
+
+/** Remove one request when its code could not be delivered. */
+export async function deleteEmailChange(id) {
+  await pool.query('DELETE FROM customer_email_changes WHERE id = ?', [id]);
+}
+
+/** Replace the code and timers after a resend. */
+export async function replaceEmailChangeCode(id, { codeHash, expiresAt, resendAt }) {
+  await pool.query('UPDATE customer_email_changes SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+}
+
+/** Let the customer request another code immediately after delivery failed. */
+export async function setEmailChangeResendAt(id, resendAt) {
+  await pool.query('UPDATE customer_email_changes SET resend_at = ? WHERE id = ?', [resendAt, id]);
+}
+
+/** Count one wrong confirmation code on the request itself. */
+export async function addEmailChangeAttempt(id) {
+  await pool.query('UPDATE customer_email_changes SET attempts = attempts + 1 WHERE id = ?', [id]);
+}
+
+/** Spend the request once, in the same transaction that changes the customer's email. */
+export async function markEmailChangeUsed(conn, id, at) {
+  const [result] = await conn.query('UPDATE customer_email_changes SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
   return result.affectedRows === 1;
 }
 

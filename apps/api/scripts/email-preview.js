@@ -132,6 +132,7 @@ const VARIANTS = [
   ['rental-completed', 'event_completed', { reservation: rental }],
   // The one-time-code emails (code.emails.js): the builders take the account's name, not firstName
   ['code-sign-up', 'customer_sign_up', { name: 'Athena', code: SAMPLE_CODE }],
+  ['code-customer-new-email', 'customer_email_change', { name: 'Maria Santos', email: 'maria.new@example.com', code: SAMPLE_CODE }],
   ['code-password-reset', 'customer_password_reset', { name: 'Maria Santos', code: SAMPLE_CODE }],
   ['code-password-change', 'customer_password_change', { name: 'Maria Santos', code: SAMPLE_CODE }],
   ['code-admin-sign-in', 'admin_sign_in', { name: 'Wilma W. Cabiscuelas', code: SAMPLE_CODE }],

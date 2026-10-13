@@ -7,6 +7,7 @@ import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import {
   AlertBanner,
+  AppDialog,
   BusyButton,
   CardTitle,
   DashCard,
@@ -25,6 +26,7 @@ import {
   tokens,
   useDocumentTitle,
   useNotify,
+  validateEmail,
   validateMobile,
   validatePassword
 } from '@tm/shared';
@@ -48,6 +50,15 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState({ name: user.name, mobile: user.mobile, company: user.company || '' });
   const [profileErrors, setProfileErrors] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Email changes are separate from the ordinary profile save: the current password is checked,
+  // then ownership of the new address is confirmed with a code sent there.
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailForm, setEmailForm] = useState({ email: '', password: '' });
+  const [emailErrors, setEmailErrors] = useState({});
+  const [emailFormError, setEmailFormError] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailChallenge, setEmailChallenge] = useState(null);
 
   // Change password form, its emailed-code step (open while `challenge` is set) and the forgot-password dialog
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
@@ -86,6 +97,50 @@ export default function ProfilePage() {
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  const openEmailChange = () => {
+    setEmailForm({ email: '', password: '' });
+    setEmailErrors({});
+    setEmailFormError('');
+    setEmailOpen(true);
+  };
+
+  // First step of an email change: validate locally, then have the server check the current password
+  // and send a code to the new address. The login email is not changed yet.
+  const startEmailChange = async (e) => {
+    e.preventDefault();
+    const found = {};
+    const emailProblem = validateEmail(emailForm.email);
+    if (emailProblem) found.email = emailProblem;
+    if (!emailForm.password) found.password = 'Enter your current password.';
+    setEmailErrors(found);
+    setEmailFormError('');
+    if (Object.keys(found).length) return;
+
+    setSavingEmail(true);
+    try {
+      const request = await authApi.startCustomerEmailChange(emailForm);
+      setEmailChallenge(request);
+      setEmailOpen(false);
+      setEmailForm((current) => ({ ...current, password: '' }));
+    } catch (err) {
+      setEmailForm((current) => ({ ...current, password: '' }));
+      if (err.meta && err.meta.field === 'email') setEmailErrors({ email: err.message });
+      else if (err.meta && err.meta.field === 'current') {
+        const left = err.meta.remaining ? ` ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.` : '';
+        setEmailErrors({ password: err.message + left });
+      } else setEmailFormError(err.message);
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const confirmEmailChange = async (code) => {
+    const saved = await authApi.confirmCustomerEmailChange({ challengeId: emailChallenge.challengeId, code });
+    updateUser(saved);
+    setEmailChallenge(null);
+    notify(`Email updated. Sign in with ${saved.email} from now on.`);
   };
 
   // Validate the three password fields, then ask the server to check the current password and email a code
@@ -134,7 +189,20 @@ export default function ProfilePage() {
           </Box>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <FormField id="profile-name" label="Full name" required value={profile.name} onChange={(e) => { setProfile((p) => ({ ...p, name: e.target.value })); setProfileErrors({}); }} error={profileErrors.name} />
-            <FormField id="profile-email" label="Email" value={user.email} disabled hint="To change your login email, message our team." />
+            <FormField
+              id="profile-email"
+              label="Email"
+              value={user.email}
+              inputProps={{ readOnly: true }}
+              hint="Your login email and the address where account codes are sent."
+              InputProps={{
+                endAdornment: (
+                  <Button type="button" size="small" onClick={openEmailChange} sx={{ flexShrink: 0, fontWeight: 700, color: tokens.goldDark }}>
+                    Change
+                  </Button>
+                )
+              }}
+            />
             <MobileField id="profile-mobile" label="Mobile" required value={profile.mobile} onChange={(e) => { setProfile((p) => ({ ...p, mobile: e.target.value })); setProfileErrors({}); }} error={profileErrors.mobile} />
             <FormField id="profile-company" label="Company" optional value={profile.company} onChange={(e) => setProfile((p) => ({ ...p, company: e.target.value }))} hint="For official receipts under a company name." />
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -183,6 +251,73 @@ export default function ProfilePage() {
           </DashCard>
         </Box>
       </Box>
+
+      {/* Step 2 of the email change: prove ownership of the new address */}
+      <EmailCodeDialog
+        challenge={emailChallenge}
+        title="Confirm Your New Email"
+        description="Enter the code sent to your new address. Your login email changes only after it is verified."
+        actionLabel="Verify & save"
+        onVerify={confirmEmailChange}
+        onResend={() => authApi.resendCustomerEmailChangeCode(emailChallenge.challengeId)}
+        onRestart={(message) => {
+          setEmailChallenge(null);
+          notify(message, 'error');
+        }}
+        onClose={() => setEmailChallenge(null)}
+      />
+
+      <AppDialog
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        busy={savingEmail}
+        maxWidth="xs"
+        fullScreenOnMobile
+        title="Change Email"
+        description="Your email is also your username. We’ll send a code to the new address before changing it."
+        actions={
+          <>
+            <Button onClick={() => setEmailOpen(false)} disabled={savingEmail} sx={{ color: tokens.textSecondary }}>Cancel</Button>
+            <BusyButton type="submit" form="customer-email-form" busy={savingEmail}>Send code</BusyButton>
+          </>
+        }
+      >
+        <Box component="form" id="customer-email-form" noValidate onSubmit={startEmailChange} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {emailFormError && <AlertBanner tone="error">{emailFormError}</AlertBanner>}
+          <FormField
+            id="new-email"
+            label="New email"
+            required
+            type="email"
+            autoComplete="email"
+            placeholder="name@gmail.com"
+            autoFocus
+            value={emailForm.email}
+            onChange={(e) => {
+              setEmailForm((current) => ({ ...current, email: e.target.value }));
+              setEmailErrors((current) => ({ ...current, email: '' }));
+              setEmailFormError('');
+            }}
+            error={emailErrors.email}
+            hint={`Current: ${user.email}`}
+            disabled={savingEmail}
+          />
+          <PasswordField
+            id="email-current-password"
+            label="Current password"
+            required
+            autoComplete="current-password"
+            value={emailForm.password}
+            onChange={(e) => {
+              setEmailForm((current) => ({ ...current, password: e.target.value }));
+              setEmailErrors((current) => ({ ...current, password: '' }));
+              setEmailFormError('');
+            }}
+            error={emailErrors.password}
+            disabled={savingEmail}
+          />
+        </Box>
+      </AppDialog>
 
       {/* Step 2 of the password change: the code emailed to the account */}
       <EmailCodeDialog

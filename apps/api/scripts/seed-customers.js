@@ -16,7 +16,7 @@ const CUSTOMER_TABLES = [
   'customers', 'reservations', 'reservation_addons', 'reservation_activity',
   'payments', 'refunds', 'qr_payments', 'webhook_events', 'threads', 'messages', 'testimonials',
   'rental_dispatches', 'reservation_rental_items', 'reservation_damage_charges',
-  'password_resets', 'signup_requests', 'password_changes'
+  'password_resets', 'signup_requests', 'password_changes', 'customer_email_changes'
 ];
 
 async function backup(conn) {

@@ -10,7 +10,7 @@ import { http } from '../http.js';
  *   (customerId, adminId) some pages pass are not sent.
  * - Every one-time code is emailed by the server (never texted, Phase 12) and never comes back in a
  *   response: the admin's sign-in and contact-change codes, and the customer's codes for signing up,
- *   resetting a forgotten password and changing the password in My profile.
+ *   resetting a forgotten password, and changing the password or login email in My profile.
  * - Lockouts are enforced by the server. getLockout only remembers, for this tab, the lock the server
  *   last reported, so the log-in page can restore its countdown after a reload.
  */
@@ -115,6 +115,16 @@ export const getCustomerProfile = () => http.get('/me');
 
 /** Save name, mobile and company; returns the updated profile. */
 export const updateCustomerProfile = (customerId, { name = '', mobile = '', company = '' }) => http.patch('/me', { name, mobile, company });
+
+/** Check the current password and email a confirmation code to the requested new login address. */
+export const startCustomerEmailChange = ({ email, password }) => http.post('/me/email', { email, password });
+
+/** Email a fresh confirmation code to the pending new address. */
+export const resendCustomerEmailChangeCode = (challengeId) => http.post(`/me/email/${segment(challengeId)}/resend`);
+
+/** Confirm and save the new login email; returns the updated customer profile. */
+export const confirmCustomerEmailChange = ({ challengeId, code }) =>
+  http.post(`/me/email/${segment(challengeId)}/confirm`, { code });
 
 /**
  * Accept the Terms of Service and Privacy Policy version the page shows (TERMS_VERSION). Returns the

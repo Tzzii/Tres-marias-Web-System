@@ -12,7 +12,7 @@ import * as auth from './auth.service.js';
  *   customerAccountRoutes  /api/me         behind requireAuth + requireRole('customer')
  *   adminAccountRoutes     /api/admin/me   behind the admin router's guard (requireAuth + requireRole('admin'))
  * The account an /me route works on is always req.user.id, from the token: never an id from the page.
- * Every customer code goes by email (Phase 12): sign-up, forgot password and the password change.
+ * Every customer code goes by email: sign-up, forgot password, password change and login-email change.
  */
 
 /* ============================ /api/auth (no token) ============================ */
@@ -93,6 +93,18 @@ customerAccountRoutes.patch('/', validate({ body: schemas.customerProfile }), as
 // Accept the current Terms of Service and Privacy Policy: { version } -> the customer's details (with termsVersion)
 customerAccountRoutes.post('/terms', validate({ body: schemas.termsBody }), async (req, res) => {
   res.json(await auth.acceptTerms(req.user.id, req.valid.body));
+});
+
+// Email change: verify the current password, email a code to the new address, then save only after
+// that code comes back. The new address therefore cannot become the login until its owner proves it.
+customerAccountRoutes.post('/email', validate({ body: schemas.customerEmailChange }), async (req, res) => {
+  res.json(await auth.startCustomerEmailChange(req.user.id, req.valid.body));
+});
+customerAccountRoutes.post('/email/:id/resend', validate({ params: schemas.requestParams }), async (req, res) => {
+  res.json(await auth.resendCustomerEmailChangeCode(req.user.id, req.valid.params.id));
+});
+customerAccountRoutes.post('/email/:id/confirm', validate({ params: schemas.requestParams, body: schemas.codeBody }), async (req, res) => {
+  res.json(await auth.confirmCustomerEmailChange(req.user.id, { challengeId: req.valid.params.id, code: req.valid.body.code }));
 });
 
 // Password change (Phase 12): the current and new password (emails a code), resend the code, then the

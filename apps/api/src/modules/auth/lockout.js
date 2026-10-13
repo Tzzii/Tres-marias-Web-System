@@ -27,12 +27,13 @@ const CODE = { max: RULES.maxCodeAttempts, lockMinutes: RULES.codeLockMinutes };
  * for 'customer', 'admin', 'admin-code', 'reset-code', 'signup-code' and 'code-email', and the
  * account id for the others.
  * - customer / admin: the password on the log-in and sign-in forms.
- * - admin-code / reset-code / signup-code / change-code: the emailed admin sign-in code, and the
- *   customer's emailed codes for a password reset, a sign-up and a password change in My profile.
+ * - admin-code / reset-code / signup-code / change-code / email-change-code: the emailed admin
+ *   sign-in code, and the customer's emailed codes for a password reset, sign-up, password change
+ *   or login-email change in My profile.
  * - customer-reauth / admin-reauth: the current password asked before a password, email or mobile change.
  * - admin-contact: the code that confirms a new email or mobile number.
  * - code-email: not wrong answers but codes EMAILED to one customer address (sign-up, password reset
- *   and password change, each start and resend). It keeps the system from being used to flood
+ *   and password or email change, each start and resend). It keeps the system from being used to flood
  *   someone's inbox: after 5 emails sending pauses for an hour; the count starts over after an hour
  *   without one, and a finished sign-up, reset or change clears it. (Before Phase 12 the reset code
  *   was texted and this was 'reset-sms', keyed by customer id.)
@@ -44,6 +45,7 @@ export const SCOPES = {
   'reset-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'signup-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'change-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
+  'email-change-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'customer-reauth': { ...LOGIN, message: `Too many incorrect passwords. Try again in ${RULES.loginLockMinutes} minutes.`, meta: { field: 'current' } },
   'admin-reauth': { ...LOGIN, message: `Too many incorrect passwords. Try again in ${RULES.loginLockMinutes} minutes.`, meta: { field: 'current' } },
   'admin-contact': { ...CODE, message: 'Too many incorrect codes. Please start again later.' },

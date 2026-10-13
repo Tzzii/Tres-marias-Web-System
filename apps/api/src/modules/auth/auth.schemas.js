@@ -71,6 +71,7 @@ export const adminUnlock = z.object({ ticket: text(1000), password });
 export const termsBody = z.object({ version: text(20) });
 
 export const customerProfile = z.object({ name: text(200), mobile: text(20), company: optionalText(160) });
+export const customerEmailChange = z.object({ email: text(254), password });
 // Password change, step 1 (customer) and the admin's password change: the current and the new password
 export const passwordChange = z.object({ current: password, next: password });
 

@@ -17,6 +17,7 @@ import { renderCodeEmail } from '../notify/email.layout.js';
  * admin_contact_change     { name, field, value, code }   confirms the admin's new email ('email': the new
  *                                                         address is shown) or mobile number (shown masked)
  * customer_sign_up         { name, code }                 finishes creating a customer account
+ * customer_email_change    { name, email, code }          confirms a customer's new login email
  * customer_password_reset  { name, code }                 "Forgot password?" on the Log in page
  * customer_password_change { name, code }                 confirms a new password set in My profile
  */
@@ -81,6 +82,21 @@ function customerSignUp(data) {
   };
 }
 
+/** customer_email_change: proves that the customer owns the new login address before it is saved. */
+function customerEmailChange(data) {
+  return {
+    subject: `Confirm your new email for ${BUSINESS.shortName}`,
+    ...renderCodeEmail({
+      ...common(data),
+      label: 'Confirm New Email',
+      heading: 'Confirm Your New Email',
+      intro: `Use this code to make ${data.email} the login email for your ${BUSINESS.shortName} account:`,
+      ifNotYou: 'If you did not ask for this change, do not use this code: your login email stays the same.',
+      reason: `You're receiving this because an email change was started in your ${BUSINESS.shortName} customer account.`
+    })
+  };
+}
+
 /** customer_password_reset: the code for choosing a new password after "Forgot password?". */
 function customerPasswordReset(data) {
   return {
@@ -117,6 +133,7 @@ export const CODE_EMAILS = {
   admin_sign_in: adminSignIn,
   admin_contact_change: adminContactChange,
   customer_sign_up: customerSignUp,
+  customer_email_change: customerEmailChange,
   customer_password_reset: customerPasswordReset,
   customer_password_change: customerPasswordChange
 };

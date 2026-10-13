@@ -110,6 +110,7 @@ check('event_completed rental: thanks for renting and says the items are back', 
 const CODE = '176498';
 const CODE_SAMPLES = [
   ['customer_sign_up', { name: 'Ana<b>', code: CODE }],
+  ['customer_email_change', { name: 'Ana<b> Santos', email: 'new"<script>alert(1)</script>@example.com', code: CODE }],
   ['customer_password_reset', { name: 'Ana<b> Santos', code: CODE }],
   ['customer_password_change', { name: 'Ana<b> Santos', code: CODE }],
   ['admin_sign_in', { name: 'Ana<b> Santos', code: CODE }],
@@ -138,6 +139,7 @@ for (const [purpose, data] of CODE_SAMPLES) {
   check(`${name}: footer lines present`, text.includes('We will never ask for your password or one-time code.') && html.includes('We will never ask for your password or one-time code.') && text.includes("You're receiving this because"));
   check(`${name}: under 50 KB`, Buffer.byteLength(html) < 50 * 1024, `${Buffer.byteLength(html)} bytes`);
   if (data.field === 'email') check(`${name}: the new address is shown escaped`, html.includes('new&quot;&lt;script&gt;'), 'escaped address not found');
+  if (purpose === 'customer_email_change') check(`${name}: the new address is shown escaped`, html.includes('new&quot;&lt;script&gt;'), 'escaped address not found');
   if (data.field === 'mobile') check(`${name}: the new mobile number is shown masked`, text.includes('+63 925 ••• 2345') && !text.includes('09259012345') && !html.includes('9012345'));
 }
 check('every code email has a sample', Object.keys(CODE_EMAILS).every((p) => codePurposesSeen.has(p)), Object.keys(CODE_EMAILS).filter((p) => !codePurposesSeen.has(p)).join(', '));

@@ -23,7 +23,8 @@ import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './l
  * - codes are 6 random digits sent by EMAIL, never by SMS (auth.messages.js), and never appear in a
  *   response. Since Phase 12 that includes every customer code: a customer account is created only
  *   after the code emailed to its address comes back, a forgotten password is reset with an emailed
- *   code, and a password changed in My profile needs the current password AND an emailed code;
+ *   code, and changing a password or login email in My profile needs the current password AND an
+ *   emailed code (an email change sends it to the new address);
  * - the signed-in account always comes from the token (req.user, passed in by auth.routes.js),
  *   never from an id the page sends.
  * Pure rules (email/mobile/name cleaning, the field checks, device names) come from @tm/shared, the
@@ -33,7 +34,7 @@ import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './l
 const minutes = (n) => n * 60000;
 
 // A code request (admin sign-in, contact change, and the customer's sign-up, password reset and
-// password change) can be resent and used for at most this long after it was made; then the user
+// password change and email change) can be resent and used for at most this long after it was made; then the user
 // starts again. Each code itself expires sooner (RULES.codeValidMinutes); a resend gives a new one.
 const REQUEST_LIFETIME = minutes(30);
 
@@ -405,6 +406,113 @@ export async function updateCustomerProfile(customerId, { name = '', mobile = ''
   };
   await repo.updateCustomerProfile(customerId, saved);
   return publicCustomer(saved);
+}
+
+/* ---------------- Change login email: current password → code sent to the new address ---------------- */
+
+/**
+ * Check the requested address and current password, then send a confirmation code to the new
+ * address. Nothing changes until the customer returns that code, which proves they can receive mail
+ * there. A newer request replaces the customer's older waiting request.
+ */
+export async function startCustomerEmailChange(customerId, { email = '', password = '' }) {
+  const customer = await repo.findCustomerById(customerId);
+  if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
+
+  const address = normaliseEmail(email);
+  const problem = validateEmail(address);
+  if (problem) throw new ApiError('INVALID', problem, { field: 'email' });
+  if (address === normaliseEmail(customer.email)) {
+    throw new ApiError('INVALID', 'This is already your email.', { field: 'email' });
+  }
+  if (await repo.emailUsedByOtherCustomer(address, customerId)) {
+    throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
+  }
+  await assertCurrentPassword('customer-reauth', customer, password);
+  await reserveAttempt('code-email', address);
+
+  const at = now();
+  const code = newCode(RULES.codeLength);
+  const change = {
+    id: newId('emc'),
+    customerId,
+    newEmail: address,
+    codeHash: await hashSecret(code),
+    ...codeTimes(at),
+    createdAt: at
+  };
+  await repo.deleteEmailChangesFor(customerId);
+  await repo.insertEmailChange(change);
+  try {
+    await messages.sendCustomerEmailChangeCode(customer, address, code, change.id);
+  } catch (err) {
+    await repo.deleteEmailChange(change.id);
+    throw err;
+  }
+  return { challengeId: change.id, maskedEmail: maskEmail(address), expiresAt: change.expiresAt, resendAt: change.resendAt };
+}
+
+// The signed-in customer's own live email-change request, or CHALLENGE_EXPIRED. Request IDs from
+// another account reveal nothing and cannot be used.
+async function ownCustomerEmailChange(customerId, challengeId, at) {
+  const change = await repo.findEmailChange(challengeId);
+  if (isDead(change, at) || change.customerId !== customerId) {
+    throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
+  }
+  return change;
+}
+
+/** Send a fresh code to the still-pending new address once the resend cooldown has ended. */
+export async function resendCustomerEmailChangeCode(customerId, challengeId) {
+  const at = now();
+  const change = await ownCustomerEmailChange(customerId, challengeId, at);
+  if (change.resendAt > at) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
+  const customer = await repo.findCustomerById(customerId);
+  if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
+  await reserveAttempt('code-email', change.newEmail);
+
+  const code = newCode(RULES.codeLength);
+  const times = codeTimes(at);
+  await repo.replaceEmailChangeCode(change.id, { codeHash: await hashSecret(code), ...times });
+  try {
+    await messages.sendCustomerEmailChangeCode(customer, change.newEmail, code, change.id);
+  } catch (err) {
+    await repo.setEmailChangeResendAt(change.id, at);
+    throw err;
+  }
+  return times;
+}
+
+/** Verify the code and atomically make the confirmed address the customer's new login email. */
+export async function confirmCustomerEmailChange(customerId, { challengeId, code }) {
+  const at = now();
+  const expired = new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
+  const change = await ownCustomerEmailChange(customerId, challengeId, at);
+  await assertNotLocked('email-change-code', customerId);
+  if (change.expiresAt < at) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
+
+  const attempt = await reserveAttempt('email-change-code', customerId);
+  if (!(await checkSecret(code, change.codeHash))) {
+    await repo.addEmailChangeAttempt(change.id);
+    throw wrongAnswer('email-change-code', attempt, new ApiError('INVALID_CODE', 'That code is incorrect.'));
+  }
+  await clearAttempts('email-change-code', customerId);
+
+  const customer = await repo.findCustomerById(customerId);
+  if (!customer) throw expired;
+  const taken = new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
+  if (await repo.emailUsedByOtherCustomer(change.newEmail, customerId)) throw taken;
+  try {
+    await tx(async (conn) => {
+      if (!(await repo.markEmailChangeUsed(conn, change.id, at))) throw expired;
+      await repo.updateCustomerEmail(conn, customerId, change.newEmail);
+    });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') throw taken;
+    throw err;
+  }
+  await clearAttempts('code-email', change.newEmail);
+  return publicCustomer({ ...customer, email: change.newEmail });
 }
 
 /* ---------------- Change password in My profile: current and new password → emailed code ---------------- */

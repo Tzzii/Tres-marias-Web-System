@@ -314,7 +314,7 @@ async function check() {
   console.log('counters in db:', counterRows.map((c) => `${c.name}=${c.value}`).join(' '), `| seed.counters.receipt=${seed.counters.receipt}`);
 
   // ---- tables the seed leaves empty (sign-ins, codes and deliveries fill them) ----
-  for (const t of ['login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes', 'outbox', 'qr_payments', 'webhook_events']) {
+  for (const t of ['login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes', 'customer_email_changes', 'outbox', 'qr_payments', 'webhook_events']) {
     const [{ n }] = await q(`SELECT COUNT(*) AS n FROM ${t}`);
     if (n !== 0) fail(`${t} has ${n} rows`);
   }

@@ -8,8 +8,8 @@ import { CODE_EMAILS } from './code.emails.js';
  * instead of being sent; production refuses the log driver (config.js), so there they really go out.
  *
  * Every code goes by email, never by SMS (owner's decision, Phase 12): the admin's sign-in and
- * contact-change codes, and the customer's codes for signing up, resetting a forgotten password and
- * changing the password in My profile. SMS is kept for notifications and outsourcing requests.
+ * contact-change codes, and the customer's codes for signing up, resetting a forgotten password,
+ * and changing the password or login email in My profile. SMS is kept for notifications and outsourcing requests.
  *
  * What each email says and how it looks is in code.emails.js (CODE_EMAILS, one builder per purpose): since
  * 2026-10-11 they go out as HTML in the same look as the customer notices, with the plain-text version
@@ -74,6 +74,19 @@ export function sendSignUpCode(request, code) {
       meta: { purpose: 'customer_sign_up', requestId: request.id }
     },
     'sign-up code'
+  );
+}
+
+/** Email a customer's email-change code to the new address, proving that they own it. */
+export function sendCustomerEmailChangeCode(customer, email, code, changeId) {
+  return deliver(
+    mailer,
+    {
+      to: email,
+      ...CODE_EMAILS.customer_email_change({ name: customer.name, email, code }),
+      meta: { purpose: 'customer_email_change', customerId: customer.id, changeId }
+    },
+    'email change code'
   );
 }
 
