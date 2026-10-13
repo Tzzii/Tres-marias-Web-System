@@ -49,7 +49,10 @@ export const channelsOf = (partner) => [...(partner.email ? ['email'] : []), ...
 /* ============================ Partners ============================ */
 
 // The email address (trimmed, lower case) and valid PH mobile number (domestic form) as saved
-const contactOf = (values) => ({ email: (values.email || '').trim().toLowerCase(), mobile: cleanMobile(values.mobile) });
+const contactOf = (values) => ({
+  email: (values.email || '').trim().toLowerCase(),
+  mobile: cleanMobile(values.mobile)
+});
 
 /** Reopen a saved custom supply under Other, with the original words in its text field. */
 export const partnerServiceInput = (service = '') => ({
@@ -58,7 +61,8 @@ export const partnerServiceInput = (service = '') => ({
 });
 
 /** Custom supplies belong to Other in filters and in the partner list's category order. */
-export const partnerServiceCategory = (service) => !service || OUTSOURCE_SERVICES.includes(service) ? service : OUTSOURCE_OTHER;
+export const partnerServiceCategory = (service) =>
+  !service || OUTSOURCE_SERVICES.includes(service) ? service : OUTSOURCE_OTHER;
 
 /** Normalize a typed supply and reuse a standard category when its name was typed under Other. */
 const suppliedService = (values) => {
@@ -76,18 +80,26 @@ const suppliedService = (values) => {
 export function partnerProblem(values, { names = [] } = {}) {
   const name = (values.name || '').trim();
   if (name.length < 2) return invalid('Enter the partner name.', { field: 'name' });
-  if (names.some((other) => other.toLowerCase() === name.toLowerCase())) return refuse('NAME_TAKEN', `"${name}" is already a partner.`, { field: 'name' });
+  if (names.some((other) => other.toLowerCase() === name.toLowerCase()))
+    return refuse('NAME_TAKEN', `"${name}" is already a partner.`, { field: 'name' });
   if (!OUTSOURCE_SERVICES.includes(values.service)) return invalid('Choose what they supply.', { field: 'service' });
   if (values.service === OUTSOURCE_OTHER) {
     const { min, max } = OUTSOURCE_OTHER_RANGE;
-    if (typeof values.serviceOther !== 'string' || suppliedService(values).length < min || suppliedService(values) === OUTSOURCE_OTHER) {
+    if (
+      typeof values.serviceOther !== 'string' ||
+      suppliedService(values).length < min ||
+      suppliedService(values) === OUTSOURCE_OTHER
+    ) {
       return invalid(`Specify what they supply (at least ${min} characters).`, { field: 'serviceOther' });
     }
-    if (/[\u0000-\u001f\u007f\u2028\u2029]/.test(values.serviceOther)) return invalid('Keep the supply type on one line.', { field: 'serviceOther' });
-    if (suppliedService(values).length > max) return invalid(`Keep the supply type to ${max} characters.`, { field: 'serviceOther' });
+    if (/[\u0000-\u001f\u007f\u2028\u2029]/.test(values.serviceOther))
+      return invalid('Keep the supply type on one line.', { field: 'serviceOther' });
+    if (suppliedService(values).length > max)
+      return invalid(`Keep the supply type to ${max} characters.`, { field: 'serviceOther' });
   }
   const { email, mobile } = contactOf(values);
-  if (!email && !mobile) return invalid('Give an email address or a mobile number so requests can reach them.', { field: 'email' });
+  if (!email && !mobile)
+    return invalid('Give an email address or a mobile number so requests can reach them.', { field: 'email' });
   if (email && !EMAIL_RE.test(email)) return invalid('Enter a valid email address.', { field: 'email' });
   if (mobile && validateMobile(mobile)) return invalid(validateMobile(mobile), { field: 'mobile' });
   return null;
@@ -119,7 +131,9 @@ export const archiveText = (archived) => (archived ? 'Archived.' : 'Restored fro
 /** Partners that can't be archived because a request sent to them waits for their reply (IN_USE), or null. */
 export function partnerArchiveProblem(partners, archived, hasOpenContract) {
   const busy = archived ? partners.filter((partner) => hasOpenContract(partner.id)) : [];
-  return busy.length ? refuse('IN_USE', `Close their open requests first: ${busy.map((partner) => partner.name).join(', ')}.`) : null;
+  return busy.length
+    ? refuse('IN_USE', `Close their open requests first: ${busy.map((partner) => partner.name).join(', ')}.`)
+    : null;
 }
 
 /**
@@ -140,7 +154,9 @@ export function partnerStats(contracts) {
 export const partnerView = (partner, stats) => ({ ...partner, channels: channelsOf(partner), ...stats });
 
 /** The order of the partner list: by category (custom supplies under Other), then by name. */
-export const partnerOrder = (a, b) => OUTSOURCE_SERVICES.indexOf(partnerServiceCategory(a.service)) - OUTSOURCE_SERVICES.indexOf(partnerServiceCategory(b.service)) || a.name.localeCompare(b.name);
+export const partnerOrder = (a, b) =>
+  OUTSOURCE_SERVICES.indexOf(partnerServiceCategory(a.service)) -
+    OUTSOURCE_SERVICES.indexOf(partnerServiceCategory(b.service)) || a.name.localeCompare(b.name);
 
 /* ============================ Contracts ============================ */
 
@@ -149,10 +165,13 @@ export const partnerOrder = (a, b) => OUTSOURCE_SERVICES.indexOf(partnerServiceC
  * a quantity are dropped first, so a blank last row in the dialog is not an error.
  */
 export const contractItems = (items) =>
-  (items || []).map((item) => ({ name: (item.name || '').trim(), qty: Number(item.qty) })).filter((item) => item.name || item.qty);
+  (items || [])
+    .map((item) => ({ name: (item.name || '').trim(), qty: Number(item.qty) }))
+    .filter((item) => item.name || item.qty);
 
 /** The reservation a contract is for: its ref, or NO_EVENT when none is chosen. */
-export const contractRef = (values) => (values.reservationRef && values.reservationRef !== NO_EVENT ? values.reservationRef : NO_EVENT);
+export const contractRef = (values) =>
+  values.reservationRef && values.reservationRef !== NO_EVENT ? values.reservationRef : NO_EVENT;
 
 /** The outsource price as saved: a number of pesos, 0 when left blank. */
 export const contractAmount = (values) => Number(values.amount || 0);
@@ -175,7 +194,8 @@ export function contractProblem(values, { partner, refStatus, today }) {
   if (bad >= 0) return invalid('Each item needs a name and a quantity of 1 or more.', { field: 'items', row: bad });
   if (!values.needBy) return invalid('Choose the date the items are needed.', { field: 'needBy' });
   if (values.needBy < today) return invalid('The date needed is in the past.', { field: 'needBy' });
-  if (contractRef(values) !== NO_EVENT && !HOLDS_DATE.includes(refStatus)) return invalid('Choose an approved or confirmed reservation.', { field: 'reservationRef' });
+  if (contractRef(values) !== NO_EVENT && !HOLDS_DATE.includes(refStatus))
+    return invalid('Choose an approved or confirmed reservation.', { field: 'reservationRef' });
   const amount = contractAmount(values);
   if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT) {
     return invalid(`Enter the outsource price in whole pesos, up to ${peso(MAX_AMOUNT)}.`, { field: 'amount' });
@@ -194,10 +214,14 @@ export const EDITED_TEXT = 'Edited the draft.';
  * the text (`text`, already trimmed) must be at least 20 characters.
  */
 export function sendProblem(contract, partner, text) {
-  if (!['draft', 'sent'].includes(contract.status)) return refuse('LOCKED', 'Only a draft or an unanswered request can be sent.');
+  if (!['draft', 'sent'].includes(contract.status))
+    return refuse('LOCKED', 'Only a draft or an unanswered request can be sent.');
   if (!partner) return refuse('NOT_FOUND', 'Partner not found.');
   if (partner.archived) return invalid('That partner is archived. Restore them first.', { field: 'partner' });
-  if (!channelsOf(partner).length) return refuse('NO_CHANNEL', `${partner.name} has no email address or mobile number. Add one first.`, { field: 'partner' });
+  if (!channelsOf(partner).length)
+    return refuse('NO_CHANNEL', `${partner.name} has no email address or mobile number. Add one first.`, {
+      field: 'partner'
+    });
   if (text.length < 20) return invalid('The request text is too short to send.', { field: 'body' });
   return null;
 }
@@ -207,25 +231,34 @@ export function sendProblem(contract, partner, text) {
  * so a partner reachable only by SMS gets word for word what an emailed partner gets.
  */
 export const contractDeliveries = (partner, text, at) =>
-  channelsOf(partner).map((channel) => ({ channel, to: channel === 'email' ? partner.email : partner.mobile, at, body: text }));
+  channelsOf(partner).map((channel) => ({
+    channel,
+    to: channel === 'email' ? partner.email : partner.mobile,
+    at,
+    body: text
+  }));
 
 // "email" or "SMS", as the history lines name a channel
 const channelWord = (channel) => (channel === 'email' ? 'email' : 'SMS');
 
 /** The request's history line of a send, with where it went, e.g. "Sent the request by email (a@b.ph) and SMS (09171112233)." */
-export const sentText = (deliveries) => `Sent the request by ${deliveries.map((d) => `${channelWord(d.channel)} (${d.to})`).join(' and ')}.`;
+export const sentText = (deliveries) =>
+  `Sent the request by ${deliveries.map((d) => `${channelWord(d.channel)} (${d.to})`).join(' and ')}.`;
 
 /**
  * The same send in the reservation's audit trail, e.g. "Sent the request by email and SMS.": the
  * customer sees that trail too, so it names the channels only, never the partner's email address or
  * mobile number.
  */
-export const sentActivityText = (deliveries) => `Sent the request by ${deliveries.map((d) => channelWord(d.channel)).join(' and ')}.`;
+export const sentActivityText = (deliveries) =>
+  `Sent the request by ${deliveries.map((d) => channelWord(d.channel)).join(' and ')}.`;
 
 /** What is wrong with a status change, or null: a move NEXT_STATUS allows, and a reason of 5+ characters for a decline or a cancellation. */
 export function statusProblem(contract, status, reason) {
-  if (!NEXT_STATUS[contract.status].includes(status)) return invalid(`A ${contract.status} request cannot be marked ${status}.`);
-  if (['declined', 'cancelled'].includes(status) && reason.length < 5) return invalid('Give a short reason.', { field: 'note' });
+  if (!NEXT_STATUS[contract.status].includes(status))
+    return invalid(`A ${contract.status} request cannot be marked ${status}.`);
+  if (['declined', 'cancelled'].includes(status) && reason.length < 5)
+    return invalid('Give a short reason.', { field: 'note' });
   return null;
 }
 

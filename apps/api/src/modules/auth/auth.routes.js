@@ -29,20 +29,40 @@ authRoutes.post('/customer/login', authLimiter, validate({ body: schemas.custome
 authRoutes.post('/customer/register', authLimiter, validate({ body: schemas.customerRegister }), async (req, res) => {
   res.json(await auth.startSignUp(req.valid.body));
 });
-authRoutes.post('/customer/register/:id/resend', authLimiter, validate({ params: schemas.requestParams }), async (req, res) => {
-  res.json(await auth.resendSignUpCode(req.valid.params.id));
-});
-authRoutes.post('/customer/register/:id/verify', authLimiter, validate({ params: schemas.requestParams, body: schemas.codeBody }), async (req, res) => {
-  res.status(201).json(await auth.confirmSignUp({ challengeId: req.valid.params.id, code: req.valid.body.code }));
-});
+authRoutes.post(
+  '/customer/register/:id/resend',
+  authLimiter,
+  validate({ params: schemas.requestParams }),
+  async (req, res) => {
+    res.json(await auth.resendSignUpCode(req.valid.params.id));
+  }
+);
+authRoutes.post(
+  '/customer/register/:id/verify',
+  authLimiter,
+  validate({ params: schemas.requestParams, body: schemas.codeBody }),
+  async (req, res) => {
+    res.status(201).json(await auth.confirmSignUp({ challengeId: req.valid.params.id, code: req.valid.body.code }));
+  }
+);
 
 // Forgot password: start (emails a code), resend, verify the code, then save the new password
-authRoutes.post('/customer/password-reset', authLimiter, validate({ body: schemas.passwordResetStart }), async (req, res) => {
-  res.json(await auth.startPasswordReset(req.valid.body));
-});
-authRoutes.post('/customer/password-reset/:id/resend', authLimiter, validate({ params: schemas.requestParams }), async (req, res) => {
-  res.json(await auth.resendPasswordResetCode(req.valid.params.id));
-});
+authRoutes.post(
+  '/customer/password-reset',
+  authLimiter,
+  validate({ body: schemas.passwordResetStart }),
+  async (req, res) => {
+    res.json(await auth.startPasswordReset(req.valid.body));
+  }
+);
+authRoutes.post(
+  '/customer/password-reset/:id/resend',
+  authLimiter,
+  validate({ params: schemas.requestParams }),
+  async (req, res) => {
+    res.json(await auth.resendPasswordResetCode(req.valid.params.id));
+  }
+);
 authRoutes.post(
   '/customer/password-reset/:id/verify',
   authLimiter,
@@ -59,7 +79,12 @@ authRoutes.post(
   optionalAuth,
   validate({ params: schemas.requestParams, body: schemas.passwordResetComplete }),
   async (req, res) => {
-    res.json(await auth.completePasswordReset({ challengeId: req.valid.params.id, password: req.valid.body.password }, req.user || null));
+    res.json(
+      await auth.completePasswordReset(
+        { challengeId: req.valid.params.id, password: req.valid.body.password },
+        req.user || null
+      )
+    );
   }
 );
 
@@ -103,9 +128,18 @@ customerAccountRoutes.post('/email', validate({ body: schemas.customerEmailChang
 customerAccountRoutes.post('/email/:id/resend', validate({ params: schemas.requestParams }), async (req, res) => {
   res.json(await auth.resendCustomerEmailChangeCode(req.user.id, req.valid.params.id));
 });
-customerAccountRoutes.post('/email/:id/confirm', validate({ params: schemas.requestParams, body: schemas.codeBody }), async (req, res) => {
-  res.json(await auth.confirmCustomerEmailChange(req.user.id, { challengeId: req.valid.params.id, code: req.valid.body.code }));
-});
+customerAccountRoutes.post(
+  '/email/:id/confirm',
+  validate({ params: schemas.requestParams, body: schemas.codeBody }),
+  async (req, res) => {
+    res.json(
+      await auth.confirmCustomerEmailChange(req.user.id, {
+        challengeId: req.valid.params.id,
+        code: req.valid.body.code
+      })
+    );
+  }
+);
 
 // Password change (Phase 12): the current and new password (emails a code), resend the code, then the
 // code, which saves the new password and returns { ok, token }: the new token keeps this session going
@@ -115,9 +149,15 @@ customerAccountRoutes.post('/password', validate({ body: schemas.passwordChange 
 customerAccountRoutes.post('/password/:id/resend', validate({ params: schemas.requestParams }), async (req, res) => {
   res.json(await auth.resendPasswordChangeCode(req.user.id, req.valid.params.id));
 });
-customerAccountRoutes.post('/password/:id/confirm', validate({ params: schemas.requestParams, body: schemas.codeBody }), async (req, res) => {
-  res.json(await auth.confirmPasswordChange(req.user, { challengeId: req.valid.params.id, code: req.valid.body.code }));
-});
+customerAccountRoutes.post(
+  '/password/:id/confirm',
+  validate({ params: schemas.requestParams, body: schemas.codeBody }),
+  async (req, res) => {
+    res.json(
+      await auth.confirmPasswordChange(req.user, { challengeId: req.valid.params.id, code: req.valid.body.code })
+    );
+  }
+);
 
 /* ============================ /api/admin/me (signed-in admin) ============================ */
 

@@ -1,5 +1,20 @@
-import { linkByName, planAddonSizes, readAddonPrice, readAddonSizes, rentalPriceList, slugify, withListedSizes } from '@tm/shared/src/domain/catalog.js';
-import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, MIN_DOWNPAYMENT_RANGE, PRICE_PER_PLATE_RANGE, RULES } from '@tm/shared/src/services/config.js';
+import {
+  linkByName,
+  planAddonSizes,
+  readAddonPrice,
+  readAddonSizes,
+  rentalPriceList,
+  slugify,
+  withListedSizes
+} from '@tm/shared/src/domain/catalog.js';
+import {
+  DEFAULT_MIN_DOWNPAYMENT,
+  DEFAULT_PRICE_PER_PLATE,
+  DISH_CATEGORIES,
+  MIN_DOWNPAYMENT_RANGE,
+  PRICE_PER_PLATE_RANGE,
+  RULES
+} from '@tm/shared/src/services/config.js';
 import { tx } from '../../db.js';
 import crypto from 'node:crypto';
 import { storage } from '../../integrations/storage/index.js';
@@ -41,10 +56,12 @@ const peso = (amount) => `₱${amount.toLocaleString('en-PH')}`;
 const invalid = (message, field) => new ApiError('INVALID', message, { field });
 
 // A number sent by the page (a number, or digits as text); anything else is NaN, which fails every check
-const toNumber = (value) => (typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN);
+const toNumber = (value) =>
+  typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
 
 // True when a save failed on the named UNIQUE index (two saves of the same name at the same moment)
-const isDuplicate = (err, ...keys) => err && err.code === 'ER_DUP_ENTRY' && keys.some((key) => String(err.sqlMessage || err.message).includes(key));
+const isDuplicate = (err, ...keys) =>
+  err && err.code === 'ER_DUP_ENTRY' && keys.some((key) => String(err.sqlMessage || err.message).includes(key));
 
 /* ============================ Reads ============================ */
 
@@ -140,7 +157,8 @@ function packageValues(values, rental) {
   if (price > MAX_PACKAGE_PRICE) throw invalid(`Enter a price of at most ${peso(MAX_PACKAGE_PRICE)}.`, 'price');
 
   const guests = toNumber(values.guests);
-  if (!Number.isInteger(guests) || guests < 1 || guests > RULES.maxGuests) throw invalid(`Between 1 and ${RULES.maxGuests}.`, 'guests');
+  if (!Number.isInteger(guests) || guests < 1 || guests > RULES.maxGuests)
+    throw invalid(`Between 1 and ${RULES.maxGuests}.`, 'guests');
 
   return { name, description, price, guests, items: packageItems(values.items) };
 }
@@ -160,7 +178,10 @@ function packageItems(list) {
     if (name.length > MAX_ITEM_NAME) throw invalid(`Keep each item to ${MAX_ITEM_NAME} characters or fewer.`, 'items');
     const qty = item.qty ?? null;
     if (qty !== null && (!Number.isInteger(qty) || qty < 1 || qty > MAX_ITEM_QTY)) {
-      throw invalid(`Start a line with a quantity from 1 to ${MAX_ITEM_QTY.toLocaleString('en-PH')}, or leave the number out.`, 'items');
+      throw invalid(
+        `Start a line with a quantity from 1 to ${MAX_ITEM_QTY.toLocaleString('en-PH')}, or leave the number out.`,
+        'items'
+      );
     }
     return qty !== null && typeof item.grows === 'boolean' ? { qty, name, grows: item.grows } : { qty, name };
   });
@@ -191,18 +212,21 @@ export async function savePackage(id, values, file) {
         await repo.updatePackage(id, { ...clean, slug, visible: values.visible ?? existing.visible }, conn);
       } else {
         const { total, nextOrder } = await repo.packageCounts(conn);
-        await repo.insertPackage({
-          ...clean,
-          id: savedId,
-          slug,
-          kind: 'package',
-          mood: total % 4,
-          icon: 'restaurant',
-          featured: false,
-          visible: values.visible ?? false,
-          archived: false,
-          sortOrder: nextOrder
-        }, conn);
+        await repo.insertPackage(
+          {
+            ...clean,
+            id: savedId,
+            slug,
+            kind: 'package',
+            mood: total % 4,
+            icon: 'restaurant',
+            featured: false,
+            visible: values.visible ?? false,
+            archived: false,
+            sortOrder: nextOrder
+          },
+          conn
+        );
       }
       if (file || values.removePhoto) {
         oldKey = (await repo.findPackagePhoto(savedId, conn))?.key;
@@ -253,7 +277,8 @@ export async function setPackageArchived(id, archived) {
 
 /* ============================ Add-ons (admin) ============================ */
 
-const addonTaken = () => new ApiError('NAME_TAKEN', 'An additional charge with this name already exists.', { field: 'name' });
+const addonTaken = () =>
+  new ApiError('NAME_TAKEN', 'An additional charge with this name already exists.', { field: 'name' });
 
 /**
  * Admin: update the charge with this id, or create one when id is null: { name, description, price,
@@ -295,7 +320,11 @@ export async function saveAddon(id, values) {
   // (linkByName). Each must exist, not be archived, and not be used by another charge.
   const ownIds = new Set([id, ...(current ? current.sizes.map((s) => s.id) : [])].filter(Boolean));
   const inventory = await repo.listInventoryForLinks();
-  const linked = linkByName({ name, inventoryItemId: typeof values.inventoryItemId === 'string' ? values.inventoryItemId : null, sizes }, inventory, ownIds);
+  const linked = linkByName(
+    { name, inventoryItemId: typeof values.inventoryItemId === 'string' ? values.inventoryItemId : null, sizes },
+    inventory,
+    ownIds
+  );
   const ownItem = linked.inventoryItemId;
   sizes = linked.sizes;
   [[ownItem, 'inventoryItemId'], ...sizes.map((s, i) => [s.inventoryItemId, `sizes.${i}.inventoryItemId`])]
@@ -303,10 +332,17 @@ export async function saveAddon(id, values) {
     .forEach(([itemId, field]) => {
       const item = inventory.find((i) => i.id === itemId);
       if (!item || item.archived) throw invalid('That inventory item no longer exists.', field);
-      if (item.addonId && !ownIds.has(item.addonId)) throw invalid(`${item.name} is already used by another additional charge.`, field);
+      if (item.addonId && !ownIds.has(item.addonId))
+        throw invalid(`${item.name} is already used by another additional charge.`, field);
     });
 
-  const clean = { name, description, price: own.price, hasQuantity: sizes.length || hasPackages ? false : values.hasQuantity, hasPackages };
+  const clean = {
+    name,
+    description,
+    price: own.price,
+    hasQuantity: sizes.length || hasPackages ? false : values.hasQuantity,
+    hasPackages
+  };
   // A size is counted by the piece; a package is booked once
   const sizeCounted = !hasPackages;
   const savedId = id || newId('add');
@@ -321,13 +357,26 @@ export async function saveAddon(id, values) {
   try {
     await tx(async (conn) => {
       if (id) await repo.updateAddon(id, clean, conn);
-      else await repo.insertAddon({ ...clean, id: savedId, archived: false, sortOrder: await repo.nextAddonOrder(conn) }, conn);
+      else
+        await repo.insertAddon(
+          { ...clean, id: savedId, archived: false, sortOrder: await repo.nextAddonOrder(conn) },
+          conn
+        );
       // Updates first, so a new size never meets a name that an existing size is giving up
       for (const size of plan.update) await repo.updateAddonSize(size.id, { ...size, hasQuantity: sizeCounted }, conn);
       for (const sizeId of plan.archive) await repo.setAddonArchived(sizeId, true, conn);
       for (const [i, size] of plan.add.entries()) {
         await repo.insertAddon(
-          { id: addedIds[i], parentId: savedId, name: size.name, description: size.description, price: size.price, hasQuantity: sizeCounted, archived: false, sortOrder: size.sortOrder },
+          {
+            id: addedIds[i],
+            parentId: savedId,
+            name: size.name,
+            description: size.description,
+            price: size.price,
+            hasQuantity: sizeCounted,
+            archived: false,
+            sortOrder: size.sortOrder
+          },
           conn
         );
       }
@@ -342,7 +391,10 @@ export async function saveAddon(id, values) {
 
 // A charge is on bookings: deleting it would take it off them, so the admin archives it instead
 const addonInUse = (name, count) =>
-  new ApiError('IN_USE', `${name} is on ${count} reservation${count === 1 ? '' : 's'}, so it can't be deleted. Archive it instead to stop offering it.`);
+  new ApiError(
+    'IN_USE',
+    `${name} is on ${count} reservation${count === 1 ? '' : 's'}, so it can't be deleted. Archive it instead to stop offering it.`
+  );
 
 /**
  * Admin: delete a charge for good, with its sizes. Only when no booking has it or one of its sizes
@@ -374,7 +426,8 @@ export async function setAddonArchived(id, archived) {
 
 /* ============================ Dishes (admin) ============================ */
 
-const dishTaken = () => new ApiError('NAME_TAKEN', 'This category already has a dish with that name.', { field: 'name' });
+const dishTaken = () =>
+  new ApiError('NAME_TAKEN', 'This category already has a dish with that name.', { field: 'name' });
 
 /**
  * Admin: update the dish with this id, or create one when id is null: { name, category }, the
@@ -383,11 +436,13 @@ const dishTaken = () => new ApiError('NAME_TAKEN', 'This category already has a 
 export async function saveDish(id, values) {
   const name = values.name.trim();
   if (name.length < 2) throw invalid('Enter the name of the dish.', 'name');
-  if (!DISH_CATEGORIES.some((c) => c.key === values.category)) throw invalid('Choose which part of the menu this dish belongs to.', 'category');
+  if (!DISH_CATEGORIES.some((c) => c.key === values.category))
+    throw invalid('Choose which part of the menu this dish belongs to.', 'category');
   if (id && !(await repo.findDishById(id))) throw new ApiError('NOT_FOUND', 'Dish not found.');
   if (await repo.dishNameTaken(values.category, name, id || '')) throw dishTaken();
 
-  if (/^kare[\s-]*kare$/i.test(name) && values.category !== 'pork') throw invalid('Kare-Kare belongs under Pork Dish.', 'category');
+  if (/^kare[\s-]*kare$/i.test(name) && values.category !== 'pork')
+    throw invalid('Kare-Kare belongs under Pork Dish.', 'category');
   const clean = { name, category: values.category };
   const savedId = id || newId('dish');
   try {
@@ -431,7 +486,10 @@ export async function setPricePerPlate(value) {
   const amount = toNumber(value);
   const { min, max } = PRICE_PER_PLATE_RANGE;
   if (!Number.isInteger(amount) || amount < min || amount > max) {
-    throw invalid(`The buffet price per person must be between ₱${min} and ₱${max.toLocaleString('en-PH')}.`, 'pricePerPlate');
+    throw invalid(
+      `The buffet price per person must be between ₱${min} and ₱${max.toLocaleString('en-PH')}.`,
+      'pricePerPlate'
+    );
   }
   await repo.setPricePerPlate(amount, now());
   return { pricePerPlate: amount };
@@ -449,7 +507,10 @@ export async function setMinDownpayment(value) {
   const amount = toNumber(value);
   const { min, max } = MIN_DOWNPAYMENT_RANGE;
   if (!Number.isInteger(amount) || amount < min || amount > max) {
-    throw invalid(`The minimum downpayment must be between ₱${min.toLocaleString('en-PH')} and ₱${max.toLocaleString('en-PH')}.`, 'minDownpayment');
+    throw invalid(
+      `The minimum downpayment must be between ₱${min.toLocaleString('en-PH')} and ₱${max.toLocaleString('en-PH')}.`,
+      'minDownpayment'
+    );
   }
   await repo.setMinDownpayment(amount, now());
   return { minDownpayment: amount };

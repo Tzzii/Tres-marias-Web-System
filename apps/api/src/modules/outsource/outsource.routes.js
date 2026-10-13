@@ -28,9 +28,13 @@ outsourceAdminRoutes.post('/partners', validate({ body: schemas.partnerBody }), 
 outsourceAdminRoutes.post('/partners/archive', validate({ body: schemas.archiveBody }), async (req, res) => {
   res.json(await outsource.setPartnerArchived(req.valid.body.ids, req.valid.body.archived, req.user));
 });
-outsourceAdminRoutes.put('/partners/:id', validate({ params: schemas.idParams, body: schemas.partnerBody }), async (req, res) => {
-  res.json(await outsource.savePartner(req.valid.params.id, req.valid.body, req.user));
-});
+outsourceAdminRoutes.put(
+  '/partners/:id',
+  validate({ params: schemas.idParams, body: schemas.partnerBody }),
+  async (req, res) => {
+    res.json(await outsource.savePartner(req.valid.params.id, req.valid.body, req.user));
+  }
+);
 
 // Contracts: the list (newest first), a new draft, changes to a draft, send, and the next status
 outsourceAdminRoutes.get('/contracts', async (req, res) => {
@@ -39,14 +43,28 @@ outsourceAdminRoutes.get('/contracts', async (req, res) => {
 outsourceAdminRoutes.post('/contracts', validate({ body: schemas.contractBody }), async (req, res) => {
   res.status(201).json(await outsource.saveContract(null, req.valid.body, req.user));
 });
-outsourceAdminRoutes.put('/contracts/:id', validate({ params: schemas.idParams, body: schemas.contractBody }), async (req, res) => {
-  res.json(await outsource.saveContract(req.valid.params.id, req.valid.body, req.user));
-});
+outsourceAdminRoutes.put(
+  '/contracts/:id',
+  validate({ params: schemas.idParams, body: schemas.contractBody }),
+  async (req, res) => {
+    res.json(await outsource.saveContract(req.valid.params.id, req.valid.body, req.user));
+  }
+);
 // { body } -> the contract (with deliveryNote when a channel did not really go out)
-outsourceAdminRoutes.post('/contracts/:id/send', validate({ params: schemas.idParams, body: schemas.sendBody }), async (req, res) => {
-  res.json(await outsource.sendContract(req.valid.params.id, req.valid.body.body, req.user));
-});
+outsourceAdminRoutes.post(
+  '/contracts/:id/send',
+  validate({ params: schemas.idParams, body: schemas.sendBody }),
+  async (req, res) => {
+    res.json(await outsource.sendContract(req.valid.params.id, req.valid.body.body, req.user));
+  }
+);
 // { status: 'accepted' | 'declined' | 'completed' | 'cancelled', note }
-outsourceAdminRoutes.post('/contracts/:id/status', validate({ params: schemas.idParams, body: schemas.statusBody }), async (req, res) => {
-  res.json(await outsource.setContractStatus(req.valid.params.id, req.valid.body.status, req.valid.body.note, req.user));
-});
+outsourceAdminRoutes.post(
+  '/contracts/:id/status',
+  validate({ params: schemas.idParams, body: schemas.statusBody }),
+  async (req, res) => {
+    res.json(
+      await outsource.setContractStatus(req.valid.params.id, req.valid.body.status, req.valid.body.note, req.user)
+    );
+  }
+);

@@ -22,7 +22,8 @@ const TYPES = {
 const PICKER_ID = 'tres-marias-files';
 
 /** True when this browser can open the "Save as" window (and the page is not inside another site's frame). */
-export const canAskWhereToSave = () => typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function' && window.self === window.top;
+export const canAskWhereToSave = () =>
+  typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function' && window.self === window.top;
 
 /**
  * Step 1, straight after the click: open the "Save as" window with `fileName` filled in.
@@ -34,7 +35,11 @@ export async function askWhereToSave(fileName) {
   if (!canAskWhereToSave()) return { fileName, handle: null };
   const ext = String(fileName).split('.').pop().toLowerCase();
   try {
-    const handle = await window.showSaveFilePicker({ suggestedName: fileName, id: PICKER_ID, ...(TYPES[ext] ? { types: [TYPES[ext]] } : {}) });
+    const handle = await window.showSaveFilePicker({
+      suggestedName: fileName,
+      id: PICKER_ID,
+      ...(TYPES[ext] ? { types: [TYPES[ext]] } : {})
+    });
     return { fileName, handle };
   } catch (err) {
     if (err && err.name === 'AbortError') return null; // Cancel

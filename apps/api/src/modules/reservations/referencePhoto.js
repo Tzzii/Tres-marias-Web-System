@@ -14,8 +14,14 @@ export function inspectReferencePhoto(file) {
   else if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) ext = 'jpg';
   else if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') ext = 'webp';
   const mime = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[ext];
-  if (!ext || mime !== file.mimetype) throw invalid('That file is not a valid JPG, PNG or WebP photo. Choose another photo.');
-  const name = String(file.originalname || `Reference photo.${ext}`).toWellFormed().split(/[\\/]/).pop().replace(/[\x00-\x1f\x7f]/g, '').slice(0, 160);
+  if (!ext || mime !== file.mimetype)
+    throw invalid('That file is not a valid JPG, PNG or WebP photo. Choose another photo.');
+  const name = String(file.originalname || `Reference photo.${ext}`)
+    .toWellFormed()
+    .split(/[\\/]/)
+    .pop()
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .slice(0, 160);
   return { name: name || `Reference photo.${ext}`, mime, size: buffer.length, ext };
 }
 
@@ -31,7 +37,9 @@ export async function sendReferencePhoto(res, photo) {
   await new Promise((resolve, reject) => {
     stream.once('open', resolve);
     stream.once('error', reject);
-  }).catch(() => { throw new ApiError('NOT_FOUND', 'The reference photo is missing.'); });
+  }).catch(() => {
+    throw new ApiError('NOT_FOUND', 'The reference photo is missing.');
+  });
   res.set({
     'Content-Type': photo.mime,
     'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(photo.name)}`,

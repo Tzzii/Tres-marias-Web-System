@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import { ChatPanel, DocumentDialog, ErrorState, DashCard, PageHeader, Spinner, messageApi, reservationApi, useDocumentTitle, useNotify, useResource } from '@tm/shared';
+import {
+  ChatPanel,
+  DocumentDialog,
+  ErrorState,
+  DashCard,
+  PageHeader,
+  Spinner,
+  messageApi,
+  reservationApi,
+  useDocumentTitle,
+  useNotify,
+  useResource
+} from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
 /**
@@ -16,9 +28,17 @@ export default function MessagesPage() {
   const [params, setParams] = useSearchParams();
   // The customer's one conversation, created on first visit. live: false = the id never changes, so
   // don't look it up again on every data change (creating it is itself a change).
-  const threadId = useResource(async () => (await messageApi.openThread({ customerId: user.id })).id, [user.id], { live: false });
+  const threadId = useResource(async () => (await messageApi.openThread({ customerId: user.id })).id, [user.id], {
+    live: false
+  });
   // Its messages, reloaded when data changes
-  const thread = useResource(() => (threadId.data ? messageApi.getThread(threadId.data, { customerId: user.id, side: 'customer' }) : Promise.resolve(null)), [threadId.data, user.id]);
+  const thread = useResource(
+    () =>
+      threadId.data
+        ? messageApi.getThread(threadId.data, { customerId: user.id, side: 'customer' })
+        : Promise.resolve(null),
+    [threadId.data, user.id]
+  );
   const [doc, setDoc] = useState(null); // attachment shown in the document dialog
   const [topic, setTopic] = useState(null); // { ref, label }: the event the next messages are about
 
@@ -36,21 +56,30 @@ export default function MessagesPage() {
   // Opening the chat marks the admin's messages as read. A failed mark (e.g. no connection for a
   // moment) is simply tried again the next time the chat reloads with unread messages.
   useEffect(() => {
-    if (thread.data && thread.data.unread > 0) messageApi.markThreadRead(thread.data.id, 'customer', { customerId: user.id }).catch(() => {});
+    if (thread.data && thread.data.unread > 0)
+      messageApi.markThreadRead(thread.data.id, 'customer', { customerId: user.id }).catch(() => {});
   }, [thread.data]);
 
   // Load the reservation an attachment belongs to, then open the document preview
   const openAttachment = async (attachment) => {
     try {
       const detail = await reservationApi.getReservation(attachment.ref, { customerId: user.id });
-      setDoc({ detail, doc: { kind: attachment.kind, name: attachment.name, paymentId: attachment.paymentId, available: true } });
+      setDoc({
+        detail,
+        doc: { kind: attachment.kind, name: attachment.name, paymentId: attachment.paymentId, available: true }
+      });
     } catch (e) {
       notify(e.message, 'error');
     }
   };
 
   const error = threadId.error || thread.error;
-  if (error) return <DashCard><ErrorState error={error} onRetry={() => (threadId.error ? threadId.reload() : thread.reload())} /></DashCard>;
+  if (error)
+    return (
+      <DashCard>
+        <ErrorState error={error} onRetry={() => (threadId.error ? threadId.reload() : thread.reload())} />
+      </DashCard>
+    );
 
   return (
     <>
@@ -78,7 +107,15 @@ export default function MessagesPage() {
           composeTag={topic ? { label: topic.label } : null}
           onClearComposeTag={() => setTopic(null)}
           // Send as the customer, tagged with the chosen event if any; the admin sees it in their inbox
-          onSend={(body) => messageApi.sendMessage(threadId.data, { side: 'customer', senderName: user.name, body, customerId: user.id, ref: topic ? topic.ref : null })}
+          onSend={(body) =>
+            messageApi.sendMessage(threadId.data, {
+              side: 'customer',
+              senderName: user.name,
+              body,
+              customerId: user.id,
+              ref: topic ? topic.ref : null
+            })
+          }
           // Edit or delete a message the customer typed, within 60 minutes of sending (the server checks it)
           onEdit={(messageId, body) => messageApi.editMessage(threadId.data, messageId, { side: 'customer', body })}
           onDelete={(messageId) => messageApi.deleteMessage(threadId.data, messageId, { side: 'customer' })}

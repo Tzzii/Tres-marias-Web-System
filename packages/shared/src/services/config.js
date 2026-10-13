@@ -105,12 +105,15 @@ export const OCCASION_OTHER_RANGE = { min: 2, max: 40 };
  * their inner spaces made single; when they name a listed occasion ("wedding") that one is saved ("Wedding").
  */
 export function bookingOccasion(picked, typed) {
-  if (typeof picked !== 'string' || !OCCASIONS.includes(picked)) return { problem: { field: 'occasion', message: 'Choose the occasion.' } };
+  if (typeof picked !== 'string' || !OCCASIONS.includes(picked))
+    return { problem: { field: 'occasion', message: 'Choose the occasion.' } };
   if (picked !== OCCASION_OTHER) return { occasion: picked };
   const words = typeof typed === 'string' ? typed.trim().replace(/\s+/g, ' ') : '';
   const { min, max } = OCCASION_OTHER_RANGE;
-  if (words.length < min) return { problem: { field: 'occasionOther', message: `Type your occasion (at least ${min} characters).` } };
-  if (words.length > max) return { problem: { field: 'occasionOther', message: `Keep your occasion to ${max} characters.` } };
+  if (words.length < min)
+    return { problem: { field: 'occasionOther', message: `Type your occasion (at least ${min} characters).` } };
+  if (words.length > max)
+    return { problem: { field: 'occasionOther', message: `Keep your occasion to ${max} characters.` } };
   const listed = OCCASIONS.find((name) => name.toLowerCase() === words.toLowerCase());
   return { occasion: listed || words };
 }
@@ -212,7 +215,15 @@ export const BLOCK_NOTE_MAX = 120;
 
 // Equipment inventory categories, in display order. Lights and sound are not owned: they come
 // from an outsourcing partner (see OUTSOURCE_SERVICES), so they have no category here.
-export const INVENTORY_CATEGORIES = ['Furniture', 'Linens', 'Serving ware', 'Tableware', 'Kitchen', 'Tents and stage', 'Decor'];
+export const INVENTORY_CATEGORIES = [
+  'Furniture',
+  'Linens',
+  'Serving ware',
+  'Tableware',
+  'Kitchen',
+  'Tents and stage',
+  'Decor'
+];
 
 // What an outsourcing partner can supply, in display order. "Other" keeps the list open for
 // one-off arrangements: choosing it requires the admin to name what the partner supplies.

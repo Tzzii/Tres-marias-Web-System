@@ -31,8 +31,20 @@ export const slugify = (value) =>
 export function rentalPriceList(items) {
   return items
     .filter((item) => item.rentable && !item.archived && item.rentPrice > 0)
-    .map((item) => ({ id: item.id, name: item.name, category: item.category, price: item.rentPrice, damageFee: item.damageFee, ...(item.code ? { code: item.code } : {}), photoVersion: item.photoVersion || null }))
-    .sort((a, b) => INVENTORY_CATEGORIES.indexOf(a.category) - INVENTORY_CATEGORIES.indexOf(b.category) || a.name.localeCompare(b.name));
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      price: item.rentPrice,
+      damageFee: item.damageFee,
+      ...(item.code ? { code: item.code } : {}),
+      photoVersion: item.photoVersion || null
+    }))
+    .sort(
+      (a, b) =>
+        INVENTORY_CATEGORIES.indexOf(a.category) - INVENTORY_CATEGORIES.indexOf(b.category) ||
+        a.name.localeCompare(b.name)
+    );
 }
 
 /**
@@ -54,7 +66,8 @@ export function readAddonPrice(value) {
  * { addonId: price of one } for the add-ons that have their own price, e.g. { 'add-waiters': 800 }.
  * Add-ons without one are left out, so computeQuote counts them as 0 until the quotation prices them.
  */
-export const addonPriceMap = (addons) => Object.fromEntries(addons.filter((a) => a.price > 0).map((a) => [a.id, a.price]));
+export const addonPriceMap = (addons) =>
+  Object.fromEntries(addons.filter((a) => a.price > 0).map((a) => [a.id, a.price]));
 
 /** Most sizes (or packages) one additional charge can have. */
 export const MAX_ADDON_SIZES = 10;
@@ -92,8 +105,24 @@ export function nestAddons(rows, { includeArchived = false } = {}) {
           .filter((row) => row.parentId === charge.id && keep(row))
           .map((size) =>
             packages
-              ? { ...size, size: size.name, name: `${charge.name} – ${size.name}`, description: size.description || '', hasQuantity: false, hasPackages: false, isPackage: true }
-              : { ...size, size: size.name, name: `${charge.name} ${size.name}`, description: charge.description, hasQuantity: true, hasPackages: false, isPackage: false }
+              ? {
+                  ...size,
+                  size: size.name,
+                  name: `${charge.name} – ${size.name}`,
+                  description: size.description || '',
+                  hasQuantity: false,
+                  hasPackages: false,
+                  isPackage: true
+                }
+              : {
+                  ...size,
+                  size: size.name,
+                  name: `${charge.name} ${size.name}`,
+                  description: charge.description,
+                  hasQuantity: true,
+                  hasPackages: false,
+                  isPackage: false
+                }
           )
       };
     });
@@ -107,7 +136,8 @@ export const flattenAddons = (charges) => charges.flatMap((charge) => [charge, .
  * each size or package of a charge that has them. Such a charge is only a heading on the form, never
  * booked itself. (A charge with packages that has none yet is booked like any other charge.)
  */
-export const bookableAddons = (charges) => charges.flatMap((charge) => (charge.sizes && charge.sizes.length ? charge.sizes : [charge]));
+export const bookableAddons = (charges) =>
+  charges.flatMap((charge) => (charge.sizes && charge.sizes.length ? charge.sizes : [charge]));
 
 /**
  * Why these additional charges can't be booked together, or null. `addons` are entries of bookableAddons
@@ -119,7 +149,8 @@ export function packagePickProblem(addons) {
   const charges = new Set();
   for (const addon of addons) {
     if (!addon || !addon.isPackage) continue;
-    if (charges.has(addon.parentId)) return { message: 'Choose only one package for each additional charge.', field: `addonQty.${addon.parentId}` };
+    if (charges.has(addon.parentId))
+      return { message: 'Choose only one package for each additional charge.', field: `addonQty.${addon.parentId}` };
     charges.add(addon.parentId);
   }
   return null;
@@ -144,7 +175,9 @@ export function readAddonSizes(value, { packages = false } = {}) {
   const seen = new Set();
   for (let i = 0; i < list.length; i += 1) {
     const entry = list[i] && typeof list[i] === 'object' ? list[i] : {};
-    const name = String(entry.name ?? '').trim().replace(/\s+/g, ' ');
+    const name = String(entry.name ?? '')
+      .trim()
+      .replace(/\s+/g, ' ');
     if (!name) return { problem: packages ? 'Enter the package name.' : 'Enter the size.', field: `sizes.${i}.name` };
     if (name.length > 60) return { problem: 'Use 60 characters or fewer.', field: `sizes.${i}.name` };
     if (seen.has(name.toLowerCase())) return { problem: `This ${noun} is already listed.`, field: `sizes.${i}.name` };
@@ -152,12 +185,28 @@ export function readAddonSizes(value, { packages = false } = {}) {
     const { price, problem } = readAddonPrice(entry.price);
     if (problem) return { problem, field: `sizes.${i}.price` };
     // What a package includes, one thing per line as typed; a size keeps none
-    const description = packages ? String(entry.description ?? '').replace(/\r\n?/g, '\n').trim() : '';
-    if (description.length > PACKAGE_INCLUDES_MAX) return { problem: `Use ${PACKAGE_INCLUDES_MAX.toLocaleString('en-PH')} characters or fewer.`, field: `sizes.${i}.description` };
+    const description = packages
+      ? String(entry.description ?? '')
+          .replace(/\r\n?/g, '\n')
+          .trim()
+      : '';
+    if (description.length > PACKAGE_INCLUDES_MAX)
+      return {
+        problem: `Use ${PACKAGE_INCLUDES_MAX.toLocaleString('en-PH')} characters or fewer.`,
+        field: `sizes.${i}.description`
+      };
     const item = entry.inventoryItemId;
-    if (item !== undefined && item !== null && item !== '' && typeof item !== 'string') return { problem: 'Choose an inventory item from the list.', field: `sizes.${i}.inventoryItemId` };
-    if (item && sizes.some((s) => s.inventoryItemId === item)) return { problem: `Another ${noun} already uses this item.`, field: `sizes.${i}.inventoryItemId` };
-    sizes.push({ id: typeof entry.id === 'string' ? entry.id : '', name, price, description, inventoryItemId: item || null });
+    if (item !== undefined && item !== null && item !== '' && typeof item !== 'string')
+      return { problem: 'Choose an inventory item from the list.', field: `sizes.${i}.inventoryItemId` };
+    if (item && sizes.some((s) => s.inventoryItemId === item))
+      return { problem: `Another ${noun} already uses this item.`, field: `sizes.${i}.inventoryItemId` };
+    sizes.push({
+      id: typeof entry.id === 'string' ? entry.id : '',
+      name,
+      price,
+      description,
+      inventoryItemId: item || null
+    });
   }
   return { sizes };
 }
@@ -182,7 +231,13 @@ export function planAddonSizes(existing, wanted) {
     const match =
       free(existing.find((s) => s.size.toLowerCase() === w.name.toLowerCase())) ||
       (w.id ? free(existing.find((s) => s.id === w.id)) : null);
-    const fields = { name: w.name, price: w.price, description: w.description ?? '', inventoryItemId: w.inventoryItemId ?? null, sortOrder };
+    const fields = {
+      name: w.name,
+      price: w.price,
+      description: w.description ?? '',
+      inventoryItemId: w.inventoryItemId ?? null,
+      sortOrder
+    };
     if (match) {
       claimed.add(match.id);
       update.push({ id: match.id, ...fields });
@@ -198,11 +253,16 @@ export function planAddonSizes(existing, wanted) {
  * A charge as the lists show it (the admin's Packages page, the public pages): only the sizes still
  * offered. Sizes the admin removed stay in the data for the bookings that have them, never in a list.
  */
-export const withListedSizes = (charge) => (charge ? { ...charge, sizes: (charge.sizes || []).filter((size) => !size.archived) } : charge);
+export const withListedSizes = (charge) =>
+  charge ? { ...charge, sizes: (charge.sizes || []).filter((size) => !size.archived) } : charge;
 
 // A name as it is matched against the inventory: lower case, "×" read as "x", spaces dropped,
 // so "Tent 10 × 10" and "Tent 10x10" are the same
-const inventoryKey = (value) => String(value || '').toLowerCase().replace(/×/g, 'x').replace(/\s+/g, '');
+const inventoryKey = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/×/g, 'x')
+    .replace(/\s+/g, '');
 
 /**
  * Give the charge (when it has no sizes) and each size that has no inventory item yet the item named
@@ -215,11 +275,19 @@ const inventoryKey = (value) => String(value || '').toLowerCase().replace(/×/g,
 export function linkByName(values, inventory, ownIds) {
   const taken = new Set([values.inventoryItemId, ...values.sizes.map((s) => s.inventoryItemId)].filter(Boolean));
   const find = (name) => {
-    const item = inventory.find((i) => !i.archived && !taken.has(i.id) && (!i.addonId || ownIds.has(i.addonId)) && inventoryKey(i.name) === inventoryKey(name));
+    const item = inventory.find(
+      (i) =>
+        !i.archived &&
+        !taken.has(i.id) &&
+        (!i.addonId || ownIds.has(i.addonId)) &&
+        inventoryKey(i.name) === inventoryKey(name)
+    );
     if (item) taken.add(item.id);
     return item ? item.id : null;
   };
-  const sizes = values.sizes.map((s) => (s.inventoryItemId ? s : { ...s, inventoryItemId: find(`${values.name} ${s.name}`) }));
+  const sizes = values.sizes.map((s) =>
+    s.inventoryItemId ? s : { ...s, inventoryItemId: find(`${values.name} ${s.name}`) }
+  );
   const inventoryItemId = values.sizes.length ? null : values.inventoryItemId || find(values.name);
   return { ...values, inventoryItemId, sizes };
 }

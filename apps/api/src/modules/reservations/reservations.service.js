@@ -1,5 +1,10 @@
 import { cleanMenu, menuProblem, DESSERT_ADDON_ID } from '@tm/shared/src/domain/menu.js';
-import { dateUnavailableReason, endTimeProblem, eventHours, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
+import {
+  dateUnavailableReason,
+  endTimeProblem,
+  eventHours,
+  timeUnavailableReason
+} from '@tm/shared/src/domain/availability.js';
 import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
 import { addonPriceMap, bookableAddons, flattenAddons, packagePickProblem } from '@tm/shared/src/domain/catalog.js';
 import { downpaymentDueFor, dueAfterMove, financials, statusForPayments } from '@tm/shared/src/domain/money.js';
@@ -101,7 +106,8 @@ const cut = (text, max) => {
   return part.isWellFormed() ? part : part.slice(0, -1);
 };
 // A number sent by the page (a number, or digits as text); anything else is NaN, which fails every check
-const toNumber = (value) => (typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN);
+const toNumber = (value) =>
+  typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
 // An object sent by the page (the menu, the add-on quantities), or an empty one
 const plainObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 
@@ -123,7 +129,18 @@ const viewFor = (customerId) => (customerId ? withoutNotes : (answer) => answer)
  * open GCash QR), and `openQr`: the open GCash QR { id, amount, expiresAt } or null, so the Payments page
  * shows it again. `row` is one entry of repo.findReservations().
  */
-function summarize({ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile, payments, refunds, pendingQrs, piecesOut }) {
+function summarize({
+  reservation,
+  packageName,
+  packageSlug,
+  customerName,
+  customerEmail,
+  customerMobile,
+  payments,
+  refunds,
+  pendingQrs,
+  piecesOut
+}) {
   const money = financials(reservation, payments, refunds);
   const open = openQrIn(pendingQrs);
   return {
@@ -179,7 +196,13 @@ export async function getReservation(ref, { customerId } = {}) {
       customer:
         row.customerName === null
           ? null
-          : { id: reservation.customerId, name: row.customerName, email: row.customerEmail, mobile: row.customerMobile, pastEvents },
+          : {
+              id: reservation.customerId,
+              name: row.customerName,
+              email: row.customerEmail,
+              mobile: row.customerMobile,
+              pastEvents
+            },
       testimonial
     };
   });
@@ -244,7 +267,12 @@ function occasionOf(form) {
 function eventTimesOf(form, date, map) {
   const startTime = startTimeOf(form);
   const startReason = timeUnavailableReason(date, startTime, map);
-  if (startReason) throw new ApiError('TIME_UNAVAILABLE', `That start time is not available (${startReason.toLowerCase()}). Please pick another time.`, { field: 'startTime' });
+  if (startReason)
+    throw new ApiError(
+      'TIME_UNAVAILABLE',
+      `That start time is not available (${startReason.toLowerCase()}). Please pick another time.`,
+      { field: 'startTime' }
+    );
   const endTime = typeof form.endTime === 'string' ? form.endTime : '';
   const endProblem = endTimeProblem(startTime, endTime);
   if (endProblem) throw invalid(`${endProblem}.`, 'endTime');
@@ -269,7 +297,12 @@ async function eventBooking(conn, pkg, form) {
   if (!isISODate(date)) throw invalid('Choose the event date.', 'date');
   const map = await availabilityMap(conn);
   const reason = dateUnavailableReason(date, map);
-  if (reason) throw new ApiError('DATE_UNAVAILABLE', `That date is not available (${reason.toLowerCase()}). Please pick another date.`, { field: 'date' });
+  if (reason)
+    throw new ApiError(
+      'DATE_UNAVAILABLE',
+      `That date is not available (${reason.toLowerCase()}). Please pick another date.`,
+      { field: 'date' }
+    );
   // The start and end times must not overlap another event that day (pending requests hold no time),
   // and the event runs 2 to 6 hours
   const { startTime, endTime } = eventTimesOf(form, date, map);
@@ -280,7 +313,8 @@ async function eventBooking(conn, pkg, form) {
     throw invalid(`Guests must be between ${RULES.minGuests} and ${RULES.maxGuests}.`, 'guests');
   }
   const serviceType = form.serviceType;
-  if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose whether you want a buffet or catering only.', 'serviceType');
+  if (!SERVICE_TYPES.includes(serviceType))
+    throw invalid('Choose whether you want a buffet or catering only.', 'serviceType');
 
   // The look the customer wants (optional): null when the section was left blank
   const styling = stylingOf(form.styling);
@@ -299,7 +333,8 @@ async function eventBooking(conn, pkg, form) {
   addons.forEach((addon) => {
     if (!addon.hasQuantity) return;
     const many = toNumber(quantities[addon.id]);
-    if (!Number.isInteger(many) || many < 1 || many > 99) throw invalid(`Tell us how many you need for ${addon.name} (1 to 99).`, `addonQty.${addon.id}`);
+    if (!Number.isInteger(many) || many < 1 || many > 99)
+      throw invalid(`Tell us how many you need for ${addon.name} (1 to 99).`, `addonQty.${addon.id}`);
     addonQty[addon.id] = many;
   });
   const addonIds = addons.map((addon) => addon.id);
@@ -309,22 +344,55 @@ async function eventBooking(conn, pkg, form) {
   const menu = cleanMenu(form.menu, menuOptions);
   // Stock-tracked charges (a tent size) need enough pieces free on the date. A pending request holds
   // none yet, so accepting the quotation checks again.
-  const stockProblem = addonStockProblem(await repo.rentalStockInputs(conn, date), { addonIds, addonQty }, date, addons);
+  const stockProblem = addonStockProblem(
+    await repo.rentalStockInputs(conn, date),
+    { addonIds, addonQty },
+    date,
+    addons
+  );
   if (stockProblem) throw invalid(stockProblem.message, stockProblem.field);
 
   const eventName = clean(form.eventName);
-  const venue = { name: clean(form.venueName), address: clean(form.venueAddress), city: clean(form.city), accessNotes: clean(form.accessNotes) };
-  if (!eventName || !clean(form.occasion) || !startTime || !venue.name || !venue.address || !venue.city) throw invalid('Please complete every required field.');
+  const venue = {
+    name: clean(form.venueName),
+    address: clean(form.venueAddress),
+    city: clean(form.city),
+    accessNotes: clean(form.accessNotes)
+  };
+  if (!eventName || !clean(form.occasion) || !startTime || !venue.name || !venue.address || !venue.city)
+    throw invalid('Please complete every required field.');
   const occasion = occasionOf(form);
 
   // The buffet price per person as it stands now, copied onto the booking (the fallback as in catalog.service.js)
   const pricePerPlate = Number(await catalogRepo.getPricePerPlate(conn)) || DEFAULT_PRICE_PER_PLATE;
   return {
     fields: {
-      eventName, occasion, date, startTime, endTime, guests, packageId: pkg.id, serviceType, menu, foodNotes: clean(form.foodNotes), styling, pricePerPlate,
-      minDownpayment: await currentMinDownpayment(conn), venue, addonIds, addonQty,
+      eventName,
+      occasion,
+      date,
+      startTime,
+      endTime,
+      guests,
+      packageId: pkg.id,
+      serviceType,
+      menu,
+      foodNotes: clean(form.foodNotes),
+      styling,
+      pricePerPlate,
+      minDownpayment: await currentMinDownpayment(conn),
+      venue,
+      addonIds,
+      addonQty,
       // An add-on with its own price is counted at today's price; the quotation starts from it
-      estimate: computeQuote({ pkg, serviceType, guests, pricePerPlate, addonIds, addonQty, addonPrices: addonPriceMap(addons) })
+      estimate: computeQuote({
+        pkg,
+        serviceType,
+        guests,
+        pricePerPlate,
+        addonIds,
+        addonQty,
+        addonPrices: addonPriceMap(addons)
+      })
     },
     lines: [],
     activity: 'Submitted the reservation request.',
@@ -347,7 +415,8 @@ function rentalLines(stockData, wanted, date, { excludeRef, current = [] } = {})
   const qtyById = new Map();
   (Array.isArray(wanted) ? wanted : []).forEach((line) => {
     const itemId = line && typeof line === 'object' ? line.itemId : undefined;
-    if (typeof itemId !== 'string') throw invalid('One of the items is no longer for rent. Please remove it.', 'rentalItems');
+    if (typeof itemId !== 'string')
+      throw invalid('One of the items is no longer for rent. Please remove it.', 'rentalItems');
     qtyById.set(itemId, (qtyById.get(itemId) || 0) + toNumber(line.qty));
   });
   if (!qtyById.size) throw invalid('Choose at least one item to rent.', 'rentalItems');
@@ -359,13 +428,28 @@ function rentalLines(stockData, wanted, date, { excludeRef, current = [] } = {})
       throw invalid('One of the items is no longer for rent. Please remove it.', `rental.${itemId}`);
     }
     if (!Number.isInteger(qty) || qty < 1 || qty > RENTAL.maxQty) {
-      throw invalid(`Enter how many ${item.name} you need (1 to ${RENTAL.maxQty.toLocaleString('en-PH')}).`, `rental.${itemId}`);
+      throw invalid(
+        `Enter how many ${item.name} you need (1 to ${RENTAL.maxQty.toLocaleString('en-PH')}).`,
+        `rental.${itemId}`
+      );
     }
     const left = stock[itemId] || 0;
     if (qty > left) {
-      throw new ApiError('OUT_OF_STOCK', left ? `Only ${left} ${item.name} ${left === 1 ? 'is' : 'are'} free on ${formatDate(date)}.` : `${item.name} is fully booked on ${formatDate(date)}.`, { field: `rental.${itemId}` });
+      throw new ApiError(
+        'OUT_OF_STOCK',
+        left
+          ? `Only ${left} ${item.name} ${left === 1 ? 'is' : 'are'} free on ${formatDate(date)}.`
+          : `${item.name} is fully booked on ${formatDate(date)}.`,
+        { field: `rental.${itemId}` }
+      );
     }
-    return { itemId, name: item.name, qty, price: booked ? booked.price : item.rentPrice, damageFee: booked ? booked.damageFee : item.damageFee || 0 };
+    return {
+      itemId,
+      name: item.name,
+      qty,
+      price: booked ? booked.price : item.rentPrice,
+      damageFee: booked ? booked.damageFee : item.damageFee || 0
+    };
   });
 }
 
@@ -382,7 +466,12 @@ async function rentalBooking(conn, pkg, form) {
   if (!isISODate(date)) throw invalid('Choose the date you need the items.', 'date');
   const map = await availabilityMap(conn);
   const reason = dateUnavailableReason(date, map, { rental: true });
-  if (reason) throw new ApiError('DATE_UNAVAILABLE', `That date is not available (${reason.toLowerCase()}). Please pick another date.`, { field: 'date' });
+  if (reason)
+    throw new ApiError(
+      'DATE_UNAVAILABLE',
+      `That date is not available (${reason.toLowerCase()}). Please pick another date.`,
+      { field: 'date' }
+    );
   // Hours and half hours only; other bookings that day don't matter to a rental
   const startTime = startTimeOf(form);
   const timeReason = timeUnavailableReason(date, startTime, { ...map, events: [] });
@@ -400,11 +489,34 @@ async function rentalBooking(conn, pkg, form) {
   const lines = rentalLines(await repo.rentalStockInputs(conn, date), form.rentalItems, date);
   return {
     fields: {
-      eventName, occasion, date, startTime, endTime: null, guests: 0, packageId: pkg.id, serviceType: RENTAL_SERVICE, menu: null, foodNotes: '', styling: null, pricePerPlate: 0,
-      minDownpayment: await currentMinDownpayment(conn), rentalItems: lines, fulfilment, damageCharges: [],
-      venue: fulfilment === 'delivery' ? { ...place, accessNotes: clean(form.accessNotes) } : { ...RENTAL.pickupPlace, accessNotes: '' },
-      addonIds: [], addonQty: {},
-      estimate: computeQuote({ pkg, serviceType: RENTAL_SERVICE, rentalItems: lines, deliveryFee: fulfilment === 'delivery' ? RENTAL.deliveryFee : 0 })
+      eventName,
+      occasion,
+      date,
+      startTime,
+      endTime: null,
+      guests: 0,
+      packageId: pkg.id,
+      serviceType: RENTAL_SERVICE,
+      menu: null,
+      foodNotes: '',
+      styling: null,
+      pricePerPlate: 0,
+      minDownpayment: await currentMinDownpayment(conn),
+      rentalItems: lines,
+      fulfilment,
+      damageCharges: [],
+      venue:
+        fulfilment === 'delivery'
+          ? { ...place, accessNotes: clean(form.accessNotes) }
+          : { ...RENTAL.pickupPlace, accessNotes: '' },
+      addonIds: [],
+      addonQty: {},
+      estimate: computeQuote({
+        pkg,
+        serviceType: RENTAL_SERVICE,
+        rentalItems: lines,
+        deliveryFee: fulfilment === 'delivery' ? RENTAL.deliveryFee : 0
+      })
     },
     lines,
     activity: 'Submitted the equipment rental request.',
@@ -414,14 +526,18 @@ async function rentalBooking(conn, pkg, form) {
 
 // The minimum downpayment as it stands now, read inside the booking's transaction and copied onto it
 // (the same fallback as catalog.service.js when the settings row is missing)
-const currentMinDownpayment = async (conn) => Number(await catalogRepo.getMinDownpayment(conn)) || DEFAULT_MIN_DOWNPAYMENT;
+const currentMinDownpayment = async (conn) =>
+  Number(await catalogRepo.getMinDownpayment(conn)) || DEFAULT_MIN_DOWNPAYMENT;
 
 // The part of a ref shared by every booking for an event date: "2026-10-20" -> "RES-2026-1020-"
 // (the first ref for the date without its number, so the format stays in reservationRef.js)
 const refPrefix = (date) => makeReservationRef(date, []).replace(/\d+$/, '');
 
 // True when an insert failed because the ref was already taken (the reservations primary key)
-const isRefTaken = (err) => Boolean(err) && err.code === 'ER_DUP_ENTRY' && String(err.sqlMessage || '').includes("for key 'reservations.PRIMARY'");
+const isRefTaken = (err) =>
+  Boolean(err) &&
+  err.code === 'ER_DUP_ENTRY' &&
+  String(err.sqlMessage || '').includes("for key 'reservations.PRIMARY'");
 
 /**
  * One booking, inside its transaction: take the availability lock, check the form, give it the next
@@ -432,13 +548,25 @@ const isRefTaken = (err) => Boolean(err) && err.code === 'ER_DUP_ENTRY' && Strin
  */
 async function book(conn, customer, form, referencePhoto) {
   await lockAvailability(conn); // first, before any other row: bookings and calendar writes run one at a time
-  if (form.agreeTerms !== true) throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');
+  if (form.agreeTerms !== true)
+    throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');
   const pkg = typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null;
   if (!pkg || !pkg.visible || pkg.archived) throw invalid('Please choose an available package.', 'packageId');
   const booking = pkg.kind === 'rental' ? await rentalBooking(conn, pkg, form) : await eventBooking(conn, pkg, form);
   if (referencePhoto) {
-    if (pkg.kind === 'rental') throw invalid('Reference photos are for event styling. Remove the photo for an equipment rental.', 'styling.referencePhoto');
-    booking.fields.styling = { theme: '', themeOther: '', colors: [], notes: '', ...booking.fields.styling, referencePhoto };
+    if (pkg.kind === 'rental')
+      throw invalid(
+        'Reference photos are for event styling. Remove the photo for an equipment rental.',
+        'styling.referencePhoto'
+      );
+    booking.fields.styling = {
+      theme: '',
+      themeOther: '',
+      colors: [],
+      notes: '',
+      ...booking.fields.styling,
+      referencePhoto
+    };
   }
 
   const at = now();
@@ -490,7 +618,10 @@ export async function createReservation(customer, form, { transact = tx, referen
       }
     }
   } catch (err) {
-    if (referencePhoto) await storage.remove(referencePhoto.key).catch((cleanupError) => console.error('[reference-photo] Cleanup failed:', cleanupError.message));
+    if (referencePhoto)
+      await storage
+        .remove(referencePhoto.key)
+        .catch((cleanupError) => console.error('[reference-photo] Cleanup failed:', cleanupError.message));
     throw err;
   }
 }
@@ -531,10 +662,17 @@ export async function cancelReservation(ref, customer, reason) {
     const [row] = await repo.findReservations(conn, { ref });
     const money = financials(row.reservation, row.payments, row.refunds);
     const open = openQrIn(row.pendingQrs);
-    const online = onlineCancellation(row.reservation, money, { piecesOut: row.piecesOut, openQrUntil: open ? open.openUntil : 0 });
+    const online = onlineCancellation(row.reservation, money, {
+      piecesOut: row.piecesOut,
+      openQrUntil: open ? open.openUntil : 0
+    });
     if (!online.allowed) throw new ApiError(online.code, online.reason);
     await repo.setCancelled(conn, ref, text, 'customer');
-    await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Cancelled the reservation. Reason: ${text}` });
+    await repo.insertActivity(conn, ref, {
+      at: now(),
+      actor: customer.name,
+      text: `Cancelled the reservation. Reason: ${text}`
+    });
     if (money.paid > 0) {
       await postCustomerMessage(
         conn,
@@ -570,7 +708,11 @@ export async function requestChange(ref, customer, message) {
     const owner = await repo.lockOwner(conn, ref);
     if (!owner || !sameRef(owner, ref) || owner.customerId !== customer.id) throw notFound();
     const { threadId } = await postCustomerMessage(conn, owner, `Change request: ${text}`, customer.name);
-    await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: 'Requested a change to the reservation.' });
+    await repo.insertActivity(conn, ref, {
+      at: now(),
+      actor: customer.name,
+      text: 'Requested a change to the reservation.'
+    });
     return { threadId };
   });
 }
@@ -599,22 +741,55 @@ export async function acceptQuotation(ref, customer, sentAt) {
     const [row] = await repo.findReservations(conn, { ref });
     const { reservation } = row;
     if (reservation.status !== 'pending') {
-      throw new ApiError('INVALID_STATE', CLOSED.includes(reservation.status) && reservation.status !== 'completed' ? `This reservation is ${statusLabel(reservation.status).toLowerCase()}, so its quotation can no longer be accepted.` : 'You already accepted this quotation.');
+      throw new ApiError(
+        'INVALID_STATE',
+        CLOSED.includes(reservation.status) && reservation.status !== 'completed'
+          ? `This reservation is ${statusLabel(reservation.status).toLowerCase()}, so its quotation can no longer be accepted.`
+          : 'You already accepted this quotation.'
+      );
     }
     const quote = reservation.quotation;
-    if (!quote) throw new ApiError('NO_QUOTATION', 'We have not sent your quotation yet. We will tell you in your chat when it is ready.');
-    if (quotationStale(reservation)) throw new ApiError('INVALID_STATE', 'Your reservation changed after this quotation was sent. We will send you a revised quotation to accept.');
-    if (toNumber(sentAt) !== quote.sentAt) throw new ApiError('INVALID_STATE', 'We sent you a newer quotation. Please review it before accepting.');
+    if (!quote)
+      throw new ApiError(
+        'NO_QUOTATION',
+        'We have not sent your quotation yet. We will tell you in your chat when it is ready.'
+      );
+    if (quotationStale(reservation))
+      throw new ApiError(
+        'INVALID_STATE',
+        'Your reservation changed after this quotation was sent. We will send you a revised quotation to accept.'
+      );
+    if (toNumber(sentAt) !== quote.sentAt)
+      throw new ApiError('INVALID_STATE', 'We sent you a newer quotation. Please review it before accepting.');
     const blocked = await slotProblem(conn, reservation);
-    if (blocked) throw new ApiError(blocked.code, `${blocked.problem} Please message us so we can find another ${blocked.fix === 'time' ? 'time' : 'date'} for you.`);
+    if (blocked)
+      throw new ApiError(
+        blocked.code,
+        `${blocked.problem} Please message us so we can find another ${blocked.fix === 'time' ? 'time' : 'date'} for you.`
+      );
 
     // Due in RULES.downpaymentDueDays, but no later than 3 days before the event (and never before today)
     const approved = { ...reservation, status: 'approved', downpaymentDue: downpaymentDueFor(reservation.date) };
     await repo.updateReservation(conn, ref, { status: approved.status, downpaymentDue: approved.downpaymentDue });
-    await repo.insertActivity(conn, ref, { at: now(), actor: customer.name, text: `Accepted the quotation (${pesoText(quote.net)}). The reservation is approved.` });
-    await postCustomerMessage(conn, reservation, `I accept the quotation for ${reservation.eventName}: ${pesoText(quote.net)}.`, customer.name);
+    await repo.insertActivity(conn, ref, {
+      at: now(),
+      actor: customer.name,
+      text: `Accepted the quotation (${pesoText(quote.net)}). The reservation is approved.`
+    });
+    await postCustomerMessage(
+      conn,
+      reservation,
+      `I accept the quotation for ${reservation.eventName}: ${pesoText(quote.net)}.`,
+      customer.name
+    );
     const money = financials(approved, row.payments, row.refunds);
-    await postAdminMessage(conn, reservation, approvalMessage(approved, money), { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, 'Tres Marias team');
+    await postAdminMessage(
+      conn,
+      reservation,
+      approvalMessage(approved, money),
+      { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref },
+      'Tres Marias team'
+    );
     await queueCustomerEmail(conn, {
       customerId: reservation.customerId,
       ref: reservation.ref,
@@ -641,7 +816,8 @@ const asSentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`);
 // "pick up" / "delivery", for log lines and chat messages
 const fulfilmentWord = (value) => (value === 'delivery' ? 'delivery' : 'pick up');
 // The rental lines with too few pieces free, e.g. "Monobloc chair (40 of 80), Round table (2 of 5)"
-const shortList = (short, stock) => short.map((line) => `${line.name} (${stock[line.itemId] || 0} of ${line.qty})`).join(', ');
+const shortList = (short, stock) =>
+  short.map((line) => `${line.name} (${stock[line.itemId] || 0} of ${line.qty})`).join(', ');
 
 // The admin's reason for a decline or a cancellation: at least 5 characters, as the admin's reason dialogs ask
 function reasonOf(value) {
@@ -699,28 +875,60 @@ async function slotProblem(conn, reservation) {
   if (daysFromToday(date) < 0) return { code: 'INVALID_STATE', problem: 'This event date has passed.', fix: 'date' };
   const map = await availabilityMap(conn);
   const blocked = map.blocked.find((b) => b.date === date);
-  if (blocked) return { code: 'DATE_UNAVAILABLE', problem: `${formatDate(date)} is blocked (${blocked.reason.toLowerCase()}).`, fix: 'date' };
+  if (blocked)
+    return {
+      code: 'DATE_UNAVAILABLE',
+      problem: `${formatDate(date)} is blocked (${blocked.reason.toLowerCase()}).`,
+      fix: 'date'
+    };
 
   if (isRental(reservation.serviceType)) {
     // Another approved rental (or an event's checked-out equipment) may have taken the pieces meanwhile
     const stock = rentalStock(await repo.rentalStockInputs(conn, date), date, ref);
     const short = reservation.rentalItems.filter((line) => line.qty > (stock[line.itemId] || 0));
-    return short.length ? { code: 'OUT_OF_STOCK', problem: `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}.`, fix: 'items' } : null;
+    return short.length
+      ? {
+          code: 'OUT_OF_STOCK',
+          problem: `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}.`,
+          fix: 'items'
+        }
+      : null;
   }
   // The events already holding the date (this pending one holds none yet; rentals never do)
-  if ((map.booked[date] || 0) >= map.capacity) return { code: 'CAPACITY', problem: `${formatDate(date)} is already at the daily capacity of ${map.capacity} events.`, fix: 'date' };
+  if ((map.booked[date] || 0) >= map.capacity)
+    return {
+      code: 'CAPACITY',
+      problem: `${formatDate(date)} is already at the daily capacity of ${map.capacity} events.`,
+      fix: 'date'
+    };
   // Its stock-tracked charges (a tent size) must still be free: other approvals may have taken them
   const stockData = await repo.rentalStockInputs(conn, date);
   const short = addonShortfall(stockData, reservation, date, ref);
-  if (short.length) return { code: 'OUT_OF_STOCK', problem: `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`, fix: 'date' };
+  if (short.length)
+    return {
+      code: 'OUT_OF_STOCK',
+      problem: `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`,
+      fix: 'date'
+    };
   // Its whole time (start to end, or RULES.defaultEventHours for an old booking with no end time) must
   // be clear of the events approved that day, with the setup and tear-down buffer around them
-  const timeReason = timeUnavailableReason(date, reservation.startTime, { ...map, events: map.events.filter((e) => e.ref !== ref) }, eventHours(reservation.startTime, reservation.endTime));
-  return timeReason ? { code: 'TIME_UNAVAILABLE', problem: `${timeReason} on ${formatDate(date)}.`, fix: 'time' } : null;
+  const timeReason = timeUnavailableReason(
+    date,
+    reservation.startTime,
+    { ...map, events: map.events.filter((e) => e.ref !== ref) },
+    eventHours(reservation.startTime, reservation.endTime)
+  );
+  return timeReason
+    ? { code: 'TIME_UNAVAILABLE', problem: `${timeReason} on ${formatDate(date)}.`, fix: 'time' }
+    : null;
 }
 
 // What the admin does about a slotProblem before the quotation can go out
-const ADMIN_FIX = { date: 'Move the event to another date', time: 'Change the time', items: 'Change the items or the date' };
+const ADMIN_FIX = {
+  date: 'Move the event to another date',
+  time: 'Change the time',
+  items: 'Change the items or the date'
+};
 
 /**
  * The quotation's extra-guest values for an event above its package's default guest count (see
@@ -732,14 +940,21 @@ function extraGuestValues(pkg, reservation, values) {
   const extra = isRental(reservation.serviceType) ? 0 : extraGuestsFor(pkg, reservation.guests);
   if (!extra) return { extraGuestsCharge: 0, itemCounts: {} };
   const charge = values.extraGuestsCharge;
-  if (charge === undefined || charge === null || charge === '') throw invalid(`Enter the price of the equipment for the ${extra} extra guests (0 to waive it).`, 'extraGuestsCharge');
+  if (charge === undefined || charge === null || charge === '')
+    throw invalid(
+      `Enter the price of the equipment for the ${extra} extra guests (0 to waive it).`,
+      'extraGuestsCharge'
+    );
   const extraGuestsCharge = quotationAmount(charge, 'extraGuestsCharge');
   const sent = helperItemCounts(plainObject(values.itemCounts));
   const itemCounts = {};
   itemsToConfirm(pkg, reservation.guests).forEach((item) => {
     const count = toNumber(sent[item.name]);
     if (!Number.isInteger(count) || count < 1 || count > ITEM_COUNT_MAX) {
-      throw invalid(`Enter how many ${item.name} for ${reservation.guests} guests (1 to ${ITEM_COUNT_MAX.toLocaleString('en-PH')}).`, `itemCounts.${item.name}`);
+      throw invalid(
+        `Enter how many ${item.name} for ${reservation.guests} guests (1 to ${ITEM_COUNT_MAX.toLocaleString('en-PH')}).`,
+        `itemCounts.${item.name}`
+      );
     }
     itemCounts[item.name] = count;
   });
@@ -782,17 +997,26 @@ export async function sendQuotation(ref, values, admin) {
   return adminWrite(ref, async (conn, row) => {
     const { reservation, payments, refunds } = row;
     if (CLOSED.includes(reservation.status)) {
-      throw new ApiError('INVALID_STATE', `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be re-quoted.`);
+      throw new ApiError(
+        'INVALID_STATE',
+        `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be re-quoted.`
+      );
     }
     if (reservation.status === 'pending') {
       const blocked = await slotProblem(conn, reservation);
-      if (blocked) throw new ApiError(blocked.code, `${blocked.problem} ${ADMIN_FIX[blocked.fix]} before sending the quotation.`);
+      if (blocked)
+        throw new ApiError(blocked.code, `${blocked.problem} ${ADMIN_FIX[blocked.fix]} before sending the quotation.`);
     }
     const rental = isRental(reservation.serviceType);
     const delivered = rental && reservation.fulfilment === 'delivery';
     const fee = values.deliveryFee === undefined ? RENTAL.deliveryFee : values.deliveryFee;
     const deliveryFee = delivered ? quotationAmount(fee, 'deliveryFee', 'Enter the delivery fee.') : 0;
-    const addonPrices = Object.fromEntries(Object.entries(plainObject(values.addonPrices)).map(([id, price]) => [id, quotationAmount(price, `addonPrices.${id}`)]));
+    const addonPrices = Object.fromEntries(
+      Object.entries(plainObject(values.addonPrices)).map(([id, price]) => [
+        id,
+        quotationAmount(price, `addonPrices.${id}`)
+      ])
+    );
     const otherCharges = quotationAmount(values.otherCharges, 'otherCharges');
     const discount = quotationAmount(values.discount, 'discount');
     const note = clean(values.note);
@@ -816,7 +1040,14 @@ export async function sendQuotation(ref, values, admin) {
       otherCharges,
       discount
     });
-    const quotation = { ...quote, itemCounts, ...(rental ? { fulfilment: reservation.fulfilment } : {}), otherLabel: quote.otherCharges ? clean(values.otherLabel) : '', sentAt: now(), note };
+    const quotation = {
+      ...quote,
+      itemCounts,
+      ...(rental ? { fulfilment: reservation.fulfilment } : {}),
+      otherLabel: quote.otherCharges ? clean(values.otherLabel) : '',
+      sentAt: now(),
+      note
+    };
     const quoted = { ...reservation, quotation };
     const saved = { quotation };
     const log = [`Sent the quotation (${pesoText(quote.net)}).`];
@@ -843,7 +1074,9 @@ export async function sendQuotation(ref, values, admin) {
     // Paid more than the new total: say so in the chat and keep both totals in the audit trail
     const after = financials({ ...quoted, status }, payments, refunds);
     if (after.overpaid > 0) {
-      log.push(`Total from ${pesoText(totalBefore)} to ${pesoText(quote.net)}, below the ${pesoText(after.paid)} paid: ${pesoText(after.overpaid)} was paid above the new total and is to be returned.`);
+      log.push(
+        `Total from ${pesoText(totalBefore)} to ${pesoText(quote.net)}, below the ${pesoText(after.paid)} paid: ${pesoText(after.overpaid)} was paid above the new total and is to be returned.`
+      );
       extra += ` You've paid ${pesoText(after.overpaid)} more than the new total. We'll return it and tell you here when it's sent.`;
     }
 
@@ -852,7 +1085,13 @@ export async function sendQuotation(ref, values, admin) {
 
     await repo.updateReservation(conn, ref, saved);
     for (const text of log) await logAdmin(conn, ref, admin, text);
-    await postAdminMessage(conn, reservation, `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`, { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref }, admin.name);
+    await postAdminMessage(
+      conn,
+      reservation,
+      `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`,
+      { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref },
+      admin.name
+    );
     // `reservation` is the booking before this send: a pending one with a quotation already is re-quoted
     const variant = reservation.status === 'pending' ? (reservation.quotation ? 'revised' : 'new') : 'updated';
     await queueCustomerEmail(conn, {
@@ -885,11 +1124,23 @@ export async function sendQuotation(ref, values, admin) {
 export async function declineReservation(ref, reason, admin) {
   const text = reasonOf(reason);
   return adminWrite(ref, async (conn, { reservation }) => {
-    if (reservation.status !== 'pending') throw new ApiError('INVALID_STATE', 'Only pending reservations can be declined.');
+    if (reservation.status !== 'pending')
+      throw new ApiError('INVALID_STATE', 'Only pending reservations can be declined.');
     await repo.updateReservation(conn, ref, { status: 'declined', declineReason: text });
     await logAdmin(conn, ref, admin, `Declined the reservation. Reason: ${text}`);
-    await postAdminMessage(conn, reservation, `We are sorry, we are unable to accept ${reservation.eventName}. ${text}`, null, admin.name);
-    await queueCustomerEmail(conn, { customerId: reservation.customerId, ref: reservation.ref, purpose: 'reservation_declined', data: { reservation, reason: text } });
+    await postAdminMessage(
+      conn,
+      reservation,
+      `We are sorry, we are unable to accept ${reservation.eventName}. ${text}`,
+      null,
+      admin.name
+    );
+    await queueCustomerEmail(conn, {
+      customerId: reservation.customerId,
+      ref: reservation.ref,
+      purpose: 'reservation_declined',
+      data: { reservation, reason: text }
+    });
     return savedSummary(conn, ref);
   });
 }
@@ -902,12 +1153,24 @@ export async function declineReservation(ref, reason, admin) {
 export async function confirmReservation(ref, admin) {
   return adminWrite(ref, async (conn, row) => {
     const { reservation } = row;
-    if (reservation.status !== 'downpayment_paid') throw new ApiError('INVALID_STATE', 'The downpayment must be verified before the booking is confirmed.');
+    if (reservation.status !== 'downpayment_paid')
+      throw new ApiError('INVALID_STATE', 'The downpayment must be verified before the booking is confirmed.');
     await repo.updateReservation(conn, ref, { status: 'confirmed' });
     await logAdmin(conn, ref, admin, 'Confirmed the booking.');
-    await postAdminMessage(conn, reservation, `${reservation.eventName} is now confirmed. Your contract is available in Documents.`, { name: `Contract-${ref}.pdf`, kind: 'contract', ref }, admin.name);
+    await postAdminMessage(
+      conn,
+      reservation,
+      `${reservation.eventName} is now confirmed. Your contract is available in Documents.`,
+      { name: `Contract-${ref}.pdf`, kind: 'contract', ref },
+      admin.name
+    );
     const { balance } = financials(reservation, row.payments, row.refunds);
-    await queueCustomerEmail(conn, { customerId: reservation.customerId, ref: reservation.ref, purpose: 'booking_confirmed', data: { reservation, balance } });
+    await queueCustomerEmail(conn, {
+      customerId: reservation.customerId,
+      ref: reservation.ref,
+      purpose: 'booking_confirmed',
+      data: { reservation, balance }
+    });
     return savedSummary(conn, ref);
   });
 }
@@ -922,16 +1185,34 @@ export async function confirmReservation(ref, admin) {
 export async function completeReservation(ref, admin) {
   return adminWrite(ref, async (conn, row) => {
     const { reservation } = row;
-    if (reservation.status !== 'confirmed') throw new ApiError('INVALID_STATE', 'Only confirmed bookings can be marked completed.');
-    if (daysFromToday(reservation.date) > 0) throw new ApiError('INVALID_STATE', 'An event can be completed on or after its date.');
+    if (reservation.status !== 'confirmed')
+      throw new ApiError('INVALID_STATE', 'Only confirmed bookings can be marked completed.');
+    if (daysFromToday(reservation.date) > 0)
+      throw new ApiError('INVALID_STATE', 'An event can be completed on or after its date.');
     if (isRental(reservation.serviceType)) {
-      if (row.piecesOut > 0) throw new ApiError('INVALID_STATE', 'Record the return of the rented items before completing this rental.');
-      if (quotationStale(reservation)) throw new ApiError('INVALID_STATE', 'Re-send the quotation first, so the customer has the final total with any damage charges.');
+      if (row.piecesOut > 0)
+        throw new ApiError('INVALID_STATE', 'Record the return of the rented items before completing this rental.');
+      if (quotationStale(reservation))
+        throw new ApiError(
+          'INVALID_STATE',
+          'Re-send the quotation first, so the customer has the final total with any damage charges.'
+        );
     }
     await repo.updateReservation(conn, ref, { status: 'completed' });
     await logAdmin(conn, ref, admin, 'Marked the event as completed.');
-    await postAdminMessage(conn, reservation, `Thank you for celebrating with Tres Marias! We would love to hear how ${reservation.eventName} went. You can leave a testimonial from your account.`, null, admin.name);
-    await queueCustomerEmail(conn, { customerId: reservation.customerId, ref: reservation.ref, purpose: 'event_completed', data: { reservation } });
+    await postAdminMessage(
+      conn,
+      reservation,
+      `Thank you for celebrating with Tres Marias! We would love to hear how ${reservation.eventName} went. You can leave a testimonial from your account.`,
+      null,
+      admin.name
+    );
+    await queueCustomerEmail(conn, {
+      customerId: reservation.customerId,
+      ref: reservation.ref,
+      purpose: 'event_completed',
+      data: { reservation }
+    });
     return savedSummary(conn, ref);
   });
 }
@@ -951,17 +1232,36 @@ export async function cancelReservationByAdmin(ref, reason, admin) {
   return adminWrite(ref, async (conn, row) => {
     const { reservation } = row;
     if (!HOLDS_DATE.includes(reservation.status)) {
-      throw new ApiError('INVALID_STATE', reservation.status === 'pending' ? 'A pending request is declined, not cancelled.' : `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be cancelled.`);
+      throw new ApiError(
+        'INVALID_STATE',
+        reservation.status === 'pending'
+          ? 'A pending request is declined, not cancelled.'
+          : `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be cancelled.`
+      );
     }
     const money = financials(reservation, row.payments, row.refunds);
-    if (money.awaitingCount > 0) throw new ApiError('PENDING_PAYMENT', 'A payment for this reservation is waiting for verification. Verify or reject it first.');
+    if (money.awaitingCount > 0)
+      throw new ApiError(
+        'PENDING_PAYMENT',
+        'A payment for this reservation is waiting for verification. Verify or reject it first.'
+      );
     const open = openQrIn(row.pendingQrs);
     if (open) throw openQrError(open, 'admin');
-    if (row.piecesOut > 0) throw new ApiError('INVALID_STATE', 'Some items are still checked out for this booking. Record the return first.');
+    if (row.piecesOut > 0)
+      throw new ApiError(
+        'INVALID_STATE',
+        'Some items are still checked out for this booking. Record the return first.'
+      );
     await repo.setCancelled(conn, ref, text, 'admin');
     await logAdmin(conn, ref, admin, `Cancelled the reservation. Reason: ${text}`);
     const refund = money.paid > 0 ? ` We'll return ${pesoText(money.paid)} and tell you here when it's sent.` : '';
-    await postAdminMessage(conn, reservation, `We are sorry, we had to cancel ${reservation.eventName} on ${formatDate(reservation.date)}. ${asSentence(text)}${refund}`, null, admin.name);
+    await postAdminMessage(
+      conn,
+      reservation,
+      `We are sorry, we had to cancel ${reservation.eventName} on ${formatDate(reservation.date)}. ${asSentence(text)}${refund}`,
+      null,
+      admin.name
+    );
     await queueCustomerEmail(conn, {
       customerId: reservation.customerId,
       ref: reservation.ref,
@@ -980,11 +1280,24 @@ export async function cancelReservationByAdmin(ref, reason, admin) {
  */
 export async function startPreparing(ref, admin) {
   return adminWrite(ref, async (conn, { reservation }) => {
-    if (!['downpayment_paid', 'confirmed'].includes(reservation.status)) throw new ApiError('INVALID_STATE', 'Preparation can be marked once the downpayment is paid.');
-    if (reservation.preparingAt) throw new ApiError('INVALID_STATE', 'This booking is already marked as started preparing.');
+    if (!['downpayment_paid', 'confirmed'].includes(reservation.status))
+      throw new ApiError('INVALID_STATE', 'Preparation can be marked once the downpayment is paid.');
+    if (reservation.preparingAt)
+      throw new ApiError('INVALID_STATE', 'This booking is already marked as started preparing.');
     await repo.updateReservation(conn, ref, { preparingAt: now() });
-    await logAdmin(conn, ref, admin, 'Marked the booking as started preparing. The customer can no longer cancel online.');
-    await postAdminMessage(conn, reservation, `We've started preparing for ${reservation.eventName}. To cancel from now on, message us here or call ${BUSINESS.phone}.`, null, admin.name);
+    await logAdmin(
+      conn,
+      ref,
+      admin,
+      'Marked the booking as started preparing. The customer can no longer cancel online.'
+    );
+    await postAdminMessage(
+      conn,
+      reservation,
+      `We've started preparing for ${reservation.eventName}. To cancel from now on, message us here or call ${BUSINESS.phone}.`,
+      null,
+      admin.name
+    );
     return savedSummary(conn, ref);
   });
 }
@@ -996,13 +1309,20 @@ export async function startPreparing(ref, admin) {
  */
 export async function undoPreparing(ref, admin) {
   return adminWrite(ref, async (conn, { reservation }) => {
-    if (!reservation.preparingAt) throw new ApiError('INVALID_STATE', 'This booking is not marked as started preparing.');
+    if (!reservation.preparingAt)
+      throw new ApiError('INVALID_STATE', 'This booking is not marked as started preparing.');
     if (CLOSED.includes(reservation.status)) throw closedError();
     await repo.updateReservation(conn, ref, { preparingAt: null });
     await logAdmin(conn, ref, admin, 'Removed the "Started preparing" mark (marked by mistake).');
     const deadline = cancelDeadline(reservation);
     const until = deadline >= todayISO() ? ` You can cancel online until ${formatDate(deadline)}.` : '';
-    await postAdminMessage(conn, reservation, `Our note that we started preparing for ${reservation.eventName} was marked by mistake.${until}`, null, admin.name);
+    await postAdminMessage(
+      conn,
+      reservation,
+      `Our note that we started preparing for ${reservation.eventName} was marked by mistake.${until}`,
+      null,
+      admin.name
+    );
     return savedSummary(conn, ref);
   });
 }
@@ -1043,7 +1363,8 @@ export async function updateLogistics(ref, patch, admin) {
       if (!isISODate(date)) throw invalid('Choose the event date.', 'date');
       const startTime = startTimeOf(values);
       // null: an old booking that has no end time and still gets none; '' (cleared) is refused below
-      const endTime = typeof values.endTime === 'string' && values.endTime ? values.endTime : reservation.endTime ? '' : null;
+      const endTime =
+        typeof values.endTime === 'string' && values.endTime ? values.endTime : reservation.endTime ? '' : null;
       if (endTime !== null) {
         const endProblem = endTimeProblem(startTime, endTime);
         if (endProblem) throw invalid(`${endProblem}.`, 'endTime');
@@ -1052,11 +1373,19 @@ export async function updateLogistics(ref, patch, admin) {
       if (date !== reservation.date) {
         if (daysFromToday(date) < 0) throw invalid('An event cannot be moved to a past date.', 'date');
         const reason = dateUnavailableReason(date, map, { enforceLeadTime: false });
-        if (reason) throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, { field: 'date' });
+        if (reason)
+          throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, {
+            field: 'date'
+          });
         // Its stock-tracked charges (a tent size) must be free on the new date too
         const stockData = await repo.rentalStockInputs(conn, date);
         const short = addonShortfall(stockData, reservation, date, ref);
-        if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`, { field: 'date' });
+        if (short.length)
+          throw new ApiError(
+            'OUT_OF_STOCK',
+            `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`,
+            { field: 'date' }
+          );
       }
       // A new date, start or end time: within booking hours, on the hour or half hour, and clear of the
       // other events that day (this event is left out of its own check): the start may not fall in another
@@ -1066,10 +1395,17 @@ export async function updateLogistics(ref, patch, admin) {
         const startReason = timeUnavailableReason(date, startTime, others);
         if (startReason) throw new ApiError('TIME_UNAVAILABLE', `${startReason}.`, { field: 'startTime' });
         const endReason = timeUnavailableReason(date, startTime, others, eventHours(startTime, endTime));
-        if (endReason) throw new ApiError('TIME_UNAVAILABLE', `${endReason}.`, { field: endTime ? 'endTime' : 'startTime' });
+        if (endReason)
+          throw new ApiError('TIME_UNAVAILABLE', `${endReason}.`, { field: endTime ? 'endTime' : 'startTime' });
       }
-      const venue = { name: clean(values.venueName), address: clean(values.venueAddress), city: clean(values.city), accessNotes: clean(values.accessNotes) };
-      if (!venue.name || !venue.address || !venue.city) throw invalid('Enter the venue, city and address.', 'venueName');
+      const venue = {
+        name: clean(values.venueName),
+        address: clean(values.venueAddress),
+        city: clean(values.city),
+        accessNotes: clean(values.accessNotes)
+      };
+      if (!venue.name || !venue.address || !venue.city)
+        throw invalid('Enter the venue, city and address.', 'venueName');
 
       // What changed, both values, e.g. "Updated guests from 100 to 150, venue."
       const changes = [];
@@ -1077,7 +1413,12 @@ export async function updateLogistics(ref, patch, admin) {
       if (startTime !== reservation.startTime) changes.push(`start time from ${reservation.startTime} to ${startTime}`);
       if (endTime !== reservation.endTime) changes.push(`end time from ${reservation.endTime || 'none'} to ${endTime}`);
       if (guests !== reservation.guests) changes.push(`guests from ${reservation.guests} to ${guests}`);
-      if (venue.name !== reservation.venue.name || venue.address !== reservation.venue.address || venue.city !== reservation.venue.city) changes.push('venue');
+      if (
+        venue.name !== reservation.venue.name ||
+        venue.address !== reservation.venue.address ||
+        venue.city !== reservation.venue.city
+      )
+        changes.push('venue');
       const { due, moved } = dueAfterMove(reservation, date);
       if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
 
@@ -1091,7 +1432,9 @@ export async function updateLogistics(ref, patch, admin) {
         const reasons = [];
         if (includesFood(reservation.serviceType)) {
           const food = guests * (reservation.pricePerPlate || 0);
-          reasons.push(`Your buffet is charged per person, so the food total changes from ${pesoText(quote.food)} to ${pesoText(food)}.`);
+          reasons.push(
+            `Your buffet is charged per person, so the food total changes from ${pesoText(quote.food)} to ${pesoText(food)}.`
+          );
         }
         if (quote.extraGuests !== undefined && quote.packageGuests) {
           const extraNow = Math.max(0, guests - quote.packageGuests);
@@ -1141,10 +1484,16 @@ async function updateRentalLogistics(conn, row, values, admin) {
   if (date !== reservation.date) {
     if (daysFromToday(date) < 0) throw invalid('A rental cannot be moved to a past date.', 'date');
     const reason = dateUnavailableReason(date, await availabilityMap(conn), { enforceLeadTime: false, rental: true });
-    if (reason) throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, { field: 'date' });
+    if (reason)
+      throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, {
+        field: 'date'
+      });
     const stock = rentalStock(await repo.rentalStockInputs(conn, date), date, ref);
     const short = reservation.rentalItems.filter((line) => line.qty > (stock[line.itemId] || 0));
-    if (short.length) throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}.`, { field: 'date' });
+    if (short.length)
+      throw new ApiError('OUT_OF_STOCK', `Not enough free on ${formatDate(date)}: ${shortList(short, stock)}.`, {
+        field: 'date'
+      });
   }
   if (date !== reservation.date || startTime !== reservation.startTime) {
     // Hours and half hours only: a rental does not clash with events, so no events are passed
@@ -1152,16 +1501,22 @@ async function updateRentalLogistics(conn, row, values, admin) {
     if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason}.`, { field: 'startTime' });
   }
   const place = { name: clean(values.venueName), address: clean(values.venueAddress), city: clean(values.city) };
-  if (fulfilment === 'delivery' && (!place.name || !place.address || !place.city)) throw invalid('Enter where to deliver the items.', 'venueAddress');
-  const venue = fulfilment === 'delivery' ? { ...place, accessNotes: clean(values.accessNotes) } : { ...RENTAL.pickupPlace, accessNotes: '' };
+  if (fulfilment === 'delivery' && (!place.name || !place.address || !place.city))
+    throw invalid('Enter where to deliver the items.', 'venueAddress');
+  const venue =
+    fulfilment === 'delivery'
+      ? { ...place, accessNotes: clean(values.accessNotes) }
+      : { ...RENTAL.pickupPlace, accessNotes: '' };
 
   // What changed, old value and new, for the audit trail
   const changes = [];
   if (date !== reservation.date) changes.push(`date from ${formatDate(reservation.date)} to ${formatDate(date)}`);
-  if (startTime !== reservation.startTime) changes.push(`${fulfilmentWord(fulfilment)} time from ${reservation.startTime} to ${startTime}`);
+  if (startTime !== reservation.startTime)
+    changes.push(`${fulfilmentWord(fulfilment)} time from ${reservation.startTime} to ${startTime}`);
   const switched = fulfilment !== reservation.fulfilment;
   if (switched) changes.push(`from ${fulfilmentWord(reservation.fulfilment)} to ${fulfilmentWord(fulfilment)}`);
-  else if (fulfilment === 'delivery' && JSON.stringify(venue) !== JSON.stringify(reservation.venue)) changes.push('delivery address');
+  else if (fulfilment === 'delivery' && JSON.stringify(venue) !== JSON.stringify(reservation.venue))
+    changes.push('delivery address');
   const { due, moved } = dueAfterMove(reservation, date);
   if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
 
@@ -1174,12 +1529,22 @@ async function updateRentalLogistics(conn, row, values, admin) {
   await repo.updateReservation(conn, ref, saved);
 
   const repriced = switched && was !== total;
-  const pending = reservation.quotation ? ' We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.' : '';
+  const pending = reservation.quotation
+    ? ' We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.'
+    : '';
   if (changes.length) {
-    await logAdmin(conn, ref, admin, `Updated ${changes.join(', ')}.${repriced ? ` Total from ${pesoText(was)} to ${pesoText(total)}${reservation.quotation ? ' once the revised quotation is sent' : ''}.` : ''}`);
+    await logAdmin(
+      conn,
+      ref,
+      admin,
+      `Updated ${changes.join(', ')}.${repriced ? ` Total from ${pesoText(was)} to ${pesoText(total)}${reservation.quotation ? ' once the revised quotation is sent' : ''}.` : ''}`
+    );
   }
   if (repriced) {
-    const how = fulfilment === 'delivery' ? `Delivery is ${pesoText(RENTAL.deliveryFee)} (our standard fee; a large order may be quoted more)` : `Picking up at ${RENTAL.pickupAddress} is free`;
+    const how =
+      fulfilment === 'delivery'
+        ? `Delivery is ${pesoText(RENTAL.deliveryFee)} (our standard fee; a large order may be quoted more)`
+        : `Picking up at ${RENTAL.pickupAddress} is free`;
     await postAdminMessage(
       conn,
       reservation,
@@ -1201,7 +1566,8 @@ export async function updateMenu(ref, body, admin) {
   const values = plainObject(body);
   return adminWrite(ref, async (conn, { reservation }) => {
     if (CLOSED.includes(reservation.status)) throw closedError();
-    if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no menu. Edit the rented items instead.');
+    if (isRental(reservation.serviceType))
+      throw invalid('An equipment rental has no menu. Edit the rented items instead.');
     const { serviceType } = values;
     if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose a buffet or catering only.', 'serviceType');
     // Buffet dishes and optional juice/dessert use the same validation as the form.
@@ -1211,13 +1577,24 @@ export async function updateMenu(ref, body, admin) {
     const menu = cleanMenu(values.menu, options);
     const before = reservation.serviceType;
     await repo.updateReservation(conn, ref, { serviceType, menu, foodNotes: clean(values.foodNotes) });
-    await logAdmin(conn, ref, admin, before === serviceType ? 'Updated the menu.' : `Changed the booking from ${before} to ${serviceType}.`);
+    await logAdmin(
+      conn,
+      ref,
+      admin,
+      before === serviceType ? 'Updated the menu.' : `Changed the booking from ${before} to ${serviceType}.`
+    );
     // Switching to or from a buffet changes what the customer owes: tell them before re-quoting
     if (before !== serviceType && reservation.quotation) {
       const food = includesFood(serviceType)
         ? `A buffet is charged per person, so food for ${reservation.guests} guests will be added to your total.`
         : 'Catering only has no per-person charge, so the food will be taken off your total.';
-      await postAdminMessage(conn, reservation, `${reservation.eventName} was changed from ${before} to ${serviceType}. ${food} We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`, null, admin.name);
+      await postAdminMessage(
+        conn,
+        reservation,
+        `${reservation.eventName} was changed from ${before} to ${serviceType}. ${food} We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`,
+        null,
+        admin.name
+      );
     }
     return { ok: true };
   });
@@ -1225,7 +1602,14 @@ export async function updateMenu(ref, body, admin) {
 
 // A styling (or null) in a form that compares by content: MySQL returns a JSON column's keys re-sorted
 const stylingKey = (styling) =>
-  styling ? JSON.stringify([styling.theme, styling.themeOther, styling.notes, (styling.colors || []).map((c) => [c.hex, c.name, Boolean(c.metallic)])]) : 'none';
+  styling
+    ? JSON.stringify([
+        styling.theme,
+        styling.themeOther,
+        styling.notes,
+        (styling.colors || []).map((c) => [c.hex, c.name, Boolean(c.metallic)])
+      ])
+    : 'none';
 
 // What the activity log says about a styling, e.g. "Royal; Burgundy, Gold" or "no theme; Sage Green"
 const stylingWords = (styling) => {
@@ -1240,15 +1624,24 @@ const stylingWords = (styling) => {
  * none) or a closed booking. Saving what is already there changes nothing and logs nothing. Returns { ok: true }.
  */
 export async function updateStyling(ref, body, admin, { transact = tx } = {}) {
-  return adminWrite(ref, async (conn, { reservation }) => {
-    if (CLOSED.includes(reservation.status)) throw closedError();
-    if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no theme or colors.');
-    const styling = stylingOf({ ...plainObject(body), referencePhoto: reservation.styling?.referencePhoto });
-    if (stylingKey(styling) === stylingKey(reservation.styling)) return { ok: true };
-    await repo.updateReservation(conn, ref, { styling });
-    await logAdmin(conn, ref, admin, styling ? `Updated the theme and colors (${stylingWords(styling)}).` : 'Cleared the theme and colors.');
-    return { ok: true };
-  }, { transact });
+  return adminWrite(
+    ref,
+    async (conn, { reservation }) => {
+      if (CLOSED.includes(reservation.status)) throw closedError();
+      if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no theme or colors.');
+      const styling = stylingOf({ ...plainObject(body), referencePhoto: reservation.styling?.referencePhoto });
+      if (stylingKey(styling) === stylingKey(reservation.styling)) return { ok: true };
+      await repo.updateReservation(conn, ref, { styling });
+      await logAdmin(
+        conn,
+        ref,
+        admin,
+        styling ? `Updated the theme and colors (${stylingWords(styling)}).` : 'Cleared the theme and colors.'
+      );
+      return { ok: true };
+    },
+    { transact }
+  );
 }
 
 /** Admin: save the private notes on a booking, as typed (never shown to the customer). Returns { ok: true }. */
@@ -1279,12 +1672,18 @@ export async function updateRentalItems(ref, body, admin) {
       if (!isRental(reservation.serviceType)) throw invalid('Only an equipment rental has rented items.');
       if (CLOSED.includes(reservation.status)) throw closedError();
       const stockData = await repo.rentalStockInputs(conn, reservation.date);
-      const lines = rentalLines(stockData, items, reservation.date, { excludeRef: ref, current: reservation.rentalItems });
+      const lines = rentalLines(stockData, items, reservation.date, {
+        excludeRef: ref,
+        current: reservation.rentalItems
+      });
       stockData.inventory.forEach((item) => {
         const out = item.allocations[ref] || 0;
         const line = lines.find((l) => l.itemId === item.id);
         if (out && (!line || line.qty < out)) {
-          throw invalid(`${out} ${item.name} ${out === 1 ? 'is' : 'are'} already checked out for this rental. Record their return first.`, `rental.${item.id}`);
+          throw invalid(
+            `${out} ${item.name} ${out === 1 ? 'is' : 'are'} already checked out for this rental. Record their return first.`,
+            `rental.${item.id}`
+          );
         }
       });
 
@@ -1305,9 +1704,17 @@ export async function updateRentalItems(ref, body, admin) {
       const was = financials(reservation, row.payments, row.refunds).total;
       const total = rentalQuote(pkg, reservation, { rentalItems: lines }).net;
       await repo.replaceRentalLines(conn, ref, lines);
-      if (!reservation.quotation) await repo.updateReservation(conn, ref, { estimate: rentalQuote(pkg, { ...reservation, rentalItems: lines }) });
-      await logAdmin(conn, ref, admin, `Changed the rented items: ${changes.join(', ')}. Total from ${pesoText(was)} to ${pesoText(total)}${reservation.quotation ? ' once the revised quotation is sent' : ''}.`);
-      const pending = reservation.quotation ? ' We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.' : '';
+      if (!reservation.quotation)
+        await repo.updateReservation(conn, ref, { estimate: rentalQuote(pkg, { ...reservation, rentalItems: lines }) });
+      await logAdmin(
+        conn,
+        ref,
+        admin,
+        `Changed the rented items: ${changes.join(', ')}. Total from ${pesoText(was)} to ${pesoText(total)}${reservation.quotation ? ' once the revised quotation is sent' : ''}.`
+      );
+      const pending = reservation.quotation
+        ? ' We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.'
+        : '';
       await postAdminMessage(
         conn,
         reservation,

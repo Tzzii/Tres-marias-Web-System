@@ -10,7 +10,18 @@ import Typography from '@mui/material/Typography';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
-import { DateField, EndTimeField, OCCASIONS, RULES, TimeField, calendarApi, formatDateLong, formatEventTime, shiftEndTime, validateGuests } from '@tm/shared';
+import {
+  DateField,
+  EndTimeField,
+  OCCASIONS,
+  RULES,
+  TimeField,
+  calendarApi,
+  formatDateLong,
+  formatEventTime,
+  shiftEndTime,
+  validateGuests
+} from '@tm/shared';
 import { readIntent, saveIntent } from '../lib/booking.js';
 import { site } from '../theme/siteTheme.js';
 import { siteFieldSx, siteLabelSx } from './Marketing.jsx';
@@ -73,26 +84,80 @@ export default function BookingBar({ onAvailable }) {
   };
 
   return (
-    <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5, md: 3.5 }, maxWidth: 1120, mx: 'auto', minWidth: 0, containerType: 'inline-size', containerName: 'availability-form', borderRadius: 3, backgroundColor: site.card, boxShadow: site.shadowPanel }}>
+    <Paper
+      elevation={0}
+      sx={{
+        p: { xs: 1.5, sm: 2.5, md: 3.5 },
+        maxWidth: 1120,
+        mx: 'auto',
+        minWidth: 0,
+        containerType: 'inline-size',
+        containerName: 'availability-form',
+        borderRadius: 3,
+        backgroundColor: site.card,
+        boxShadow: site.shadowPanel
+      }}
+    >
       {/* Calendar and event details sit side by side when there is room, and stack on phones. */}
-      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container availability-form (min-width: 720px)': { gridTemplateColumns: 'minmax(0, 0.9fr) minmax(0, 1.1fr)' }, '& > *': { minWidth: 0 }, gap: { xs: 4, md: 5 }, alignItems: 'start' }}>
+      <Box
+        component="form"
+        noValidate
+        onSubmit={submit}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          '@container availability-form (min-width: 720px)': {
+            gridTemplateColumns: 'minmax(0, 0.9fr) minmax(0, 1.1fr)'
+          },
+          '& > *': { minWidth: 0 },
+          gap: { xs: 4, md: 5 },
+          alignItems: 'start'
+        }}
+      >
         <Box>
           <Typography id="bar-date-label" sx={siteLabelSx}>
             Event date
           </Typography>
           <Box role="group" aria-labelledby="bar-date-label">
-            <DateField inline id="bar-date" value={date} onChange={(v) => { setDate(v); setErrors((e) => ({ ...e, date: '' })); setResult(null); }} error={errors.date} />
+            <DateField
+              inline
+              id="bar-date"
+              value={date}
+              onChange={(v) => {
+                setDate(v);
+                setErrors((e) => ({ ...e, date: '' }));
+                setResult(null);
+              }}
+              error={errors.date}
+            />
           </Box>
         </Box>
 
         <Box sx={{ containerType: 'inline-size', containerName: 'booking-details' }}>
-          <Typography component="h2" sx={{ mb: 0.75, fontFamily: site.fontSerif, fontSize: { xs: 24, sm: 28 }, fontWeight: 600, color: site.ink }}>
+          <Typography
+            component="h2"
+            sx={{
+              mb: 0.75,
+              fontFamily: site.fontSerif,
+              fontSize: { xs: 24, sm: 28 },
+              fontWeight: 600,
+              color: site.ink
+            }}
+          >
             Plan your event
           </Typography>
           <Typography sx={{ mb: 3, fontSize: 13, lineHeight: 1.7, color: site.inkSoft }}>
             Pick a date on the calendar, then add your event details to check availability.
           </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container booking-details (min-width: 440px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }, '& > *': { minWidth: 0 }, gap: 3 }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr)',
+              '@container booking-details (min-width: 440px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+              '& > *': { minWidth: 0 },
+              gap: 3
+            }}
+          >
             {/* Start time: the same hour : minute : AM/PM picker as the reservation form (30-minute steps only);
                 checked against other events booked that day */}
             <Box>
@@ -102,7 +167,12 @@ export default function BookingBar({ onAvailable }) {
               <TimeField
                 id="bar-time"
                 value={startTime}
-                onChange={(v) => { setStartTime(v); if (endTime) setEndTime(shiftEndTime(startTime, endTime, v)); setErrors((er) => ({ ...er, startTime: '' })); setResult(null); }}
+                onChange={(v) => {
+                  setStartTime(v);
+                  if (endTime) setEndTime(shiftEndTime(startTime, endTime, v));
+                  setErrors((er) => ({ ...er, startTime: '' }));
+                  setResult(null);
+                }}
                 min={RULES.earliestStart}
                 max={RULES.latestStart}
                 step={30}
@@ -122,7 +192,11 @@ export default function BookingBar({ onAvailable }) {
                 label=""
                 startTime={startTime}
                 value={endTime}
-                onChange={(v) => { setEndTime(v); setErrors((er) => ({ ...er, endTime: '' })); setResult(null); }}
+                onChange={(v) => {
+                  setEndTime(v);
+                  setErrors((er) => ({ ...er, endTime: '' }));
+                  setResult(null);
+                }}
                 error={errors.endTime}
                 sx={siteFieldSx}
               />
@@ -138,7 +212,10 @@ export default function BookingBar({ onAvailable }) {
                 fullWidth
                 size="small"
                 value={occasion}
-                onChange={(e) => { setOccasion(e.target.value); setErrors((er) => ({ ...er, occasion: '' })); }}
+                onChange={(e) => {
+                  setOccasion(e.target.value);
+                  setErrors((er) => ({ ...er, occasion: '' }));
+                }}
                 SelectProps={{ displayEmpty: true }}
                 error={Boolean(errors.occasion)}
                 helperText={errors.occasion}
@@ -174,7 +251,13 @@ export default function BookingBar({ onAvailable }) {
             </Box>
 
             <Box sx={{ gridColumn: '1 / -1', pt: 0.5 }}>
-              <Button type="submit" variant="contained" disabled={checking} fullWidth sx={{ height: 46, px: 3, borderRadius: 999, whiteSpace: 'nowrap' }}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={checking}
+                fullWidth
+                sx={{ height: 46, px: 3, borderRadius: 999, whiteSpace: 'nowrap' }}
+              >
                 {checking ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Check availability'}
               </Button>
             </Box>
@@ -186,22 +269,44 @@ export default function BookingBar({ onAvailable }) {
           Red has three cases: the whole date is unavailable, only the chosen time is taken, or the check itself failed. */}
       <Collapse in={Boolean(result)} unmountOnExit>
         {result && (
-          <Box role="status" sx={{ mt: 2.5, px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderRadius: 1.5, backgroundColor: result.available ? '#ecfdf5' : '#fef2f2', border: `1px solid ${result.available ? '#a7f3d0' : '#fecaca'}` }}>
-            {result.available ? <CheckCircleOutlineRoundedIcon sx={{ color: '#059669' }} /> : result.failed ? <ErrorOutlineRoundedIcon sx={{ color: '#dc2626' }} /> : <EventBusyOutlinedIcon sx={{ color: '#dc2626' }} />}
+          <Box
+            role="status"
+            sx={{
+              mt: 2.5,
+              px: 2,
+              py: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              borderRadius: 1.5,
+              backgroundColor: result.available ? '#ecfdf5' : '#fef2f2',
+              border: `1px solid ${result.available ? '#a7f3d0' : '#fecaca'}`
+            }}
+          >
+            {result.available ? (
+              <CheckCircleOutlineRoundedIcon sx={{ color: '#059669' }} />
+            ) : result.failed ? (
+              <ErrorOutlineRoundedIcon sx={{ color: '#dc2626' }} />
+            ) : (
+              <EventBusyOutlinedIcon sx={{ color: '#dc2626' }} />
+            )}
             <Typography sx={{ fontSize: 13.5, color: result.available ? '#065f46' : '#991b1b' }}>
               {result.available ? (
                 <>
-                  <b>{formatDateLong(result.date)}</b>, <b>{formatEventTime(result)}</b>, is open. Pick a package above to reserve it.
+                  <b>{formatDateLong(result.date)}</b>, <b>{formatEventTime(result)}</b>, is open. Pick a package above
+                  to reserve it.
                 </>
               ) : result.failed ? (
                 result.message
               ) : result.timeConflict ? (
                 <>
-                  <b>{formatEventTime(result)}</b> on <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}). Please try another time.
+                  <b>{formatEventTime(result)}</b> on <b>{formatDateLong(result.date)}</b> is not available (
+                  {result.reason.toLowerCase()}). Please try another time.
                 </>
               ) : (
                 <>
-                  <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}).{result.note ? ` Note from us: ${result.note}` : ''} Please try another date.
+                  <b>{formatDateLong(result.date)}</b> is not available ({result.reason.toLowerCase()}).
+                  {result.note ? ` Note from us: ${result.note}` : ''} Please try another date.
                 </>
               )}
             </Typography>

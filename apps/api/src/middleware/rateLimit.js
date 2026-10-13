@@ -21,7 +21,9 @@ const MINUTE = 60 * 1000;
 // Answer "too many requests" through the error handler, like every other error
 function refuse(req, res, next, options) {
   const reset = req.rateLimit && req.rateLimit.resetTime;
-  const retryAfter = reset ? Math.max(1, Math.ceil((reset.getTime() - Date.now()) / 1000)) : Math.ceil(options.windowMs / 1000);
+  const retryAfter = reset
+    ? Math.max(1, Math.ceil((reset.getTime() - Date.now()) / 1000))
+    : Math.ceil(options.windowMs / 1000);
   next(new ApiError('RATE_LIMITED', 'Too many requests. Please wait a moment and try again.', { retryAfter }));
 }
 
@@ -37,7 +39,8 @@ export const authLimiter = rateLimit({
   limit: 5,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: (req) => `${ipKeyGenerator(req.ip || '')} ${req.method} ${req.baseUrl}${req.route ? req.route.path : req.path}`,
+  keyGenerator: (req) =>
+    `${ipKeyGenerator(req.ip || '')} ${req.method} ${req.baseUrl}${req.route ? req.route.path : req.path}`,
   handler: refuse
 });
 

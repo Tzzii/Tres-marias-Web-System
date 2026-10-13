@@ -15,7 +15,8 @@ const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
  * "balance" after that. Worked out when the payment is recorded or verified, so a receipt can't carry a
  * label that no longer fits (e.g. after a lower quotation).
  */
-export const kindOf = (money, amount) => (money.paid === 0 && amount >= money.total ? 'full' : money.paid < money.downpayment ? 'downpayment' : 'balance');
+export const kindOf = (money, amount) =>
+  money.paid === 0 && amount >= money.total ? 'full' : money.paid < money.downpayment ? 'downpayment' : 'balance';
 
 /**
  * What is wrong with paying `value` (whole pesos) now, or '' when it is fine. It must be more than 0 and
@@ -28,7 +29,9 @@ export function paymentAmountProblem(money, value) {
   if (!Number.isFinite(value) || value <= 0) return 'Enter the amount you paid.';
   const least = Math.min(money.downpayment - money.paid, money.balance);
   if (!money.downpaymentPaid && value < least) {
-    return money.paid > 0 ? `Pay at least ${pesoText(least)} to complete your downpayment.` : `Pay at least ${pesoText(least)} as your downpayment.`;
+    return money.paid > 0
+      ? `Pay at least ${pesoText(least)} to complete your downpayment.`
+      : `Pay at least ${pesoText(least)} as your downpayment.`;
   }
   if (value > money.balance) return 'The amount is more than the remaining balance.';
   return '';
@@ -51,7 +54,10 @@ export function referenceProblem(text) {
  * A reference number reduced to what identifies it, for spotting one receipt used twice: no spaces,
  * dashes or underscores, capital letters. "bpi-2026 0914" and "BPI20260914" are the same key.
  */
-export const referenceKey = (text) => String(text || '').replace(/[\s_-]/g, '').toUpperCase();
+export const referenceKey = (text) =>
+  String(text || '')
+    .replace(/[\s_-]/g, '')
+    .toUpperCase();
 
 // Longest file name kept for an uploaded proof (payments.proof_name is VARCHAR(255))
 const MAX_FILE_NAME = 255;
@@ -83,4 +89,5 @@ export const QR_GRACE_MS = 2 * 60 * 1000;
  * An unpaid QR is never money received: only a paid one has a payment row (with its receipt), so no
  * total or balance ever counts a waiting QR.
  */
-export const qrState = (qr, at = Date.now()) => (qr.status === 'pending' ? (at < qr.expiresAt ? 'waiting' : 'checking') : qr.status);
+export const qrState = (qr, at = Date.now()) =>
+  qr.status === 'pending' ? (at < qr.expiresAt ? 'waiting' : 'checking') : qr.status;

@@ -104,17 +104,33 @@ export async function insertPayment(conn, p, proof = null, verifiedBy = null) {
                            status, submitted_at, verified_at, verified_by, receipt_no, reject_reason)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      p.id, p.ref, p.customerId, p.amount, p.kind, p.method, p.referenceNo, proof ? proof.key : null, p.proofName,
-      proof ? proof.mime : null, proof ? proof.size : null, p.status, p.submittedAt, p.verifiedAt, verifiedBy, p.receiptNo || null, p.rejectReason
+      p.id,
+      p.ref,
+      p.customerId,
+      p.amount,
+      p.kind,
+      p.method,
+      p.referenceNo,
+      proof ? proof.key : null,
+      p.proofName,
+      proof ? proof.mime : null,
+      proof ? proof.size : null,
+      p.status,
+      p.submittedAt,
+      p.verifiedAt,
+      verifiedBy,
+      p.receiptNo || null,
+      p.rejectReason
     ]
   );
 }
 
 /** Mark a waiting payment verified: what it is for (worked out again), the receipt number, when and by which admin. */
 export async function markVerified(conn, id, { kind, receiptNo, verifiedAt, verifiedBy }) {
-  await conn.query("UPDATE payments SET status = 'verified', kind = ?, receipt_no = ?, verified_at = ?, verified_by = ? WHERE id = ?", [
-    kind, receiptNo, verifiedAt, verifiedBy, id
-  ]);
+  await conn.query(
+    "UPDATE payments SET status = 'verified', kind = ?, receipt_no = ?, verified_at = ?, verified_by = ? WHERE id = ?",
+    [kind, receiptNo, verifiedAt, verifiedBy, id]
+  );
 }
 
 /** Mark a waiting payment rejected, with the reason the customer sees. */
@@ -127,8 +143,12 @@ export async function markRejected(conn, id, reason) {
  * null when nothing was uploaded (cash, a sample payment, a QR payment), or null when there is no such payment.
  */
 export async function findProof(db, id) {
-  const row = first(await db.query('SELECT id, customer_id, proof_key, proof_mime, proof_name FROM payments WHERE id = ?', [id]));
-  return row && { id: row.id, customerId: row.customer_id, key: row.proof_key, mime: row.proof_mime, name: row.proof_name };
+  const row = first(
+    await db.query('SELECT id, customer_id, proof_key, proof_mime, proof_name FROM payments WHERE id = ?', [id])
+  );
+  return (
+    row && { id: row.id, customerId: row.customer_id, key: row.proof_key, mime: row.proof_mime, name: row.proof_name }
+  );
 }
 
 /* ============================ Refunds ============================ */
@@ -148,7 +168,12 @@ export async function findRefunds(db, { customerId } = {}) {
       ORDER BY f.recorded_at DESC, CAST(SUBSTRING(f.id, 4) AS UNSIGNED), f.id`,
     customerId != null ? [customerId] : []
   );
-  return rows.map((row) => ({ refund: toRefund(row), eventName: row.event_name ?? '', eventDate: row.event_date ?? '', customerName: row.customer_name ?? '' }));
+  return rows.map((row) => ({
+    refund: toRefund(row),
+    eventName: row.event_name ?? '',
+    eventDate: row.event_date ?? '',
+    customerName: row.customer_name ?? ''
+  }));
 }
 
 /** Save a refund; `recordedBy` is the admin's id (the record itself carries the admin's name). */
@@ -156,7 +181,20 @@ export async function insertRefund(conn, f, recordedBy) {
   await conn.query(
     `INSERT INTO refunds (id, ref, customer_id, kind, amount, due, method, reference_no, sent_on, reason, recorded_at, recorded_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [f.id, f.ref, f.customerId, f.kind, f.amount, f.due, f.method, f.referenceNo, f.sentOn, f.reason, f.recordedAt, recordedBy]
+    [
+      f.id,
+      f.ref,
+      f.customerId,
+      f.kind,
+      f.amount,
+      f.due,
+      f.method,
+      f.referenceNo,
+      f.sentOn,
+      f.reason,
+      f.recordedAt,
+      recordedBy
+    ]
   );
 }
 
@@ -216,7 +254,11 @@ export async function findQr(db, id, { image = false } = {}) {
 export async function findQrs(db, { customerId, ref, status } = {}) {
   const conditions = [];
   const params = [];
-  for (const [column, value] of [['q.customer_id', customerId], ['q.ref', ref], ['q.status', status]]) {
+  for (const [column, value] of [
+    ['q.customer_id', customerId],
+    ['q.ref', ref],
+    ['q.status', status]
+  ]) {
     if (value == null) continue;
     conditions.push(`${column} = ?`);
     params.push(value);
@@ -256,7 +298,10 @@ export async function findQrByCode(db, codeId) {
 
 /** A booking's QRs still marked pending (open, or past their time and not yet checked with PayMongo), newest first. */
 export async function findPendingQrs(db, ref) {
-  const [rows] = await db.query(`SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.ref = ? AND q.status = 'pending' ORDER BY q.created_at DESC`, [ref]);
+  const [rows] = await db.query(
+    `SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.ref = ? AND q.status = 'pending' ORDER BY q.created_at DESC`,
+    [ref]
+  );
   return rows.map(toQr);
 }
 
@@ -283,10 +328,10 @@ export async function updateQr(db, id, changes) {
     if (!QR_FIELDS[field]) throw new Error(`updateQr: "${field}" is not a field it can save.`);
   });
   if (!entries.length) return;
-  await db.query(`UPDATE qr_payments SET ${entries.map(([field]) => `${QR_FIELDS[field]} = ?`).join(', ')} WHERE id = ?`, [
-    ...entries.map(([, value]) => value),
-    id
-  ]);
+  await db.query(
+    `UPDATE qr_payments SET ${entries.map(([field]) => `${QR_FIELDS[field]} = ?`).join(', ')} WHERE id = ?`,
+    [...entries.map(([, value]) => value), id]
+  );
 }
 
 /**
@@ -294,5 +339,10 @@ export async function updateQr(db, id, changes) {
  * fails here with ER_DUP_ENTRY (the id is the primary key), so it is never handled twice.
  */
 export async function insertWebhookEvent(conn, { id, type, livemode, receivedAt }) {
-  await conn.query('INSERT INTO webhook_events (id, type, livemode, received_at) VALUES (?, ?, ?, ?)', [id, type, livemode, receivedAt]);
+  await conn.query('INSERT INTO webhook_events (id, type, livemode, received_at) VALUES (?, ?, ?, ?)', [
+    id,
+    type,
+    livemode,
+    receivedAt
+  ]);
 }

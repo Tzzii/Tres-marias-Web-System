@@ -89,14 +89,24 @@ export function computeQuote({
   // Rented items, each line priced per piece, e.g. 80 chairs at ₱15 -> line total ₱1,200.
   // A line with no pieces is dropped, so an emptied row never prints as "0 x ...".
   const rentalLines = rentalItems
-    .map((line) => ({ itemId: line.itemId, name: line.name, qty: Math.max(0, Math.floor(Number(line.qty) || 0)), price: amount(line.price) }))
+    .map((line) => ({
+      itemId: line.itemId,
+      name: line.name,
+      qty: Math.max(0, Math.floor(Number(line.qty) || 0)),
+      price: amount(line.price)
+    }))
     .filter((line) => line.qty > 0)
     .map((line) => ({ ...line, total: line.qty * line.price }));
   const rentalTotal = rentalLines.reduce((sum, line) => sum + line.total, 0);
   const delivery = amount(deliveryFee);
   // Damaged or missing rented pieces, charged at each item's damage fee after the return
   const damageLines = damageCharges
-    .map((line) => ({ itemId: line.itemId, name: line.name, qty: Math.max(0, Math.floor(Number(line.qty) || 0)), fee: amount(line.fee) }))
+    .map((line) => ({
+      itemId: line.itemId,
+      name: line.name,
+      qty: Math.max(0, Math.floor(Number(line.qty) || 0)),
+      fee: amount(line.fee)
+    }))
     .filter((line) => line.qty > 0)
     .map((line) => ({ ...line, total: line.qty * line.fee }));
   const damageTotal = damageLines.reduce((sum, line) => sum + line.total, 0);
@@ -104,7 +114,10 @@ export function computeQuote({
   const other = amount(otherCharges);
   const cleanDiscount = amount(discount);
   // The total can't go below 0
-  const net = Math.max(0, packageTotal + extraCharge + foodTotal + rentalTotal + delivery + addonsTotal + other + damageTotal - cleanDiscount);
+  const net = Math.max(
+    0,
+    packageTotal + extraCharge + foodTotal + rentalTotal + delivery + addonsTotal + other + damageTotal - cleanDiscount
+  );
 
   return {
     packageTotal,

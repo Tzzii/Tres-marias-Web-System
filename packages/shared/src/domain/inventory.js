@@ -59,12 +59,18 @@ export function inventoryView(item, eventOf) {
       const event = ref === NO_EVENT ? null : eventOf(ref);
       return { ref, qty, eventName: event ? event.eventName : '', eventDate: event ? event.date : '' };
     })
-    .sort((a, b) => (a.ref === NO_EVENT) - (b.ref === NO_EVENT) || textOrder(a.eventDate || '~', b.eventDate || '~') || textOrder(a.ref, b.ref));
+    .sort(
+      (a, b) =>
+        (a.ref === NO_EVENT) - (b.ref === NO_EVENT) ||
+        textOrder(a.eventDate || '~', b.eventDate || '~') ||
+        textOrder(a.ref, b.ref)
+    );
   return { ...item, inUse, available, stock, out };
 }
 
 /** The order of the inventory list: by INVENTORY_CATEGORIES, then by name. */
-export const inventoryOrder = (a, b) => INVENTORY_CATEGORIES.indexOf(a.category) - INVENTORY_CATEGORIES.indexOf(b.category) || a.name.localeCompare(b.name);
+export const inventoryOrder = (a, b) =>
+  INVENTORY_CATEGORIES.indexOf(a.category) - INVENTORY_CATEGORIES.indexOf(b.category) || a.name.localeCompare(b.name);
 
 /* ============================ An item's details ============================ */
 
@@ -72,7 +78,11 @@ export const inventoryOrder = (a, b) => INVENTORY_CATEGORIES.indexOf(a.category)
 // and the damage fee of one piece (blank is ₱0). An item that is not for rent carries ₱0 for both.
 function rentalOf(values) {
   const rentable = Boolean(values.rentable);
-  return { rentable, rentPrice: rentable ? Number(values.rentPrice) : 0, damageFee: rentable ? Number(values.damageFee) || 0 : 0 };
+  return {
+    rentable,
+    rentPrice: rentable ? Number(values.rentPrice) : 0,
+    damageFee: rentable ? Number(values.damageFee) || 0 : 0
+  };
 }
 
 /**
@@ -87,13 +97,18 @@ export function itemProblem(values, { names = [], index } = {}) {
   const meta = (field) => (index === undefined ? { field } : { field, row: index });
   const name = (values.name || '').trim();
   if (name.length < 2) return invalid('Enter the item name.', meta('name'));
-  if (names.some((other) => other.toLowerCase() === name.toLowerCase())) return refuse('NAME_TAKEN', `"${name}" is already in the inventory.`, meta('name'));
+  if (names.some((other) => other.toLowerCase() === name.toLowerCase()))
+    return refuse('NAME_TAKEN', `"${name}" is already in the inventory.`, meta('name'));
   if (!INVENTORY_CATEGORIES.includes(values.category)) return invalid('Choose a category.', meta('category'));
-  if (!isCount(values.total, 1) || values.total > 100000) return invalid('Enter a quantity from 1 to 100,000.', meta('total'));
-  if (!isCount(values.lowStockAt) || values.lowStockAt >= values.total) return invalid('The alert level must be below the total.', meta('lowStockAt'));
+  if (!isCount(values.total, 1) || values.total > 100000)
+    return invalid('Enter a quantity from 1 to 100,000.', meta('total'));
+  if (!isCount(values.lowStockAt) || values.lowStockAt >= values.total)
+    return invalid('The alert level must be below the total.', meta('lowStockAt'));
   const { rentable, rentPrice, damageFee } = rentalOf(values);
-  if (rentable && (!isCount(rentPrice, 1) || rentPrice > 100000)) return invalid('Enter a rental price from ₱1 to ₱100,000.', meta('rentPrice'));
-  if (rentable && (!isCount(damageFee) || damageFee > 1000000)) return invalid('Enter a damage fee from ₱0 to ₱1,000,000.', meta('damageFee'));
+  if (rentable && (!isCount(rentPrice, 1) || rentPrice > 100000))
+    return invalid('Enter a rental price from ₱1 to ₱100,000.', meta('rentPrice'));
+  if (rentable && (!isCount(damageFee) || damageFee > 1000000))
+    return invalid('Enter a damage fee from ₱0 to ₱1,000,000.', meta('damageFee'));
   return null;
 }
 
@@ -104,7 +119,8 @@ export const itemFields = (values) => ({ name: (values.name || '').trim(), ...re
  * The first row of Add item(s) whose name repeats an earlier row's (any case), or -1. The service answers
  * NAME_TAKEN `"…" is listed twice.` for it, so a list is never half saved.
  */
-export const repeatedRow = (names) => names.findIndex((name, i) => names.findIndex((other) => other.toLowerCase() === name.toLowerCase()) !== i);
+export const repeatedRow = (names) =>
+  names.findIndex((name, i) => names.findIndex((other) => other.toLowerCase() === name.toLowerCase()) !== i);
 
 /** The history line of a new item, e.g. "Added to inventory with 50 pcs. For rent at ₱15 per piece (damage fee ₱400)." */
 export const addedText = (total, { rentable, rentPrice, damageFee }) =>
@@ -118,7 +134,8 @@ export function editProblem(item, values, { names = [] } = {}) {
   const problem = itemProblem(values, { names });
   if (problem) return problem;
   const minimum = inUseOf(item) + item.damaged;
-  if (values.total < minimum) return invalid(`The total can't be below ${minimum} (in use + damaged).`, { field: 'total' });
+  if (values.total < minimum)
+    return invalid(`The total can't be below ${minimum} (in use + damaged).`, { field: 'total' });
   return null;
 }
 
@@ -153,8 +170,10 @@ export function editText(item, values) {
   if (item.total !== values.total) edits.push(`total from ${item.total} to ${values.total} pcs`);
   if (item.lowStockAt !== values.lowStockAt) edits.push(`low-stock alert to ${values.lowStockAt}`);
   if (Boolean(item.rentable) !== rentable) edits.push(rentable ? 'for rent: on' : 'for rent: off');
-  if (rentable && (item.rentPrice || 0) !== rentPrice) edits.push(`rental price from ${peso(item.rentPrice || 0)} to ${peso(rentPrice)}`);
-  if (rentable && (item.damageFee || 0) !== damageFee) edits.push(`damage fee from ${peso(item.damageFee || 0)} to ${peso(damageFee)}`);
+  if (rentable && (item.rentPrice || 0) !== rentPrice)
+    edits.push(`rental price from ${peso(item.rentPrice || 0)} to ${peso(rentPrice)}`);
+  if (rentable && (item.damageFee || 0) !== damageFee)
+    edits.push(`damage fee from ${peso(item.damageFee || 0)} to ${peso(damageFee)}`);
   if (item.notes !== (values.notes || '').trim()) edits.push('notes');
   return edits.length ? `Changed ${edits.join(', ')}.` : '';
 }
@@ -202,9 +221,16 @@ export function stockMove(item, action, { qty = 0, damagedQty = 0, ref = NO_EVEN
   if (action === 'checkout') {
     if (!isCount(qty, 1)) return fail('Enter how many to check out.', 'qty');
     if (qty > available) return fail(`Only ${available} pcs are available.`, 'qty');
-    if (ref !== NO_EVENT && !HOLDS_DATE.includes(refStatus)) return fail('Choose an approved or confirmed reservation.', 'ref');
+    if (ref !== NO_EVENT && !HOLDS_DATE.includes(refStatus))
+      return fail('Choose an approved or confirmed reservation.', 'ref');
     allocations[ref] = (allocations[ref] || 0) + qty;
-    return done({}, ref === NO_EVENT ? `Checked out ${qty} pcs (no event linked).${suffix}` : `Checked out ${qty} pcs for ${ref}.${suffix}`, ref);
+    return done(
+      {},
+      ref === NO_EVENT
+        ? `Checked out ${qty} pcs (no event linked).${suffix}`
+        : `Checked out ${qty} pcs for ${ref}.${suffix}`,
+      ref
+    );
   }
   if (action === 'return') {
     const out = allocations[ref] || 0;
@@ -215,7 +241,12 @@ export function stockMove(item, action, { qty = 0, damagedQty = 0, ref = NO_EVEN
     if (left) allocations[ref] = left;
     else delete allocations[ref];
     const where = ref === NO_EVENT ? '' : ` from ${ref}`;
-    return done({ damaged: item.damaged + damagedQty }, `Returned ${qty + damagedQty} pcs${where}${damagedQty ? ` (${damagedQty} damaged)` : ''}.${suffix}`, ref, damagedQty);
+    return done(
+      { damaged: item.damaged + damagedQty },
+      `Returned ${qty + damagedQty} pcs${where}${damagedQty ? ` (${damagedQty} damaged)` : ''}.${suffix}`,
+      ref,
+      damagedQty
+    );
   }
   if (action === 'damage') {
     if (!isCount(qty, 1)) return fail('Enter how many are damaged.', 'qty');
@@ -234,7 +265,10 @@ export function stockMove(item, action, { qty = 0, damagedQty = 0, ref = NO_EVEN
     if (!reason) return fail('Give a reason for disposal.', 'note');
     if (qty >= item.total) return fail('Archive the item instead of disposing of every piece.', 'qty');
     const total = item.total - qty;
-    return done({ damaged: item.damaged - qty, total, lowStockAt: Math.min(item.lowStockAt, total - 1) }, `Disposed of ${qty} damaged pcs; total is now ${total}.${suffix}`);
+    return done(
+      { damaged: item.damaged - qty, total, lowStockAt: Math.min(item.lowStockAt, total - 1) },
+      `Disposed of ${qty} damaged pcs; total is now ${total}.${suffix}`
+    );
   }
   return fail('Unknown stock action.');
 }
@@ -244,7 +278,8 @@ export function stockMove(item, action, { qty = 0, damagedQty = 0, ref = NO_EVEN
  * customer sees too): the item's history line without the ref, e.g. "Equipment · Monobloc chair:
  * Checked out 80 pcs."
  */
-export const equipmentActivity = (item, text, ref) => `Equipment · ${item.name}: ${text.replace(` for ${ref}`, '').replace(` from ${ref}`, '')}`;
+export const equipmentActivity = (item, text, ref) =>
+  `Equipment · ${item.name}: ${text.replace(` for ${ref}`, '').replace(` from ${ref}`, '')}`;
 
 /* ============================ Equipment rental ============================ */
 
@@ -259,7 +294,8 @@ export function rentalProblem(reservation) {
 export const rentalCheckOutText = (qty, ref) => `Checked out ${qty} pcs for ${ref}.`;
 
 /** The history line of one item of a rental's return, e.g. "Returned 100 pcs from RES-2026-1010-01 (2 damaged or missing)." */
-export const rentalReturnText = (ref, good, damaged) => `Returned ${good + damaged} pcs from ${ref}${damaged ? ` (${damaged} damaged or missing)` : ''}.`;
+export const rentalReturnText = (ref, good, damaged) =>
+  `Returned ${good + damaged} pcs from ${ref}${damaged ? ` (${damaged} damaged or missing)` : ''}.`;
 
 /**
  * An approved rental's check-out: for each rented item, the pieces not yet out for it. `itemById(id)`
@@ -270,7 +306,8 @@ export const rentalReturnText = (ref, good, damaged) => `Returned ${good + damag
  * Returns { problem } or { moves: [{ item, qty }] }.
  */
 export function rentalCheckOut(reservation, itemById, dispatched = {}) {
-  if (!HOLDS_DATE.includes(reservation.status)) return { problem: refuse('INVALID_STATE', 'Approve the rental before checking out its items.') };
+  if (!HOLDS_DATE.includes(reservation.status))
+    return { problem: refuse('INVALID_STATE', 'Approve the rental before checking out its items.') };
   const moves = [];
   for (const line of reservation.rentalItems || []) {
     const item = itemById(line.itemId);
@@ -283,7 +320,9 @@ export function rentalCheckOut(reservation, itemById, dispatched = {}) {
   const left = (item) => Math.max(0, availableOf(item));
   const short = moves.filter(({ item, qty }) => item.archived || qty > left(item));
   if (short.length) {
-    const named = short.map(({ item }) => (item.archived ? `${item.name} (archived)` : `${item.name} (${left(item)} left)`));
+    const named = short.map(({ item }) =>
+      item.archived ? `${item.name} (archived)` : `${item.name} (${left(item)} left)`
+    );
     return { problem: refuse('OUT_OF_STOCK', `Not enough available: ${named.join(', ')}.`) };
   }
   return { moves };
@@ -291,8 +330,13 @@ export function rentalCheckOut(reservation, itemById, dispatched = {}) {
 
 /** Confirmed equipment rentals are dispatched at their pickup/delivery time, on that business day. */
 export function rentalCheckoutDue(reservation, { date, time }) {
-  return isRental(reservation.serviceType) && reservation.status === 'confirmed' &&
-    reservation.date === date && /^\d{2}:\d{2}$/.test(reservation.startTime || '') && reservation.startTime <= time;
+  return (
+    isRental(reservation.serviceType) &&
+    reservation.status === 'confirmed' &&
+    reservation.date === date &&
+    /^\d{2}:\d{2}$/.test(reservation.startTime || '') &&
+    reservation.startTime <= time
+  );
 }
 
 /** Upgrade fallback for checkouts made before the durable dispatch ledger existed. */
@@ -314,7 +358,11 @@ export function legacyRentalDispatched(item, ref) {
  * Returns { problem } or { rows: [{ item, good, damaged }] }.
  */
 export function rentalReturn(reservation, returns, itemById) {
-  const sent = returns.map((row) => ({ item: itemById(row.itemId), good: Number(row.good) || 0, damaged: Number(row.damaged) || 0 }));
+  const sent = returns.map((row) => ({
+    item: itemById(row.itemId),
+    good: Number(row.good) || 0,
+    damaged: Number(row.damaged) || 0
+  }));
   if (sent.some((row) => !row.item)) return { problem: refuse('NOT_FOUND', 'Item not found.') };
   const rows = [];
   sent
@@ -322,14 +370,20 @@ export function rentalReturn(reservation, returns, itemById) {
     .forEach(({ item, good, damaged }) => {
       const whole = isCount(good) && isCount(damaged);
       const same = rows.find((row) => row.item.id === item.id);
-      if (same) Object.assign(same, { good: same.good + good, damaged: same.damaged + damaged, whole: same.whole && whole });
+      if (same)
+        Object.assign(same, { good: same.good + good, damaged: same.damaged + damaged, whole: same.whole && whole });
       else rows.push({ item, good, damaged, whole });
     });
   if (!rows.length) return { problem: invalid('Enter how many pieces came back.') };
   for (const { item, good, damaged, whole } of rows) {
     const out = item.allocations[reservation.ref] || 0;
     if (!whole) return { problem: invalid(`Enter whole numbers for ${item.name}.`, { field: item.id }) };
-    if (good + damaged > out) return { problem: invalid(`Only ${out} ${item.name} ${out === 1 ? 'is' : 'are'} out for this rental.`, { field: item.id }) };
+    if (good + damaged > out)
+      return {
+        problem: invalid(`Only ${out} ${item.name} ${out === 1 ? 'is' : 'are'} out for this rental.`, {
+          field: item.id
+        })
+      };
   }
   return { rows: rows.map(({ item, good, damaged }) => ({ item, good, damaged })) };
 }

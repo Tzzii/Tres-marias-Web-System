@@ -50,7 +50,17 @@ const rowClickHandler = (onRowClick, row) =>
  * card (see cardRole above); without it the first plain column becomes the card's title.
  * `cards={false}` keeps the table on every screen size.
  */
-export function DataTable({ columns, rows, rowKey, onRowClick, loading, empty, minWidth = 720, dense = false, cards = true }) {
+export function DataTable({
+  columns,
+  rows,
+  rowKey,
+  onRowClick,
+  loading,
+  empty,
+  minWidth = 720,
+  dense = false,
+  cards = true
+}) {
   const asCards = useMediaQuery('(max-width:899px)') && cards;
   // Placeholder rows while loading; the `empty` message when there's nothing to show
   if (loading) return <ListSkeleton rows={4} height={dense ? 40 : 52} />;
@@ -111,7 +121,17 @@ function CardList({ columns, rows, rowKey, onRowClick }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       {/* The column's "select all" box; the label makes the words clickable too */}
       {selectCol && (
-        <Box component="label" sx={{ display: 'inline-flex', alignItems: 'center', alignSelf: 'flex-start', gap: 0.25, ml: -0.75, cursor: 'pointer' }}>
+        <Box
+          component="label"
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            gap: 0.25,
+            ml: -0.75,
+            cursor: 'pointer'
+          }}
+        >
           {selectCol.label}
           <Typography component="span" sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textSecondary }}>
             Select all
@@ -123,12 +143,22 @@ function CardList({ columns, rows, rowKey, onRowClick }) {
         <Box
           key={rowKey(row)}
           onClick={rowClickHandler(onRowClick, row)}
-          sx={{ p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.cardLight, color: tokens.textPrimary, cursor: onRowClick ? 'pointer' : 'default', ...(onRowClick && { '&:hover': { borderColor: tokens.placeholder } }) }}
+          sx={{
+            p: 1.5,
+            borderRadius: 1.5,
+            border: `1px solid ${tokens.cardLightBorder}`,
+            backgroundColor: tokens.cardLight,
+            color: tokens.textPrimary,
+            cursor: onRowClick ? 'pointer' : 'default',
+            ...(onRowClick && { '&:hover': { borderColor: tokens.placeholder } })
+          }}
         >
           {/* Top: tick box, title, and the status / ⋮ menu on the right */}
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
             {selectCol && <Box sx={{ ml: -1, mt: -0.75, flexShrink: 0 }}>{cellContent(selectCol, row)}</Box>}
-            <Box sx={{ flex: 1, minWidth: 0, fontSize: 13.5, overflowWrap: 'anywhere' }}>{titleCol && cellContent(titleCol, row)}</Box>
+            <Box sx={{ flex: 1, minWidth: 0, fontSize: 13.5, overflowWrap: 'anywhere' }}>
+              {titleCol && cellContent(titleCol, row)}
+            </Box>
             {asides.map((col) => (
               <Box key={col.key} sx={{ flexShrink: 0, mt: -0.25 }}>
                 {cellContent(col, row)}
@@ -138,13 +168,23 @@ function CardList({ columns, rows, rowKey, onRowClick }) {
 
           {/* Middle: the other columns as label / value pairs; an empty value shows a dash, a 'wide' one takes the whole line */}
           {fields.length > 0 && (
-            <Box sx={{ mt: 1.25, display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' }, columnGap: 2, rowGap: 1.25 }}>
+            <Box
+              sx={{
+                mt: 1.25,
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' },
+                columnGap: 2,
+                rowGap: 1.25
+              }}
+            >
               {fields.map((col) => {
                 const value = cellContent(col, row);
                 return (
                   <Box key={col.key} sx={{ minWidth: 0, ...(cardRole(col) === 'wide' && { gridColumn: '1 / -1' }) }}>
                     <Typography sx={cardLabelSx}>{col.label}</Typography>
-                    <Box sx={{ mt: 0.25, fontSize: 13.5, overflowWrap: 'anywhere' }}>{value === null || value === undefined || value === '' ? '—' : value}</Box>
+                    <Box sx={{ mt: 0.25, fontSize: 13.5, overflowWrap: 'anywhere' }}>
+                      {value === null || value === undefined || value === '' ? '—' : value}
+                    </Box>
                   </Box>
                 );
               })}
@@ -153,7 +193,17 @@ function CardList({ columns, rows, rowKey, onRowClick }) {
 
           {/* Bottom: the row's buttons, right-aligned and wrapping when there are many */}
           {footers.length > 0 && (
-            <Box sx={{ mt: 1.25, pt: 1, borderTop: `1px solid ${tokens.cardLightBorder}`, display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 0.75 }}>
+            <Box
+              sx={{
+                mt: 1.25,
+                pt: 1,
+                borderTop: `1px solid ${tokens.cardLightBorder}`,
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-end',
+                gap: 0.75
+              }}
+            >
               {footers.map((col) => (
                 <Box key={col.key} sx={{ maxWidth: '100%' }}>
                   {cellContent(col, row)}
@@ -176,7 +226,9 @@ export function Pager({ page, pageSize, total, onPage, noun = '' }) {
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1; // first row number on this page
   const to = Math.min(total, page * pageSize); // last row number on this page
   return (
-    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
+    <Box
+      sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}
+    >
       <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
         Showing {from}–{to} of {total}
         {noun && ` ${noun}`}
@@ -187,7 +239,14 @@ export function Pager({ page, pageSize, total, onPage, noun = '' }) {
             Prev
           </Button>
           {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
-            <Button key={n} size="small" variant={n === page ? 'contained' : 'text'} onClick={() => onPage(n)} sx={{ minWidth: 34 }} aria-current={n === page ? 'page' : undefined}>
+            <Button
+              key={n}
+              size="small"
+              variant={n === page ? 'contained' : 'text'}
+              onClick={() => onPage(n)}
+              sx={{ minWidth: 34 }}
+              aria-current={n === page ? 'page' : undefined}
+            >
               {n}
             </Button>
           ))}

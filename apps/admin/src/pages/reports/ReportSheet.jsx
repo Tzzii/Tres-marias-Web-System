@@ -37,17 +37,23 @@ function FigureTable({ head, rows, total }) {
     >
       <thead>
         <tr>
-          {head.map((cell) => <th key={cell}>{cell}</th>)}
+          {head.map((cell) => (
+            <th key={cell}>{cell}</th>
+          ))}
         </tr>
       </thead>
       <tbody>
         {rows.map((row, i) => (
           <tr key={`${row[0]}-${i}`}>
-            {row.map((cell, j) => <td key={j}>{cell}</td>)}
+            {row.map((cell, j) => (
+              <td key={j}>{cell}</td>
+            ))}
           </tr>
         ))}
         <tr className="total">
-          {total.map((cell, j) => <td key={j}>{cell}</td>)}
+          {total.map((cell, j) => (
+            <td key={j}>{cell}</td>
+          ))}
         </tr>
       </tbody>
     </Box>
@@ -79,11 +85,21 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
 
   return createPortal(
     <LightSurface>
-      <Box ref={sheetRef} className="tm-print-root tm-print-sheet" aria-hidden="true" sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}>
+      <Box
+        ref={sheetRef}
+        className="tm-print-root tm-print-sheet"
+        aria-hidden="true"
+        sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}
+      >
         {/* Letterhead, as on the quotations and receipts */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <Box component="img" src={LOGO_SRC} alt="" sx={{ width: 60, height: 60, borderRadius: '50%', border: `2px solid ${tokens.gold}` }} />
+            <Box
+              component="img"
+              src={LOGO_SRC}
+              alt=""
+              sx={{ width: 60, height: 60, borderRadius: '50%', border: `2px solid ${tokens.gold}` }}
+            />
             <Box>
               <Typography sx={{ fontSize: 18, fontWeight: 800 }}>{BUSINESS.name}</Typography>
               <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>{BUSINESS.address}</Typography>
@@ -95,7 +111,9 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
           <Box sx={{ textAlign: 'right' }}>
             <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark }}>Business Report</Typography>
             <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>Range: {rangeLabel}</Typography>
-            <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>Generated: {formatDateTime(generatedAt)}</Typography>
+            <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+              Generated: {formatDateTime(generatedAt)}
+            </Typography>
           </Box>
         </Box>
 
@@ -105,9 +123,24 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
         <Box {...KEEP} sx={KEEP_SX}>
           <Typography sx={HEADING_SX}>Summary</Typography>
           <Typography sx={NOTE_SX}>Figures for {rangeLabel.toLowerCase()}.</Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', border: `1px solid ${tokens.cardLightBorder}`, borderRadius: 1.5, overflow: 'hidden' }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              border: `1px solid ${tokens.cardLightBorder}`,
+              borderRadius: 1.5,
+              overflow: 'hidden'
+            }}
+          >
             {figures.map(([label, value, meta], i) => (
-              <Box key={label} sx={{ p: 1.5, backgroundColor: tokens.surfaceSubtle, borderLeft: i ? `1px solid ${tokens.cardLightBorder}` : 'none' }}>
+              <Box
+                key={label}
+                sx={{
+                  p: 1.5,
+                  backgroundColor: tokens.surfaceSubtle,
+                  borderLeft: i ? `1px solid ${tokens.cardLightBorder}` : 'none'
+                }}
+              >
                 <Typography sx={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted }}>{label}</Typography>
                 <Typography sx={{ mt: 0.5, fontSize: 17, fontWeight: 800, lineHeight: 1.25 }}>{value}</Typography>
                 <Typography sx={{ mt: 0.25, fontSize: 10.5, color: tokens.textMuted }}>{meta}</Typography>
@@ -119,25 +152,53 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
         {/* Revenue: the chart beside its table, months (or years) in order with their total */}
         <Box {...KEEP} sx={{ ...KEEP_SX, mt: 3.5 }}>
           <Typography sx={HEADING_SX}>{byYear ? 'Revenue by Year' : 'Revenue by Month'}</Typography>
-          <Typography sx={NOTE_SX}>Verified payments less refunds sent. A period with more refunds than payments is below zero.</Typography>
+          <Typography sx={NOTE_SX}>
+            Verified payments less refunds sent. A period with more refunds than payments is below zero.
+          </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 3, alignItems: 'start' }}>
             <Box sx={{ pt: 1 }}>
               {data.revenue === 0 && !data.refunds ? (
-                <Typography sx={{ py: 6, fontSize: 12.5, textAlign: 'center', color: tokens.textMuted, border: `1px dashed ${tokens.cardLightBorder}`, borderRadius: 1.5 }}>No revenue in this range.</Typography>
+                <Typography
+                  sx={{
+                    py: 6,
+                    fontSize: 12.5,
+                    textAlign: 'center',
+                    color: tokens.textMuted,
+                    border: `1px dashed ${tokens.cardLightBorder}`,
+                    borderRadius: 1.5
+                  }}
+                >
+                  No revenue in this range.
+                </Typography>
               ) : (
-                <BarChart data={data.revenueChart} height={300} format={format} ariaLabel={byYear ? 'Revenue by Year' : 'Revenue by Month'} />
+                <BarChart
+                  data={data.revenueChart}
+                  height={300}
+                  format={format}
+                  ariaLabel={byYear ? 'Revenue by Year' : 'Revenue by Month'}
+                />
               )}
             </Box>
-            <FigureTable head={[byYear ? 'Year' : 'Month', 'Revenue']} rows={data.revenueChart.map((m) => [m.title || m.label, peso(m.value)])} total={['Total', peso(revenueTotal)]} />
+            <FigureTable
+              head={[byYear ? 'Year' : 'Month', 'Revenue']}
+              rows={data.revenueChart.map((m) => [m.title || m.label, peso(m.value)])}
+              total={['Total', peso(revenueTotal)]}
+            />
           </Box>
         </Box>
 
         {/* Bookings per package, most booked first */}
         <Box {...KEEP} sx={{ ...KEEP_SX, mt: 3.5 }}>
           <Typography sx={HEADING_SX}>Bookings by Package</Typography>
-          <Typography sx={NOTE_SX}>Reservations dated in the range, leaving out declined and cancelled ones.</Typography>
+          <Typography sx={NOTE_SX}>
+            Reservations dated in the range, leaving out declined and cancelled ones.
+          </Typography>
           {data.packageCounts.length ? (
-            <FigureTable head={['Package', 'Bookings', 'Share']} rows={data.packageCounts.map((p) => [p.name, String(p.count), share(p.count)])} total={['Total', String(bookings), bookings ? '100%' : '—']} />
+            <FigureTable
+              head={['Package', 'Bookings', 'Share']}
+              rows={data.packageCounts.map((p) => [p.name, String(p.count), share(p.count)])}
+              total={['Total', String(bookings), bookings ? '100%' : '—']}
+            />
           ) : (
             <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>No packages yet.</Typography>
           )}
@@ -145,7 +206,9 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
 
         {/* How each figure is counted, the same rules the Overview tab uses */}
         <Box {...KEEP} sx={{ ...KEEP_SX, mt: 3.5, pt: 1.5, borderTop: `1px solid ${tokens.cardLightBorder}` }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 700, color: tokens.textSecondary }}>How the Figures Are Counted</Typography>
+          <Typography sx={{ fontSize: 11, fontWeight: 700, color: tokens.textSecondary }}>
+            How the Figures Are Counted
+          </Typography>
           <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.25, fontSize: 11, lineHeight: 1.6, color: tokens.textMuted }}>
             <li>Events Served: events dated in the range and marked completed.</li>
             <li>Revenue: payments verified in the range, less refunds sent in the range.</li>

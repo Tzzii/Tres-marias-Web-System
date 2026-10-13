@@ -17,7 +17,10 @@ export const threadParams = z.object({ id: z.string() });
 // POST …/threads/:id/messages { body, ref }. The service trims the body and holds it to 2,000 characters
 // with the chat's messages; this limit only stops a request from sending a huge text.
 export const sendBody = z.object({
-  body: z.string({ error: 'Write a message first.' }).max(10000, { error: 'Messages can be up to 2,000 characters.' }).default(''),
+  body: z
+    .string({ error: 'Write a message first.' })
+    .max(10000, { error: 'Messages can be up to 2,000 characters.' })
+    .default(''),
   ref: passThrough
 });
 
@@ -26,7 +29,10 @@ export const messageParams = z.object({ id: z.string(), messageId: z.string() })
 
 // PATCH …/threads/:id/messages/:messageId { body }: the new text, held to 2,000 characters by the service like a new message
 export const editBody = z.object({
-  body: z.string({ error: 'Write a message first.' }).max(10000, { error: 'Messages can be up to 2,000 characters.' }).default('')
+  body: z
+    .string({ error: 'Write a message first.' })
+    .max(10000, { error: 'Messages can be up to 2,000 characters.' })
+    .default('')
 });
 
 // GET /api/admin/threads?customerId=… : one customer's conversation (the admin's chat buttons look it up first)

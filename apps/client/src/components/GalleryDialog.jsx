@@ -29,7 +29,15 @@ const OPEN_GRACE_MS = 400;
 const SWIPE_PX = 50;
 
 // The large photo and its small copy fill the stage and keep their shape (letterboxed, never cropped)
-const stagePhotoSx = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none', WebkitUserDrag: 'none' };
+const stagePhotoSx = {
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+  userSelect: 'none',
+  WebkitUserDrag: 'none'
+};
 
 // Round previous / next buttons over the sides of the large photo (side: 'left' or 'right')
 const arrowSx = (side) => ({
@@ -171,7 +179,12 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
 
   // Full screen on phones: keep the bars clear of the notch and the home bar (viewport-fit=cover in index.html)
   const safeArea = fullScreen
-    ? { pt: 'env(safe-area-inset-top)', pb: 'env(safe-area-inset-bottom)', pl: 'env(safe-area-inset-left)', pr: 'env(safe-area-inset-right)' }
+    ? {
+        pt: 'env(safe-area-inset-top)',
+        pb: 'env(safe-area-inset-bottom)',
+        pl: 'env(safe-area-inset-left)',
+        pr: 'env(safe-area-inset-right)'
+      }
     : {};
 
   return (
@@ -184,13 +197,49 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
       maxWidth="lg"
       transitionDuration={reduceMotion ? 0 : undefined}
       aria-labelledby="tm-gallery-title"
-      PaperProps={{ sx: { position: 'relative', overflow: 'hidden', height: fullScreen ? '100%' : 'min(880px, calc(100% - 64px))', backgroundColor: site.ivory, backgroundImage: 'none' } }}
+      PaperProps={{
+        sx: {
+          position: 'relative',
+          overflow: 'hidden',
+          height: fullScreen ? '100%' : 'min(880px, calc(100% - 64px))',
+          backgroundColor: site.ivory,
+          backgroundImage: 'none'
+        }
+      }}
     >
       {/* ===== Grid of all the event's photos (hidden, not removed, while a photo is shown large) ===== */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', visibility: viewing ? 'hidden' : 'visible', ...safeArea }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, px: { xs: 2, sm: 3 }, py: { xs: 1.5, sm: 2 }, backgroundColor: site.card, borderBottom: `1px solid ${site.border}` }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          visibility: viewing ? 'hidden' : 'visible',
+          ...safeArea
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
+            backgroundColor: site.card,
+            borderBottom: `1px solid ${site.border}`
+          }}
+        >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography id="tm-gallery-title" component="h2" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 22, sm: 26 }, fontWeight: 600, lineHeight: 1.25, color: site.ink }}>
+            <Typography
+              id="tm-gallery-title"
+              component="h2"
+              sx={{
+                fontFamily: site.fontSerif,
+                fontSize: { xs: 22, sm: 26 },
+                fontWeight: 600,
+                lineHeight: 1.25,
+                color: site.ink
+              }}
+            >
               {shown.event.label}
             </Typography>
             <Typography sx={{ mt: 0.25, fontSize: 13, color: site.inkMuted }}>{photoCount(count)}</Typography>
@@ -200,7 +249,13 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
           </IconButton>
         </Box>
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 1.5, sm: 2.5 } }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: { xs: 1, sm: 1.5 } }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+              gap: { xs: 1, sm: 1.5 }
+            }}
+          >
             {/* Each photo is a button that shows it large; on hover the photo zooms in slightly */}
             {photos.map((item, i) => (
               <ButtonBase
@@ -234,18 +289,48 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
         <Box
           ref={focusOnMount}
           tabIndex={-1}
-          sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', backgroundColor: site.espressoDeep, outline: 'none', animation: `${viewerIn} 0.2s ease`, ...reducedMotionSx, ...safeArea }}
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: site.espressoDeep,
+            outline: 'none',
+            animation: `${viewerIn} 0.2s ease`,
+            ...reducedMotionSx,
+            ...safeArea
+          }}
         >
           {/* Top bar: back to the grid (or the event's name when it has one photo), the position, and close */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 56, px: { xs: 1, sm: 2 } }}>
             {several ? (
-              <Button onClick={onBack} startIcon={<ArrowBackRoundedIcon />} sx={{ ...onDarkButtonSx, px: 1.5, borderRadius: 999, flexShrink: 0 }}>
+              <Button
+                onClick={onBack}
+                startIcon={<ArrowBackRoundedIcon />}
+                sx={{ ...onDarkButtonSx, px: 1.5, borderRadius: 999, flexShrink: 0 }}
+              >
                 All photos
               </Button>
             ) : (
-              <Typography sx={{ px: 1, fontFamily: site.fontSerif, fontSize: 18, fontWeight: 600, color: site.onEspresso }}>{shown.event.label}</Typography>
+              <Typography
+                sx={{ px: 1, fontFamily: site.fontSerif, fontSize: 18, fontWeight: 600, color: site.onEspresso }}
+              >
+                {shown.event.label}
+              </Typography>
             )}
-            <Typography aria-live="polite" sx={{ flex: 1, minWidth: 0, textAlign: 'right', fontSize: 13.5, color: site.onEspressoSoft, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Typography
+              aria-live="polite"
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                textAlign: 'right',
+                fontSize: 13.5,
+                color: site.onEspressoSoft,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
               {several ? `${shown.event.label} · ${index + 1} / ${count}` : ''}
             </Typography>
             <IconButton onClick={onClose} aria-label="Close gallery" sx={onDarkButtonSx}>
@@ -254,7 +339,18 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
           </Box>
 
           {/* The photo. Sideways swipes are read here, so the page itself only pans up and down or pinch-zooms. */}
-          <Box onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} sx={{ position: 'relative', flex: 1, minHeight: 0, px: { xs: 0, sm: 9 }, pb: { xs: 2, sm: 3 }, touchAction: 'pan-y pinch-zoom' }}>
+          <Box
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            sx={{
+              position: 'relative',
+              flex: 1,
+              minHeight: 0,
+              px: { xs: 0, sm: 9 },
+              pb: { xs: 2, sm: 3 },
+              touchAction: 'pan-y pinch-zoom'
+            }}
+          >
             <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
               {/* The small copy shows at once (the grid has usually loaded it); the full photo fades in over it */}
               <Box component="img" key={`${current.thumb}#small`} src={current.thumb} alt="" sx={stagePhotoSx} />
@@ -264,7 +360,12 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
                 src={current.src}
                 alt={`${shown.event.label}, photo ${index + 1} of ${count}`}
                 onLoad={() => setLoadedSrc(current.src)}
-                sx={{ ...stagePhotoSx, opacity: loadedSrc === current.src ? 1 : 0, transition: 'opacity 0.3s ease', ...reducedMotionSx }}
+                sx={{
+                  ...stagePhotoSx,
+                  opacity: loadedSrc === current.src ? 1 : 0,
+                  transition: 'opacity 0.3s ease',
+                  ...reducedMotionSx
+                }}
               />
             </Box>
             {several && (
@@ -296,7 +397,16 @@ function GridPhoto({ src }) {
       loading="lazy"
       decoding="async"
       onLoad={() => setReady(true)}
-      sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: ready ? 1 : 0, transition: 'opacity 0.4s ease, transform 0.5s ease', ...reducedMotionSx }}
+      sx={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        opacity: ready ? 1 : 0,
+        transition: 'opacity 0.4s ease, transform 0.5s ease',
+        ...reducedMotionSx
+      }}
     />
   );
 }

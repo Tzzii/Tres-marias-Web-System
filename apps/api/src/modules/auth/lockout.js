@@ -46,10 +46,24 @@ export const SCOPES = {
   'signup-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'change-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'email-change-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
-  'customer-reauth': { ...LOGIN, message: `Too many incorrect passwords. Try again in ${RULES.loginLockMinutes} minutes.`, meta: { field: 'current' } },
-  'admin-reauth': { ...LOGIN, message: `Too many incorrect passwords. Try again in ${RULES.loginLockMinutes} minutes.`, meta: { field: 'current' } },
+  'customer-reauth': {
+    ...LOGIN,
+    message: `Too many incorrect passwords. Try again in ${RULES.loginLockMinutes} minutes.`,
+    meta: { field: 'current' }
+  },
+  'admin-reauth': {
+    ...LOGIN,
+    message: `Too many incorrect passwords. Try again in ${RULES.loginLockMinutes} minutes.`,
+    meta: { field: 'current' }
+  },
   'admin-contact': { ...CODE, message: 'Too many incorrect codes. Please start again later.' },
-  'code-email': { max: 5, lockMinutes: 60, forgetAfterMinutes: 60, code: 'RATE_LIMITED', message: 'Too many codes were sent to this email. Please try again in an hour.' }
+  'code-email': {
+    max: 5,
+    lockMinutes: 60,
+    forgetAfterMinutes: 60,
+    code: 'RATE_LIMITED',
+    message: 'Too many codes were sent to this email. Please try again in an hour.'
+  }
 };
 
 // The error for a locked scope: LOCKED (423) with meta.lockedUntil, which the pages count down from

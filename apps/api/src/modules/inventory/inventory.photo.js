@@ -8,7 +8,9 @@ export async function sendInventoryPhoto(req, res, admin = false) {
   await new Promise((resolve, reject) => {
     stream.once('open', resolve);
     stream.once('error', reject);
-  }).catch(() => { throw new ApiError('NOT_FOUND', 'This photo is no longer available.'); });
+  }).catch(() => {
+    throw new ApiError('NOT_FOUND', 'This photo is no longer available.');
+  });
   res.set({
     'Content-Type': photo.mime,
     'Content-Disposition': 'inline',

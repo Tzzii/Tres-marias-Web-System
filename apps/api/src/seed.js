@@ -44,16 +44,43 @@ import { prepareSampleProofs } from './seedData/proofs.js';
 // Rows go in in this order and are deleted in the reverse order. A table missing from this list
 // would keep its old rows, so main() stops when the database and this list do not match.
 export const TABLES = [
-  'admins', 'customers', 'packages', 'addons', 'dishes', 'catalog_settings',
-  'reservations', 'reservation_addons', 'reservation_activity',
-  'payments', 'refunds', 'qr_payments', 'webhook_events',
-  'threads', 'messages', 'testimonials',
-  'calendar_blocks', 'calendar_settings',
-  'inventory_items', 'inventory_allocations', 'rental_dispatches', 'inventory_history',
-  'reservation_rental_items', 'reservation_damage_charges',
+  'admins',
+  'customers',
+  'packages',
+  'addons',
+  'dishes',
+  'catalog_settings',
+  'reservations',
+  'reservation_addons',
+  'reservation_activity',
+  'payments',
+  'refunds',
+  'qr_payments',
+  'webhook_events',
+  'threads',
+  'messages',
+  'testimonials',
+  'calendar_blocks',
+  'calendar_settings',
+  'inventory_items',
+  'inventory_allocations',
+  'rental_dispatches',
+  'inventory_history',
+  'reservation_rental_items',
+  'reservation_damage_charges',
   'outbox',
-  'outsource_partners', 'outsource_partner_history', 'outsource_contracts', 'outsource_deliveries', 'outsource_contract_history',
-  'counters', 'login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes', 'customer_email_changes'
+  'outsource_partners',
+  'outsource_partner_history',
+  'outsource_contracts',
+  'outsource_deliveries',
+  'outsource_contract_history',
+  'counters',
+  'login_attempts',
+  'auth_challenges',
+  'password_resets',
+  'signup_requests',
+  'password_changes',
+  'customer_email_changes'
 ];
 
 // --starter: load the fresh start (starterData()) instead of the demo data
@@ -91,7 +118,10 @@ function starterData(business, now) {
     threads: [],
     testimonials: [],
     calendar: { dailyCapacity: business.dailyCapacity, blocked: [] },
-    inventory: business.inventory.items.map((item) => ({ ...item, history: [{ at: now, actor, text: addedText(item.total, item) }] })),
+    inventory: business.inventory.items.map((item) => ({
+      ...item,
+      history: [{ at: now, actor, text: addedText(item.total, item) }]
+    })),
     outsourcing: { partners: [], contracts: [] },
     counters: { receipt: FIRST_RECEIPT, payment: 0, inventory: business.inventory.counter, outsource: 0, refund: 0 }
   };
@@ -166,8 +196,21 @@ export function toRows(data, hashes, now) {
       archived: a.archived,
       sort_order: index
     })),
-    dishes: data.dishes.map((d, index) => ({ id: d.id, category: d.category, name: d.name, archived: d.archived, sort_order: index })),
-    catalog_settings: [{ id: 1, price_per_plate: data.settings.pricePerPlate, min_downpayment: data.settings.minDownpayment, updated_at: now }],
+    dishes: data.dishes.map((d, index) => ({
+      id: d.id,
+      category: d.category,
+      name: d.name,
+      archived: d.archived,
+      sort_order: index
+    })),
+    catalog_settings: [
+      {
+        id: 1,
+        price_per_plate: data.settings.pricePerPlate,
+        min_downpayment: data.settings.minDownpayment,
+        updated_at: now
+      }
+    ],
 
     // `venue` is flattened into four columns; fulfilment is NULL for everything but an equipment rental
     reservations: reservations.map((r) => ({
@@ -316,14 +359,23 @@ export function toRows(data, hashes, now) {
     // One row per entry of the item's allocations object: { reservation ref or 'none': qty }
     rental_dispatches: reservations.flatMap((r) =>
       Object.entries(r.rentalDispatches || {}).map(([itemId, qty]) => ({
-        reservation_ref: r.ref, item_id: itemId, qty, dispatched_at: r.dispatchedAt
+        reservation_ref: r.ref,
+        item_id: itemId,
+        qty,
+        dispatched_at: r.dispatchedAt
       }))
     ),
     inventory_allocations: inventory.flatMap((i) =>
       Object.entries(i.allocations).map(([ref, qty]) => ({ item_id: i.id, reservation_ref: ref, qty }))
     ),
     inventory_history: inventory.flatMap((i) =>
-      i.history.map((entry) => ({ item_id: i.id, at: entry.at, actor: entry.actor, text: entry.text, ref: entry.ref || null }))
+      i.history.map((entry) => ({
+        item_id: i.id,
+        at: entry.at,
+        actor: entry.actor,
+        text: entry.text,
+        ref: entry.ref || null
+      }))
     ),
     // An equipment rental's lines (sort_order keeps rentalItems in order) and its damage charges
     reservation_rental_items: reservations.flatMap((r) =>
@@ -338,7 +390,13 @@ export function toRows(data, hashes, now) {
       }))
     ),
     reservation_damage_charges: reservations.flatMap((r) =>
-      (r.damageCharges || []).map((line) => ({ reservation_ref: r.ref, item_id: line.itemId, name: line.name, qty: line.qty, fee: line.fee }))
+      (r.damageCharges || []).map((line) => ({
+        reservation_ref: r.ref,
+        item_id: line.itemId,
+        name: line.name,
+        qty: line.qty,
+        fee: line.fee
+      }))
     ),
 
     outsource_partners: partners.map((p) => ({
@@ -401,7 +459,9 @@ export async function insertRows(conn, table, rows) {
   const values = rows.map((row, index) => {
     const keys = Object.keys(row);
     if (keys.length !== columns.length || !keys.every((key) => columns.includes(key))) {
-      throw new Error(`Seeder bug: row ${index} of ${table} has columns ${keys.join(', ')} instead of ${columns.join(', ')}.`);
+      throw new Error(
+        `Seeder bug: row ${index} of ${table} has columns ${keys.join(', ')} instead of ${columns.join(', ')}.`
+      );
     }
     return columns.map((column) => row[column]);
   });
@@ -414,7 +474,9 @@ export async function insertRows(conn, table, rows) {
  * newer than the database); an extra one means TABLES was not updated after schema.sql changed.
  */
 async function schemaProblem() {
-  const [rows] = await pool.query('SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()');
+  const [rows] = await pool.query(
+    'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()'
+  );
   const inDatabase = rows.map((row) => row.name);
   const missing = TABLES.filter((table) => !inDatabase.includes(table));
   const unknown = inDatabase.filter((table) => !TABLES.includes(table));
@@ -435,7 +497,9 @@ async function schemaProblem() {
 async function main() {
   const what = STARTER ? 'the starter data: no customers, every inventory piece available' : 'the sample data';
   if (config.isProduction && !process.argv.includes('--force')) {
-    console.error(`Refusing to seed: NODE_ENV is production and this replaces every row with ${what}. Add --force only if that is really what you want.`);
+    console.error(
+      `Refusing to seed: NODE_ENV is production and this replaces every row with ${what}. Add --force only if that is really what you want.`
+    );
     return 1;
   }
   // The demo data needs the sample folder, which is only on the developer's computer
@@ -472,14 +536,20 @@ async function main() {
     }
     const data = STARTER ? starterData(business, now) : buildSample(business);
     // Every admin gets SEED_ADMIN_PASSWORD and every sample customer SEED_CUSTOMER_PASSWORD, each with its own salt
-    const accounts = [...data.admins.map((a) => [a.id, passwords.admin]), ...data.customers.map((c) => [c.id, passwords.customer])];
+    const accounts = [
+      ...data.admins.map((a) => [a.id, passwords.admin]),
+      ...data.customers.map((c) => [c.id, passwords.customer])
+    ];
     const hashes = new Map(await Promise.all(accounts.map(async ([id, password]) => [id, await hashSecret(password)])));
     const rows = toRows(data, hashes, now);
     if (!STARTER) await prepareSampleProofs(rows);
 
     await tx(async (conn) => {
       // A size points at its charge in the same table (addons.parent_id), so sizes are deleted first
-      for (const table of [...TABLES].reverse()) await conn.query(table === 'addons' ? 'DELETE FROM addons ORDER BY parent_id IS NULL' : 'DELETE FROM ??', [table]);
+      for (const table of [...TABLES].reverse())
+        await conn.query(table === 'addons' ? 'DELETE FROM addons ORDER BY parent_id IS NULL' : 'DELETE FROM ??', [
+          table
+        ]);
       for (const table of TABLES) await insertRows(conn, table, rows[table] || []);
     });
 
@@ -495,11 +565,17 @@ async function main() {
     const width = Math.max(...TABLES.map((table) => table.length));
     console.log('Done. Rows per table:');
     counts.forEach(([table, total]) => console.log(`  ${table.padEnd(width)}  ${total}`));
-    console.log(`Counters (last number used): receipt ${counter.receipt} (next OR-${counter.receipt + 1}) · payment ${counter.payment} · inventory ${counter.inventory} · outsource ${counter.outsource} · refund ${counter.refund}`);
+    console.log(
+      `Counters (last number used): receipt ${counter.receipt} (next OR-${counter.receipt + 1}) · payment ${counter.payment} · inventory ${counter.inventory} · outsource ${counter.outsource} · refund ${counter.refund}`
+    );
     if (STARTER) {
-      const [[stock]] = await pool.query('SELECT COUNT(*) AS items, COALESCE(SUM(total), 0) AS pcs, COALESCE(SUM(damaged), 0) AS damaged FROM inventory_items');
+      const [[stock]] = await pool.query(
+        'SELECT COUNT(*) AS items, COALESCE(SUM(total), 0) AS pcs, COALESCE(SUM(damaged), 0) AS damaged FROM inventory_items'
+      );
       const [[out]] = await pool.query('SELECT COALESCE(SUM(qty), 0) AS pcs FROM inventory_allocations');
-      console.log(`Fresh start: ${stock.items} inventory items, ${Number(stock.pcs).toLocaleString('en-PH')} pcs (${Number(out.pcs)} in use, ${Number(stock.damaged)} damaged). The first customer to sign up starts the records.`);
+      console.log(
+        `Fresh start: ${stock.items} inventory items, ${Number(stock.pcs).toLocaleString('en-PH')} pcs (${Number(out.pcs)} in use, ${Number(stock.damaged)} damaged). The first customer to sign up starts the records.`
+      );
     } else {
       console.log(`Sample dates count from ${data.seededOn}; seed again on another day to move them.`);
     }
@@ -508,7 +584,9 @@ async function main() {
     console.error(`Seed failed: ${err.message}`);
     const hint =
       dbErrorHint(err) ||
-      (['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(err.code) ? 'The database is older than schema.sql: run npm run db:reset first, then seed again.' : null);
+      (['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(err.code)
+        ? 'The database is older than schema.sql: run npm run db:reset first, then seed again.'
+        : null);
     if (hint) console.error(hint);
     return 1;
   } finally {

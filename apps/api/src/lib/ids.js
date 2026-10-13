@@ -34,7 +34,9 @@ export async function nextCounter(conn, name) {
   }
   const [rows] = await conn.query('SELECT value FROM counters WHERE name = ? FOR UPDATE', [name]);
   if (!rows.length) {
-    throw new Error(`Counter "${name}" is missing from the counters table. Run npm run db:reset (and the seeder) to create it.`);
+    throw new Error(
+      `Counter "${name}" is missing from the counters table. Run npm run db:reset (and the seeder) to create it.`
+    );
   }
   const next = Number(rows[0].value) + 1;
   await conn.query('UPDATE counters SET value = ? WHERE name = ?', [next, name]);

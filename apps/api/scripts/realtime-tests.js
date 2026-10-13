@@ -30,11 +30,18 @@ async function fixture(t, options = {}) {
     ['admin:staff', { name: 'Staff', passwordChangedAt: 0, sessionId: 'current-sign-in' }]
   ]);
   let databaseDown = false;
-  const authenticate = (token) => readSessionToken(token, async (role, id) => {
-    if (databaseDown) throw new Error('private database credentials must never appear');
-    return accounts.get(`${role}:${id}`) || null;
-  });
-  const server = http.createServer(options.handler || ((req, res) => { res.writeHead(404); res.end(); }));
+  const authenticate = (token) =>
+    readSessionToken(token, async (role, id) => {
+      if (databaseDown) throw new Error('private database credentials must never appear');
+      return accounts.get(`${role}:${id}`) || null;
+    });
+  const server = http.createServer(
+    options.handler ||
+      ((req, res) => {
+        res.writeHead(404);
+        res.end();
+      })
+  );
   const realtime = createRealtimeServer(server, { origins: [ORIGIN], authenticate, batchMs: 10, ...options });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -44,9 +51,16 @@ async function fixture(t, options = {}) {
     clients.forEach((socket) => socket.disconnect());
     await realtime.close();
   });
-  const token = (role = 'customer', id = 'alice', extra = {}) => signToken({
-    id, role, ...accounts.get(`${role}:${id}`), ...extra
-  }, { expiresAt: future() });
+  const token = (role = 'customer', id = 'alice', extra = {}) =>
+    signToken(
+      {
+        id,
+        role,
+        ...accounts.get(`${role}:${id}`),
+        ...extra
+      },
+      { expiresAt: future() }
+    );
   function client(auth = { token: token() }, extra = {}) {
     const socket = connect(url, {
       path: REALTIME_PATH,
@@ -62,7 +76,17 @@ async function fixture(t, options = {}) {
     clients.push(socket);
     return socket;
   }
-  return { accounts, realtime, token, client, authenticate, url, down: () => { databaseDown = true; } };
+  return {
+    accounts,
+    realtime,
+    token,
+    client,
+    authenticate,
+    url,
+    down: () => {
+      databaseDown = true;
+    }
+  };
 }
 
 function connected(socket) {
@@ -83,8 +107,14 @@ function refused(socket) {
 
 function event(socket, name) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { socket.off(name, receive); reject(new Error(`Missing ${name} event`)); }, 3000);
-    function receive(...args) { clearTimeout(timer); resolve(args); }
+    const timer = setTimeout(() => {
+      socket.off(name, receive);
+      reject(new Error(`Missing ${name} event`));
+    }, 3000);
+    function receive(...args) {
+      clearTimeout(timer);
+      resolve(args);
+    }
     socket.once(name, receive);
   });
 }
@@ -106,12 +136,22 @@ test('accepts current customer/admin sessions and sends no private payload to ei
 test('rejects missing, malformed, oversized, forged, expired and unknown-account JWTs', async (t) => {
   const f = await fixture(t);
   const cases = [
-    {}, { token: 'garbage' }, { token: 42 }, { token: 'x'.repeat(2049) },
+    {},
+    { token: 'garbage' },
+    { token: 42 },
+    { token: 'x'.repeat(2049) },
     { token: jwt.sign({ sub: 'alice', role: 'customer', pwv: 0 }, 'wrong-secret', { expiresIn: '1h' }) },
-    { token: signToken({ id: 'alice', role: 'customer', passwordChangedAt: 0 }, { expiresAt: Math.floor(Date.now() / 1000) - 1 }) },
+    {
+      token: signToken(
+        { id: 'alice', role: 'customer', passwordChangedAt: 0 },
+        { expiresAt: Math.floor(Date.now() / 1000) - 1 }
+      )
+    },
     { token: f.token('customer', 'missing') },
     { token: jwt.sign({ sub: 'alice', role: 'customer', pwv: 0 }, config.jwtSecret, { algorithm: 'HS256' }) },
-    { token: jwt.sign({ sub: 'alice', role: 'admin', pwv: 0 }, config.jwtSecret, { algorithm: 'none', expiresIn: '1h' }) }
+    {
+      token: jwt.sign({ sub: 'alice', role: 'admin', pwv: 0 }, config.jwtSecret, { algorithm: 'none', expiresIn: '1h' })
+    }
   ];
   for (const auth of cases) assert.equal((await refused(f.client(auth))).data.code, 'UNAUTHENTICATED');
 });
@@ -121,9 +161,19 @@ test('rejects stale passwords, old admin sign-ins and unlock tickets', async (t)
   const oldCustomer = f.token();
   f.accounts.get('customer:alice').passwordChangedAt = 100;
   assert.equal((await refused(f.client({ token: oldCustomer }))).data.code, 'UNAUTHENTICATED');
-  assert.equal((await refused(f.client({ token: f.token('admin', 'staff', { sessionId: 'old-sign-in' }) }))).data.code, 'SESSION_REPLACED');
-  assert.equal((await refused(f.client({ token: f.token('admin', 'staff', { sessionId: undefined }) }))).data.code, 'UNAUTHENTICATED');
-  const unlock = jwt.sign({ sub: 'staff', role: 'admin', pwv: 0, kind: 'admin-unlock' }, `${config.jwtSecret}:admin-unlock`, { expiresIn: '1h' });
+  assert.equal(
+    (await refused(f.client({ token: f.token('admin', 'staff', { sessionId: 'old-sign-in' }) }))).data.code,
+    'SESSION_REPLACED'
+  );
+  assert.equal(
+    (await refused(f.client({ token: f.token('admin', 'staff', { sessionId: undefined }) }))).data.code,
+    'UNAUTHENTICATED'
+  );
+  const unlock = jwt.sign(
+    { sub: 'staff', role: 'admin', pwv: 0, kind: 'admin-unlock' },
+    `${config.jwtSecret}:admin-unlock`,
+    { expiresIn: '1h' }
+  );
   assert.equal((await refused(f.client({ token: unlock }))).data.code, 'UNAUTHENTICATED');
 });
 
@@ -250,7 +300,9 @@ test('limits concurrent connections per account and releases the slot on disconn
 test('handshake rate limits also apply to WebSockets with spoofed forwarded addresses', async (t) => {
   const f = await fixture(t, { maxAttempts: 1 });
   await connected(f.client());
-  const error = await refused(f.client(undefined, { extraHeaders: { Origin: ORIGIN, 'X-Forwarded-For': '198.51.100.22' } }));
+  const error = await refused(
+    f.client(undefined, { extraHeaders: { Origin: ORIGIN, 'X-Forwarded-For': '198.51.100.22' } })
+  );
   assert.equal(error.data, undefined);
 });
 
@@ -277,12 +329,23 @@ test('the change bus publishes only after the stamp write succeeds', async (t) =
   const original = pool.query;
   let committed = false;
   let received = 0;
-  const unsubscribe = onChange(() => { assert.equal(committed, true); received++; });
-  t.after(() => { pool.query = original; unsubscribe(); });
-  pool.query = async () => { committed = true; return []; };
+  const unsubscribe = onChange(() => {
+    assert.equal(committed, true);
+    received++;
+  });
+  t.after(() => {
+    pool.query = original;
+    unsubscribe();
+  });
+  pool.query = async () => {
+    committed = true;
+    return [];
+  };
   await bumpStamp();
   assert.equal(received, 1);
-  pool.query = async () => { throw new Error('write failed'); };
+  pool.query = async () => {
+    throw new Error('write failed');
+  };
   await assert.rejects(bumpStamp());
   assert.equal(received, 1);
 });
@@ -292,8 +355,17 @@ test('refreshes coalesce, retain changes received during a request, and stop cle
   let loads = 0;
   let emitted = 0;
   const refresh = createLiveRefresh({
-    loadCalendar: () => { loads++; return loads === 1 ? new Promise((resolve) => { resolveFirst = resolve; }) : Promise.resolve(); },
-    emit: () => emitted++, isVisible: () => true, delayMs: 5
+    loadCalendar: () => {
+      loads++;
+      return loads === 1
+        ? new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+        : Promise.resolve();
+    },
+    emit: () => emitted++,
+    isVisible: () => true,
+    delayMs: 5
   });
   for (let i = 0; i < 20; i++) refresh.request();
   await wait(20);
@@ -314,8 +386,13 @@ test('hidden pages defer refresh until visible and cleanup suppresses late event
   let emitted = 0;
   let release;
   const refresh = createLiveRefresh({
-    loadCalendar: () => new Promise((resolve) => { release = resolve; }),
-    emit: () => emitted++, isVisible: () => visible, delayMs: 5
+    loadCalendar: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    emit: () => emitted++,
+    isVisible: () => visible,
+    delayMs: 5
   });
   refresh.request();
   await wait(15);
@@ -340,7 +417,7 @@ async function portalFixture(t) {
   browser.location = { origin: ORIGIN };
   globalThis.window = browser;
   globalThis.document = page;
-  portalHttp.get = async (path) => path === '/changes' ? { stamp: 1 } : { capacity: 2, blocks: [], bookings: [] };
+  portalHttp.get = async (path) => (path === '/changes' ? { stamp: 1 } : { capacity: 2, blocks: [], bookings: [] });
   t.after(() => {
     portalHttp.get = originalGet;
     globalThis.window = savedWindow;
@@ -365,7 +442,10 @@ test('portal receives push updates, catches up after reconnect, and closes on si
   let updates = 0;
   const unsubscribe = subscribe(() => updates++);
   const stop = startRealtimeSync(f.token(), f.options);
-  t.after(() => { stop(); unsubscribe(); });
+  t.after(() => {
+    stop();
+    unsubscribe();
+  });
   await f.until(() => updates === 1);
   publishChange();
   await f.until(() => updates === 2);
@@ -387,9 +467,15 @@ test('portal catches up after a hidden tab returns and ends a revoked session', 
   let updates = 0;
   let ended = null;
   const unsubscribe = subscribe(() => updates++);
-  const unsubscribeAuth = onSignedOut((code) => { ended = code; });
+  const unsubscribeAuth = onSignedOut((code) => {
+    ended = code;
+  });
   const stop = startRealtimeSync(f.token(), f.options);
-  t.after(() => { stop(); unsubscribe(); unsubscribeAuth(); });
+  t.after(() => {
+    stop();
+    unsubscribe();
+    unsubscribeAuth();
+  });
   await f.until(() => updates === 1);
   f.page.visibilityState = 'hidden';
   publishChange();
@@ -409,9 +495,14 @@ test('an old socket cannot sign out a token saved by password renewal', async (t
   const f = await portalFixture(t);
   let currentToken = f.token();
   let signedOut = false;
-  const unsubscribe = onSignedOut(() => { signedOut = true; });
+  const unsubscribe = onSignedOut(() => {
+    signedOut = true;
+  });
   const stop = startRealtimeSync(currentToken, { ...f.options, getToken: () => currentToken });
-  t.after(() => { stop(); unsubscribe(); });
+  t.after(() => {
+    stop();
+    unsubscribe();
+  });
   await f.until(() => f.realtime.io.of('/').sockets.size === 1);
   f.accounts.get('customer:alice').passwordChangedAt = 500;
   currentToken = f.token();
@@ -433,12 +524,22 @@ test('real HTTP routes retain admin guards and scope reservation reads to the JW
     throw new Error('Unexpected SQL in the HTTP guard test');
   };
   pool.getConnection = async () => ({
-    async beginTransaction() {}, async commit() {}, async rollback() {}, release() {},
-    async query(sql, params) { queries.push({ sql, params }); return [[]]; }
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() {},
+    release() {},
+    async query(sql, params) {
+      queries.push({ sql, params });
+      return [[]];
+    }
   });
-  t.after(() => { pool.query = originalQuery; pool.getConnection = originalConnection; });
+  t.after(() => {
+    pool.query = originalQuery;
+    pool.getConnection = originalConnection;
+  });
   const token = f.token('customer', 'bob');
-  const get = (path, bearer = token) => fetch(`${f.url}${path}`, { headers: bearer ? { Authorization: `Bearer ${bearer}` } : {} });
+  const get = (path, bearer = token) =>
+    fetch(`${f.url}${path}`, { headers: bearer ? { Authorization: `Bearer ${bearer}` } : {} });
   assert.equal((await get('/api/admin/reservations', '')).status, 401);
   assert.equal((await get('/api/admin/reservations')).status, 403);
   const listing = await get('/api/reservations?customerId=alice');

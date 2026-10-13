@@ -110,7 +110,17 @@ const mobileCaret = (count) => count + (count > 3 ? 1 : 0) + (count > 6 ? 1 : 0)
  * ("09171234567"), or '' when the box is empty, so validateMobile and the server read it as before.
  */
 export const MobileField = forwardRef(function MobileField(
-  { value, onChange, placeholder = '917 123 4567', autoComplete = 'tel-national', InputProps, inputProps, error, hint, ...props },
+  {
+    value,
+    onChange,
+    placeholder = '917 123 4567',
+    autoComplete = 'tel-national',
+    InputProps,
+    inputProps,
+    error,
+    hint,
+    ...props
+  },
   ref
 ) {
   const input = useRef(null);
@@ -157,7 +167,16 @@ export const MobileField = forwardRef(function MobileField(
       error={error || mobileError}
       hint={hint ? `${hint} Philippine mobile: 10 digits after +63.` : 'Philippine mobile: 10 digits after +63.'}
       inputProps={{ ...inputProps, inputMode: 'tel' }}
-      InputProps={{ ...InputProps, startAdornment: <InputAdornment position="start"><span title="Philippines country code" aria-label="Philippines country code +63">+63</span></InputAdornment> }}
+      InputProps={{
+        ...InputProps,
+        startAdornment: (
+          <InputAdornment position="start">
+            <span title="Philippines country code" aria-label="Philippines country code +63">
+              +63
+            </span>
+          </InputAdornment>
+        )
+      }}
       {...props}
     />
   );

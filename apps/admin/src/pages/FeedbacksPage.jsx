@@ -120,7 +120,11 @@ export default function FeedbacksPage() {
     const test = FILTERS.find(([k]) => k === filter)[2];
     return rows
       .filter(test)
-      .filter((f) => !q || [f.customerName, f.customerEmail, f.eventName, f.ref, f.body].some((v) => String(v).toLowerCase().includes(q)));
+      .filter(
+        (f) =>
+          !q ||
+          [f.customerName, f.customerEmail, f.eventName, f.ref, f.body].some((v) => String(v).toLowerCase().includes(q))
+      );
   }, [rows, filter, query]);
 
   // Keep the page in range when reviews leave the list (deleted, archived, filtered out)
@@ -146,10 +150,17 @@ export default function FeedbacksPage() {
     <>
       <PageHeader
         title="Feedbacks"
-        subtitle={loading ? 'Loading…' : `${stats.total} ${stats.total === 1 ? 'review' : 'reviews'} from completed events`}
+        subtitle={
+          loading ? 'Loading…' : `${stats.total} ${stats.total === 1 ? 'review' : 'reviews'} from completed events`
+        }
         actions={
           unread > 0 ? (
-            <Button variant="outlined" startIcon={<DoneAllRoundedIcon />} onClick={() => act('all', () => feedbackApi.markAllFeedbackRead(), 'All feedback marked as read.')} disabled={busyId === 'all'}>
+            <Button
+              variant="outlined"
+              startIcon={<DoneAllRoundedIcon />}
+              onClick={() => act('all', () => feedbackApi.markAllFeedbackRead(), 'All feedback marked as read.')}
+              disabled={busyId === 'all'}
+            >
               Mark all as read
             </Button>
           ) : null
@@ -158,11 +169,46 @@ export default function FeedbacksPage() {
 
       {/* ==================== Reports and analytics ==================== */}
       {/* Two per row on phones (narrow card layout), four on large screens */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: 2.5 }}>
-        <StatCard icon={RateReviewOutlinedIcon} tone="gold" label="Total Reviews" value={stats.total} meta={stats.archived ? `${stats.archived} archived` : 'From completed events'} loading={loading} />
-        <StatCard icon={StarRoundedIcon} tone="amber" label="Average Rating" value={stats.average} meta="out of 5 stars" loading={loading} />
-        <StatCard icon={ThumbUpAltOutlinedIcon} tone="green" label="Positive (4–5)" value={stats.positiveShare} meta={`${stats.positive} of ${stats.total}`} loading={loading} />
-        <StatCard icon={ReportProblemOutlinedIcon} tone="red" label="Critical (1–2)" value={stats.criticalShare} meta={`${stats.critical} of ${stats.total}`} loading={loading} />
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, 1fr)' },
+          gap: { xs: 1.5, sm: 2 },
+          mb: 2.5
+        }}
+      >
+        <StatCard
+          icon={RateReviewOutlinedIcon}
+          tone="gold"
+          label="Total Reviews"
+          value={stats.total}
+          meta={stats.archived ? `${stats.archived} archived` : 'From completed events'}
+          loading={loading}
+        />
+        <StatCard
+          icon={StarRoundedIcon}
+          tone="amber"
+          label="Average Rating"
+          value={stats.average}
+          meta="out of 5 stars"
+          loading={loading}
+        />
+        <StatCard
+          icon={ThumbUpAltOutlinedIcon}
+          tone="green"
+          label="Positive (4–5)"
+          value={stats.positiveShare}
+          meta={`${stats.positive} of ${stats.total}`}
+          loading={loading}
+        />
+        <StatCard
+          icon={ReportProblemOutlinedIcon}
+          tone="red"
+          label="Critical (1–2)"
+          value={stats.criticalShare}
+          meta={`${stats.critical} of ${stats.total}`}
+          loading={loading}
+        />
       </Box>
 
       <DashCard>
@@ -170,9 +216,31 @@ export default function FeedbacksPage() {
           <ErrorState error={error} onRetry={reload} />
         ) : (
           <>
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 1.5, justifyContent: 'space-between', mb: 2 }}>
-              <FilterTabs value={filter} onChange={setFilter} ariaLabel="Filter feedback" options={FILTERS.map(([value, label]) => ({ value, label, count: loading ? undefined : counts[value] }))} />
-              <SearchField id="feedback-search" value={query} onChange={setQuery} placeholder="Search customer, event or review" />
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', lg: 'row' },
+                gap: 1.5,
+                justifyContent: 'space-between',
+                mb: 2
+              }}
+            >
+              <FilterTabs
+                value={filter}
+                onChange={setFilter}
+                ariaLabel="Filter feedback"
+                options={FILTERS.map(([value, label]) => ({
+                  value,
+                  label,
+                  count: loading ? undefined : counts[value]
+                }))}
+              />
+              <SearchField
+                id="feedback-search"
+                value={query}
+                onChange={setQuery}
+                placeholder="Search customer, event or review"
+              />
             </Box>
 
             {loading ? (
@@ -182,7 +250,11 @@ export default function FeedbacksPage() {
                 compact
                 icon={RateReviewOutlinedIcon}
                 title={query ? 'No feedback matches' : 'Nothing here yet'}
-                description={query ? 'Try another search or filter.' : 'Reviews appear here once customers rate their completed events.'}
+                description={
+                  query
+                    ? 'Try another search or filter.'
+                    : 'Reviews appear here once customers rate their completed events.'
+                }
               />
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -193,10 +265,36 @@ export default function FeedbacksPage() {
                     busy={busyId === feedback.id}
                     onOpenEvent={() => navigate(`/reservations/${feedback.ref}`)}
                     onRead={() => act(feedback.id, () => feedbackApi.markFeedbackRead(feedback.id))}
-                    onStatus={(status) => act(feedback.id, () => feedbackApi.setFeedbackStatus(feedback.id, status), status === 'published' ? 'Published on the website.' : 'Taken off the website.')}
-                    onFeature={() => act(feedback.id, () => feedbackApi.setFeedbackFeatured(feedback.id, !feedback.featured), feedback.featured ? 'Removed from the featured reviews.' : 'Featured on the website.')}
-                    onFlag={() => (feedback.flagged ? act(feedback.id, () => feedbackApi.setFeedbackFlag(feedback.id, { flagged: false }), 'Flag removed.') : setFlagging(feedback))}
-                    onArchive={() => act(feedback.id, () => feedbackApi.setFeedbackArchived(feedback.id, !feedback.archived), feedback.archived ? 'Restored from the archive.' : 'Moved to the archive.')}
+                    onStatus={(status) =>
+                      act(
+                        feedback.id,
+                        () => feedbackApi.setFeedbackStatus(feedback.id, status),
+                        status === 'published' ? 'Published on the website.' : 'Taken off the website.'
+                      )
+                    }
+                    onFeature={() =>
+                      act(
+                        feedback.id,
+                        () => feedbackApi.setFeedbackFeatured(feedback.id, !feedback.featured),
+                        feedback.featured ? 'Removed from the featured reviews.' : 'Featured on the website.'
+                      )
+                    }
+                    onFlag={() =>
+                      feedback.flagged
+                        ? act(
+                            feedback.id,
+                            () => feedbackApi.setFeedbackFlag(feedback.id, { flagged: false }),
+                            'Flag removed.'
+                          )
+                        : setFlagging(feedback)
+                    }
+                    onArchive={() =>
+                      act(
+                        feedback.id,
+                        () => feedbackApi.setFeedbackArchived(feedback.id, !feedback.archived),
+                        feedback.archived ? 'Restored from the archive.' : 'Moved to the archive.'
+                      )
+                    }
                     onReply={() => setReplying(feedback)}
                     onDelete={() => setDeleting(feedback)}
                   />
@@ -204,7 +302,9 @@ export default function FeedbacksPage() {
               </Box>
             )}
 
-            {!loading && filtered.length > 0 && <Pager page={current} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} noun="feedbacks" />}
+            {!loading && filtered.length > 0 && (
+              <Pager page={current} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} noun="feedbacks" />
+            )}
           </>
         )}
       </DashCard>
@@ -240,7 +340,11 @@ export default function FeedbacksPage() {
         open={Boolean(deleting)}
         onClose={() => setDeleting(null)}
         title="Delete This Feedback?"
-        description={deleting ? `${deleting.customerName}'s review of ${deleting.eventName} will be removed for good, here and in their portal. They will be able to write a new one. Archive it instead if you only want it out of the list.` : ''}
+        description={
+          deleting
+            ? `${deleting.customerName}'s review of ${deleting.eventName} will be removed for good, here and in their portal. They will be able to write a new one. Archive it instead if you only want it out of the list.`
+            : ''
+        }
         confirmLabel="Delete"
         tone="danger"
         onConfirm={async () => {
@@ -254,7 +358,18 @@ export default function FeedbacksPage() {
 }
 
 /** One review: who wrote it, which event it is about, what they said and what the admin can do with it. */
-function FeedbackCard({ feedback, busy, onOpenEvent, onRead, onStatus, onFeature, onFlag, onArchive, onReply, onDelete }) {
+function FeedbackCard({
+  feedback,
+  busy,
+  onOpenEvent,
+  onRead,
+  onStatus,
+  onFeature,
+  onFlag,
+  onArchive,
+  onReply,
+  onDelete
+}) {
   const unread = !feedback.readByAdmin;
   return (
     <Box
@@ -289,10 +404,16 @@ function FeedbackCard({ feedback, busy, onOpenEvent, onRead, onStatus, onFeature
         <Box sx={{ minWidth: 220, flex: '1 1 260px', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline', flexWrap: 'wrap' }}>
             <Typography sx={{ fontSize: 12.5, color: tokens.textMuted, minWidth: 92 }}>Event</Typography>
-            <Button size="small" onClick={onOpenEvent} sx={{ p: 0, minWidth: 0, fontSize: 13, fontWeight: 700, textAlign: 'left', justifyContent: 'flex-start' }}>
+            <Button
+              size="small"
+              onClick={onOpenEvent}
+              sx={{ p: 0, minWidth: 0, fontSize: 13, fontWeight: 700, textAlign: 'left', justifyContent: 'flex-start' }}
+            >
               {feedback.eventName || feedback.ref}
             </Button>
-            {feedback.packageName && <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>({feedback.packageName})</Typography>}
+            {feedback.packageName && (
+              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>({feedback.packageName})</Typography>
+            )}
           </Box>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline' }}>
             <Typography sx={{ fontSize: 12.5, color: tokens.textMuted, minWidth: 92 }}>Date of event</Typography>
@@ -320,20 +441,33 @@ function FeedbackCard({ feedback, busy, onOpenEvent, onRead, onStatus, onFeature
         </Box>
       </Box>
 
-      <Typography sx={{ mt: 1.75, fontSize: 13.5, lineHeight: 1.7, color: tokens.textPrimary }}>“{feedback.body}”</Typography>
+      <Typography sx={{ mt: 1.75, fontSize: 13.5, lineHeight: 1.7, color: tokens.textPrimary }}>
+        “{feedback.body}”
+      </Typography>
 
       {/* What the customer rated part by part */}
       <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2.5 } }}>
         {FEEDBACK_CATEGORIES.map(({ key, label }) => (
           <Typography key={key} sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-            {label}: <b style={{ color: tokens.textPrimary }}>{feedback.categories[key] ? `${feedback.categories[key]}/5` : 'not rated'}</b>
+            {label}:{' '}
+            <b style={{ color: tokens.textPrimary }}>
+              {feedback.categories[key] ? `${feedback.categories[key]}/5` : 'not rated'}
+            </b>
           </Typography>
         ))}
       </Box>
 
       {/* The admin's own note on why this review was set aside */}
       {feedback.flagged && feedback.flagReason && (
-        <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+        <Box
+          sx={{
+            mt: 1.5,
+            p: 1.5,
+            borderRadius: 1.5,
+            backgroundColor: 'rgba(239, 68, 68, 0.06)',
+            border: '1px solid rgba(239, 68, 68, 0.2)'
+          }}
+        >
           <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>Flagged</Typography>
           <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{feedback.flagReason}</Typography>
         </Box>
@@ -341,7 +475,15 @@ function FeedbackCard({ feedback, busy, onOpenEvent, onRead, onStatus, onFeature
 
       {/* The answer the customer already received */}
       {feedback.reply && (
-        <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
+        <Box
+          sx={{
+            mt: 1.5,
+            p: 1.5,
+            borderRadius: 1.5,
+            backgroundColor: tokens.surfaceSubtle,
+            border: `1px solid ${tokens.cardLightBorder}`
+          }}
+        >
           <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textSecondary }}>
             Replied by {feedback.reply.by} · {formatDateTime(feedback.reply.at)}
           </Typography>
@@ -355,13 +497,30 @@ function FeedbackCard({ feedback, busy, onOpenEvent, onRead, onStatus, onFeature
         <Button size="small" startIcon={<ReplyRoundedIcon />} onClick={onReply} disabled={busy}>
           {feedback.reply ? 'Edit the reply' : 'Reply to the customer'}
         </Button>
-        <Button size="small" startIcon={<StarRoundedIcon />} onClick={onFeature} disabled={busy} sx={{ color: feedback.featured ? tokens.goldDark : undefined }}>
+        <Button
+          size="small"
+          startIcon={<StarRoundedIcon />}
+          onClick={onFeature}
+          disabled={busy}
+          sx={{ color: feedback.featured ? tokens.goldDark : undefined }}
+        >
           {feedback.featured ? 'Remove from featured' : 'Feature on the website'}
         </Button>
-        <Button size="small" startIcon={<FlagOutlinedIcon />} onClick={onFlag} disabled={busy} sx={{ color: feedback.flagged ? tokens.redPress : undefined }}>
+        <Button
+          size="small"
+          startIcon={<FlagOutlinedIcon />}
+          onClick={onFlag}
+          disabled={busy}
+          sx={{ color: feedback.flagged ? tokens.redPress : undefined }}
+        >
           {feedback.flagged ? 'Remove flag' : 'Flag'}
         </Button>
-        <Button size="small" startIcon={feedback.archived ? <UnarchiveOutlinedIcon /> : <ArchiveOutlinedIcon />} onClick={onArchive} disabled={busy}>
+        <Button
+          size="small"
+          startIcon={feedback.archived ? <UnarchiveOutlinedIcon /> : <ArchiveOutlinedIcon />}
+          onClick={onArchive}
+          disabled={busy}
+        >
           {feedback.archived ? 'Restore' : 'Archive'}
         </Button>
         {unread && (
@@ -372,7 +531,13 @@ function FeedbackCard({ feedback, busy, onOpenEvent, onRead, onStatus, onFeature
         <Box sx={{ flex: 1 }} />
         <Tooltip title="Delete this feedback">
           <span>
-            <IconButton size="small" onClick={onDelete} disabled={busy} aria-label={`Delete the feedback from ${feedback.customerName}`} sx={{ color: tokens.red }}>
+            <IconButton
+              size="small"
+              onClick={onDelete}
+              disabled={busy}
+              aria-label={`Delete the feedback from ${feedback.customerName}`}
+              sx={{ color: tokens.red }}
+            >
               <DeleteOutlineRoundedIcon fontSize="small" />
             </IconButton>
           </span>
@@ -413,7 +578,9 @@ function ReplyDialog({ feedback, onClose, onSubmit }) {
       onClose={onClose}
       busy={busy}
       title="Reply to the Customer"
-      description={feedback ? `${feedback.customerName} · ${feedback.eventName} · ${formatDate(feedback.eventDate)}` : ''}
+      description={
+        feedback ? `${feedback.customerName} · ${feedback.eventName} · ${formatDate(feedback.eventDate)}` : ''
+      }
       actions={
         <>
           <Button onClick={onClose} disabled={busy} sx={{ color: tokens.textSecondary }}>
@@ -426,9 +593,19 @@ function ReplyDialog({ feedback, onClose, onSubmit }) {
       }
     >
       {feedback && (
-        <Box sx={{ mb: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
+        <Box
+          sx={{
+            mb: 2,
+            p: 1.5,
+            borderRadius: 1.5,
+            backgroundColor: tokens.surfaceSubtle,
+            border: `1px solid ${tokens.cardLightBorder}`
+          }}
+        >
           <StarRating value={feedback.rating} size={16} showValue />
-          <Typography sx={{ mt: 0.5, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}>“{feedback.body}”</Typography>
+          <Typography sx={{ mt: 0.5, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}>
+            “{feedback.body}”
+          </Typography>
         </Box>
       )}
       <FormField

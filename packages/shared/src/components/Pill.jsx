@@ -23,7 +23,12 @@ export function Pill({ label, bg, fg, dot = true, size = 'md', sx }) {
         ...sx
       }}
     >
-      {dot && <Box component="span" sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'currentColor', flexShrink: 0 }} />}
+      {dot && (
+        <Box
+          component="span"
+          sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'currentColor', flexShrink: 0 }}
+        />
+      )}
       {label}
     </Box>
   );

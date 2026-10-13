@@ -2,7 +2,19 @@ import { createPortal } from 'react-dom';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
-import { BUSINESS, LOGO_SRC, LightSurface, formatDate, formatDateTime, formatEventTime, isRental, peso, statusLabel, titleCase, tokens } from '@tm/shared';
+import {
+  BUSINESS,
+  LOGO_SRC,
+  LightSurface,
+  formatDate,
+  formatDateTime,
+  formatEventTime,
+  isRental,
+  peso,
+  statusLabel,
+  titleCase,
+  tokens
+} from '@tm/shared';
 
 // Statuses in the order a booking moves through them, for the counts under the letterhead
 const STATUS_ORDER = ['pending', 'approved', 'downpayment_paid', 'confirmed', 'completed', 'declined', 'cancelled'];
@@ -23,16 +35,28 @@ const REPEAT = { 'data-pdf-repeat': true };
  */
 export default function ReservationsSheet({ rows, filters, newestFirst, generatedAt, sheetRef }) {
   // How many of the listed reservations are in each status, leaving out the statuses with none
-  const counts = STATUS_ORDER.map((s) => [titleCase(statusLabel(s)), rows.filter((r) => r.status === s).length]).filter(([, n]) => n);
+  const counts = STATUS_ORDER.map((s) => [titleCase(statusLabel(s)), rows.filter((r) => r.status === s).length]).filter(
+    ([, n]) => n
+  );
   const figures = [['Reservations', rows.length], ...counts];
 
   return createPortal(
     <LightSurface>
-      <Box ref={sheetRef} className="tm-print-root tm-print-sheet tm-print-landscape" aria-hidden="true" sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}>
+      <Box
+        ref={sheetRef}
+        className="tm-print-root tm-print-sheet tm-print-landscape"
+        aria-hidden="true"
+        sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}
+      >
         {/* Letterhead, as on the Reports sheet, the quotations and the receipts */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <Box component="img" src={LOGO_SRC} alt="" sx={{ width: 60, height: 60, borderRadius: '50%', border: `2px solid ${tokens.gold}` }} />
+            <Box
+              component="img"
+              src={LOGO_SRC}
+              alt=""
+              sx={{ width: 60, height: 60, borderRadius: '50%', border: `2px solid ${tokens.gold}` }}
+            />
             <Box>
               <Typography sx={{ fontSize: 18, fontWeight: 800 }}>{BUSINESS.name}</Typography>
               <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>{BUSINESS.address}</Typography>
@@ -48,16 +72,36 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
                 {label}: {value}
               </Typography>
             ))}
-            <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>Generated: {formatDateTime(generatedAt)}</Typography>
+            <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+              Generated: {formatDateTime(generatedAt)}
+            </Typography>
           </Box>
         </Box>
 
         <Divider sx={{ my: 2.5, borderColor: tokens.gold, borderBottomWidth: 2 }} />
 
         {/* How many reservations, in all and per status, in one bordered row */}
-        <Box data-pdf-keep sx={{ display: 'grid', gridTemplateColumns: `repeat(${figures.length}, minmax(0, 1fr))`, border: `1px solid ${tokens.cardLightBorder}`, borderRadius: 1.5, overflow: 'hidden', breakInside: 'avoid' }}>
+        <Box
+          data-pdf-keep
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${figures.length}, minmax(0, 1fr))`,
+            border: `1px solid ${tokens.cardLightBorder}`,
+            borderRadius: 1.5,
+            overflow: 'hidden',
+            breakInside: 'avoid'
+          }}
+        >
           {figures.map(([label, value], i) => (
-            <Box key={label} sx={{ px: 1.5, py: 1.25, backgroundColor: tokens.surfaceSubtle, borderLeft: i ? `1px solid ${tokens.cardLightBorder}` : 'none' }}>
+            <Box
+              key={label}
+              sx={{
+                px: 1.5,
+                py: 1.25,
+                backgroundColor: tokens.surfaceSubtle,
+                borderLeft: i ? `1px solid ${tokens.cardLightBorder}` : 'none'
+              }}
+            >
               <Typography sx={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted }}>{label}</Typography>
               <Typography sx={{ mt: 0.25, fontSize: 17, fontWeight: 800, lineHeight: 1.25 }}>{value}</Typography>
             </Box>
@@ -66,7 +110,8 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
 
         <Typography sx={{ mt: 3, fontSize: 13, fontWeight: 800, color: tokens.goldDark }}>Reservations</Typography>
         <Typography sx={{ mt: 0.25, mb: 1.5, fontSize: 11.5, color: tokens.textMuted }}>
-          By event date, {newestFirst ? 'newest' : 'soonest'} first. Total is the sent quotation, or the estimate before one is sent; Paid is verified payments less refunds; a declined or cancelled reservation has no balance.
+          By event date, {newestFirst ? 'newest' : 'soonest'} first. Total is the sent quotation, or the estimate before
+          one is sent; Paid is verified payments less refunds; a declined or cancelled reservation has no balance.
         </Typography>
 
         {/* One row per reservation; amounts on the right. A row never splits across two pages. Cells use
@@ -81,8 +126,20 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
             fontSize: 11,
             lineHeight: 1.4,
             color: tokens.textPrimary,
-            '& th, & td': { py: 0.625, px: 0.75, textAlign: 'left', verticalAlign: 'top', borderBottom: `1px solid ${tokens.cardLightBorder}` },
-            '& th': { fontSize: 10.5, fontWeight: 700, color: tokens.textSecondary, backgroundColor: tokens.surfaceMuted, whiteSpace: 'nowrap' },
+            '& th, & td': {
+              py: 0.625,
+              px: 0.75,
+              textAlign: 'left',
+              verticalAlign: 'top',
+              borderBottom: `1px solid ${tokens.cardLightBorder}`
+            },
+            '& th': {
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: tokens.textSecondary,
+              backgroundColor: tokens.surfaceMuted,
+              whiteSpace: 'nowrap'
+            },
             '& tbody tr:nth-of-type(even) td': { backgroundColor: tokens.surfaceSubtle },
             '& tr': { breakInside: 'avoid' },
             '& .ref': { fontWeight: 700, whiteSpace: 'nowrap' },

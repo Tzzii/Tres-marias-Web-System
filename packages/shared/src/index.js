@@ -18,7 +18,14 @@ export { ThemeModeToggle } from './components/ThemeModeToggle.jsx';
 
 export { LightSurface, DarkSurface } from './components/Surface.jsx';
 export { DashCard, CardTitle, StatCard, DetailRow, Field } from './components/DashCard.jsx';
-export { Pill, StatusChip, PaymentStatusChip, QrStatusChip, BalanceChip, FeedbackStatusChip } from './components/Pill.jsx';
+export {
+  Pill,
+  StatusChip,
+  PaymentStatusChip,
+  QrStatusChip,
+  BalanceChip,
+  FeedbackStatusChip
+} from './components/Pill.jsx';
 export { StatusPipeline } from './components/StatusPipeline.jsx';
 export { FieldLabel, FormField, SelectField, PasswordField, MobileField } from './components/FormField.jsx';
 // The live "Password needs" list (and strength bar) under every new-password field
@@ -40,7 +47,16 @@ export { DocumentDialog, documentsFor } from './components/DocumentDialog.jsx';
 export { PackageItemList } from './components/PackageItems.jsx';
 // A buffet's menu: each category's dishes as radio buttons, plus "Others" with a text box (booking form, admin's Edit Menu)
 export { DessertFields } from './components/DessertFields.jsx';
-export { DESSERT_ADDON_ID, DESSERT_CHOICES, dishesInMenu, menuCount, menuProblem, cleanMenu, buffetDrinks, dessertSummary } from './domain/menu.js';
+export {
+  DESSERT_ADDON_ID,
+  DESSERT_CHOICES,
+  dishesInMenu,
+  menuCount,
+  menuProblem,
+  cleanMenu,
+  buffetDrinks,
+  dessertSummary
+} from './domain/menu.js';
 export { MenuPicker } from './components/MenuPicker.jsx';
 export { ScrollToTop, NotFoundPage } from './components/Routing.jsx';
 export { ChatPanel } from './components/ChatPanel.jsx';
@@ -64,12 +80,56 @@ export { saveElementAsPdf } from './utils/savePdf.js';
 // Saving a file with the computer's "Save as" window where the browser allows it (Save PDF)
 export { askWhereToSave, canAskWhereToSave, saveFile, writeTo } from './utils/saveFile.js';
 
-export { BUSINESS, RULES, OCCASIONS, OCCASION_OTHER, OCCASION_OTHER_RANGE, bookingOccasion, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, OUTSOURCE_OTHER, OUTSOURCE_OTHER_RANGE, FEEDBACK_CATEGORIES } from './services/config.js';
+export {
+  BUSINESS,
+  RULES,
+  OCCASIONS,
+  OCCASION_OTHER,
+  OCCASION_OTHER_RANGE,
+  bookingOccasion,
+  SERVICE_TYPES,
+  includesFood,
+  RENTAL_SERVICE,
+  isRental,
+  RENTAL,
+  RENTAL_FULFILMENT,
+  DISH_CATEGORIES,
+  BUFFET_DRINKS,
+  MENU_LINE_MAX,
+  DEFAULT_PRICE_PER_PLATE,
+  PRICE_PER_PLATE_RANGE,
+  DEFAULT_MIN_DOWNPAYMENT,
+  MIN_DOWNPAYMENT_RANGE,
+  ADDON_PRICE_RANGE,
+  BLOCK_REASONS,
+  BLOCK_NOTE_MAX,
+  INVENTORY_CATEGORIES,
+  OUTSOURCE_SERVICES,
+  OUTSOURCE_OTHER,
+  OUTSOURCE_OTHER_RANGE,
+  FEEDBACK_CATEGORIES
+} from './services/config.js';
 export { computeQuote, extraGuestsFor, isRentalPackage } from './services/pricing.js';
 // A package's items for the guest count (plates and chairs grow, warmers and helpers are confirmed in the quotation)
-export { ITEM_COUNT_MAX, bookingExtraGuests, bookingItems, formatBookingItem, itemGrows, itemsToConfirm, packageItemsFor, usesGuestRule } from './domain/packageItems.js';
+export {
+  ITEM_COUNT_MAX,
+  bookingExtraGuests,
+  bookingItems,
+  formatBookingItem,
+  itemGrows,
+  itemsToConfirm,
+  packageItemsFor,
+  usesGuestRule
+} from './domain/packageItems.js';
 // Event times (an end time 2 to 6 hours after the start, maybe past midnight) and a blocked date's note for customers
-export { blockNote, endTimeOptions, endTimeProblem, endsNextDay, eventHours, shiftEndTime } from './domain/availability.js';
+export {
+  blockNote,
+  endTimeOptions,
+  endTimeProblem,
+  endsNextDay,
+  eventHours,
+  shiftEndTime
+} from './domain/availability.js';
 // The Terms of Service and Privacy Policy (pages, sign-up, booking form) and the version customers agree to
 export { TERMS_UPDATED, TERMS_VERSION, privacyPolicy, termsOfService } from './legal/terms.js';
 // Where a pending request stands: the admin owes a quotation or a revised one, or the customer can accept it
@@ -85,11 +145,35 @@ export { samplePackagePhoto } from './domain/packagePhotos.js';
 export { PackagePhoto } from './components/PackagePhoto.jsx';
 export { EquipmentPhoto } from './components/EquipmentPhoto.jsx';
 // An additional charge's own price, its sizes and its packages (the admin's form and the booking form use the same rules as the services)
-export { MAX_ADDON_SIZES, PACKAGE_INCLUDES_MAX, addonPriceMap, flattenAddons, readAddonPrice, readAddonSizes } from './domain/catalog.js';
+export {
+  MAX_ADDON_SIZES,
+  PACKAGE_INCLUDES_MAX,
+  addonPriceMap,
+  flattenAddons,
+  readAddonPrice,
+  readAddonSizes
+} from './domain/catalog.js';
 // Editing and deleting chat messages: who may and until when, the admin's "View history" versions, previews
-export { DELETED_MESSAGE_TEXT, MESSAGE_CHANGE_MS, messageChangeable, messagePreview, messageVersions } from './domain/messages.js';
+export {
+  DELETED_MESSAGE_TEXT,
+  MESSAGE_CHANGE_MS,
+  messageChangeable,
+  messagePreview,
+  messageVersions
+} from './domain/messages.js';
 // The theme list, colour names and checks of the booking's "Theme and Colors" (the services check the same)
-export { MAX_MOTIF_COLORS, STYLING_THEMES, THEME_OTHER, THEME_UNDECIDED, cleanStyling, decorReminders, stylingEmpty, stylingProblem, stylingToDiscuss, themeLabel } from './domain/styling.js';
+export {
+  MAX_MOTIF_COLORS,
+  STYLING_THEMES,
+  THEME_OTHER,
+  THEME_UNDECIDED,
+  cleanStyling,
+  decorReminders,
+  stylingEmpty,
+  stylingProblem,
+  stylingToDiscuss,
+  themeLabel
+} from './domain/styling.js';
 export { ApiError } from './services/errors.js';
 export * as authApi from './services/remote/auth.js';
 export * as catalogApi from './services/remote/catalog.js';

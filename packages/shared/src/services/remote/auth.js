@@ -57,7 +57,8 @@ async function trackLock(scope, email, call) {
     rememberLock(scope, email, null);
     return result;
   } catch (error) {
-    if (error.code === 'LOCKED' && error.meta && error.meta.lockedUntil) rememberLock(scope, email, error.meta.lockedUntil);
+    if (error.code === 'LOCKED' && error.meta && error.meta.lockedUntil)
+      rememberLock(scope, email, error.meta.lockedUntil);
     throw error;
   }
 }
@@ -79,23 +80,33 @@ export const customerLogin = ({ email, password, remember = false }) =>
  * account exists yet. Only the account fields are sent, with `agreeTerms` (the "I agree to the Terms of
  * Service and Privacy Policy" tick, which must be true). Returns { challengeId, maskedEmail, expiresAt, resendAt }.
  */
-export const startSignUp = ({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '', agreeTerms = false }) =>
-  http.post('/auth/customer/register', { firstName, middleName, lastName, email, mobile, password, agreeTerms });
+export const startSignUp = ({
+  firstName = '',
+  middleName = '',
+  lastName = '',
+  email = '',
+  mobile = '',
+  password = '',
+  agreeTerms = false
+}) => http.post('/auth/customer/register', { firstName, middleName, lastName, email, mobile, password, agreeTerms });
 
 /** Sign-up: email a new code (after the resend cooldown): { expiresAt, resendAt } */
 export const resendSignUpCode = (challengeId) => http.post(`/auth/customer/register/${segment(challengeId)}/resend`);
 
 /** Sign-up, step 2: the emailed code. The server creates the account and signs the customer in: { token, user } */
-export const confirmSignUp = ({ challengeId, code }) => http.post(`/auth/customer/register/${segment(challengeId)}/verify`, { code });
+export const confirmSignUp = ({ challengeId, code }) =>
+  http.post(`/auth/customer/register/${segment(challengeId)}/verify`, { code });
 
 /** Forgot password, step 1: the server emails a code to the account's address. { challengeId, maskedEmail, expiresAt, resendAt } */
 export const startPasswordReset = ({ email }) => http.post('/auth/customer/password-reset', { email });
 
 /** Email a new code (after the resend cooldown): { expiresAt, resendAt } */
-export const resendPasswordResetCode = (challengeId) => http.post(`/auth/customer/password-reset/${segment(challengeId)}/resend`);
+export const resendPasswordResetCode = (challengeId) =>
+  http.post(`/auth/customer/password-reset/${segment(challengeId)}/resend`);
 
 /** Step 2: check the emailed code: { ok: true } */
-export const verifyPasswordResetCode = ({ challengeId, code }) => http.post(`/auth/customer/password-reset/${segment(challengeId)}/verify`, { code });
+export const verifyPasswordResetCode = ({ challengeId, code }) =>
+  http.post(`/auth/customer/password-reset/${segment(challengeId)}/verify`, { code });
 
 /**
  * Step 3: save the new password: { ok: true, email }. Run from My profile ("Forgot your current
@@ -104,7 +115,11 @@ export const verifyPasswordResetCode = ({ challengeId, code }) => http.post(`/au
  * the page stays signed in. From the Log in page there is no session and no token.
  */
 export async function completePasswordReset({ challengeId, password }) {
-  const result = await http.post(`/auth/customer/password-reset/${segment(challengeId)}/complete`, { password }, { quiet: true });
+  const result = await http.post(
+    `/auth/customer/password-reset/${segment(challengeId)}/complete`,
+    { password },
+    { quiet: true }
+  );
   if (result.token) emitTokenRenewed(result.token);
   emitChange();
   return { ok: true, email: result.email };
@@ -114,7 +129,8 @@ export async function completePasswordReset({ challengeId, password }) {
 export const getCustomerProfile = () => http.get('/me');
 
 /** Save name, mobile and company; returns the updated profile. */
-export const updateCustomerProfile = (customerId, { name = '', mobile = '', company = '' }) => http.patch('/me', { name, mobile, company });
+export const updateCustomerProfile = (customerId, { name = '', mobile = '', company = '' }) =>
+  http.patch('/me', { name, mobile, company });
 
 /** Check the current password and email a confirmation code to the requested new login address. */
 export const startCustomerEmailChange = ({ email, password }) => http.post('/me/email', { email, password });
@@ -173,7 +189,8 @@ export const adminVerifyCode = ({ challengeId, code }) => http.post('/auth/admin
  * would have ended anyway. Wrong passwords count as sign-in failures for `email` (the same lock as the
  * sign-in form). Returns { token, user, unlockTicket, unlockUntil }; CHALLENGE_EXPIRED when the session is over.
  */
-export const adminUnlock = ({ ticket, password, email }) => trackLock('admin', email, () => http.post('/auth/admin/unlock', { ticket, password }));
+export const adminUnlock = ({ ticket, password, email }) =>
+  trackLock('admin', email, () => http.post('/auth/admin/unlock', { ticket, password }));
 
 /** The signed-in admin's account record (My account, and the top bar's name check). */
 export const getAdminProfile = () => http.get('/admin/me');
@@ -185,13 +202,16 @@ export const updateAdminProfile = (adminId, { name }) => http.patch('/admin/me',
  * Change the admin password. Every session of this admin ends on the server, this one included, and
  * the page signs out right after (quiet: no reload is sent with the token that just stopped working).
  */
-export const changeAdminPassword = (adminId, { current, next }) => http.post('/admin/me/password', { current, next }, { quiet: true });
+export const changeAdminPassword = (adminId, { current, next }) =>
+  http.post('/admin/me/password', { current, next }, { quiet: true });
 
 /** Email / mobile change, step 1: the server checks the password and emails a code. { challengeId, sentTo, expiresAt, resendAt } */
-export const adminStartContactChange = (adminId, { field, value, password }) => http.post('/admin/me/contact/start', { field, value, password });
+export const adminStartContactChange = (adminId, { field, value, password }) =>
+  http.post('/admin/me/contact/start', { field, value, password });
 
 /** Email / mobile change: send a new code: { expiresAt, resendAt } */
 export const adminResendContactCode = (challengeId) => http.post('/admin/me/contact/resend', { challengeId });
 
 /** Email / mobile change, step 2: check the code and save; returns the updated profile. */
-export const adminConfirmContactChange = ({ challengeId, code }) => http.post('/admin/me/contact/confirm', { challengeId, code });
+export const adminConfirmContactChange = ({ challengeId, code }) =>
+  http.post('/admin/me/contact/confirm', { challengeId, code });

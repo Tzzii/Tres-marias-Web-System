@@ -106,7 +106,11 @@ const fadeColours = () => {
  * right away (not later), which is why the React state is written with flushSync.
  */
 const revealFrom = (origin, change) => {
-  const canReveal = typeof document !== 'undefined' && typeof document.startViewTransition === 'function' && origin && !wantsLessMotion();
+  const canReveal =
+    typeof document !== 'undefined' &&
+    typeof document.startViewTransition === 'function' &&
+    origin &&
+    !wantsLessMotion();
   if (!canReveal) {
     if (!wantsLessMotion()) fadeColours();
     change();

@@ -19,7 +19,8 @@ const segment = (id) => encodeURIComponent(String(id || ''));
 const contractNotFound = () => new ApiError('NOT_FOUND', 'Request not found.');
 
 /** Every partner (archived ones only when asked), by service order then name, with how they are reached and their contract counts. */
-export const listPartners = ({ includeArchived = false } = {}) => http.get(`/admin/outsource/partners${includeArchived ? '?includeArchived=true' : ''}`);
+export const listPartners = ({ includeArchived = false } = {}) =>
+  http.get(`/admin/outsource/partners${includeArchived ? '?includeArchived=true' : ''}`);
 
 /** Every contract, newest first. */
 export const listContracts = () => http.get('/admin/outsource/contracts');
@@ -28,13 +29,15 @@ export const listContracts = () => http.get('/admin/outsource/contracts');
 export const listOutsourceEvents = () => http.get('/admin/outsource/events');
 
 /** Add a partner (`id` null) or save changes to one. Returns the partner. */
-export const savePartner = (id, values) => (id ? http.put(`/admin/outsource/partners/${segment(id)}`, values) : http.post('/admin/outsource/partners', values));
+export const savePartner = (id, values) =>
+  id ? http.put(`/admin/outsource/partners/${segment(id)}`, values) : http.post('/admin/outsource/partners', values);
 
 /** Archive or restore partners (not while a sent contract waits for their answer). Returns { count }. */
 export const setPartnerArchived = (ids, archived) => http.post('/admin/outsource/partners/archive', { ids, archived });
 
 /** Save a contract as a draft: a new one (`id` null) or changes to a draft. Returns the contract. */
-export const saveContract = (id, values) => (id ? http.put(`/admin/outsource/contracts/${segment(id)}`, values) : http.post('/admin/outsource/contracts', values));
+export const saveContract = (id, values) =>
+  id ? http.put(`/admin/outsource/contracts/${segment(id)}`, values) : http.post('/admin/outsource/contracts', values);
 
 /** Send (or send again) a contract: the same text to the partner's email and mobile number. Returns the contract with `deliveryNote`. */
 export async function sendContract(id, { body } = {}) {
@@ -49,4 +52,12 @@ export async function setContractStatus(id, status, { note = '' } = {}) {
 }
 
 // Constants and pure helpers: the same code the server uses (domain/outsource.js)
-export { NO_EVENT, CONTRACT_STATUSES, channelsOf, composeContractText, partnerProblem, partnerServiceInput, partnerServiceCategory } from '../../domain/outsource.js';
+export {
+  NO_EVENT,
+  CONTRACT_STATUSES,
+  channelsOf,
+  composeContractText,
+  partnerProblem,
+  partnerServiceInput,
+  partnerServiceCategory
+} from '../../domain/outsource.js';

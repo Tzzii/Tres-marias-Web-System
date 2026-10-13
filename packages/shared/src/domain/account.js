@@ -12,13 +12,19 @@
 import { storedMobile } from '../utils/mobile.js';
 
 /** An email as it is stored and compared: no surrounding spaces, lower case. */
-export const normaliseEmail = (email) => String(email || '').trim().toLowerCase();
+export const normaliseEmail = (email) =>
+  String(email || '')
+    .trim()
+    .toLowerCase();
 
 /** Valid Philippine mobile numbers save consistently in domestic form ("09171234567"). */
 export const cleanMobile = storedMobile;
 
 /** A full name as it is stored: no surrounding spaces and one space between words. */
-export const cleanName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
+export const cleanName = (name) =>
+  String(name || '')
+    .trim()
+    .replace(/\s+/g, ' ');
 
 /**
  * What is wrong with a cleaned full name, or '' when it is fine: it is required, needs a first and
@@ -39,7 +45,27 @@ export function fullNameProblem(clean, max) {
  */
 export function describeDevice(userAgent = '') {
   const ua = String(userAgent || '');
-  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  const system = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Unknown system';
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /OPR\//.test(ua)
+      ? 'Opera'
+      : /Firefox\//.test(ua)
+        ? 'Firefox'
+        : /Chrome\//.test(ua)
+          ? 'Chrome'
+          : /Safari\//.test(ua)
+            ? 'Safari'
+            : 'Browser';
+  const system = /Windows/.test(ua)
+    ? 'Windows'
+    : /Android/.test(ua)
+      ? 'Android'
+      : /iPhone|iPad|iPod/.test(ua)
+        ? 'iOS'
+        : /Mac OS X/.test(ua)
+          ? 'macOS'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : 'Unknown system';
   return `${browser} · ${system}`;
 }

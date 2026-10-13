@@ -2,23 +2,48 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { adminAccount, client, closePool, pool, requireWriteConsent, runDir, startApi, tokenFor } from './lib/harness.js';
+import {
+  adminAccount,
+  client,
+  closePool,
+  pool,
+  requireWriteConsent,
+  runDir,
+  startApi,
+  tokenFor
+} from './lib/harness.js';
 
 requireWriteConsent({ writesOk: process.argv.includes('--writes-test-data') }, 'Equipment photo integration check');
 const uploadDir = path.join(runDir(), 'equipment-photos');
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-const values = { name: `Equipment Photo Check ${crypto.randomBytes(6).toString('hex')}`, category: 'Furniture', total: 45, lowStockAt: 5, rentable: true, rentPrice: 100, damageFee: 200, notes: '' };
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
+const values = {
+  name: `Equipment Photo Check ${crypto.randomBytes(6).toString('hex')}`,
+  category: 'Furniture',
+  total: 45,
+  lowStockAt: 5,
+  rentable: true,
+  rentPrice: 100,
+  damageFee: 200,
+  notes: ''
+};
 const form = (body, bytes = PNG) => {
   const data = new FormData();
   data.append('item', JSON.stringify(body));
   data.append('photo', new Blob([bytes], { type: 'image/png' }), 'equipment.png');
   return data;
 };
-const files = () => fs.existsSync(path.join(uploadDir, 'equipment')) ? fs.readdirSync(path.join(uploadDir, 'equipment')) : [];
+const files = () =>
+  fs.existsSync(path.join(uploadDir, 'equipment')) ? fs.readdirSync(path.join(uploadDir, 'equipment')) : [];
 let api;
 let id;
 let checks = 0;
-const passed = (label) => { checks += 1; console.log(`PASS ${label}`); };
+const passed = (label) => {
+  checks += 1;
+  console.log(`PASS ${label}`);
+};
 try {
   const admin = tokenFor(await adminAccount(), 'admin');
   api = await startApi({ env: { UPLOAD_DIR: uploadDir }, label: 'equipment-photo-check' });
@@ -55,26 +80,40 @@ try {
   result = await call('PATCH', `/admin/inventory/${id}`, { form: form(values) });
   assert.equal(result.status, 401);
   assert.equal((await call('GET', `/admin/inventory/${id}/photo`)).status, 401);
-  const [[customer]] = await pool.query('SELECT id, name, password_changed_at AS passwordChangedAt FROM customers LIMIT 1');
+  const [[customer]] = await pool.query(
+    'SELECT id, name, password_changed_at AS passwordChangedAt FROM customers LIMIT 1'
+  );
   if (customer) {
-    result = await call('PATCH', `/admin/inventory/${id}`, { token: tokenFor(customer, 'customer'), form: form(values) });
+    result = await call('PATCH', `/admin/inventory/${id}`, {
+      token: tokenFor(customer, 'customer'),
+      form: form(values)
+    });
     assert.equal(result.status, 403);
   }
   assert.equal(files().length, 1);
   passed('only admin sessions can change equipment photos');
-  result = await call('PATCH', `/admin/inventory/${id}`, { token: admin, body: { ...values, notes: 'Keep the photo.' } });
+  result = await call('PATCH', `/admin/inventory/${id}`, {
+    token: admin,
+    body: { ...values, notes: 'Keep the photo.' }
+  });
   assert.equal(result.status, 200);
   assert.equal(result.body.photoVersion, version);
   passed('ordinary inventory edits preserve the uploaded picture');
   const oldVersion = version;
-  result = await call('PATCH', `/admin/inventory/${id}`, { token: admin, form: form(values, Buffer.concat([PNG, Buffer.from('replacement')])) });
+  result = await call('PATCH', `/admin/inventory/${id}`, {
+    token: admin,
+    form: form(values, Buffer.concat([PNG, Buffer.from('replacement')]))
+  });
   assert.equal(result.status, 200);
   version = result.body.photoVersion;
   assert.notEqual(version, oldVersion);
   assert.equal(files().length, 1);
   assert.equal((await fetch(publicUrl(oldVersion))).status, 404);
   passed('replacement updates the version and cleans up the previous photo');
-  result = await call('PATCH', `/admin/inventory/${id}`, { token: admin, form: form({ ...values, total: 99 }, Buffer.from('<svg>not a photo</svg>')) });
+  result = await call('PATCH', `/admin/inventory/${id}`, {
+    token: admin,
+    form: form({ ...values, total: 99 }, Buffer.from('<svg>not a photo</svg>'))
+  });
   assert.equal(result.status, 400);
   assert.equal(result.body.meta.field, 'photo');
   result = await call('GET', '/admin/inventory', { token: admin });
@@ -85,7 +124,10 @@ try {
   assert.equal(result.status, 400);
   assert.equal(files().length, 1);
   passed('invalid inventory fields do not save an uploaded file');
-  result = await call('PATCH', `/admin/inventory/${id}`, { token: admin, form: form({ ...values, removePhoto: true }) });
+  result = await call('PATCH', `/admin/inventory/${id}`, {
+    token: admin,
+    form: form({ ...values, removePhoto: true })
+  });
   assert.equal(result.status, 400);
   assert.equal(files().length, 1);
   const large = Buffer.alloc(20 * 1024 * 1024 + 1);

@@ -12,7 +12,10 @@ import { z } from 'zod';
 
 // Text of at most `max` characters; missing -> '' so the service answers with the form's own message
 const text = (max) =>
-  z.string({ error: 'This field is required.' }).max(max, { error: `Use ${max} characters or fewer.` }).default('');
+  z
+    .string({ error: 'This field is required.' })
+    .max(max, { error: `Use ${max} characters or fewer.` })
+    .default('');
 
 // Checked by the service (.optional(): a missing key reaches it as undefined, not as zod's own 400)
 const passThrough = z.unknown().optional();

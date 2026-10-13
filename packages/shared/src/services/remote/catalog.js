@@ -21,7 +21,9 @@ const segment = (id) => encodeURIComponent(String(id || ''));
 
 // "?includeHidden=true&includeArchived=true" for the switches that are on, or ''
 function switches(options) {
-  const on = Object.entries(options).filter(([, value]) => value).map(([name]) => `${name}=true`);
+  const on = Object.entries(options)
+    .filter(([, value]) => value)
+    .map(([name]) => `${name}=true`);
   return on.length ? `?${on.join('&')}` : '';
 }
 
@@ -106,10 +108,12 @@ export const listPackages = ({ includeHidden = false, includeArchived = false } 
 export const getPackageBySlug = (slug) => http.get(`/packages/by-slug/${segment(slug)}`);
 
 /** Additional charges (add-ons). By default only the ones not archived. */
-export const listAddons = ({ includeArchived = false } = {}) => withSettings(http.get(`/addons${switches({ includeArchived })}`));
+export const listAddons = ({ includeArchived = false } = {}) =>
+  withSettings(http.get(`/addons${switches({ includeArchived })}`));
 
 /** Dishes a buffet menu can be built from. By default only the ones still offered. */
-export const listDishes = ({ includeArchived = false } = {}) => withSettings(http.get(`/dishes${switches({ includeArchived })}`));
+export const listDishes = ({ includeArchived = false } = {}) =>
+  withSettings(http.get(`/dishes${switches({ includeArchived })}`));
 
 /** The rental price list: [{ id, name, category, price, damageFee }], with no stock counts. */
 export const listRentalItems = () => http.get('/rental-items');
@@ -142,12 +146,14 @@ export function savePackage(pkg, { photo, removePhoto = false } = {}) {
 }
 
 /** Versioned public image URL; admin previews fetch protected hidden-package photos with their token. */
-export const packagePhotoUrl = (pkg) => pkg?.photoVersion
-  ? apiUrl(`/packages/${segment(pkg.id)}/photo?v=${segment(pkg.photoVersion)}`) : null;
-export const adminPackagePhotoUrl = (pkg) => fetchFileUrl(`/admin/packages/${segment(pkg.id)}/photo?v=${segment(pkg.photoVersion)}`);
+export const packagePhotoUrl = (pkg) =>
+  pkg?.photoVersion ? apiUrl(`/packages/${segment(pkg.id)}/photo?v=${segment(pkg.photoVersion)}`) : null;
+export const adminPackagePhotoUrl = (pkg) =>
+  fetchFileUrl(`/admin/packages/${segment(pkg.id)}/photo?v=${segment(pkg.photoVersion)}`);
 
 /** Show or hide a package on the website. */
-export const setPackageVisibility = (id, visible) => http.patch(`/admin/packages/${segment(id)}/visibility`, { visible });
+export const setPackageVisibility = (id, visible) =>
+  http.patch(`/admin/packages/${segment(id)}/visibility`, { visible });
 
 /** Archive (also hides it) or restore a package. */
 export const setPackageArchived = (id, archived) => http.patch(`/admin/packages/${segment(id)}/archived`, { archived });
@@ -168,7 +174,13 @@ export function saveAddon(addon) {
     hasQuantity: Boolean(hasQuantity),
     hasPackages: Boolean(hasPackages),
     inventoryItemId: inventoryItemId || null,
-    sizes: sizes.map((size) => ({ id: size.id || '', name: size.name, price: size.price ?? null, description: size.description || '', inventoryItemId: size.inventoryItemId || null }))
+    sizes: sizes.map((size) => ({
+      id: size.id || '',
+      name: size.name,
+      price: size.price ?? null,
+      description: size.description || '',
+      inventoryItemId: size.inventoryItemId || null
+    }))
   };
   return id ? http.put(`/admin/addons/${segment(id)}`, body) : http.post('/admin/addons', body);
 }
@@ -179,7 +191,9 @@ export const setAddonArchived = (id, archived) => http.patch(`/admin/addons/${se
 /** Update or create a dish: { id?, name, category }. */
 export function saveDish(dish) {
   const { id, name, category } = dish;
-  return id ? http.put(`/admin/dishes/${segment(id)}`, { name, category }) : http.post('/admin/dishes', { name, category });
+  return id
+    ? http.put(`/admin/dishes/${segment(id)}`, { name, category })
+    : http.post('/admin/dishes', { name, category });
 }
 
 /** Archive or restore a dish. */

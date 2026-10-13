@@ -50,7 +50,15 @@ import {
 } from '@tm/shared';
 
 // Empty form values for a new package (new packages start hidden)
-const blankPackage = () => ({ name: '', price: '', guests: '', description: '', itemsText: '', grows: {}, visible: false });
+const blankPackage = () => ({
+  name: '',
+  price: '',
+  guests: '',
+  description: '',
+  itemsText: '',
+  grows: {},
+  visible: false
+});
 
 // Convert a saved package into form values: numbers become strings, the items become one line
 // each ("100 Porcelain Plates"), and `grows` says, by item name, which counted items grow with the guests
@@ -67,7 +75,8 @@ const toForm = ({ items, ...p }) => ({
  * the same guess as for a package saved before the ticks (domain/packageItems.js itemGrows): an item counted
  * once per default guest, or a counted table. So a new "300 Chairs" line on a 300-guest package starts ticked.
  */
-const growsInForm = (form, item) => (item.name in form.grows ? form.grows[item.name] : itemGrows(item, { guests: Number(form.guests) }));
+const growsInForm = (form, item) =>
+  item.name in form.grows ? form.grows[item.name] : itemGrows(item, { guests: Number(form.guests) });
 
 /**
  * Turn the "What's included" text into items, one per line. A number at the start of a line is the quantity:
@@ -126,16 +135,62 @@ export default function PackagesPage() {
   const packageAddons = addons.filter((a) => a.hasPackages);
   // The columns of both lists
   const addonColumns = [
-    { key: 'name', label: 'Additional Charge', render: (a) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{a.description}</Typography></Box>) },
+    {
+      key: 'name',
+      label: 'Additional Charge',
+      render: (a) => (
+        <Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{a.description}</Typography>
+        </Box>
+      )
+    },
     // Its own price (of one, when counted by the piece), or "Set in quotation" when it has none; a charge
     // with sizes lists each size with its price of one, and a charge with packages each package with its price
-    { key: 'price', label: 'Price', align: 'right', render: (a) => (a.sizes && a.sizes.length ? <Box>{a.sizes.map((s) => <AddonPrice key={s.id} label={s.size} price={s.price} each={!a.hasPackages} />)}</Box> : <AddonPrice price={a.price} each={a.hasQuantity} />) },
+    {
+      key: 'price',
+      label: 'Price',
+      align: 'right',
+      render: (a) =>
+        a.sizes && a.sizes.length ? (
+          <Box>
+            {a.sizes.map((s) => (
+              <AddonPrice key={s.id} label={s.size} price={s.price} each={!a.hasPackages} />
+            ))}
+          </Box>
+        ) : (
+          <AddonPrice price={a.price} each={a.hasQuantity} />
+        )
+    },
     // Archive hides it (and can be undone); Delete removes it for good, so only Delete is red
-    { key: 'actions', label: '', align: 'right', render: (a) => (<Box sx={{ whiteSpace: 'nowrap' }}><Button size="small" onClick={() => setAddonDialog(a)}>Edit</Button><Button size="small" sx={{ color: tokens.textSecondary }} onClick={() => setArchive({ type: 'addon', item: a })}>Archive</Button><Button size="small" color="error" onClick={() => setRemove({ type: 'addon', item: a })}>Delete</Button></Box>) }
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (a) => (
+        <Box sx={{ whiteSpace: 'nowrap' }}>
+          <Button size="small" onClick={() => setAddonDialog(a)}>
+            Edit
+          </Button>
+          <Button
+            size="small"
+            sx={{ color: tokens.textSecondary }}
+            onClick={() => setArchive({ type: 'addon', item: a })}
+          >
+            Archive
+          </Button>
+          <Button size="small" color="error" onClick={() => setRemove({ type: 'addon', item: a })}>
+            Delete
+          </Button>
+        </Box>
+      )
+    }
   ];
   // Total archived items across all three types
   const archivedCount = data
-    ? data.packages.filter((p) => p.archived).length + data.addons.filter((a) => a.archived).length + data.dishes.filter((d) => d.archived).length
+    ? data.packages.filter((p) => p.archived).length +
+      data.addons.filter((a) => a.archived).length +
+      data.dishes.filter((d) => d.archived).length
     : 0;
 
   // Open the first package in the editor when nothing is selected
@@ -169,7 +224,12 @@ export default function PackagesPage() {
     scrollToEditor();
   }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
+  if (error)
+    return (
+      <DashCard>
+        <ErrorState error={error} onRetry={reload} />
+      </DashCard>
+    );
 
   // Run an action and show a success or error toast
   const run = async (fn, message) => {
@@ -188,10 +248,25 @@ export default function PackagesPage() {
         subtitle="This is what customers see when they browse and reserve. Hidden packages disappear from browse but stay on past reservations."
         actions={
           <>
-            <Button variant="outlined" startIcon={<AddRoundedIcon />} onClick={() => { setTab('addons'); setAddonDialog({}); }} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
+            <Button
+              variant="outlined"
+              startIcon={<AddRoundedIcon />}
+              onClick={() => {
+                setTab('addons');
+                setAddonDialog({});
+              }}
+              sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
+            >
               New additional charge
             </Button>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setTab('packages'); openEditor('new'); }}>
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={() => {
+                setTab('packages');
+                openEditor('new');
+              }}
+            >
               New package
             </Button>
           </>
@@ -219,25 +294,60 @@ export default function PackagesPage() {
         </DashCard>
       ) : tab === 'packages' ? (
         // Packages tab: list on the left, editor on the right (extra-large screens); smaller screens stack them
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.2fr' }, gap: 2.5, alignItems: 'start' }}>
+        <Box
+          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.2fr' }, gap: 2.5, alignItems: 'start' }}
+        >
           <DashCard>
             <CardTitle>Packages · {packages.length}</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {packages.map((p) => (
-                <Box key={p.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1.5px solid ${editingId === p.id ? tokens.ink : tokens.cardLightBorder}`, flexWrap: 'wrap' }}>
-                  <ButtonBase onClick={() => openEditor(p.id)} sx={{ flex: 1, minWidth: 200, display: 'block', textAlign: 'left', fontFamily: 'inherit' }}>
+                <Box
+                  key={p.id}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    p: 1.5,
+                    borderRadius: 1.5,
+                    border: `1.5px solid ${editingId === p.id ? tokens.ink : tokens.cardLightBorder}`,
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  <ButtonBase
+                    onClick={() => openEditor(p.id)}
+                    sx={{ flex: 1, minWidth: 200, display: 'block', textAlign: 'left', fontFamily: 'inherit' }}
+                  >
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>{p.name}</Typography>
-                      <Pill size="sm" label={p.visible ? 'Visible on site' : 'Hidden'} bg={p.visible ? 'rgba(16,185,129,0.12)' : tokens.surfaceMuted} fg={p.visible ? '#047857' : tokens.textMuted} />
+                      <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>
+                        {p.name}
+                      </Typography>
+                      <Pill
+                        size="sm"
+                        label={p.visible ? 'Visible on site' : 'Hidden'}
+                        bg={p.visible ? 'rgba(16,185,129,0.12)' : tokens.surfaceMuted}
+                        fg={p.visible ? '#047857' : tokens.textMuted}
+                      />
                     </Box>
                     <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                      {isRentalPackage(p) ? 'Priced per piece from the inventory' : `${peso(p.price)} · Default: ${p.guests} guests · ${p.items.length} items`}
+                      {isRentalPackage(p)
+                        ? 'Priced per piece from the inventory'
+                        : `${peso(p.price)} · Default: ${p.guests} guests · ${p.items.length} items`}
                     </Typography>
                   </ButtonBase>
                   {/* Edit and Hide/Show stay together; on a phone they drop under the name, on the right */}
                   <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
-                    <Button size="small" onClick={() => openEditor(p.id)}>Edit</Button>
-                    <Button size="small" onClick={() => run(() => catalogApi.setPackageVisibility(p.id, !p.visible), p.visible ? `${p.name} is hidden from customers.` : `${p.name} is now visible on the site.`)}>
+                    <Button size="small" onClick={() => openEditor(p.id)}>
+                      Edit
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() =>
+                        run(
+                          () => catalogApi.setPackageVisibility(p.id, !p.visible),
+                          p.visible ? `${p.name} is hidden from customers.` : `${p.name} is now visible on the site.`
+                        )
+                      }
+                    >
                       {p.visible ? 'Hide' : 'Show'}
                     </Button>
                   </Box>
@@ -257,7 +367,12 @@ export default function PackagesPage() {
               isNew={editingId === 'new'}
               onCancelNew={() => setEditingId(packages[0] ? packages[0].id : null)}
               onSaved={(saved, isNew) => {
-                setData((current) => ({ ...current, packages: isNew ? [...current.packages, saved] : current.packages.map((item) => item.id === saved.id ? saved : item) }));
+                setData((current) => ({
+                  ...current,
+                  packages: isNew
+                    ? [...current.packages, saved]
+                    : current.packages.map((item) => (item.id === saved.id ? saved : item))
+                }));
                 notify(isNew ? `${saved.name} created. It stays hidden until you show it.` : 'Package saved.');
                 setEditingId(saved.id);
               }}
@@ -272,7 +387,11 @@ export default function PackagesPage() {
           <DashCard>
             <CardTitle
               subtitle="Customers tick these on the reservation form. Give one a price, or leave it without one and set it in each quotation."
-              action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({})}>New additional charge</Button>}
+              action={
+                <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({})}>
+                  New additional charge
+                </Button>
+              }
             >
               Additional Charges · {plainAddons.length}
             </CardTitle>
@@ -281,13 +400,27 @@ export default function PackagesPage() {
               rows={plainAddons}
               rowKey={(a) => a.id}
               minWidth={560}
-              empty={<EmptyState compact title="No additional charges" description="Add extras customers can ask for on the reservation form, such as a tent or stage decoration." />}
+              empty={
+                <EmptyState
+                  compact
+                  title="No additional charges"
+                  description="Add extras customers can ask for on the reservation form, such as a tent or stage decoration."
+                />
+              }
             />
           </DashCard>
           <DashCard>
             <CardTitle
               subtitle="Customers tick one of these and pick one of its packages. Each package has its own price and a list of what it includes."
-              action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setAddonDialog({ hasPackages: true })}>New charge with packages</Button>}
+              action={
+                <Button
+                  size="small"
+                  startIcon={<AddRoundedIcon />}
+                  onClick={() => setAddonDialog({ hasPackages: true })}
+                >
+                  New charge with packages
+                </Button>
+              }
             >
               Additional Charges With Packages · {packageAddons.length}
             </CardTitle>
@@ -296,18 +429,36 @@ export default function PackagesPage() {
               rows={packageAddons}
               rowKey={(a) => a.id}
               minWidth={560}
-              empty={<EmptyState compact title="No charges with packages" description="Add a charge that comes in packages, such as sounds and lights with a basic and a full setup." />}
+              empty={
+                <EmptyState
+                  compact
+                  title="No charges with packages"
+                  description="Add a charge that comes in packages, such as sounds and lights with a basic and a full setup."
+                />
+              }
             />
           </DashCard>
         </Box>
       ) : tab === 'dishes' ? (
         // Buffet Menu tab: the price per person, then the dishes grouped by category
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.6fr' }, gap: 2.5, alignItems: 'start' }}>
-          <PricePerPlateCard current={data.pricePerPlate} onSaved={() => { notify('Buffet price per person saved.'); reload(); }} />
+        <Box
+          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.6fr' }, gap: 2.5, alignItems: 'start' }}
+        >
+          <PricePerPlateCard
+            current={data.pricePerPlate}
+            onSaved={() => {
+              notify('Buffet price per person saved.');
+              reload();
+            }}
+          />
           <DashCard>
             <CardTitle
               subtitle="Suggestions offered under each box on the booking form. Customers write their own menu, so this guides them without limiting them."
-              action={<Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDishDialog({})}>New dish</Button>}
+              action={
+                <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDishDialog({})}>
+                  New dish
+                </Button>
+              }
             >
               Dishes · {dishes.length}
             </CardTitle>
@@ -320,15 +471,45 @@ export default function PackagesPage() {
                   </Typography>
                   {/* A category with nothing in it blocks every new buffet booking, so say so */}
                   {inCategory.length === 0 ? (
-                    <AlertBanner tone="info">No suggestions for this line yet. Customers can still book a buffet and write their own {label.toLowerCase()}.</AlertBanner>
+                    <AlertBanner tone="info">
+                      No suggestions for this line yet. Customers can still book a buffet and write their own{' '}
+                      {label.toLowerCase()}.
+                    </AlertBanner>
                   ) : (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       {inCategory.map((d) => (
-                        <Box key={d.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pl: 1.5, pr: 0.5, py: 0.5, borderRadius: 999, border: `1px solid ${tokens.cardLightBorder}` }}>
+                        <Box
+                          key={d.id}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            pl: 1.5,
+                            pr: 0.5,
+                            py: 0.5,
+                            borderRadius: 999,
+                            border: `1px solid ${tokens.cardLightBorder}`
+                          }}
+                        >
                           <Typography sx={{ fontSize: 13.5 }}>{d.name}</Typography>
-                          <Button size="small" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setDishDialog(d)}>Edit</Button>
-                          <Button size="small" sx={{ minWidth: 0, px: 0.75, color: tokens.textSecondary }} onClick={() => setArchive({ type: 'dish', item: d })}>Archive</Button>
-                          <Button size="small" color="error" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setRemove({ type: 'dish', item: d })}>Delete</Button>
+                          <Button size="small" sx={{ minWidth: 0, px: 0.75 }} onClick={() => setDishDialog(d)}>
+                            Edit
+                          </Button>
+                          <Button
+                            size="small"
+                            sx={{ minWidth: 0, px: 0.75, color: tokens.textSecondary }}
+                            onClick={() => setArchive({ type: 'dish', item: d })}
+                          >
+                            Archive
+                          </Button>
+                          <Button
+                            size="small"
+                            color="error"
+                            sx={{ minWidth: 0, px: 0.75 }}
+                            onClick={() => setRemove({ type: 'dish', item: d })}
+                          >
+                            Delete
+                          </Button>
                         </Box>
                       ))}
                     </Box>
@@ -343,22 +524,68 @@ export default function PackagesPage() {
         // additional charges and dishes can also be deleted for good from here
         <DashCard>
           {archivedCount === 0 ? (
-            <EmptyState compact title="Nothing archived" description="Archived packages, additional charges and dishes appear here and can be restored." />
+            <EmptyState
+              compact
+              title="Nothing archived"
+              description="Archived packages, additional charges and dishes appear here and can be restored."
+            />
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {[
-                ...data.packages.filter((p) => p.archived).map((p) => ({ type: 'package', id: p.id, name: p.name, meta: `Package · ${isRentalPackage(p) ? 'priced per piece' : peso(p.price)}`, restore: () => catalogApi.setPackageArchived(p.id, false) })),
-                ...data.addons.filter((a) => a.archived).map((a) => ({ type: 'addon', id: a.id, name: a.name, meta: a.hasPackages ? 'Additional charge with packages' : 'Additional charge', restore: () => catalogApi.setAddonArchived(a.id, false) })),
-                ...data.dishes.filter((d) => d.archived).map((d) => ({ type: 'dish', id: d.id, name: d.name, meta: `Dish · ${(DISH_CATEGORIES.find((c) => c.key === d.category) || {}).label || d.category}`, restore: () => catalogApi.setDishArchived(d.id, false) }))
+                ...data.packages
+                  .filter((p) => p.archived)
+                  .map((p) => ({
+                    type: 'package',
+                    id: p.id,
+                    name: p.name,
+                    meta: `Package · ${isRentalPackage(p) ? 'priced per piece' : peso(p.price)}`,
+                    restore: () => catalogApi.setPackageArchived(p.id, false)
+                  })),
+                ...data.addons
+                  .filter((a) => a.archived)
+                  .map((a) => ({
+                    type: 'addon',
+                    id: a.id,
+                    name: a.name,
+                    meta: a.hasPackages ? 'Additional charge with packages' : 'Additional charge',
+                    restore: () => catalogApi.setAddonArchived(a.id, false)
+                  })),
+                ...data.dishes
+                  .filter((d) => d.archived)
+                  .map((d) => ({
+                    type: 'dish',
+                    id: d.id,
+                    name: d.name,
+                    meta: `Dish · ${(DISH_CATEGORIES.find((c) => c.key === d.category) || {}).label || d.category}`,
+                    restore: () => catalogApi.setDishArchived(d.id, false)
+                  }))
               ].map((item) => (
-                <Box key={`${item.type}-${item.id}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
+                <Box
+                  key={`${item.type}-${item.id}`}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    p: 1.25,
+                    borderRadius: 1.5,
+                    border: `1px solid ${tokens.cardLightBorder}`
+                  }}
+                >
                   <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{item.name}</Typography>
                     <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{item.meta}</Typography>
                   </Box>
-                  <Button size="small" variant="outlined" onClick={() => run(item.restore, `${item.name} restored.`)}>Restore</Button>
+                  <Button size="small" variant="outlined" onClick={() => run(item.restore, `${item.name} restored.`)}>
+                    Restore
+                  </Button>
                   {item.type !== 'package' && (
-                    <Button size="small" color="error" onClick={() => setRemove({ type: item.type, item: { id: item.id, name: item.name } })}>Delete</Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => setRemove({ type: item.type, item: { id: item.id, name: item.name } })}
+                    >
+                      Delete
+                    </Button>
                   )}
                 </Box>
               ))}
@@ -367,9 +594,24 @@ export default function PackagesPage() {
         </DashCard>
       )}
 
-      <AddonDialog addon={addonDialog} inventory={data ? data.inventory : []} onClose={() => setAddonDialog(null)} onSaved={(isNew) => { setAddonDialog(null); notify(isNew ? 'Additional charge created.' : 'Additional charge saved.'); }} />
+      <AddonDialog
+        addon={addonDialog}
+        inventory={data ? data.inventory : []}
+        onClose={() => setAddonDialog(null)}
+        onSaved={(isNew) => {
+          setAddonDialog(null);
+          notify(isNew ? 'Additional charge created.' : 'Additional charge saved.');
+        }}
+      />
 
-      <DishDialog dish={dishDialog} onClose={() => setDishDialog(null)} onSaved={(isNew) => { setDishDialog(null); notify(isNew ? 'Dish added to the menu.' : 'Dish saved.'); }} />
+      <DishDialog
+        dish={dishDialog}
+        onClose={() => setDishDialog(null)}
+        onSaved={(isNew) => {
+          setDishDialog(null);
+          notify(isNew ? 'Dish added to the menu.' : 'Dish saved.');
+        }}
+      />
 
       <ConfirmDialog
         open={Boolean(archive)}
@@ -423,7 +665,12 @@ export default function PackagesPage() {
 
 // The editor input that shows a save error's meta.field, or null for the banner. The API calls the
 // "What's included" list `items`; the form's input for it is `itemsText`.
-const editorField = (field) => (field === 'items' ? 'itemsText' : ['name', 'price', 'guests', 'description', 'itemsText', 'photo'].includes(field) ? field : null);
+const editorField = (field) =>
+  field === 'items'
+    ? 'itemsText'
+    : ['name', 'price', 'guests', 'description', 'itemsText', 'photo'].includes(field)
+      ? field
+      : null;
 
 /**
  * Form for creating or editing a package: name, price, default guest count, description, what's included
@@ -457,7 +704,11 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   if (!pkg && !isNew) {
     return (
       <DashCard>
-        <EmptyState compact title="Select a package" description="Choose a package on the left to edit it, or create a new one." />
+        <EmptyState
+          compact
+          title="Select a package"
+          description="Choose a package on the left to edit it, or create a new one."
+        />
       </DashCard>
     );
   }
@@ -479,7 +730,8 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
     const price = Number(form.price);
     if (!price || price < 100) e.price = 'Enter a price of at least ₱100.';
     const guests = Number(form.guests);
-    if (!Number.isInteger(guests) || guests < 1 || guests > RULES.maxGuests) e.guests = `Between 1 and ${RULES.maxGuests}.`;
+    if (!Number.isInteger(guests) || guests < 1 || guests > RULES.maxGuests)
+      e.guests = `Between 1 and ${RULES.maxGuests}.`;
     if (!parseItems(form.itemsText).length) e.itemsText = 'List at least one item.';
     return e;
   };
@@ -498,14 +750,17 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
     setBusy(true);
     try {
       const { itemsText, grows, ...rest } = form;
-      const saved = await catalogApi.savePackage({
-        ...rest,
-        name: form.name.trim(),
-        description: form.description.trim(),
-        price: Number(form.price),
-        guests: Number(form.guests),
-        items: parseItems(itemsText).map((item) => (item.qty ? { ...item, grows: growsInForm(form, item) } : item))
-      }, { photo: photoFile, removePhoto });
+      const saved = await catalogApi.savePackage(
+        {
+          ...rest,
+          name: form.name.trim(),
+          description: form.description.trim(),
+          price: Number(form.price),
+          guests: Number(form.guests),
+          items: parseItems(itemsText).map((item) => (item.qty ? { ...item, grows: growsInForm(form, item) } : item))
+        },
+        { photo: photoFile, removePhoto }
+      );
       setForm(toForm(saved));
       setPhotoFile(null);
       setRemovePhoto(false);
@@ -521,47 +776,146 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
 
   return (
     <DashCard>
-      <CardTitle subtitle={isNew ? 'New packages start hidden until you show them.' : undefined}>{isNew ? 'New Package' : `Editing · ${pkg.name}`}</CardTitle>
-      {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
+      <CardTitle subtitle={isNew ? 'New packages start hidden until you show them.' : undefined}>
+        {isNew ? 'New Package' : `Editing · ${pkg.name}`}
+      </CardTitle>
+      {errors.form && (
+        <AlertBanner tone="error" sx={{ mb: 2 }}>
+          {errors.form}
+        </AlertBanner>
+      )}
       <Box sx={{ mb: 2, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.borderInput}` }}>
         <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 0.75 }}>Package photo</Typography>
         <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary, mb: 1.5 }}>
-          Shown when customers open this package's details. JPG, PNG or WebP · up to {RULES.photoMaxMb} MB per photo. Save changes to publish.
+          Shown when customers open this package's details. JPG, PNG or WebP · up to {RULES.photoMaxMb} MB per photo.
+          Save changes to publish.
         </Typography>
         <Box sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
-          <PackagePhoto pkg={pkg || { name: form.name, kind: rental ? 'rental' : 'package' }} file={photoFile} removePhoto={removePhoto} admin height={220} />
+          <PackagePhoto
+            pkg={pkg || { name: form.name, kind: rental ? 'rental' : 'package' }}
+            file={photoFile}
+            removePhoto={removePhoto}
+            admin
+            height={220}
+          />
         </Box>
-        <input ref={photoInput} id="package-photo" type="file" accept={PHOTO_ACCEPT} hidden disabled={busy} onChange={(event) => {
-          const picked = event.target.files?.[0];
-          event.target.value = '';
-          if (!picked) return;
-          const problem = photoProblem(picked);
-          setErrors((current) => ({ ...current, photo: problem }));
-          if (problem) return;
-          setPhotoFile(picked);
-          setRemovePhoto(false);
-        }} />
-        {photoFile && <Typography sx={{ mt: 1, fontSize: 12, overflowWrap: 'anywhere', color: tokens.textSecondary }}>{photoFile.name} · {(photoFile.size / 1024 / 1024).toFixed(2)} MB</Typography>}
-        {errors.photo && <Typography role="alert" sx={{ mt: 1, color: 'error.main', fontSize: 12.5 }}>{errors.photo}</Typography>}
-        {removePhoto && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textSecondary }}>The uploaded photo will be removed when you save. The sample setup will be shown.</Typography>}
+        <input
+          ref={photoInput}
+          id="package-photo"
+          type="file"
+          accept={PHOTO_ACCEPT}
+          hidden
+          disabled={busy}
+          onChange={(event) => {
+            const picked = event.target.files?.[0];
+            event.target.value = '';
+            if (!picked) return;
+            const problem = photoProblem(picked);
+            setErrors((current) => ({ ...current, photo: problem }));
+            if (problem) return;
+            setPhotoFile(picked);
+            setRemovePhoto(false);
+          }}
+        />
+        {photoFile && (
+          <Typography sx={{ mt: 1, fontSize: 12, overflowWrap: 'anywhere', color: tokens.textSecondary }}>
+            {photoFile.name} · {(photoFile.size / 1024 / 1024).toFixed(2)} MB
+          </Typography>
+        )}
+        {errors.photo && (
+          <Typography role="alert" sx={{ mt: 1, color: 'error.main', fontSize: 12.5 }}>
+            {errors.photo}
+          </Typography>
+        )}
+        {removePhoto && (
+          <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textSecondary }}>
+            The uploaded photo will be removed when you save. The sample setup will be shown.
+          </Typography>
+        )}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.5 }}>
-          <Button variant="outlined" disabled={busy} onClick={() => photoInput.current?.click()}>{photoFile || (pkg?.photoVersion && !removePhoto) ? 'Replace photo' : 'Upload photo'}</Button>
-          {(photoFile || (pkg?.photoVersion && !removePhoto)) && <Button disabled={busy} color="error" onClick={() => { setPhotoFile(null); setRemovePhoto(Boolean(pkg?.photoVersion)); setErrors((current) => ({ ...current, photo: '' })); }}>Remove photo</Button>}
-          {removePhoto && <Button disabled={busy} onClick={() => setRemovePhoto(false)}>Keep current photo</Button>}
+          <Button variant="outlined" disabled={busy} onClick={() => photoInput.current?.click()}>
+            {photoFile || (pkg?.photoVersion && !removePhoto) ? 'Replace photo' : 'Upload photo'}
+          </Button>
+          {(photoFile || (pkg?.photoVersion && !removePhoto)) && (
+            <Button
+              disabled={busy}
+              color="error"
+              onClick={() => {
+                setPhotoFile(null);
+                setRemovePhoto(Boolean(pkg?.photoVersion));
+                setErrors((current) => ({ ...current, photo: '' }));
+              }}
+            >
+              Remove photo
+            </Button>
+          )}
+          {removePhoto && (
+            <Button disabled={busy} onClick={() => setRemovePhoto(false)}>
+              Keep current photo
+            </Button>
+          )}
         </Box>
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-        <FormField id="p-name" label="Package name" required value={form.name} onChange={set('name')} error={errors.name} sx={{ gridColumn: { sm: '1 / -1' } }} />
+        <FormField
+          id="p-name"
+          label="Package name"
+          required
+          value={form.name}
+          onChange={set('name')}
+          error={errors.name}
+          sx={{ gridColumn: { sm: '1 / -1' } }}
+        />
         {!rental && (
           <>
-            <FormField id="p-price" label="Package price" required type="number" value={form.price} onChange={set('price')} error={errors.price} hint="Flat price, food not included" InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }} />
-            <FormField id="p-guests" label="Default guest count" required type="number" value={form.guests} onChange={set('guests')} error={errors.guests} hint="The guest count this package is set up for; customers book their own count" />
+            <FormField
+              id="p-price"
+              label="Package price"
+              required
+              type="number"
+              value={form.price}
+              onChange={set('price')}
+              error={errors.price}
+              hint="Flat price, food not included"
+              InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
+            />
+            <FormField
+              id="p-guests"
+              label="Default guest count"
+              required
+              type="number"
+              value={form.guests}
+              onChange={set('guests')}
+              error={errors.guests}
+              hint="The guest count this package is set up for; customers book their own count"
+            />
           </>
         )}
-        <FormField id="p-desc" label="Description shown on the site" required multiline minRows={2} value={form.description} onChange={set('description')} error={errors.description} sx={{ gridColumn: { sm: '1 / -1' } }} />
+        <FormField
+          id="p-desc"
+          label="Description shown on the site"
+          required
+          multiline
+          minRows={2}
+          value={form.description}
+          onChange={set('description')}
+          error={errors.description}
+          sx={{ gridColumn: { sm: '1 / -1' } }}
+        />
         {!rental && (
-          <FormField id="p-items" label="What's included" required multiline minRows={8} value={form.itemsText} onChange={set('itemsText')} error={errors.itemsText} hint='One item per line. Start with the quantity when there is one, e.g. "100 Porcelain Plates" or "Buffet Table".' sx={{ gridColumn: { sm: '1 / -1' } }} />
+          <FormField
+            id="p-items"
+            label="What's included"
+            required
+            multiline
+            minRows={8}
+            value={form.itemsText}
+            onChange={set('itemsText')}
+            error={errors.itemsText}
+            hint='One item per line. Start with the quantity when there is one, e.g. "100 Porcelain Plates" or "Buffet Table".'
+            sx={{ gridColumn: { sm: '1 / -1' } }}
+          />
         )}
         {/* For bookings above the default guest count: ticked items grow with the guests (200 plates -> 600 at
             600 guests); the other counted items are set in each quotation, and the customer sees "to confirm" */}
@@ -569,14 +923,17 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
           <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Grows with the guest count</Typography>
             <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
-              When a booking has more guests than the default, ticked items grow with it (e.g. plates, glasses, chairs, tables). You set the count of the others in the quotation, with the price for the extra guests.
+              When a booking has more guests than the default, ticked items grow with it (e.g. plates, glasses, chairs,
+              tables). You set the count of the others in the quotation, with the price for the extra guests.
             </Typography>
             <Box sx={{ mt: 0.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2 }}>
               {countedItems.map((item, i) => (
                 <FormControlLabel
                   key={`${item.name}-${i}`}
                   sx={{ mr: 0 }}
-                  control={<Checkbox size="small" checked={growsInForm(form, item)} onChange={() => toggleGrows(item)} />}
+                  control={
+                    <Checkbox size="small" checked={growsInForm(form, item)} onChange={() => toggleGrows(item)} />
+                  }
                   label={<Typography sx={{ fontSize: 13 }}>{formatPackageItem(item)}</Typography>}
                 />
               ))}
@@ -591,17 +948,24 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
         <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
           {rental ? (
             <>
-              <b>How it is priced</b> · customers pick items and pay each one's rent price per piece. Set which items can be rented, their rent price and their damage fee on the Inventory page (Edit → "Customers can rent this item").
+              <b>How it is priced</b> · customers pick items and pay each one's rent price per piece. Set which items
+              can be rented, their rent price and their damage fee on the Inventory page (Edit → "Customers can rent
+              this item").
             </>
           ) : (
             <>
-              <b>How it can be booked</b> · as a Buffet (this equipment plus food we cook, charged per person) or as Catering only (this equipment on its own). Customers choose when they reserve.
+              <b>How it can be booked</b> · as a Buffet (this equipment plus food we cook, charged per person) or as
+              Catering only (this equipment on its own). Customers choose when they reserve.
             </>
           )}
         </Typography>
       </Box>
 
-      <FormControlLabel sx={{ mt: 1.5 }} control={<Switch checked={Boolean(form.visible)} onChange={set('visible')} />} label={<Typography sx={{ fontSize: 13.5 }}>Visible on the website</Typography>} />
+      <FormControlLabel
+        sx={{ mt: 1.5 }}
+        control={<Switch checked={Boolean(form.visible)} onChange={set('visible')} />}
+        label={<Typography sx={{ fontSize: 13.5 }}>Visible on the website</Typography>}
+      />
 
       <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         <BusyButton busy={busy} disabled={!dirty} onClick={save}>
@@ -611,8 +975,22 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
           <Button onClick={onCancelNew}>Cancel</Button>
         ) : (
           <>
-            {dirty && <Button disabled={busy} onClick={() => { setForm(toForm(pkg)); setPhotoFile(null); setRemovePhoto(false); setErrors({}); }}>Discard</Button>}
-            <Button color="error" sx={{ ml: 'auto' }} onClick={() => onArchive(pkg)}>Archive</Button>
+            {dirty && (
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  setForm(toForm(pkg));
+                  setPhotoFile(null);
+                  setRemovePhoto(false);
+                  setErrors({});
+                }}
+              >
+                Discard
+              </Button>
+            )}
+            <Button color="error" sx={{ ml: 'auto' }} onClick={() => onArchive(pkg)}>
+              Archive
+            </Button>
           </>
         )}
       </Box>
@@ -626,8 +1004,19 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
  */
 function AddonPrice({ label, price, each }) {
   return (
-    <Typography sx={{ fontSize: 13.5, whiteSpace: 'nowrap', fontWeight: price ? 600 : 400, color: price ? tokens.textPrimary : tokens.textMuted }}>
-      {label && <Box component="span" sx={{ fontWeight: 400, color: tokens.textMuted }}>{label} · </Box>}
+    <Typography
+      sx={{
+        fontSize: 13.5,
+        whiteSpace: 'nowrap',
+        fontWeight: price ? 600 : 400,
+        color: price ? tokens.textPrimary : tokens.textMuted
+      }}
+    >
+      {label && (
+        <Box component="span" sx={{ fontWeight: 400, color: tokens.textMuted }}>
+          {label} ·{' '}
+        </Box>
+      )}
       {price ? `${peso(price)}${each ? ' each' : ''}` : 'Set in quotation'}
     </Typography>
   );
@@ -645,7 +1034,10 @@ function InventoryLine({ item, error, sx }) {
         Inventory:{' '}
         {item ? (
           <>
-            <Box component="span" sx={{ fontWeight: 600, color: tokens.textPrimary }}>{item.name}</Box> · {item.total} pcs owned
+            <Box component="span" sx={{ fontWeight: 600, color: tokens.textPrimary }}>
+              {item.name}
+            </Box>{' '}
+            · {item.total} pcs owned
           </>
         ) : (
           'none'
@@ -692,7 +1084,14 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
         inventoryItemId: addon.inventoryItemId || '',
         // A size's or package's own name (`size`), not the full "Tent 10 × 10"; a package also keeps
         // what it includes (a size's description is its charge's, so it is not copied)
-        sizes: (addon.sizes || []).map((s) => ({ key: s.id, id: s.id, name: s.size, price: s.price ? String(s.price) : '', description: addon.hasPackages ? s.description || '' : '', inventoryItemId: s.inventoryItemId || '' }))
+        sizes: (addon.sizes || []).map((s) => ({
+          key: s.id,
+          id: s.id,
+          name: s.size,
+          price: s.price ? String(s.price) : '',
+          description: addon.hasPackages ? s.description || '' : '',
+          inventoryItemId: s.inventoryItemId || ''
+        }))
       });
       setErrors({});
     }
@@ -706,7 +1105,14 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
     setValues((v) => ({ ...v, sizes: v.sizes.map((s, i) => (i === index ? { ...s, [field]: value } : s)) }));
     setErrors((er) => ({ ...er, [`sizes.${index}.${field}`]: '' }));
   };
-  const addSize = () => setValues((v) => ({ ...v, sizes: [...v.sizes, { key: `new-${(nextKey.current += 1)}`, id: '', name: '', price: '', description: '', inventoryItemId: '' }] }));
+  const addSize = () =>
+    setValues((v) => ({
+      ...v,
+      sizes: [
+        ...v.sizes,
+        { key: `new-${(nextKey.current += 1)}`, id: '', name: '', price: '', description: '', inventoryItemId: '' }
+      ]
+    }));
   // Removing a row shifts the rows below it, so the size messages are cleared rather than left on the wrong row
   const removeSize = (index) => {
     setValues((v) => ({ ...v, sizes: v.sizes.filter((_, i) => i !== index) }));
@@ -740,7 +1146,9 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
     } catch (err) {
       // Under its input (name, description, price, inventory item or a size or package), or in the banner above the form when it has none (e.g. a network error)
       const field = err.meta && err.meta.field;
-      const known = field && (['name', 'description', 'price', 'inventoryItemId', 'sizes'].includes(field) || field.startsWith('sizes.'));
+      const known =
+        field &&
+        (['name', 'description', 'price', 'inventoryItemId', 'sizes'].includes(field) || field.startsWith('sizes.'));
       setErrors(known ? { [field]: err.message } : { form: err.message });
     } finally {
       setBusy(false);
@@ -757,12 +1165,42 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
       maxWidth="sm"
       title={`${addon && addon.id ? 'Edit' : 'New'} additional charge${packages ? ' with packages' : ''}`}
       description={`${packages ? 'Customers pick one of its packages. ' : ''}Leave a price blank to set it in each reservation's quotation instead. A new price applies to bookings made from now on.`}
-      actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save</BusyButton></>}
+      actions={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <BusyButton busy={busy} onClick={save}>
+            Save
+          </BusyButton>
+        </>
+      }
     >
-      {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
+      {errors.form && (
+        <AlertBanner tone="error" sx={{ mb: 2 }}>
+          {errors.form}
+        </AlertBanner>
+      )}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <FormField id="addon-name" label="Name" required value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} error={errors.name} autoFocus />
-        <FormField id="addon-desc" label="Description" required multiline minRows={2} value={values.description} onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))} error={errors.description} />
+        <FormField
+          id="addon-name"
+          label="Name"
+          required
+          value={values.name}
+          onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+          error={errors.name}
+          autoFocus
+        />
+        <FormField
+          id="addon-desc"
+          label="Description"
+          required
+          multiline
+          minRows={2}
+          value={values.description}
+          onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+          error={errors.description}
+        />
         {/* A charge with sizes or packages is priced per size or package, so its own price and how-many are hidden */}
         {!sized && (
           <>
@@ -774,7 +1212,13 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
               value={values.price}
               onChange={(e) => setValues((v) => ({ ...v, price: e.target.value.replace(/\D/g, '') }))}
               error={errors.price}
-              hint={errors.price ? undefined : packages ? 'Blank: set the price in each quotation. Used only until you add a package.' : 'Blank: set the price in each quotation'}
+              hint={
+                errors.price
+                  ? undefined
+                  : packages
+                    ? 'Blank: set the price in each quotation. Used only until you add a package.'
+                    : 'Blank: set the price in each quotation'
+              }
               InputProps={pesoSign}
               inputProps={{ inputMode: 'numeric', maxLength: 7 }}
             />
@@ -782,18 +1226,28 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
                 A charge with packages is never counted by the piece. */}
             {!packages && (
               <FormControlLabel
-                control={<Checkbox size="small" checked={Boolean(values.hasQuantity)} onChange={(e) => setValues((v) => ({ ...v, hasQuantity: e.target.checked }))} />}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={Boolean(values.hasQuantity)}
+                    onChange={(e) => setValues((v) => ({ ...v, hasQuantity: e.target.checked }))}
+                  />
+                }
                 label={
                   <Box>
                     <Typography sx={{ fontSize: 13.5 }}>Ask the customer how many</Typography>
-                    <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>For charges counted by the piece, such as extra helpers. The price is then the price of one.</Typography>
+                    <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+                      For charges counted by the piece, such as extra helpers. The price is then the price of one.
+                    </Typography>
                   </Box>
                 }
                 sx={{ alignItems: 'flex-start' }}
               />
             )}
             {/* Shown only when it takes from the inventory; a charge such as Host never does */}
-            {itemOf(values.inventoryItemId) && <InventoryLine item={itemOf(values.inventoryItemId)} error={errors.inventoryItemId} />}
+            {itemOf(values.inventoryItemId) && (
+              <InventoryLine item={itemOf(values.inventoryItemId)} error={errors.inventoryItemId} />
+            )}
           </>
         )}
 
@@ -807,8 +1261,27 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
               : 'Optional. For a charge that comes in sizes, such as a tent. Customers pick the size and how many of each, and each size has its own price of one. A size uses the Inventory item named after it (10 × 10 uses “Tent 10x10”), matched when you save: a booking uses up those pieces for the event date, so customers can only book what is left.'}
           </Typography>
           {values.sizes.map((s, i) => (
-            <Box key={s.key} sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr auto', sm: '1fr 170px auto' }, gap: 1, alignItems: 'start', ...(packages && i > 0 ? { pt: 1.5, borderTop: `1px solid ${tokens.cardLightBorder}` } : {}) }}>
-              <FormField id={`addon-size-${i}`} label={packages ? 'Package name' : 'Size'} required value={s.name} onChange={(e) => setSize(i, 'name', e.target.value)} error={errors[`sizes.${i}.name`]} placeholder={packages ? 'e.g. Basic sound system' : 'e.g. 10 × 10'} inputProps={{ maxLength: 60 }} />
+            <Box
+              key={s.key}
+              sx={{
+                mt: 1.5,
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr 1fr auto', sm: '1fr 170px auto' },
+                gap: 1,
+                alignItems: 'start',
+                ...(packages && i > 0 ? { pt: 1.5, borderTop: `1px solid ${tokens.cardLightBorder}` } : {})
+              }}
+            >
+              <FormField
+                id={`addon-size-${i}`}
+                label={packages ? 'Package name' : 'Size'}
+                required
+                value={s.name}
+                onChange={(e) => setSize(i, 'name', e.target.value)}
+                error={errors[`sizes.${i}.name`]}
+                placeholder={packages ? 'e.g. Basic sound system' : 'e.g. 10 × 10'}
+                inputProps={{ maxLength: 60 }}
+              />
               <FormField
                 id={`addon-size-price-${i}`}
                 label={packages ? 'Price' : 'Price of one'}
@@ -819,7 +1292,11 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
                 InputProps={pesoSign}
                 inputProps={{ inputMode: 'numeric', maxLength: 7 }}
               />
-              <IconButton onClick={() => removeSize(i)} aria-label={`Remove ${noun} ${s.name || i + 1}`} sx={{ mt: 3.25 }}>
+              <IconButton
+                onClick={() => removeSize(i)}
+                aria-label={`Remove ${noun} ${s.name || i + 1}`}
+                sx={{ mt: 3.25 }}
+              >
                 <CloseRoundedIcon fontSize="small" />
               </IconButton>
               {/* What the package includes, one thing per line */}
@@ -833,22 +1310,39 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
                   value={s.description}
                   onChange={(e) => setSize(i, 'description', e.target.value)}
                   error={errors[`sizes.${i}.description`]}
-                  hint={errors[`sizes.${i}.description`] ? undefined : 'One thing per line, e.g. "2 speakers with stands"'}
+                  hint={
+                    errors[`sizes.${i}.description`] ? undefined : 'One thing per line, e.g. "2 speakers with stands"'
+                  }
                   inputProps={{ maxLength: PACKAGE_INCLUDES_MAX }}
                   sx={{ gridColumn: '1 / -1' }}
                 />
               )}
               {/* A package rarely takes from the inventory, so its line shows only when it does */}
               {(!packages || itemOf(s.inventoryItemId) || errors[`sizes.${i}.inventoryItemId`]) && (
-                <InventoryLine item={itemOf(s.inventoryItemId)} error={errors[`sizes.${i}.inventoryItemId`]} sx={{ gridColumn: '1 / -1', mt: -0.5 }} />
+                <InventoryLine
+                  item={itemOf(s.inventoryItemId)}
+                  error={errors[`sizes.${i}.inventoryItemId`]}
+                  sx={{ gridColumn: '1 / -1', mt: -0.5 }}
+                />
               )}
             </Box>
           ))}
           {errors.sizes && <Typography sx={{ mt: 1, fontSize: 12, color: tokens.redPress }}>{errors.sizes}</Typography>}
-          <Button size="small" startIcon={<AddRoundedIcon />} onClick={addSize} disabled={values.sizes.length >= MAX_ADDON_SIZES} sx={{ mt: 1 }}>
+          <Button
+            size="small"
+            startIcon={<AddRoundedIcon />}
+            onClick={addSize}
+            disabled={values.sizes.length >= MAX_ADDON_SIZES}
+            sx={{ mt: 1 }}
+          >
             Add {noun}
           </Button>
-          {sized && <Typography sx={{ mt: 0.5, fontSize: 12, color: tokens.textMuted }}>Leave a {noun}'s price blank to set it in each quotation. A {noun} you remove stays on bookings that already have it.</Typography>}
+          {sized && (
+            <Typography sx={{ mt: 0.5, fontSize: 12, color: tokens.textMuted }}>
+              Leave a {noun}'s price blank to set it in each quotation. A {noun} you remove stays on bookings that
+              already have it.
+            </Typography>
+          )}
         </Box>
       </Box>
     </AppDialog>
@@ -882,16 +1376,26 @@ function PricePerPlateCard({ current, onSaved }) {
 
   return (
     <DashCard>
-      <CardTitle subtitle="What one guest costs on a buffet booking. Catering only bookings are not charged per person.">Buffet Price per Person</CardTitle>
+      <CardTitle subtitle="What one guest costs on a buffet booking. Catering only bookings are not charged per person.">
+        Buffet Price per Person
+      </CardTitle>
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
         <FormField
           id="price-per-plate"
           type="number"
           value={value}
-          onChange={(e) => { setValue(e.target.value); setError(''); }}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError('');
+          }}
           error={error}
           InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
-          inputProps={{ min: PRICE_PER_PLATE_RANGE.min, max: PRICE_PER_PLATE_RANGE.max, step: 50, 'aria-label': 'Buffet price per person' }}
+          inputProps={{
+            min: PRICE_PER_PLATE_RANGE.min,
+            max: PRICE_PER_PLATE_RANGE.max,
+            step: 50,
+            'aria-label': 'Buffet price per person'
+          }}
           sx={{ width: 170 }}
         />
         <BusyButton busy={busy} disabled={String(current) === value} onClick={save} sx={{ height: 40 }}>
@@ -899,7 +1403,8 @@ function PricePerPlateCard({ current, onSaved }) {
         </BusyButton>
       </Box>
       <Typography sx={{ mt: 1.5, fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
-        A 100-guest buffet comes to {peso(100 * (Number(value) || 0))}. Reservations already made keep the price they were booked at, so raising this never changes what an existing customer owes.
+        A 100-guest buffet comes to {peso(100 * (Number(value) || 0))}. Reservations already made keep the price they
+        were booked at, so raising this never changes what an existing customer owes.
       </Typography>
     </DashCard>
   );
@@ -940,17 +1445,45 @@ function DishDialog({ dish, onClose, onSaved }) {
       maxWidth="xs"
       title={dish && dish.id ? 'Edit Dish' : 'New Dish'}
       description="Suggested under the matching box on the booking form. Customers can still write anything they like."
-      actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save</BusyButton></>}
+      actions={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <BusyButton busy={busy} onClick={save}>
+            Save
+          </BusyButton>
+        </>
+      }
     >
-      {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
+      {errors.form && (
+        <AlertBanner tone="error" sx={{ mb: 2 }}>
+          {errors.form}
+        </AlertBanner>
+      )}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <FormField id="dish-name" label="Dish name" required value={values.name} onChange={(e) => { setValues((v) => ({ ...v, name: e.target.value })); setErrors({}); }} error={errors.name} placeholder="e.g. Lechon Kawali" autoFocus />
+        <FormField
+          id="dish-name"
+          label="Dish name"
+          required
+          value={values.name}
+          onChange={(e) => {
+            setValues((v) => ({ ...v, name: e.target.value }));
+            setErrors({});
+          }}
+          error={errors.name}
+          placeholder="e.g. Lechon Kawali"
+          autoFocus
+        />
         <SelectField
           id="dish-category"
           label="Part of the menu"
           required
           value={values.category}
-          onChange={(e) => { setValues((v) => ({ ...v, category: e.target.value })); setErrors({}); }}
+          onChange={(e) => {
+            setValues((v) => ({ ...v, category: e.target.value }));
+            setErrors({});
+          }}
           options={DISH_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
           error={errors.category}
         />

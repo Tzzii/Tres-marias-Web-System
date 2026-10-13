@@ -13,23 +13,48 @@ import { prepareSampleProofs } from '../src/seedData/proofs.js';
 
 // Customer records and their children, in parent-first order. Configuration and admin accounts stay.
 const CUSTOMER_TABLES = [
-  'customers', 'reservations', 'reservation_addons', 'reservation_activity',
-  'payments', 'refunds', 'qr_payments', 'webhook_events', 'threads', 'messages', 'testimonials',
-  'rental_dispatches', 'reservation_rental_items', 'reservation_damage_charges',
-  'password_resets', 'signup_requests', 'password_changes', 'customer_email_changes'
+  'customers',
+  'reservations',
+  'reservation_addons',
+  'reservation_activity',
+  'payments',
+  'refunds',
+  'qr_payments',
+  'webhook_events',
+  'threads',
+  'messages',
+  'testimonials',
+  'rental_dispatches',
+  'reservation_rental_items',
+  'reservation_damage_charges',
+  'password_resets',
+  'signup_requests',
+  'password_changes',
+  'customer_email_changes'
 ];
 
 async function backup(conn) {
-  const folder = path.join(config.apiRoot, 'tmp', `before-customer-seed-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+  const folder = path.join(
+    config.apiRoot,
+    'tmp',
+    `before-customer-seed-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  );
   await mkdir(folder, { recursive: true });
   const snapshot = {};
-  const sql = ['-- Restore into the same schema as this local database.', 'SET NAMES utf8mb4;', 'SET FOREIGN_KEY_CHECKS=0;', 'START TRANSACTION;'];
+  const sql = [
+    '-- Restore into the same schema as this local database.',
+    'SET NAMES utf8mb4;',
+    'SET FOREIGN_KEY_CHECKS=0;',
+    'START TRANSACTION;'
+  ];
   for (const table of TABLES) {
     const [rows] = await conn.query('SELECT * FROM ??', [table]);
     snapshot[table] = rows;
     sql.push(conn.format('DELETE FROM ??;', [table]));
     for (const row of rows) {
-      const values = Object.values(row).map(value => value !== null && typeof value === 'object' && !Buffer.isBuffer(value) ? JSON.stringify(value) : value);
+      const values = Object.values(row).map((value) =>
+        value !== null && typeof value === 'object' && !Buffer.isBuffer(value) ? JSON.stringify(value) : value
+      );
       sql.push(conn.format('INSERT INTO ?? (??) VALUES (?);', [table, Object.keys(row), values]));
     }
   }
@@ -41,22 +66,41 @@ async function backup(conn) {
 }
 
 async function currentBusiness() {
-  const [adminRows] = await pool.query('SELECT id, name, email, mobile, role, created_at AS createdAt FROM admins ORDER BY id');
+  const [adminRows] = await pool.query(
+    'SELECT id, name, email, mobile, role, created_at AS createdAt FROM admins ORDER BY id'
+  );
   if (!adminRows.length) throw new Error('An existing admin account is required.');
-  const [[settings]] = await pool.query('SELECT price_per_plate AS pricePerPlate, min_downpayment AS minDownpayment FROM catalog_settings WHERE id = 1');
+  const [[settings]] = await pool.query(
+    'SELECT price_per_plate AS pricePerPlate, min_downpayment AS minDownpayment FROM catalog_settings WHERE id = 1'
+  );
   const [[calendar]] = await pool.query('SELECT daily_capacity AS dailyCapacity FROM calendar_settings WHERE id = 1');
   const [counters] = await pool.query('SELECT name, value FROM counters');
-  const counts = Object.fromEntries(counters.map(row => [row.name, row.value]));
+  const counts = Object.fromEntries(counters.map((row) => [row.name, row.value]));
   const [addonRows] = await pool.query('SELECT * FROM addons ORDER BY sort_order, id');
-  const addons = addonRows.map(a => ({ id: a.id, parentId: a.parent_id, name: a.name, description: a.description, price: a.price,
-    hasQuantity: Boolean(a.has_quantity), hasPackages: Boolean(a.has_packages), archived: Boolean(a.archived) }));
+  const addons = addonRows.map((a) => ({
+    id: a.id,
+    parentId: a.parent_id,
+    name: a.name,
+    description: a.description,
+    price: a.price,
+    hasQuantity: Boolean(a.has_quantity),
+    hasPackages: Boolean(a.has_packages),
+    archived: Boolean(a.archived)
+  }));
   const { items } = await findItems(pool);
   // Only retain history unrelated to the customers being replaced.
-  const cleanItems = items.map(item => ({ ...item, allocations: {}, history: item.history.filter(entry => !entry.ref) }));
+  const cleanItems = items.map((item) => ({
+    ...item,
+    allocations: {},
+    history: item.history.filter((entry) => !entry.ref)
+  }));
   return {
-    admins: adminRows, settings, dailyCapacity: calendar.dailyCapacity,
+    admins: adminRows,
+    settings,
+    dailyCapacity: calendar.dailyCapacity,
     packages: await catalog.listPackages({ includeHidden: true, includeArchived: true }),
-    addons, dishes: await catalog.listDishes({ includeArchived: true }),
+    addons,
+    dishes: await catalog.listDishes({ includeArchived: true }),
     inventory: { items: cleanItems, counter: counts.inventory || 0 },
     counters: { ...counts, receipt: (counts.receipt || 1000) + 1 }
   };
@@ -68,12 +112,15 @@ async function main() {
   }
   const buildSample = await loadSampleSeed();
   if (!buildSample) throw new Error(NO_SAMPLE_DATA);
-  const [schema] = await pool.query('SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()');
-  if (schema.length !== TABLES.length || schema.some(row => !TABLES.includes(row.name))) {
+  const [schema] = await pool.query(
+    'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()'
+  );
+  if (schema.length !== TABLES.length || schema.some((row) => !TABLES.includes(row.name))) {
     throw new Error('The database schema must match src/seed.js before customer replacement.');
   }
   const password = process.env.SEED_CUSTOMER_PASSWORD || '';
-  if (!password || validatePassword(password)) throw new Error('Set a valid SEED_CUSTOMER_PASSWORD in apps/api/.env first.');
+  if (!password || validatePassword(password))
+    throw new Error('Set a valid SEED_CUSTOMER_PASSWORD in apps/api/.env first.');
   const business = await currentBusiness();
   const data = buildSample(business);
   if (data.customers.length !== 1) throw new Error('This demo must have exactly one customer.');
@@ -82,7 +129,7 @@ async function main() {
   await prepareSampleProofs(rows);
 
   let backupPath;
-  await tx(async conn => {
+  await tx(async (conn) => {
     // The availability lock also serializes booking/rental writes while customer records are replaced.
     await conn.query('SELECT * FROM calendar_settings WHERE id = 1 FOR UPDATE');
     await conn.query('SELECT id FROM customers FOR UPDATE');
@@ -99,24 +146,46 @@ async function main() {
       SELECT 1 FROM customers c WHERE LOCATE(c.email, o.to_address) > 0 OR o.to_address = c.mobile)
       OR JSON_UNQUOTE(JSON_EXTRACT(o.meta, '$.ref')) IN (SELECT ref FROM reservations)
       OR JSON_UNQUOTE(JSON_EXTRACT(o.meta, '$.reservationRef')) IN (SELECT ref FROM reservations)`);
-    await conn.query(`DELETE FROM login_attempts WHERE scope IN ('customer', 'signup-code', 'reset-code', 'change-code', 'customer-reauth', 'code-email')`);
+    await conn.query(
+      `DELETE FROM login_attempts WHERE scope IN ('customer', 'signup-code', 'reset-code', 'change-code', 'customer-reauth', 'code-email')`
+    );
     await conn.query("DELETE FROM inventory_allocations WHERE reservation_ref <> 'none'");
     await conn.query('DELETE FROM inventory_history WHERE ref IS NOT NULL');
     for (const table of [...CUSTOMER_TABLES].reverse()) await conn.query('DELETE FROM ??', [table]);
     for (const table of CUSTOMER_TABLES) await insertRows(conn, table, rows[table] || []);
     await insertRows(conn, 'inventory_allocations', rows.inventory_allocations);
-    await insertRows(conn, 'inventory_history', rows.inventory_history.filter(entry => entry.ref));
+    await insertRows(
+      conn,
+      'inventory_history',
+      rows.inventory_history.filter((entry) => entry.ref)
+    );
     for (const name of ['receipt', 'payment', 'refund']) {
-      const counter = rows.counters.find(row => row.name === name);
-      await conn.query('INSERT INTO counters (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = ?', [name, counter.value, counter.value]);
+      const counter = rows.counters.find((row) => row.name === name);
+      await conn.query('INSERT INTO counters (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = ?', [
+        name,
+        counter.value,
+        counter.value
+      ]);
     }
     // A reset is itself a data change, so open admin/customer portals reload their lists.
-    await conn.query("INSERT INTO counters (name, value) VALUES ('change', 1) ON DUPLICATE KEY UPDATE value = value + 1");
+    await conn.query(
+      "INSERT INTO counters (name, value) VALUES ('change', 1) ON DUPLICATE KEY UPDATE value = value + 1"
+    );
   });
   console.log(`Customer demo replaced in ${config.db.database}. Backup: ${backupPath}`);
-  console.log(`One customer; ${data.reservations.length} bookings, ${data.payments.length} payments, ${data.refunds.length} refunds, ${data.testimonials.length} reviews. Dates count from ${data.seededOn}.`);
-  console.log('Admin accounts, catalog, settings, inventory definitions and suppliers preserved. Password: SEED_CUSTOMER_PASSWORD in apps/api/.env.');
+  console.log(
+    `One customer; ${data.reservations.length} bookings, ${data.payments.length} payments, ${data.refunds.length} refunds, ${data.testimonials.length} reviews. Dates count from ${data.seededOn}.`
+  );
+  console.log(
+    'Admin accounts, catalog, settings, inventory definitions and suppliers preserved. Password: SEED_CUSTOMER_PASSWORD in apps/api/.env.'
+  );
 }
 
-try { await main(); } catch (err) { console.error(err.message); process.exitCode = 1; }
-finally { await closePool(); }
+try {
+  await main();
+} catch (err) {
+  console.error(err.message);
+  process.exitCode = 1;
+} finally {
+  await closePool();
+}

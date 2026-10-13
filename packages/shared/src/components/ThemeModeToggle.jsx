@@ -38,11 +38,20 @@ export function ThemeModeToggle({ sx }) {
         onClick={handleClick}
         aria-label={label}
         aria-pressed={isLight}
-        sx={{ color: tokens.textOnDarkSoft, transition: `color 0.2s ${tokens.easeStandard}`, '&:hover': { color: tokens.gold, backgroundColor: tokens.shellHover }, ...sx }}
+        sx={{
+          color: tokens.textOnDarkSoft,
+          transition: `color 0.2s ${tokens.easeStandard}`,
+          '&:hover': { color: tokens.gold, backgroundColor: tokens.shellHover },
+          ...sx
+        }}
       >
         <Box sx={{ display: 'grid', placeItems: 'center', width: 20, height: 20 }}>
-          <LightModeRoundedIcon sx={{ ...iconSx, opacity: isLight ? 0 : 1, transform: isLight ? 'rotate(90deg) scale(0.3)' : 'none' }} />
-          <DarkModeRoundedIcon sx={{ ...iconSx, opacity: isLight ? 1 : 0, transform: isLight ? 'none' : 'rotate(-90deg) scale(0.3)' }} />
+          <LightModeRoundedIcon
+            sx={{ ...iconSx, opacity: isLight ? 0 : 1, transform: isLight ? 'rotate(90deg) scale(0.3)' : 'none' }}
+          />
+          <DarkModeRoundedIcon
+            sx={{ ...iconSx, opacity: isLight ? 1 : 0, transform: isLight ? 'none' : 'rotate(-90deg) scale(0.3)' }}
+          />
         </Box>
       </IconButton>
     </Tooltip>

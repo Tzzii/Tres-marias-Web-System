@@ -77,7 +77,15 @@ export default function CustomersPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     const test = FILTERS.find(([k]) => k === filter)[2];
-    return rows.filter(test).filter((c) => !q || [c.name, c.email, c.mobile, formatMobile(c.mobile), c.company].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
+    return rows
+      .filter(test)
+      .filter(
+        (c) =>
+          !q ||
+          [c.name, c.email, c.mobile, formatMobile(c.mobile), c.company].some((v) =>
+            String(v).toLowerCase().replace(/\s/g, '').includes(q)
+          )
+      );
   }, [rows, filter, query]);
 
   // Keep the page in range when customers leave the list (e.g. a balance was paid off under "With balance")
@@ -94,13 +102,60 @@ export default function CustomersPage() {
   };
 
   const columns = [
-    { key: 'name', label: 'Customer', render: (c) => (<Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}><Avatar sx={{ width: 34, height: 34, fontSize: 12.5, fontWeight: 700, bgcolor: 'rgba(197,160,89,0.18)', color: tokens.goldDark }}>{initials(c.name)}</Avatar><Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{c.name}</Typography>{c.company && <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{c.company}</Typography>}</Box></Box>) },
+    {
+      key: 'name',
+      label: 'Customer',
+      render: (c) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+          <Avatar
+            sx={{
+              width: 34,
+              height: 34,
+              fontSize: 12.5,
+              fontWeight: 700,
+              bgcolor: 'rgba(197,160,89,0.18)',
+              color: tokens.goldDark
+            }}
+          >
+            {initials(c.name)}
+          </Avatar>
+          <Box>
+            <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{c.name}</Typography>
+            {c.company && <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{c.company}</Typography>}
+          </Box>
+        </Box>
+      )
+    },
     // card: 'wide' — on phone cards the email gets a whole line instead of breaking mid-word
-    { key: 'contact', label: 'Contact', card: 'wide', render: (c) => (<Box><Typography sx={{ fontSize: 13 }}>{c.email}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{formatMobile(c.mobile)}</Typography></Box>) },
+    {
+      key: 'contact',
+      label: 'Contact',
+      card: 'wide',
+      render: (c) => (
+        <Box>
+          <Typography sx={{ fontSize: 13 }}>{c.email}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{formatMobile(c.mobile)}</Typography>
+        </Box>
+      )
+    },
     { key: 'res', label: 'Reservations', align: 'right', render: (c) => c.reservationCount },
     { key: 'up', label: 'Upcoming', align: 'right', render: (c) => c.upcomingCount },
     { key: 'bal', label: 'Balance', align: 'right', render: (c) => (c.balance ? <b>{peso(c.balance)}</b> : peso(0)) },
-    { key: 'act', label: 'Action', align: 'right', render: (c) => (<Box sx={{ whiteSpace: 'nowrap' }}><Button size="small" onClick={() => setParams({ open: c.id })}>Open</Button><Button size="small" onClick={() => message(c.id)}>Message</Button></Box>) }
+    {
+      key: 'act',
+      label: 'Action',
+      align: 'right',
+      render: (c) => (
+        <Box sx={{ whiteSpace: 'nowrap' }}>
+          <Button size="small" onClick={() => setParams({ open: c.id })}>
+            Open
+          </Button>
+          <Button size="small" onClick={() => message(c.id)}>
+            Message
+          </Button>
+        </Box>
+      )
+    }
   ];
 
   return (
@@ -111,9 +166,30 @@ export default function CustomersPage() {
           <ErrorState error={error} onRetry={reload} />
         ) : (
           <>
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 1.5, justifyContent: 'space-between', mb: 2 }}>
-              <FilterTabs value={filter} onChange={setFilter} options={FILTERS.map(([value, label]) => ({ value, label, count: loading ? undefined : counts[value] }))} />
-              <SearchField id="customer-search" value={query} onChange={setQuery} placeholder="Search name, email or mobile" />
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', lg: 'row' },
+                gap: 1.5,
+                justifyContent: 'space-between',
+                mb: 2
+              }}
+            >
+              <FilterTabs
+                value={filter}
+                onChange={setFilter}
+                options={FILTERS.map(([value, label]) => ({
+                  value,
+                  label,
+                  count: loading ? undefined : counts[value]
+                }))}
+              />
+              <SearchField
+                id="customer-search"
+                value={query}
+                onChange={setQuery}
+                placeholder="Search name, email or mobile"
+              />
             </Box>
             {/* Empty table: "No customers yet" until the first sign-up, then "No customers match" for a filter or search that finds no one */}
             <DataTable
@@ -123,14 +199,31 @@ export default function CustomersPage() {
               rowKey={(c) => c.id}
               onRowClick={(c) => setParams({ open: c.id })}
               minWidth={820}
-              empty={rows.length ? <EmptyState compact title="No customers match" description="Try another filter or search." /> : <EmptyState compact title="No customers yet" description="Customers appear here once they sign up on the website." />}
+              empty={
+                rows.length ? (
+                  <EmptyState compact title="No customers match" description="Try another filter or search." />
+                ) : (
+                  <EmptyState
+                    compact
+                    title="No customers yet"
+                    description="Customers appear here once they sign up on the website."
+                  />
+                )
+              }
             />
-            {!loading && filtered.length > 0 && <Pager page={current} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}
+            {!loading && filtered.length > 0 && (
+              <Pager page={current} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
+            )}
           </>
         )}
       </DashCard>
 
-      <CustomerDrawer customerId={openId} onClose={() => setParams({})} onMessage={message} onOpenReservation={(ref) => navigate(`/reservations/${ref}`)} />
+      <CustomerDrawer
+        customerId={openId}
+        onClose={() => setParams({})}
+        onMessage={message}
+        onOpenReservation={(ref) => navigate(`/reservations/${ref}`)}
+      />
     </>
   );
 }
@@ -143,7 +236,10 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
   const notify = useNotify();
   const isPhone = useMediaQuery('(max-width:599px)');
   // Load the selected customer's full profile; reloads when a different customer is opened
-  const { data, loading, error } = useResource(() => (customerId ? customerApi.getCustomer(customerId) : Promise.resolve(null)), [customerId]);
+  const { data, loading, error } = useResource(
+    () => (customerId ? customerApi.getCustomer(customerId) : Promise.resolve(null)),
+    [customerId]
+  );
   const [editing, setEditing] = useState(false); // true while the contact form is open
   const [values, setValues] = useState({ email: '', mobile: '' }); // contact form values
   const [errors, setErrors] = useState({});
@@ -185,10 +281,32 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
 
   return (
     <LightSurface>
-      <Drawer anchor={isPhone ? 'bottom' : 'right'} open={Boolean(customerId)} onClose={onClose} PaperProps={{ sx: { width: isPhone ? '100%' : 440, maxHeight: isPhone ? '90vh' : '100%', borderTopLeftRadius: isPhone ? 16 : 0, borderTopRightRadius: isPhone ? 16 : 0 } }}>
-        <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
+      <Drawer
+        anchor={isPhone ? 'bottom' : 'right'}
+        open={Boolean(customerId)}
+        onClose={onClose}
+        PaperProps={{
+          sx: {
+            width: isPhone ? '100%' : 440,
+            maxHeight: isPhone ? '90vh' : '100%',
+            borderTopLeftRadius: isPhone ? 16 : 0,
+            borderTopRightRadius: isPhone ? 16 : 0
+          }
+        }}
+      >
+        <Box
+          sx={{
+            p: 2.5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: `1px solid ${tokens.cardLightBorder}`
+          }}
+        >
           <Typography sx={{ fontSize: 16, fontWeight: 700 }}>Customer</Typography>
-          <IconButton onClick={onClose} aria-label="Close"><CloseRoundedIcon /></IconButton>
+          <IconButton onClick={onClose} aria-label="Close">
+            <CloseRoundedIcon />
+          </IconButton>
         </Box>
         <Box sx={{ p: 2.5, overflowY: 'auto' }} className="tm-scroll">
           {error ? (
@@ -198,15 +316,40 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
           ) : (
             <>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
-                <Avatar sx={{ width: 56, height: 56, fontSize: 19, fontWeight: 700, bgcolor: tokens.gold, color: tokens.onGold }}>{initials(data.name)}</Avatar>
+                <Avatar
+                  sx={{
+                    width: 56,
+                    height: 56,
+                    fontSize: 19,
+                    fontWeight: 700,
+                    bgcolor: tokens.gold,
+                    color: tokens.onGold
+                  }}
+                >
+                  {initials(data.name)}
+                </Avatar>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography sx={{ fontSize: 18, fontWeight: 700 }}>{data.name}</Typography>
-                  {data.company && <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{data.company}</Typography>}
-                  <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>Customer since {formatDateLong(toISODate(new Date(data.createdAt)))}</Typography>
+                  {data.company && (
+                    <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{data.company}</Typography>
+                  )}
+                  <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+                    Customer since {formatDateLong(toISODate(new Date(data.createdAt)))}
+                  </Typography>
                 </Box>
               </Box>
 
-              <Box sx={{ mt: 2.5, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
+              <Box
+                sx={{
+                  mt: 2.5,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 1.5,
+                  p: 1.5,
+                  borderRadius: 1.5,
+                  backgroundColor: tokens.surfaceSubtle
+                }}
+              >
                 <Field label="Total spend">{peso(data.totalSpend)}</Field>
                 <Field label="Balance">{peso(data.balance)}</Field>
                 <Field label="Events">{data.completedCount} done</Field>
@@ -215,15 +358,43 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
               <Box sx={{ mt: 2.5 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Contact Details</Typography>
-                  {!editing && <Button size="small" onClick={() => setEditing(true)}>Correct</Button>}
+                  {!editing && (
+                    <Button size="small" onClick={() => setEditing(true)}>
+                      Correct
+                    </Button>
+                  )}
                 </Box>
                 {editing ? (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    <FormField id="c-email" label="Email" value={values.email} onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))} error={errors.email} />
-                    <MobileField id="c-mobile" label="Mobile" autoComplete="off" value={values.mobile} onChange={(e) => setValues((v) => ({ ...v, mobile: e.target.value }))} error={errors.mobile} />
+                    <FormField
+                      id="c-email"
+                      label="Email"
+                      value={values.email}
+                      onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
+                      error={errors.email}
+                    />
+                    <MobileField
+                      id="c-mobile"
+                      label="Mobile"
+                      autoComplete="off"
+                      value={values.mobile}
+                      onChange={(e) => setValues((v) => ({ ...v, mobile: e.target.value }))}
+                      error={errors.mobile}
+                    />
                     <Box sx={{ display: 'flex', gap: 1 }}>
-                      <BusyButton size="small" busy={busy} onClick={save}>Save</BusyButton>
-                      <Button size="small" onClick={() => { setEditing(false); setValues({ email: data.email, mobile: data.mobile }); setErrors({}); }}>Cancel</Button>
+                      <BusyButton size="small" busy={busy} onClick={save}>
+                        Save
+                      </BusyButton>
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setEditing(false);
+                          setValues({ email: data.email, mobile: data.mobile });
+                          setErrors({});
+                        }}
+                      >
+                        Cancel
+                      </Button>
                     </Box>
                   </Box>
                 ) : (
@@ -234,20 +405,42 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
                 )}
               </Box>
 
-              <Button fullWidth variant="contained" startIcon={<ChatBubbleOutlineRoundedIcon />} onClick={() => onMessage(data.id)} sx={{ mt: 2.5 }}>
+              <Button
+                fullWidth
+                variant="contained"
+                startIcon={<ChatBubbleOutlineRoundedIcon />}
+                onClick={() => onMessage(data.id)}
+                sx={{ mt: 2.5 }}
+              >
                 Open chat thread
               </Button>
 
               <Divider sx={{ my: 2.5 }} />
-              <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Reservations · {data.reservations.length}</Typography>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
+                Reservations · {data.reservations.length}
+              </Typography>
               {data.reservations.length === 0 ? (
                 <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>No reservations yet.</Typography>
               ) : (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {data.reservations.map((r) => (
-                    <ButtonBase key={r.ref} onClick={() => onOpenReservation(r.ref)} sx={{ display: 'block', p: 1.25, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, '&:hover': { borderColor: '#94a3b8' } }}>
+                    <ButtonBase
+                      key={r.ref}
+                      onClick={() => onOpenReservation(r.ref)}
+                      sx={{
+                        display: 'block',
+                        p: 1.25,
+                        textAlign: 'left',
+                        fontFamily: 'inherit',
+                        borderRadius: 1.5,
+                        border: `1px solid ${tokens.cardLightBorder}`,
+                        '&:hover': { borderColor: '#94a3b8' }
+                      }}
+                    >
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
-                        <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700 }}>{r.eventName}</Typography>
+                        <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700 }}>
+                          {r.eventName}
+                        </Typography>
                         <StatusChip status={r.status} size="sm" />
                       </Box>
                       <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>

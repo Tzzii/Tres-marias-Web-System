@@ -132,7 +132,10 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      const result = await authApi.completePasswordReset({ challengeId: entry.challenge.challengeId, password: values.password });
+      const result = await authApi.completePasswordReset({
+        challengeId: entry.challenge.challengeId,
+        password: values.password
+      });
       onDone(result);
     } catch (error) {
       if (error.code === 'CHALLENGE_EXPIRED') restart(error.message);
@@ -147,12 +150,20 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
   const STEPS = {
     email: {
       title: 'Reset Your Password',
-      description: accountEmail ? '' : 'Enter the email you used to sign up. We will email you a code to choose a new password.',
+      description: accountEmail
+        ? ''
+        : 'Enter the email you used to sign up. We will email you a code to choose a new password.',
       action: accountEmail ? 'Send code' : 'Proceed',
       onClick: proceed
     },
     code: { title: 'Enter the Code', description: '', action: 'Verify', onClick: () => verify() },
-    password: { title: 'Create a New Password', description: 'Use 8 characters or more, with a lowercase and an uppercase letter, a number and a special character.', action: 'Save password', onClick: save }
+    password: {
+      title: 'Create a New Password',
+      description:
+        'Use 8 characters or more, with a lowercase and an uppercase letter, a number and a special character.',
+      action: 'Save password',
+      onClick: save
+    }
   };
   const current = STEPS[step];
 
@@ -169,7 +180,11 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
           <Button onClick={onClose} sx={{ color: tokens.textSecondary }}>
             Cancel
           </Button>
-          <BusyButton busy={busy} onClick={current.onClick} disabled={step === 'code' && (entry.locked || entry.code.length !== RULES.codeLength)}>
+          <BusyButton
+            busy={busy}
+            onClick={current.onClick}
+            disabled={step === 'code' && (entry.locked || entry.code.length !== RULES.codeLength)}
+          >
             {current.action}
           </BusyButton>
         </>
@@ -193,17 +208,43 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
 
         {step === 'email' && accountEmail && (
           <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: tokens.textSecondary }}>
-            We will email a {RULES.codeLength}-digit code to <b>{maskEmail(accountEmail)}</b>, the email of your account. Enter it on the next step, then choose a new password. You stay signed in on this device.
+            We will email a {RULES.codeLength}-digit code to <b>{maskEmail(accountEmail)}</b>, the email of your
+            account. Enter it on the next step, then choose a new password. You stay signed in on this device.
           </Typography>
         )}
         {step === 'email' && !accountEmail && (
-          <FormField id="forgot-email" label="Email" type="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); setErrors({}); }} error={errors.email} disabled={busy} autoFocus />
+          <FormField
+            id="forgot-email"
+            label="Email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setErrors({});
+            }}
+            error={errors.email}
+            disabled={busy}
+            autoFocus
+          />
         )}
 
         {step === 'code' && entry.challenge && (
-          <CodeEntry entry={entry} busy={busy} onComplete={(value) => verify(value)} onResend={resend} onType={() => setFormError('')}>
+          <CodeEntry
+            entry={entry}
+            busy={busy}
+            onComplete={(value) => verify(value)}
+            onResend={resend}
+            onType={() => setFormError('')}
+          >
             {!accountEmail && (
-              <Link component="button" type="button" onClick={() => restart('')} disabled={busy} sx={{ alignSelf: 'flex-start', fontSize: 12.5, color: tokens.textSecondary }}>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => restart('')}
+                disabled={busy}
+                sx={{ alignSelf: 'flex-start', fontSize: 12.5, color: tokens.textSecondary }}
+              >
                 Use a different email
               </Link>
             )}
@@ -213,11 +254,36 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
         {step === 'password' && (
           <>
             <Box>
-              <PasswordField id="reset-password" label="New password" required autoComplete="new-password" value={values.password} onChange={(e) => { setValues((v) => ({ ...v, password: e.target.value })); setErrors((er) => ({ ...er, password: '' })); }} error={errors.password} disabled={busy} autoFocus />
+              <PasswordField
+                id="reset-password"
+                label="New password"
+                required
+                autoComplete="new-password"
+                value={values.password}
+                onChange={(e) => {
+                  setValues((v) => ({ ...v, password: e.target.value }));
+                  setErrors((er) => ({ ...er, password: '' }));
+                }}
+                error={errors.password}
+                disabled={busy}
+                autoFocus
+              />
               {/* What the new password still needs, ticked live */}
               <PasswordChecklist value={values.password} />
             </Box>
-            <PasswordField id="reset-confirm" label="Confirm new password" required autoComplete="new-password" value={values.confirm} onChange={(e) => { setValues((v) => ({ ...v, confirm: e.target.value })); setErrors((er) => ({ ...er, confirm: '' })); }} error={errors.confirm} disabled={busy} />
+            <PasswordField
+              id="reset-confirm"
+              label="Confirm new password"
+              required
+              autoComplete="new-password"
+              value={values.confirm}
+              onChange={(e) => {
+                setValues((v) => ({ ...v, confirm: e.target.value }));
+                setErrors((er) => ({ ...er, confirm: '' }));
+              }}
+              error={errors.confirm}
+              disabled={busy}
+            />
           </>
         )}
       </Box>

@@ -77,7 +77,10 @@ const MAX_ITEMS = 50;
 const ITEM_NAME_MAX = 120;
 
 // True when a save failed because another partner already has the name (the UNIQUE name index)
-const isNameTaken = (err) => Boolean(err) && err.code === 'ER_DUP_ENTRY' && String(err.sqlMessage || err.message).includes('uq_outsource_partners_name');
+const isNameTaken = (err) =>
+  Boolean(err) &&
+  err.code === 'ER_DUP_ENTRY' &&
+  String(err.sqlMessage || err.message).includes('uq_outsource_partners_name');
 const nameTaken = (name) => new ApiError('NAME_TAKEN', `"${name}" is already a partner.`, { field: 'name' });
 
 // A partner as the pages show it, read inside the transaction after a change
@@ -110,7 +113,11 @@ async function logContract(conn, contract, partnerName, text, admin, activityTex
   const at = now();
   await repo.insertContractHistory(conn, contract.id, { at, actor: admin.name, text });
   if (contract.reservationRef !== NO_EVENT && (await repo.readBookingStatus(conn, contract.reservationRef))) {
-    await reservationsRepo.insertActivity(conn, contract.reservationRef, { at, actor: admin.name, text: outsourceActivity(partnerName, activityText) });
+    await reservationsRepo.insertActivity(conn, contract.reservationRef, {
+      at,
+      actor: admin.name,
+      text: outsourceActivity(partnerName, activityText)
+    });
   }
 }
 
@@ -118,8 +125,15 @@ async function logContract(conn, contract, partnerName, text, admin, activityTex
 
 /** Every partner (archived ones only when asked), by service order then name, with how they are reached and their contract counts. */
 export async function listPartners({ includeArchived = false } = {}) {
-  const [partners, stats] = await Promise.all([repo.findPartners(pool, { includeArchived }), repo.partnerContractStats(pool)]);
-  return partners.map((partner) => partnerView(partner, stats.get(partner.id) || { contractCount: 0, openCount: 0, lastSentAt: null })).sort(partnerOrder);
+  const [partners, stats] = await Promise.all([
+    repo.findPartners(pool, { includeArchived }),
+    repo.partnerContractStats(pool)
+  ]);
+  return partners
+    .map((partner) =>
+      partnerView(partner, stats.get(partner.id) || { contractCount: 0, openCount: 0, lastSentAt: null })
+    )
+    .sort(partnerOrder);
 }
 
 /** Every contract, newest first, with its partner, its event and a one-line summary of the items. */
@@ -134,7 +148,14 @@ export async function listContracts() {
  */
 export async function listOutsourceEvents() {
   const bookings = await reservationsRepo.listHeldBookings(pool);
-  return bookings.map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, guests: r.guests, rental: isRental(r.serviceType), venue: `${r.venue.name}, ${r.venue.city}` }));
+  return bookings.map((r) => ({
+    ref: r.ref,
+    eventName: r.eventName,
+    date: r.date,
+    guests: r.guests,
+    rental: isRental(r.serviceType),
+    venue: `${r.venue.name}, ${r.venue.city}`
+  }));
 }
 
 /* ============================ Partners ============================ */
@@ -147,7 +168,9 @@ export async function listOutsourceEvents() {
  */
 export async function savePartner(id, values, admin) {
   return tx(async (conn) => {
-    const existing = id ? (await repo.findPartners(conn, { ids: [id], lock: true })).find((p) => p.id === id) || null : null;
+    const existing = id
+      ? (await repo.findPartners(conn, { ids: [id], lock: true })).find((p) => p.id === id) || null
+      : null;
     const names = (await repo.partnerNames(conn)).filter((p) => p.id !== id).map((p) => p.name);
     const problem = partnerProblem(values, { names });
     if (problem) throw toError(problem);
@@ -213,21 +236,38 @@ export async function setPartnerArchived(ids, archived, admin) {
 export async function saveContract(id, values, admin) {
   return tx(async (conn) => {
     const existing = id ? await lockedContract(conn, id) : null;
-    if (existing && existing.status !== 'draft') throw new ApiError('LOCKED', 'This request has been sent and can no longer be edited.');
-    const partnerFound = typeof values.partnerId === 'string' && values.partnerId ? await repo.readPartner(conn, values.partnerId) : null;
+    if (existing && existing.status !== 'draft')
+      throw new ApiError('LOCKED', 'This request has been sent and can no longer be edited.');
+    const partnerFound =
+      typeof values.partnerId === 'string' && values.partnerId ? await repo.readPartner(conn, values.partnerId) : null;
     const partner = partnerFound && partnerFound.id === values.partnerId ? partnerFound : null;
     const ref = contractRef(values);
     const booking = ref !== NO_EVENT && typeof ref === 'string' ? await repo.readBookingStatus(conn, ref) : null;
     // A date that is not a real YYYY-MM-DD day is answered as a missing one, at the same step
     const checked = { ...values, needBy: isISODate(values.needBy) ? values.needBy : '' };
-    const problem = contractProblem(checked, { partner, refStatus: booking && booking.ref === ref ? booking.status : null, today: todayISO() });
+    const problem = contractProblem(checked, {
+      partner,
+      refStatus: booking && booking.ref === ref ? booking.status : null,
+      today: todayISO()
+    });
     if (problem) throw toError(problem);
     const items = contractItems(values.items);
     if (items.length > MAX_ITEMS) throw new ApiError('INVALID', `List up to ${MAX_ITEMS} items.`, { field: 'items' });
     const long = items.findIndex((item) => item.name.length > ITEM_NAME_MAX);
-    if (long >= 0) throw new ApiError('INVALID', `Use ${ITEM_NAME_MAX} characters or fewer for an item name.`, { field: 'items', row: long });
+    if (long >= 0)
+      throw new ApiError('INVALID', `Use ${ITEM_NAME_MAX} characters or fewer for an item name.`, {
+        field: 'items',
+        row: long
+      });
 
-    const fields = { partnerId: partner.id, reservationRef: ref, items, needBy: checked.needBy, amount: contractAmount(values), notes: values.notes.trim() };
+    const fields = {
+      partnerId: partner.id,
+      reservationRef: ref,
+      items,
+      needBy: checked.needBy,
+      amount: contractAmount(values),
+      notes: values.notes.trim()
+    };
     if (!existing) {
       const contract = {
         id: newId('oc'),
@@ -269,7 +309,10 @@ function deliveryNote(ref, partnerName, results) {
   const failed = results.filter((r) => r.status === 'failed').map((r) => CHANNEL_WORD[r.channel]);
   if (!logged.length && !failed.length) return '';
   const parts = [];
-  if (logged.length) parts.push(`no ${logged.join(' or ')} service is connected yet, so the ${logged.join(' and ')} ${logged.length > 1 ? 'were' : 'was'} only saved`);
+  if (logged.length)
+    parts.push(
+      `no ${logged.join(' or ')} service is connected yet, so the ${logged.join(' and ')} ${logged.length > 1 ? 'were' : 'was'} only saved`
+    );
   if (failed.length) parts.push(`the ${failed.join(' and ')} could not be sent`);
   return `${ref} is marked sent, but ${parts.join(', and ')}. Save the PDF and send it to ${partnerName} yourself.`;
 }
@@ -287,11 +330,21 @@ async function deliverAll(contract, deliveries, email) {
     try {
       outcome = await deliverPartnerRequest(delivery, email, { mailer, sms });
     } catch (err) {
-      console.error(`[outsource] ${contract.ref}: the ${CHANNEL_WORD[delivery.channel]} to ${delivery.to} could not be sent:`, err.message);
+      console.error(
+        `[outsource] ${contract.ref}: the ${CHANNEL_WORD[delivery.channel]} to ${delivery.to} could not be sent:`,
+        err.message
+      );
       outcome = { status: 'failed', providerId: null, error: err.message };
     }
-    await markOutbox(delivery.outboxId, { status: outcome.status, providerId: outcome.providerId, error: outcome.error || null }).catch((err) =>
-      console.error(`[outsource] ${contract.ref}: could not record the ${CHANNEL_WORD[delivery.channel]} in the outbox:`, err.message)
+    await markOutbox(delivery.outboxId, {
+      status: outcome.status,
+      providerId: outcome.providerId,
+      error: outcome.error || null
+    }).catch((err) =>
+      console.error(
+        `[outsource] ${contract.ref}: could not record the ${CHANNEL_WORD[delivery.channel]} in the outbox:`,
+        err.message
+      )
     );
     results.push({ ...delivery, status: outcome.status });
   }
@@ -344,10 +397,20 @@ export async function sendContract(id, body, admin) {
   const undelivered = results.filter((r) => r.status !== 'sent');
   if (undelivered.length) {
     await tx(async (conn) => {
-      for (const delivery of undelivered) await repo.insertContractHistory(conn, saved.contract.id, { at: now(), actor: admin.name, text: undeliveredText(delivery) });
-    }).catch((err) => console.error(`[outsource] ${saved.contract.ref}: could not note the undelivered channels:`, err.message));
+      for (const delivery of undelivered)
+        await repo.insertContractHistory(conn, saved.contract.id, {
+          at: now(),
+          actor: admin.name,
+          text: undeliveredText(delivery)
+        });
+    }).catch((err) =>
+      console.error(`[outsource] ${saved.contract.ref}: could not note the undelivered channels:`, err.message)
+    );
   }
-  return { ...(await contractViewOf(pool, saved.contract.id)), deliveryNote: deliveryNote(saved.contract.ref, saved.partner.name, results) };
+  return {
+    ...(await contractViewOf(pool, saved.contract.id)),
+    deliveryNote: deliveryNote(saved.contract.ref, saved.partner.name, results)
+  };
 }
 
 /**

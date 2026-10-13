@@ -69,7 +69,9 @@ export default function SiteNav() {
         width: target.width,
         height: target.height
       };
-      setIndicator((previous) => previous && Object.keys(next).every((key) => previous[key] === next[key]) ? previous : next);
+      setIndicator((previous) =>
+        previous && Object.keys(next).every((key) => previous[key] === next[key]) ? previous : next
+      );
     };
 
     updateIndicator();
@@ -80,16 +82,17 @@ export default function SiteNav() {
   }, [activeSection]);
 
   useEffect(() => {
-    setActiveSection(location.pathname.startsWith('/packages/') ? 'packages' : location.pathname === '/' ? location.hash.slice(1) : '');
+    setActiveSection(
+      location.pathname.startsWith('/packages/') ? 'packages' : location.pathname === '/' ? location.hash.slice(1) : ''
+    );
     setMenuOpen(false);
   }, [location.pathname, location.hash]);
 
   // Follow the section reaching the sticky header, including after layout changes.
   useEffect(() => {
     let frame = null;
-    const sections = location.pathname === '/'
-      ? NAV_LINKS.map(([id]) => document.getElementById(id)).filter(Boolean)
-      : [];
+    const sections =
+      location.pathname === '/' ? NAV_LINKS.map(([id]) => document.getElementById(id)).filter(Boolean) : [];
 
     const updateScroll = () => {
       frame = null;
@@ -148,8 +151,19 @@ export default function SiteNav() {
   return (
     <>
       {/* Thin contact strip (desktop only): service area, phone and email shown as plain, non-clickable text */}
-      <Box sx={{ height: 32, display: { xs: 'none', md: 'flex' }, alignItems: 'center', backgroundColor: site.espresso, borderBottom: `1px solid ${site.espressoBorder}` }}>
-        <Container maxWidth={false} sx={{ ...siteContainerSx, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+      <Box
+        sx={{
+          height: 32,
+          display: { xs: 'none', md: 'flex' },
+          alignItems: 'center',
+          backgroundColor: site.espresso,
+          borderBottom: `1px solid ${site.espressoBorder}`
+        }}
+      >
+        <Container
+          maxWidth={false}
+          sx={{ ...siteContainerSx, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}
+        >
           <Box sx={utilityItemSx}>
             <PlaceOutlinedIcon sx={{ fontSize: 14 }} />
             Serving {BUSINESS.serviceArea}
@@ -183,12 +197,39 @@ export default function SiteNav() {
         }}
       >
         <Container maxWidth={false} sx={siteContainerSx}>
-          <Toolbar disableGutters sx={{ minHeight: { xs: 72, lg: 84 }, display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr) auto', lg: 'minmax(0, 1fr) auto minmax(0, 1fr)' }, columnGap: { xs: 1, sm: 2, lg: 3 }, alignItems: 'center' }}>
-            <Box sx={{ display: 'flex', minWidth: 0, '& > button:focus-visible': { outline: `2px solid ${site.goldText}`, outlineOffset: 5, borderRadius: 1 } }}>
+          <Toolbar
+            disableGutters
+            sx={{
+              minHeight: { xs: 72, lg: 84 },
+              display: 'grid',
+              gridTemplateColumns: { xs: 'minmax(0, 1fr) auto', lg: 'minmax(0, 1fr) auto minmax(0, 1fr)' },
+              columnGap: { xs: 1, sm: 2, lg: 3 },
+              alignItems: 'center'
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                minWidth: 0,
+                '& > button:focus-visible': { outline: `2px solid ${site.goldText}`, outlineOffset: 5, borderRadius: 1 }
+              }}
+            >
               <BrandMark size={46} light={false} onClick={() => navigate('/')} />
             </Box>
 
-            <Box ref={desktopNavRef} component="nav" aria-label="Main navigation" sx={{ position: 'relative', display: { xs: 'none', lg: 'block' }, borderRadius: 999, backgroundColor: site.sand, border: `1px solid ${site.border}`, p: 0.75 }}>
+            <Box
+              ref={desktopNavRef}
+              component="nav"
+              aria-label="Main navigation"
+              sx={{
+                position: 'relative',
+                display: { xs: 'none', lg: 'block' },
+                borderRadius: 999,
+                backgroundColor: site.sand,
+                border: `1px solid ${site.border}`,
+                p: 0.75
+              }}
+            >
               <Box
                 aria-hidden="true"
                 style={{
@@ -205,17 +246,57 @@ export default function SiteNav() {
                   borderRadius: 999,
                   backgroundColor: site.card,
                   boxShadow: '0 2px 6px rgba(60, 42, 20, 0.08)',
-                  transition: 'transform 600ms cubic-bezier(0.4, 0, 0.2, 1), width 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 240ms ease',
+                  transition:
+                    'transform 600ms cubic-bezier(0.4, 0, 0.2, 1), width 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 240ms ease',
                   '@media (prefers-reduced-motion: reduce)': { transition: 'none' }
                 }}
               />
-              <Box component="ul" sx={{ display: 'flex', alignItems: 'center', gap: 1.25, listStyle: 'none', m: 0, p: 0 }}>
+              <Box
+                component="ul"
+                sx={{ display: 'flex', alignItems: 'center', gap: 1.25, listStyle: 'none', m: 0, p: 0 }}
+              >
                 {NAV_LINKS.map(([id, label]) => (
                   <li key={id}>
-                    <Button onClick={() => goToSection(id)} aria-current={activeSection === id ? 'location' : undefined} sx={{ minHeight: 40, minWidth: 0, px: 2.25, fontSize: 14, fontWeight: activeSection === id ? 700 : 500, borderRadius: 999, whiteSpace: 'nowrap', color: activeSection === id ? site.ink : site.inkSoft, backgroundColor: 'transparent', transition: 'color 260ms ease, background-color 260ms ease', '&:hover': { color: site.goldText, backgroundColor: activeSection === id ? 'transparent' : site.goldTint }, '&:focus-visible': { outline: `2px solid ${site.goldText}`, outlineOffset: 2 }, '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
+                    <Button
+                      onClick={() => goToSection(id)}
+                      aria-current={activeSection === id ? 'location' : undefined}
+                      sx={{
+                        minHeight: 40,
+                        minWidth: 0,
+                        px: 2.25,
+                        fontSize: 14,
+                        fontWeight: activeSection === id ? 700 : 500,
+                        borderRadius: 999,
+                        whiteSpace: 'nowrap',
+                        color: activeSection === id ? site.ink : site.inkSoft,
+                        backgroundColor: 'transparent',
+                        transition: 'color 260ms ease, background-color 260ms ease',
+                        '&:hover': {
+                          color: site.goldText,
+                          backgroundColor: activeSection === id ? 'transparent' : site.goldTint
+                        },
+                        '&:focus-visible': { outline: `2px solid ${site.goldText}`, outlineOffset: 2 },
+                        '@media (prefers-reduced-motion: reduce)': { transition: 'none' }
+                      }}
+                    >
                       {/* Reserve the bold label's width so active text never shifts the other buttons. */}
-                      <Box component="span" data-label={label} sx={{ display: 'inline-grid', '&::after': { content: 'attr(data-label)', gridArea: '1 / 1', fontWeight: 700, visibility: 'hidden', pointerEvents: 'none' } }}>
-                        <Box component="span" sx={{ gridArea: '1 / 1' }}>{label}</Box>
+                      <Box
+                        component="span"
+                        data-label={label}
+                        sx={{
+                          display: 'inline-grid',
+                          '&::after': {
+                            content: 'attr(data-label)',
+                            gridArea: '1 / 1',
+                            fontWeight: 700,
+                            visibility: 'hidden',
+                            pointerEvents: 'none'
+                          }
+                        }}
+                      >
+                        <Box component="span" sx={{ gridArea: '1 / 1' }}>
+                          {label}
+                        </Box>
                       </Box>
                     </Button>
                   </li>
@@ -223,31 +304,102 @@ export default function SiteNav() {
               </Box>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', justifySelf: 'end', minWidth: 0, gap: { xs: 1.5, sm: 1.75 } }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifySelf: 'end',
+                minWidth: 0,
+                gap: { xs: 1.5, sm: 1.75 }
+              }}
+            >
               {/* Signed in: account button. Signed out: Log in and Sign up. */}
               {user ? (
                 <Button
                   onClick={() => navigate('/portal')}
                   aria-label="Go to my account"
-                  sx={{ gap: 1, minWidth: 0, minHeight: 44, maxWidth: '100%', pl: 0.5, pr: { xs: 0.5, sm: 2 }, py: 0.5, fontSize: 13, borderRadius: 999, color: site.ink, border: `1px solid ${site.borderHover}`, '&:hover': { backgroundColor: site.goldTint } }}
+                  sx={{
+                    gap: 1,
+                    minWidth: 0,
+                    minHeight: 44,
+                    maxWidth: '100%',
+                    pl: 0.5,
+                    pr: { xs: 0.5, sm: 2 },
+                    py: 0.5,
+                    fontSize: 13,
+                    borderRadius: 999,
+                    color: site.ink,
+                    border: `1px solid ${site.borderHover}`,
+                    '&:hover': { backgroundColor: site.goldTint }
+                  }}
                 >
                   {/* Same size and padding as the portal header, so the circle sits centred in the pill's rounded end */}
-                  <Avatar sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, bgcolor: site.gold, color: site.ink }}>{initials(user.name)}</Avatar>
-                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                  <Avatar
+                    sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, bgcolor: site.gold, color: site.ink }}
+                  >
+                    {initials(user.name)}
+                  </Avatar>
+                  <Box
+                    component="span"
+                    sx={{
+                      display: { xs: 'none', sm: 'inline' },
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: 160
+                    }}
+                  >
                     {firstName(user.name)}'s account
                   </Box>
                 </Button>
               ) : (
                 <>
-                  <Button onClick={() => navigate('/login')} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minHeight: 44, px: 2.5, fontSize: 13, borderRadius: 999, color: site.ink, border: `1px solid ${site.border}`, '&:hover': { color: site.goldText, borderColor: site.gold, backgroundColor: site.goldTint } }}>
+                  <Button
+                    onClick={() => navigate('/login')}
+                    sx={{
+                      display: { xs: 'none', sm: 'inline-flex' },
+                      minHeight: 44,
+                      px: 2.5,
+                      fontSize: 13,
+                      borderRadius: 999,
+                      color: site.ink,
+                      border: `1px solid ${site.border}`,
+                      '&:hover': { color: site.goldText, borderColor: site.gold, backgroundColor: site.goldTint }
+                    }}
+                  >
                     Log in
                   </Button>
-                  <Button variant="contained" onClick={() => navigate('/signup')} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minHeight: 44, px: 2.75, fontSize: 13, borderRadius: 999, boxShadow: 'none' }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => navigate('/signup')}
+                    sx={{
+                      display: { xs: 'none', sm: 'inline-flex' },
+                      minHeight: 44,
+                      px: 2.75,
+                      fontSize: 13,
+                      borderRadius: 999,
+                      boxShadow: 'none'
+                    }}
+                  >
                     Sign up
                   </Button>
                 </>
               )}
-              <IconButton onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen} aria-controls={menuOpen ? 'site-mobile-navigation' : undefined} sx={{ display: { xs: 'inline-flex', lg: 'none' }, width: 44, height: 44, border: `1px solid ${site.border}`, borderRadius: 1.5, color: site.ink, backgroundColor: site.card }}>
+              <IconButton
+                onClick={() => setMenuOpen(true)}
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
+                aria-controls={menuOpen ? 'site-mobile-navigation' : undefined}
+                sx={{
+                  display: { xs: 'inline-flex', lg: 'none' },
+                  width: 44,
+                  height: 44,
+                  border: `1px solid ${site.border}`,
+                  borderRadius: 1.5,
+                  color: site.ink,
+                  backgroundColor: site.card
+                }}
+              >
                 <MenuRoundedIcon />
               </IconButton>
             </Box>
@@ -256,21 +408,78 @@ export default function SiteNav() {
       </AppBar>
 
       {/* Slide-out menu for smaller screens */}
-      <Drawer anchor="right" open={menuOpen} onClose={() => setMenuOpen(false)} PaperProps={{ sx: { width: 340, maxWidth: 'calc(100vw - 24px)', backgroundColor: site.ivory, backgroundImage: 'none', borderLeft: `1px solid ${site.border}` } }}>
-        <Box sx={{ px: 2.5, py: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, borderBottom: `1px solid ${site.border}` }}>
+      <Drawer
+        anchor="right"
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        PaperProps={{
+          sx: {
+            width: 340,
+            maxWidth: 'calc(100vw - 24px)',
+            backgroundColor: site.ivory,
+            backgroundImage: 'none',
+            borderLeft: `1px solid ${site.border}`
+          }
+        }}
+      >
+        <Box
+          sx={{
+            px: 2.5,
+            py: 3,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 1,
+            borderBottom: `1px solid ${site.border}`
+          }}
+        >
           <BrandMark size={36} light={false} />
-          <IconButton onClick={() => setMenuOpen(false)} aria-label="Close menu" sx={{ width: 44, height: 44, border: `1px solid ${site.border}`, borderRadius: 1.5, color: site.ink }}>
+          <IconButton
+            onClick={() => setMenuOpen(false)}
+            aria-label="Close menu"
+            sx={{ width: 44, height: 44, border: `1px solid ${site.border}`, borderRadius: 1.5, color: site.ink }}
+          >
             <CloseRoundedIcon />
           </IconButton>
         </Box>
-        <Box component="nav" id="site-mobile-navigation" aria-label="Mobile navigation" sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box
+          component="nav"
+          id="site-mobile-navigation"
+          aria-label="Mobile navigation"
+          sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}
+        >
           {NAV_LINKS.map(([id, label]) => (
-            <Button key={id} fullWidth onClick={() => goToSection(id)} aria-current={activeSection === id ? 'location' : undefined} sx={{ justifyContent: 'flex-start', minHeight: 52, px: 2, fontSize: 15, fontWeight: activeSection === id ? 700 : 500, borderRadius: 1.5, color: activeSection === id ? site.goldText : site.ink, backgroundColor: activeSection === id ? site.goldTint : 'transparent', '&:hover': { color: site.goldText, backgroundColor: site.goldTint } }}>
+            <Button
+              key={id}
+              fullWidth
+              onClick={() => goToSection(id)}
+              aria-current={activeSection === id ? 'location' : undefined}
+              sx={{
+                justifyContent: 'flex-start',
+                minHeight: 52,
+                px: 2,
+                fontSize: 15,
+                fontWeight: activeSection === id ? 700 : 500,
+                borderRadius: 1.5,
+                color: activeSection === id ? site.goldText : site.ink,
+                backgroundColor: activeSection === id ? site.goldTint : 'transparent',
+                '&:hover': { color: site.goldText, backgroundColor: site.goldTint }
+              }}
+            >
               {label}
             </Button>
           ))}
         </Box>
-        <Box sx={{ mt: 'auto', p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.25, borderTop: `1px solid ${site.border}` }}>
+        <Box
+          sx={{
+            mt: 'auto',
+            p: 2.5,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.25,
+            borderTop: `1px solid ${site.border}`
+          }}
+        >
           {user ? (
             <Button variant="contained" onClick={() => navigate('/portal')} sx={{ py: 1.2, borderRadius: 999 }}>
               Go to my account
@@ -280,7 +489,10 @@ export default function SiteNav() {
               <Button variant="contained" onClick={() => navigate('/signup')} sx={{ py: 1.2, borderRadius: 999 }}>
                 Sign up
               </Button>
-              <Button onClick={() => navigate('/login')} sx={{ py: 1.2, borderRadius: 999, color: site.ink, border: `1px solid ${site.border}` }}>
+              <Button
+                onClick={() => navigate('/login')}
+                sx={{ py: 1.2, borderRadius: 999, color: site.ink, border: `1px solid ${site.border}` }}
+              >
                 Log in
               </Button>
             </>

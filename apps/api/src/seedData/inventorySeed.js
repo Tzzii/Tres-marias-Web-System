@@ -97,7 +97,12 @@ export function buildInventorySeed(actor) {
 
   const items = ITEMS.map(([name, category, total, lowStockAt, rental], i) => {
     const history = [{ at: at(-90, 9), actor, text: `Added to inventory with ${total} pcs.` }];
-    if (rental) history.push({ at: at(-2, 10), actor, text: `Set for rent at ₱${rental[0].toLocaleString('en-PH')} per piece (damage fee ₱${rental[1].toLocaleString('en-PH')}).` });
+    if (rental)
+      history.push({
+        at: at(-2, 10),
+        actor,
+        text: `Set for rent at ₱${rental[0].toLocaleString('en-PH')} per piece (damage fee ₱${rental[1].toLocaleString('en-PH')}).`
+      });
     return {
       id: `inv-${String(i + 1).padStart(3, '0')}`,
       code: `EQ-${String(i + 1).padStart(4, '0')}`,

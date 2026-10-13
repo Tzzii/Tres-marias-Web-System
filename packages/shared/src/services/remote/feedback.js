@@ -26,13 +26,15 @@ const gone = () => new ApiError('NOT_FOUND', 'This feedback no longer exists.');
 export const listFeedbacks = () => http.get(isAdmin() ? '/admin/feedback' : '/feedback');
 
 /** Public website: the published reviews, featured first, then newest, at most `limit` (1–20). */
-export const listPublished = ({ limit = 3 } = {}) => http.get(`/feedback/published?${new URLSearchParams({ limit: String(limit) })}`);
+export const listPublished = ({ limit = 3 } = {}) =>
+  http.get(`/feedback/published?${new URLSearchParams({ limit: String(limit) })}`);
 
 /** Admin: how many reviews are unread. */
 export const unreadFeedbackCount = () => http.get('/admin/feedback/unread-count');
 
 /** Customer: review a completed event: { ref, rating, categories, body } -> the review (hidden until the admin publishes it). */
-export const createFeedback = (customerId, { ref, rating, categories, body } = {}) => http.post('/feedback', { ref, rating, categories, body });
+export const createFeedback = (customerId, { ref, rating, categories, body } = {}) =>
+  http.post('/feedback', { ref, rating, categories, body });
 
 /** Admin: mark one review as read. */
 export async function markFeedbackRead(id) {
@@ -65,7 +67,10 @@ export async function setFeedbackFlag(id, { flagged, reason = '' } = {}) {
     if (problem) throw new ApiError('INVALID', problem, { field: 'reason' });
     throw gone();
   }
-  return http.patch(`/admin/feedback/${segment(id)}/flag`, { flagged, reason: typeof reason === 'string' ? reason : '' });
+  return http.patch(`/admin/feedback/${segment(id)}/flag`, {
+    flagged,
+    reason: typeof reason === 'string' ? reason : ''
+  });
 }
 
 /** Admin: put a review in the archive or restore it. */

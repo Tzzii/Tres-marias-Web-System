@@ -123,7 +123,9 @@ export async function findMessages(db, threadId) {
 /** Mark every message in a thread as read for one side. Returns how many were unread. */
 export async function markRead(db, threadId, side) {
   const column = readColumn(side);
-  const [result] = await db.query(`UPDATE messages SET ${column} = 1 WHERE thread_id = ? AND ${column} = 0`, [threadId]);
+  const [result] = await db.query(`UPDATE messages SET ${column} = 1 WHERE thread_id = ? AND ${column} = 0`, [
+    threadId
+  ]);
   return result.affectedRows;
 }
 
@@ -134,7 +136,10 @@ export async function markRead(db, threadId, side) {
  * first and inserting only when nothing was found would let both lock the same gap and deadlock.)
  */
 export async function customerThreadId(conn, customerId) {
-  await conn.query('INSERT INTO threads (id, customer_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = id', [newId('th'), customerId]);
+  await conn.query('INSERT INTO threads (id, customer_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = id', [
+    newId('th'),
+    customerId
+  ]);
   const [[thread]] = await conn.query('SELECT id FROM threads WHERE customer_id = ? FOR UPDATE', [customerId]);
   return thread.id;
 }
@@ -143,7 +148,10 @@ export async function customerThreadId(conn, customerId) {
  * Add a message to the customer's conversation, tagged with the reservation it is about (`ref`, or
  * null). It starts read for the side that wrote it and unread for the other. Returns { threadId, message }.
  */
-export async function postMessage(conn, { customerId, ref = null, from, senderName, body, attachment = null, typed = false }) {
+export async function postMessage(
+  conn,
+  { customerId, ref = null, from, senderName, body, attachment = null, typed = false }
+) {
   const threadId = await customerThreadId(conn, customerId);
   const message = {
     id: newId('m'),
@@ -163,7 +171,19 @@ export async function postMessage(conn, { customerId, ref = null, from, senderNa
   await conn.query(
     `INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment, typed)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [message.id, threadId, from, senderName, body, ref, message.at, message.readByCustomer, message.readByAdmin, toJson(attachment), typed]
+    [
+      message.id,
+      threadId,
+      from,
+      senderName,
+      body,
+      ref,
+      message.at,
+      message.readByCustomer,
+      message.readByAdmin,
+      toJson(attachment),
+      typed
+    ]
   );
   return { threadId, message };
 }
@@ -173,13 +193,20 @@ export async function postMessage(conn, { customerId, ref = null, from, senderNa
  * lookup ignores case (the column's collation), so the caller compares the id.
  */
 export async function lockMessage(conn, threadId, messageId) {
-  const row = first(await conn.query('SELECT * FROM messages WHERE id = ? AND thread_id = ? FOR UPDATE', [messageId, threadId]));
+  const row = first(
+    await conn.query('SELECT * FROM messages WHERE id = ? AND thread_id = ? FOR UPDATE', [messageId, threadId])
+  );
   return row && toMessage(row);
 }
 
 /** Save an edited message: its new text, the earlier texts (`history`, oldest first) and when it was edited. */
 export async function editMessageBody(conn, messageId, { body, history, editedAt }) {
-  await conn.query('UPDATE messages SET body = ?, history = ?, edited_at = ? WHERE id = ?', [body, toJson(history), editedAt, messageId]);
+  await conn.query('UPDATE messages SET body = ?, history = ?, edited_at = ? WHERE id = ?', [
+    body,
+    toJson(history),
+    editedAt,
+    messageId
+  ]);
 }
 
 /** Mark a message deleted at `deletedAt`. Its text stays in `body`, as a record only the admin can read. */
@@ -194,7 +221,14 @@ export async function markMessageDeleted(conn, messageId, deletedAt) {
  * is the signed-in admin's name (req.user.name) or 'Tres Marias team' for automatic messages.
  */
 export const postAdminMessage = (conn, reservation, body, attachment, senderName) =>
-  postMessage(conn, { customerId: reservation.customerId, ref: reservation.ref, from: 'admin', senderName, body, attachment });
+  postMessage(conn, {
+    customerId: reservation.customerId,
+    ref: reservation.ref,
+    from: 'admin',
+    senderName,
+    body,
+    attachment
+  });
 
 /** A message from the customer (a change request, a refund notice), unread for the admin until opened. */
 export const postCustomerMessage = (conn, reservation, body, senderName) =>

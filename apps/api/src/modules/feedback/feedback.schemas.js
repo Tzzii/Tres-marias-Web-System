@@ -13,7 +13,10 @@ import { z } from 'zod';
 
 // Text of at most `max` characters; missing -> '' so the service answers with the form's own message
 const text = (max) =>
-  z.string({ error: 'This field is required.' }).max(max, { error: `Use ${max} characters or fewer.` }).default('');
+  z
+    .string({ error: 'This field is required.' })
+    .max(max, { error: `Use ${max} characters or fewer.` })
+    .default('');
 
 // Checked by the service. .optional() matters: in zod 4 a z.unknown() object key is still required,
 // and a missing one would be a 400 with zod's own wording instead of the service's message.
@@ -37,7 +40,12 @@ export const publishedQuery = z.object({
  * and the category ratings are checked by the service; the review is TEXT, kept to 2,000 characters
  * (the form allows 600).
  */
-export const createBody = z.object({ ref: passThrough, rating: passThrough, categories: passThrough, body: text(2000) });
+export const createBody = z.object({
+  ref: passThrough,
+  rating: passThrough,
+  categories: passThrough,
+  body: text(2000)
+});
 
 // PATCH …/:id/status { status }: 'published' or 'hidden', said in the page's words by the service
 export const statusBody = z.object({ status: passThrough });

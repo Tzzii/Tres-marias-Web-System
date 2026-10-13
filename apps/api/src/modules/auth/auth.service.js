@@ -1,8 +1,19 @@
 import { TERMS_VERSION } from '@tm/shared/src/legal/terms.js';
 import { RULES } from '@tm/shared/src/services/config.js';
-import { cleanMobile, cleanName, describeDevice, fullNameProblem, normaliseEmail } from '@tm/shared/src/domain/account.js';
+import {
+  cleanMobile,
+  cleanName,
+  describeDevice,
+  fullNameProblem,
+  normaliseEmail
+} from '@tm/shared/src/domain/account.js';
 import { maskEmail } from '@tm/shared/src/utils/format.js';
-import { validateAdminPassword, validateEmail, validateMobile, validatePassword } from '@tm/shared/src/utils/validation.js';
+import {
+  validateAdminPassword,
+  validateEmail,
+  validateMobile,
+  validatePassword
+} from '@tm/shared/src/utils/validation.js';
 import { config } from '../../config.js';
 import { tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
@@ -39,7 +50,10 @@ const minutes = (n) => n * 60000;
 const REQUEST_LIFETIME = minutes(30);
 
 // When a code sent at `at` expires, and when another may be requested
-const codeTimes = (at) => ({ expiresAt: at + minutes(RULES.codeValidMinutes), resendAt: at + RULES.codeResendSeconds * 1000 });
+const codeTimes = (at) => ({
+  expiresAt: at + minutes(RULES.codeValidMinutes),
+  resendAt: at + RULES.codeResendSeconds * 1000
+});
 
 // True when a code request can no longer be used: missing, already spent, or older than REQUEST_LIFETIME
 const isDead = (request, at) => !request || Boolean(request.usedAt) || request.createdAt + REQUEST_LIFETIME < at;
@@ -99,7 +113,11 @@ async function assertCurrentPassword(scope, account, password) {
     await clearAttempts(scope, account.id);
     return;
   }
-  throw wrongAnswer(scope, attempt, new ApiError('INVALID_CREDENTIALS', 'Your current password is incorrect.', { field: 'current' }));
+  throw wrongAnswer(
+    scope,
+    attempt,
+    new ApiError('INVALID_CREDENTIALS', 'Your current password is incorrect.', { field: 'current' })
+  );
 }
 
 /* ============================ Customers ============================ */
@@ -133,7 +151,15 @@ export async function customerLogin({ email, password, remember = false }) {
  * account records the version (TERMS_VERSION) when it is made.
  * Returns what the code step needs: { challengeId, maskedEmail, expiresAt, resendAt }.
  */
-export async function startSignUp({ firstName = '', middleName = '', lastName = '', email = '', mobile = '', password = '', agreeTerms = false }) {
+export async function startSignUp({
+  firstName = '',
+  middleName = '',
+  lastName = '',
+  email = '',
+  mobile = '',
+  password = '',
+  agreeTerms = false
+}) {
   const first = firstName.trim();
   const middle = middleName.trim();
   const last = lastName.trim();
@@ -145,8 +171,10 @@ export async function startSignUp({ firstName = '', middleName = '', lastName = 
     (validateMobile(mobile) && { field: 'mobile', message: validateMobile(mobile) }) ||
     (validatePassword(password) && { field: 'password', message: validatePassword(password) });
   if (problem) throw new ApiError('INVALID', problem.message, { field: problem.field });
-  if (agreeTerms !== true) throw new ApiError('INVALID', 'Please agree to the Terms of Service and Privacy Policy.', { field: 'agree' });
-  if (await repo.findCustomerByEmail(address)) throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
+  if (agreeTerms !== true)
+    throw new ApiError('INVALID', 'Please agree to the Terms of Service and Privacy Policy.', { field: 'agree' });
+  if (await repo.findCustomerByEmail(address))
+    throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
   await reserveAttempt('code-email', address);
 
   const at = now();
@@ -171,7 +199,12 @@ export async function startSignUp({ firstName = '', middleName = '', lastName = 
     await repo.deleteSignup(request.id); // nobody received this code
     throw err;
   }
-  return { challengeId: request.id, maskedEmail: maskEmail(address), expiresAt: request.expiresAt, resendAt: request.resendAt };
+  return {
+    challengeId: request.id,
+    maskedEmail: maskEmail(address),
+    expiresAt: request.expiresAt,
+    resendAt: request.resendAt
+  };
 }
 
 /** Sign-up: email a new code (only after the resend cooldown). The old code stops working, and the expiry and resend timers restart. */
@@ -238,7 +271,8 @@ export async function confirmSignUp({ challengeId, code }) {
       await repo.insertCustomer({ ...customer, passwordHash: request.passwordHash }, conn);
     });
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
+    if (err.code === 'ER_DUP_ENTRY')
+      throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
     throw err;
   }
   await clearAttempts('code-email', request.email);
@@ -265,7 +299,13 @@ export async function startPasswordReset({ email }) {
   // A new request replaces any earlier one, so only the newest code works
   const at = now();
   const code = newCode(RULES.codeLength);
-  const reset = { id: newId('rst'), customerId: customer.id, codeHash: await hashSecret(code), ...codeTimes(at), createdAt: at };
+  const reset = {
+    id: newId('rst'),
+    customerId: customer.id,
+    codeHash: await hashSecret(code),
+    ...codeTimes(at),
+    createdAt: at
+  };
   await repo.deleteResetsFor(customer.id);
   await repo.insertReset(reset);
   try {
@@ -274,7 +314,12 @@ export async function startPasswordReset({ email }) {
     await repo.deleteReset(reset.id); // nobody received this code
     throw err;
   }
-  return { challengeId: reset.id, maskedEmail: maskEmail(customer.email), expiresAt: reset.expiresAt, resendAt: reset.resendAt };
+  return {
+    challengeId: reset.id,
+    maskedEmail: maskEmail(customer.email),
+    expiresAt: reset.expiresAt,
+    resendAt: reset.resendAt
+  };
 }
 
 /** Email a new code (only after the resend cooldown): the old code stops working, and the expiry and resend timers restart. */
@@ -354,7 +399,10 @@ export async function completePasswordReset({ challengeId, password }, user = nu
   await clearAttempts('code-email', normaliseEmail(customer.email));
   const result = { ok: true, email: customer.email };
   if (user && user.role === 'customer' && user.id === customer.id) {
-    result.token = signToken({ id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: at }, { expiresAt: user.exp });
+    result.token = signToken(
+      { id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: at },
+      { expiresAt: user.exp }
+    );
   }
   return result;
 }
@@ -372,7 +420,12 @@ export async function getCustomerProfile(customerId) {
  * so nobody is recorded as agreeing to words they never saw. Returns the customer's details.
  */
 export async function acceptTerms(customerId, { version }) {
-  if (version !== TERMS_VERSION) throw new ApiError('INVALID', 'The terms have changed since this page opened. Please reload the page and read them again.', { field: 'version' });
+  if (version !== TERMS_VERSION)
+    throw new ApiError(
+      'INVALID',
+      'The terms have changed since this page opened. Please reload the page and read them again.',
+      { field: 'version' }
+    );
   const customer = await repo.findCustomerById(customerId);
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
   const at = now();
@@ -449,7 +502,12 @@ export async function startCustomerEmailChange(customerId, { email = '', passwor
     await repo.deleteEmailChange(change.id);
     throw err;
   }
-  return { challengeId: change.id, maskedEmail: maskEmail(address), expiresAt: change.expiresAt, resendAt: change.resendAt };
+  return {
+    challengeId: change.id,
+    maskedEmail: maskEmail(address),
+    expiresAt: change.expiresAt,
+    resendAt: change.resendAt
+  };
 }
 
 // The signed-in customer's own live email-change request, or CHALLENGE_EXPIRED. Request IDs from
@@ -532,12 +590,20 @@ export async function startPasswordChange(customerId, { current, next }) {
   await assertCurrentPassword('customer-reauth', customer, current);
   const problem = validatePassword(next);
   if (problem) throw new ApiError('INVALID', problem, { field: 'next' });
-  if (next === current) throw new ApiError('INVALID', 'Choose a password different from the current one.', { field: 'next' });
+  if (next === current)
+    throw new ApiError('INVALID', 'Choose a password different from the current one.', { field: 'next' });
   await reserveAttempt('code-email', normaliseEmail(customer.email));
 
   const at = now();
   const code = newCode(RULES.codeLength);
-  const change = { id: newId('pwc'), customerId: customer.id, newPasswordHash: await hashSecret(next), codeHash: await hashSecret(code), ...codeTimes(at), createdAt: at };
+  const change = {
+    id: newId('pwc'),
+    customerId: customer.id,
+    newPasswordHash: await hashSecret(next),
+    codeHash: await hashSecret(code),
+    ...codeTimes(at),
+    createdAt: at
+  };
   await repo.deleteChangesFor(customer.id);
   await repo.insertChange(change);
   try {
@@ -546,14 +612,20 @@ export async function startPasswordChange(customerId, { current, next }) {
     await repo.deleteChange(change.id); // nobody received this code
     throw err;
   }
-  return { challengeId: change.id, maskedEmail: maskEmail(customer.email), expiresAt: change.expiresAt, resendAt: change.resendAt };
+  return {
+    challengeId: change.id,
+    maskedEmail: maskEmail(customer.email),
+    expiresAt: change.expiresAt,
+    resendAt: change.resendAt
+  };
 }
 
 // The customer's own live password-change request, or CHALLENGE_EXPIRED. Another customer's request
 // counts as expired too, so a request id seen elsewhere cannot be used from this account.
 async function ownPasswordChange(customerId, challengeId, at) {
   const change = await repo.findChange(challengeId);
-  if (isDead(change, at) || change.customerId !== customerId) throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
+  if (isDead(change, at) || change.customerId !== customerId)
+    throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
   return change;
 }
 
@@ -608,7 +680,10 @@ export async function confirmPasswordChange(user, { challengeId, code }) {
     await repo.deleteWaitingPasswordRequests(customer.id, conn);
   });
   await clearAttempts('code-email', normaliseEmail(customer.email));
-  const token = signToken({ id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: at }, { expiresAt: user.exp });
+  const token = signToken(
+    { id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: at },
+    { expiresAt: user.exp }
+  );
   return { ok: true, token };
 }
 
@@ -632,7 +707,14 @@ export async function adminStartSignIn({ email, password }) {
   // Password OK: a new code request (it replaces any earlier one), with an expiry and a resend cooldown
   const at = now();
   const code = newCode(RULES.codeLength);
-  const challenge = { id: newId('chl'), purpose: 'sign_in', adminId: admin.id, codeHash: await hashSecret(code), ...codeTimes(at), createdAt: at };
+  const challenge = {
+    id: newId('chl'),
+    purpose: 'sign_in',
+    adminId: admin.id,
+    codeHash: await hashSecret(code),
+    ...codeTimes(at),
+    createdAt: at
+  };
   await repo.deleteChallengesFor(admin.id, 'sign_in');
   await repo.insertChallenge(challenge);
   try {
@@ -641,7 +723,12 @@ export async function adminStartSignIn({ email, password }) {
     await repo.deleteChallenge(challenge.id); // nobody received this code
     throw err;
   }
-  return { challengeId: challenge.id, maskedEmail: maskEmail(admin.email), expiresAt: challenge.expiresAt, resendAt: challenge.resendAt };
+  return {
+    challengeId: challenge.id,
+    maskedEmail: maskEmail(admin.email),
+    expiresAt: challenge.expiresAt,
+    resendAt: challenge.resendAt
+  };
 }
 
 /** Send a new code (only after the resend cooldown): the old code stops working, and the expiry and resend timers restart. */
@@ -740,17 +827,28 @@ export async function adminUnlock({ ticket, password }) {
   const admin = await repo.findAdminById(claims.sub);
   if (!admin || (Number(admin.passwordChangedAt) || 0) !== claims.pwv || !admin.sessionId) throw ended;
   if (claims.sid !== admin.sessionId) throw sessionReplaced();
-  if (typeof password !== 'string' || !password) throw new ApiError('INVALID', 'Enter your password.', { field: 'password' });
+  if (typeof password !== 'string' || !password)
+    throw new ApiError('INVALID', 'Enter your password.', { field: 'password' });
 
   const address = normaliseEmail(admin.email);
   const attempt = await reserveAttempt('admin', address);
   if (!(await checkSecret(password, admin.passwordHash))) {
     await repo.addAdminFailedAttempt(admin.id);
-    throw wrongAnswer('admin', attempt, new ApiError('INVALID_CREDENTIALS', 'Incorrect password.', { field: 'password' }));
+    throw wrongAnswer(
+      'admin',
+      attempt,
+      new ApiError('INVALID_CREDENTIALS', 'Incorrect password.', { field: 'password' })
+    );
   }
   await clearAttempts('admin', address);
   const token = signToken(
-    { id: admin.id, role: 'admin', name: admin.name, passwordChangedAt: admin.passwordChangedAt, sessionId: claims.sid },
+    {
+      id: admin.id,
+      role: 'admin',
+      name: admin.name,
+      passwordChangedAt: admin.passwordChangedAt,
+      sessionId: claims.sid
+    },
     { expiresAt: claims.exp }
   );
   return { token, user: publicAdmin(admin), unlockTicket: ticket, unlockUntil: claims.exp * 1000 };
@@ -787,7 +885,8 @@ export async function changeAdminPassword(adminId, { current, next }) {
   await assertCurrentPassword('admin-reauth', admin, current);
   const problem = validateAdminPassword(next);
   if (problem) throw new ApiError('INVALID', problem, { field: 'next' });
-  if (next === current) throw new ApiError('INVALID', 'Choose a password different from the current one.', { field: 'next' });
+  if (next === current)
+    throw new ApiError('INVALID', 'Choose a password different from the current one.', { field: 'next' });
   await repo.updateAdminPassword(adminId, await hashSecret(next), now());
   return { ok: true };
 }
@@ -806,7 +905,9 @@ export async function adminStartContactChange(adminId, { field, value, password 
   const problem = field === 'email' ? validateEmail(clean) : validateMobile(clean);
   if (problem) throw new ApiError('INVALID', problem, { field: 'value' });
   if (clean === (field === 'email' ? normaliseEmail(admin.email) : cleanMobile(admin.mobile))) {
-    throw new ApiError('INVALID', `This is already your ${field === 'email' ? 'email' : 'mobile number'}.`, { field: 'value' });
+    throw new ApiError('INVALID', `This is already your ${field === 'email' ? 'email' : 'mobile number'}.`, {
+      field: 'value'
+    });
   }
   if (field === 'email' && (await repo.emailUsedByOtherAdmin(clean, adminId))) {
     throw new ApiError('EMAIL_TAKEN', 'Another admin account already uses this email.', { field: 'value' });
@@ -815,7 +916,16 @@ export async function adminStartContactChange(adminId, { field, value, password 
 
   const at = now();
   const code = newCode(RULES.codeLength);
-  const challenge = { id: newId('chc'), purpose: 'contact_change', adminId, codeHash: await hashSecret(code), field, value: clean, ...codeTimes(at), createdAt: at };
+  const challenge = {
+    id: newId('chc'),
+    purpose: 'contact_change',
+    adminId,
+    codeHash: await hashSecret(code),
+    field,
+    value: clean,
+    ...codeTimes(at),
+    createdAt: at
+  };
   await repo.deleteChallengesFor(adminId, 'contact_change');
   await repo.insertChallenge(challenge);
   try {
@@ -880,7 +990,8 @@ export async function adminConfirmContactChange(adminId, { challengeId, code }) 
   if (challenge.field === 'email' && (await repo.emailUsedByOtherAdmin(challenge.value, adminId))) throw taken;
   try {
     await tx(async (conn) => {
-      if (!(await repo.markChallengeUsed(conn, challenge.id, at))) throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
+      if (!(await repo.markChallengeUsed(conn, challenge.id, at)))
+        throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
       await repo.updateAdminContact(conn, adminId, challenge.field, challenge.value);
     });
   } catch (err) {

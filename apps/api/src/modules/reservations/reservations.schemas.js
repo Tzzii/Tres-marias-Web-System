@@ -13,7 +13,10 @@ import { z } from 'zod';
 
 // Text of at most `max` characters; missing -> '' so the service answers with the form's own message
 const text = (max) =>
-  z.string({ error: 'This field is required.' }).max(max, { error: `Use ${max} characters or fewer.` }).default('');
+  z
+    .string({ error: 'This field is required.' })
+    .max(max, { error: `Use ${max} characters or fewer.` })
+    .default('');
 
 // Checked by the service. .optional() matters: in zod 4 a z.unknown() object key is still required,
 // and a missing one would be a 400 with zod's own wording instead of the service's message.
@@ -101,7 +104,12 @@ export const menuBody = z.object({ serviceType: passThrough, menu: passThrough, 
 
 // PUT /api/admin/reservations/:ref/styling { theme, themeOther, colors, notes }: checked by the service with the
 // booking form's own rules (cleanStyling, stylingProblem), so the messages are the form's
-export const stylingBody = z.object({ theme: passThrough, themeOther: passThrough, colors: passThrough, notes: passThrough });
+export const stylingBody = z.object({
+  theme: passThrough,
+  themeOther: passThrough,
+  colors: passThrough,
+  notes: passThrough
+});
 
 // PUT /api/admin/reservations/:ref/notes { notes }: the admin's private notes (the card allows 1,000 characters)
 export const notesBody = z.object({ notes: text(2000) });

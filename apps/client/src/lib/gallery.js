@@ -12,8 +12,14 @@
 
 // Every photo and every small copy, as { '../assets/gallery/wedding/wedding-01.jpg': url, ... }.
 // Upper-case extensions are listed too because phones often save photos as .JPG.
-const PHOTOS = import.meta.glob('../assets/gallery/*/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', { eager: true, import: 'default' });
-const THUMBS = import.meta.glob('../assets/gallery/*/thumbs/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', { eager: true, import: 'default' });
+const PHOTOS = import.meta.glob('../assets/gallery/*/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', {
+  eager: true,
+  import: 'default'
+});
+const THUMBS = import.meta.glob('../assets/gallery/*/thumbs/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', {
+  eager: true,
+  import: 'default'
+});
 
 // The gallery boxes in the order they appear, as [folder name, label]
 const EVENTS = [

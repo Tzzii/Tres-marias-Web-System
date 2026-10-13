@@ -35,15 +35,37 @@ threadRoutes.post('/:id/read', validate({ params: schemas.threadParams }), async
   res.json(await messages.markThreadRead(req.valid.params.id, 'customer', { customerId: req.user.id }));
 });
 // { body, ref } -> 201 with the new message (ref: one of the customer's own reservations, or null)
-threadRoutes.post('/:id/messages', validate({ params: schemas.threadParams, body: schemas.sendBody }), async (req, res) => {
-  const { body, ref } = req.valid.body;
-  res.status(201).json(await messages.sendMessage(req.valid.params.id, { side: 'customer', senderName: req.user.name, body, customerId: req.user.id, ref }));
-});
+threadRoutes.post(
+  '/:id/messages',
+  validate({ params: schemas.threadParams, body: schemas.sendBody }),
+  async (req, res) => {
+    const { body, ref } = req.valid.body;
+    res.status(201).json(
+      await messages.sendMessage(req.valid.params.id, {
+        side: 'customer',
+        senderName: req.user.name,
+        body,
+        customerId: req.user.id,
+        ref
+      })
+    );
+  }
+);
 // { body } -> the edited message: one the customer typed, within 60 minutes of sending
-threadRoutes.patch('/:id/messages/:messageId', validate({ params: schemas.messageParams, body: schemas.editBody }), async (req, res) => {
-  const { id, messageId } = req.valid.params;
-  res.json(await messages.editMessage(id, messageId, { side: 'customer', customerId: req.user.id, body: req.valid.body.body }));
-});
+threadRoutes.patch(
+  '/:id/messages/:messageId',
+  validate({ params: schemas.messageParams, body: schemas.editBody }),
+  async (req, res) => {
+    const { id, messageId } = req.valid.params;
+    res.json(
+      await messages.editMessage(id, messageId, {
+        side: 'customer',
+        customerId: req.user.id,
+        body: req.valid.body.body
+      })
+    );
+  }
+);
 // -> the message, now deleted: one the customer typed, within 60 minutes of sending
 threadRoutes.delete('/:id/messages/:messageId', validate({ params: schemas.messageParams }), async (req, res) => {
   const { id, messageId } = req.valid.params;
@@ -57,7 +79,9 @@ export const threadAdminRoutes = express.Router();
 // Every conversation, most recently active first; ?customerId= for one customer's
 threadAdminRoutes.get('/', validate({ query: schemas.listQuery }), async (req, res) => {
   const { customerId } = req.valid.query;
-  res.json(await messages.listThreads({ customerId: typeof customerId === 'string' ? customerId : undefined, side: 'admin' }));
+  res.json(
+    await messages.listThreads({ customerId: typeof customerId === 'string' ? customerId : undefined, side: 'admin' })
+  );
 });
 // Start a customer's conversation: { customerId } -> { id }
 threadAdminRoutes.post('/', validate({ body: schemas.openBody }), async (req, res) => {
@@ -71,15 +95,25 @@ threadAdminRoutes.post('/:id/read', validate({ params: schemas.threadParams }), 
   res.json(await messages.markThreadRead(req.valid.params.id, 'admin'));
 });
 // { body, ref } -> 201 with the new message, sent as the signed-in admin
-threadAdminRoutes.post('/:id/messages', validate({ params: schemas.threadParams, body: schemas.sendBody }), async (req, res) => {
-  const { body, ref } = req.valid.body;
-  res.status(201).json(await messages.sendMessage(req.valid.params.id, { side: 'admin', senderName: req.user.name, body, ref }));
-});
+threadAdminRoutes.post(
+  '/:id/messages',
+  validate({ params: schemas.threadParams, body: schemas.sendBody }),
+  async (req, res) => {
+    const { body, ref } = req.valid.body;
+    res
+      .status(201)
+      .json(await messages.sendMessage(req.valid.params.id, { side: 'admin', senderName: req.user.name, body, ref }));
+  }
+);
 // { body } -> the edited message: one the admin typed, within 60 minutes of sending (automatic messages never)
-threadAdminRoutes.patch('/:id/messages/:messageId', validate({ params: schemas.messageParams, body: schemas.editBody }), async (req, res) => {
-  const { id, messageId } = req.valid.params;
-  res.json(await messages.editMessage(id, messageId, { side: 'admin', body: req.valid.body.body }));
-});
+threadAdminRoutes.patch(
+  '/:id/messages/:messageId',
+  validate({ params: schemas.messageParams, body: schemas.editBody }),
+  async (req, res) => {
+    const { id, messageId } = req.valid.params;
+    res.json(await messages.editMessage(id, messageId, { side: 'admin', body: req.valid.body.body }));
+  }
+);
 // -> the message, now deleted: one the admin typed, within 60 minutes of sending
 threadAdminRoutes.delete('/:id/messages/:messageId', validate({ params: schemas.messageParams }), async (req, res) => {
   const { id, messageId } = req.valid.params;

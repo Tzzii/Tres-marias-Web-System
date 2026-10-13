@@ -51,10 +51,12 @@ const sum = (list) => list.reduce((total, item) => total + item.amount, 0);
 const byId = (list, id) => list.find((item) => item.id === id);
 
 /** A refusal for a range the Reports page does not offer (REPORT_RANGES), or null. */
-export const rangeProblem = (range) => (REPORT_RANGES.includes(range) ? null : refuse('INVALID', 'Unknown report range.', { field: 'range' }));
+export const rangeProblem = (range) =>
+  REPORT_RANGES.includes(range) ? null : refuse('INVALID', 'Unknown report range.', { field: 'range' });
 
 /** A refusal for a saved report that does not exist (SAVED_REPORTS), or null. */
-export const savedReportProblem = (kind) => (SAVED_REPORTS.includes(kind) ? null : refuse('INVALID', 'Unknown report.'));
+export const savedReportProblem = (kind) =>
+  SAVED_REPORTS.includes(kind) ? null : refuse('INVALID', 'Unknown report.');
 
 // Is a date (YYYY-MM-DD) inside the report range? this_year, last_year, last_12 (this month and the eleven before it), or all
 function inRange(iso, range) {
@@ -119,7 +121,12 @@ export function dashboardSummary(data) {
     .map((r) => {
       const customer = byId(data.customers, r.customerId);
       const pkg = byId(data.packages, r.packageId);
-      return { ...r, customerName: customer ? customer.name : '', packageName: pkg ? pkg.name : '', ...financials(r, data.payments, data.refunds) };
+      return {
+        ...r,
+        customerName: customer ? customer.name : '',
+        packageName: pkg ? pkg.name : '',
+        ...financials(r, data.payments, data.refunds)
+      };
     })
     .sort((a, b) => textOrder(a.startTime, b.startTime) || textOrder(a.ref, b.ref));
 
@@ -142,20 +149,33 @@ export function dashboardSummary(data) {
   // Payments verified in the current month, less refunds sent in it
   const thisMonth = (d) => d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   const revenueThisMonth =
-    sum(data.payments.filter((p) => p.status === 'verified' && thisMonth(new Date(p.verifiedAt)))) - sum(data.refunds.filter((r) => thisMonth(parseISODate(r.sentOn))));
+    sum(data.payments.filter((p) => p.status === 'verified' && thisMonth(new Date(p.verifiedAt)))) -
+    sum(data.refunds.filter((r) => thisMonth(parseISODate(r.sentOn))));
 
   // Next 5 approved events after today (the same day: the earlier start, then by ref)
   const upcoming = data.reservations
     .filter((r) => HOLDS_DATE.includes(r.status) && r.date > today)
     .sort((a, b) => textOrder(a.date, b.date) || textOrder(a.startTime, b.startTime) || textOrder(a.ref, b.ref))
     .slice(0, 5)
-    .map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, startTime: r.startTime, endTime: r.endTime || null, serviceType: r.serviceType, guests: r.guests, status: r.status }));
+    .map((r) => ({
+      ref: r.ref,
+      eventName: r.eventName,
+      date: r.date,
+      startTime: r.startTime,
+      endTime: r.endTime || null,
+      serviceType: r.serviceType,
+      guests: r.guests,
+      status: r.status
+    }));
 
   return {
     eventsToday,
     pending,
     // Never below 0: a request stamped later today (the sample data does this) is "from today", not "-1 days ago"
-    pendingOldestDays: pending.reduce((oldest, p) => Math.max(oldest, Math.floor((Date.now() - p.createdAt) / 86400000)), 0),
+    pendingOldestDays: pending.reduce(
+      (oldest, p) => Math.max(oldest, Math.floor((Date.now() - p.createdAt) / 86400000)),
+      0
+    ),
     awaitingAcceptance: data.reservations.filter((r) => pendingStep(r) === 'accept').length,
     unverifiedPayments: data.payments.filter((p) => p.status === 'awaiting').length,
     revenueThisMonth,
@@ -183,7 +203,9 @@ export function report(data, range) {
   const declined = decided.filter((r) => r.status === 'declined');
 
   // Revenue = verified payments in range less refunds sent in range; average per event uses completed events' totals
-  const verified = data.payments.filter((p) => p.status === 'verified' && inRange(toISODate(new Date(p.verifiedAt)), range));
+  const verified = data.payments.filter(
+    (p) => p.status === 'verified' && inRange(toISODate(new Date(p.verifiedAt)), range)
+  );
   const returned = data.refunds.filter((r) => inRange(r.sentOn, range));
   const refunds = sum(returned);
   const revenue = sum(verified) - refunds;
@@ -191,11 +213,16 @@ export function report(data, range) {
 
   // Revenue chart: one bar per month, or one per year for "All time" (from the first payment or refund to this year)
   const revenueBy = range === 'all' ? 'year' : 'month';
-  const sumWhere = (test) => sum(verified.filter((p) => test(new Date(p.verifiedAt)))) - sum(returned.filter((r) => test(parseISODate(r.sentOn))));
+  const sumWhere = (test) =>
+    sum(verified.filter((p) => test(new Date(p.verifiedAt)))) -
+    sum(returned.filter((r) => test(parseISODate(r.sentOn))));
   let revenueChart;
   if (revenueBy === 'year') {
     const thisYear = parseISODate(todayISO()).getFullYear();
-    const years = [...verified.map((p) => new Date(p.verifiedAt).getFullYear()), ...returned.map((r) => parseISODate(r.sentOn).getFullYear())];
+    const years = [
+      ...verified.map((p) => new Date(p.verifiedAt).getFullYear()),
+      ...returned.map((r) => parseISODate(r.sentOn).getFullYear())
+    ];
     // Never after this year, so the chart always ends on it (and a long list needs no spread into Math.min)
     const firstYear = years.reduce((first, year) => Math.min(first, year), thisYear);
     revenueChart = Array.from({ length: thisYear - firstYear + 1 }, (_, i) => firstYear + i).map((year) => ({
@@ -214,7 +241,9 @@ export function report(data, range) {
   const packageCounts = data.packages
     .map((pkg) => ({
       name: pkg.name,
-      count: data.reservations.filter((r) => r.packageId === pkg.id && !ENDED.includes(r.status) && inRange(r.date, range)).length
+      count: data.reservations.filter(
+        (r) => r.packageId === pkg.id && !ENDED.includes(r.status) && inRange(r.date, range)
+      ).length
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -249,10 +278,15 @@ export function savedReport(data, kind, range) {
   // The method columns are headed like the other columns ("Bank Transfer"), not like the method names in sentences.
   if (kind === 'monthly_sales') {
     const [qrph, bank, cash] = ['qrph', 'bank', 'cash'].map((method) => titleCase(PAYMENT_METHODS[method]));
-    const verified = data.payments.filter((p) => p.status === 'verified' && inRange(toISODate(new Date(p.verifiedAt)), range));
+    const verified = data.payments.filter(
+      (p) => p.status === 'verified' && inRange(toISODate(new Date(p.verifiedAt)), range)
+    );
     const returned = data.refunds.filter((r) => inRange(r.sentOn, range));
     // "All time" lists every month from the first payment or refund, so the rows add up to everything counted
-    const rows = monthBuckets(range, [...verified.map((p) => toISODate(new Date(p.verifiedAt))), ...returned.map((r) => r.sentOn)]).map(({ year, month }) => {
+    const rows = monthBuckets(range, [
+      ...verified.map((p) => toISODate(new Date(p.verifiedAt))),
+      ...returned.map((r) => r.sentOn)
+    ]).map(({ year, month }) => {
       const sameMonth = (d) => d.getFullYear() === year && d.getMonth() === month;
       const inMonth = verified.filter((p) => sameMonth(new Date(p.verifiedAt)));
       const refunded = sum(returned.filter((r) => sameMonth(parseISODate(r.sentOn))));

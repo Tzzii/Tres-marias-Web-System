@@ -3,7 +3,20 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { ChatPanel, DashCard, DocumentDialog, ErrorState, FilterTabs, PageHeader, Spinner, messageApi, reservationApi, useDocumentTitle, useNotify, useResource } from '@tm/shared';
+import {
+  ChatPanel,
+  DashCard,
+  DocumentDialog,
+  ErrorState,
+  FilterTabs,
+  PageHeader,
+  Spinner,
+  messageApi,
+  reservationApi,
+  useDocumentTitle,
+  useNotify,
+  useResource
+} from '@tm/shared';
 import { useAuth } from '../auth.js';
 
 /**
@@ -27,14 +40,18 @@ export default function MessagesPage() {
   // List of every customer conversation
   const threads = useResource(() => messageApi.listThreads({ side: 'admin' }), []);
   // Messages of the open conversation; reloads whenever activeId changes
-  const thread = useResource(() => (activeId ? messageApi.getThread(activeId, { side: 'admin' }) : Promise.resolve(null)), [activeId]);
+  const thread = useResource(
+    () => (activeId ? messageApi.getThread(activeId, { side: 'admin' }) : Promise.resolve(null)),
+    [activeId]
+  );
   // Attachment (contract/receipt) currently shown in the document preview dialog
   const [doc, setDoc] = useState(null);
 
   // Open a conversation from the list. Opening one while none is open adds a history step marked
   // fromList (on phones the browser's Back then returns to the list); switching from one conversation
   // to another replaces the step and keeps its mark.
-  const select = (id) => setParams({ thread: id }, activeId ? { replace: true, state: location.state } : { state: { fromList: true } });
+  const select = (id) =>
+    setParams({ thread: id }, activeId ? { replace: true, state: location.state } : { state: { fromList: true } });
   // The back arrow (phones): undo the step that opened the conversation, or, when the page was opened
   // straight on it (e.g. from a notification), show the list in its place.
   const back = () => (location.state && location.state.fromList ? navigate(-1) : setParams({}, { replace: true }));
@@ -93,7 +110,15 @@ export default function MessagesPage() {
         }
         actions={
           <Box sx={{ backgroundColor: '#fff', borderRadius: 999, p: 0.25 }}>
-            <FilterTabs value={filter} onChange={setFilter} ariaLabel="Filter conversations" options={[{ value: 'all', label: 'All' }, { value: 'unread', label: 'Unread', count: unreadTotal }]} />
+            <FilterTabs
+              value={filter}
+              onChange={setFilter}
+              ariaLabel="Filter conversations"
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'unread', label: 'Unread', count: unreadTotal }
+              ]}
+            />
           </Box>
         }
       />
@@ -114,7 +139,13 @@ export default function MessagesPage() {
           loadingThread={thread.loading}
           threadTitle={t ? t.customerName : ''}
           threadSubtitle={t ? t.customerEmail : ''}
-          headerAction={t && <Button size="small" variant="outlined" onClick={() => navigate(`/customers?open=${t.customerId}`)}>Customer</Button>}
+          headerAction={
+            t && (
+              <Button size="small" variant="outlined" onClick={() => navigate(`/customers?open=${t.customerId}`)}>
+                Customer
+              </Button>
+            )
+          }
           // Send a reply as the admin; the customer sees it in their Chat page
           onSend={(body) => messageApi.sendMessage(activeId, { side: 'admin', senderName: user.name, body })}
           // Edit or delete a reply the admin typed, within 60 minutes of sending (never an automatic message);
@@ -125,7 +156,10 @@ export default function MessagesPage() {
           onOpenAttachment={async (attachment) => {
             try {
               const detail = await reservationApi.getReservation(attachment.ref);
-              setDoc({ detail, doc: { kind: attachment.kind, name: attachment.name, paymentId: attachment.paymentId, available: true } });
+              setDoc({
+                detail,
+                doc: { kind: attachment.kind, name: attachment.name, paymentId: attachment.paymentId, available: true }
+              });
             } catch (e) {
               notify(e.message, 'error');
             }

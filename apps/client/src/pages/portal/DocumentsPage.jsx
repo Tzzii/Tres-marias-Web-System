@@ -39,13 +39,18 @@ export default function DocumentsPage() {
   // then load the full details of each (needed to build the documents)
   const { data, loading, error, reload } = useResource(async () => {
     const list = await reservationApi.listReservations({ customerId: user.id });
-    const relevant = list.filter((r) => r.quotation || ['confirmed', 'completed', 'approved', 'downpayment_paid', 'pending'].includes(r.status));
+    const relevant = list.filter(
+      (r) => r.quotation || ['confirmed', 'completed', 'approved', 'downpayment_paid', 'pending'].includes(r.status)
+    );
     return Promise.all(relevant.map((r) => reservationApi.getReservation(r.ref, { customerId: user.id })));
   }, [user.id]);
 
   return (
     <>
-      <PageHeader title="Documents" subtitle="Quotations, contracts and official receipts. Open any document to print or save it as a PDF." />
+      <PageHeader
+        title="Documents"
+        subtitle="Quotations, contracts and official receipts. Open any document to print or save it as a PDF."
+      />
       {error ? (
         <DashCard>
           <ErrorState error={error} onRetry={reload} />
@@ -56,7 +61,16 @@ export default function DocumentsPage() {
         </DashCard>
       ) : !data.length ? (
         <DashCard>
-          <EmptyState icon={DescriptionOutlinedIcon} title="No documents yet" description="Your quotation appears here once our team reviews your first reservation." action={<Button variant="contained" onClick={() => navigate('/portal/book')}>New reservation</Button>} />
+          <EmptyState
+            icon={DescriptionOutlinedIcon}
+            title="No documents yet"
+            description="Your quotation appears here once our team reviews your first reservation."
+            action={
+              <Button variant="contained" onClick={() => navigate('/portal/book')}>
+                New reservation
+              </Button>
+            }
+          />
         </DashCard>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
@@ -66,7 +80,10 @@ export default function DocumentsPage() {
             .sort((a, b) => b.date.localeCompare(a.date))
             .map((r) => (
               <DashCard key={r.ref}>
-                <CardTitle subtitle={`${r.ref} · ${formatDate(r.date)}`} action={<StatusChip status={r.status} size="sm" />}>
+                <CardTitle
+                  subtitle={`${r.ref} · ${formatDate(r.date)}`}
+                  action={<StatusChip status={r.status} size="sm" />}
+                >
                   {r.eventName}
                 </CardTitle>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -74,18 +91,35 @@ export default function DocumentsPage() {
                   {documentsFor(r).map((d) => {
                     const Icon = ICONS[d.kind];
                     return (
-                      <Box key={d.key} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, opacity: d.available ? 1 : 0.7 }}>
+                      <Box
+                        key={d.key}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.25,
+                          p: 1.25,
+                          borderRadius: 1.5,
+                          border: `1px solid ${tokens.cardLightBorder}`,
+                          opacity: d.available ? 1 : 0.7
+                        }}
+                      >
                         <Icon sx={{ color: d.available ? tokens.goldDark : tokens.placeholder }} />
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 600 }}>{d.name}</Typography>
-                          <Typography noWrap sx={{ fontSize: 12, color: tokens.textMuted }}>{d.note}</Typography>
+                          <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 600 }}>
+                            {d.name}
+                          </Typography>
+                          <Typography noWrap sx={{ fontSize: 12, color: tokens.textMuted }}>
+                            {d.note}
+                          </Typography>
                         </Box>
                         {d.available ? (
                           <Button size="small" variant="outlined" onClick={() => setOpen({ detail: r, doc: d })}>
                             Open
                           </Button>
                         ) : (
-                          <Typography sx={{ fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>Pending</Typography>
+                          <Typography sx={{ fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>
+                            Pending
+                          </Typography>
                         )}
                       </Box>
                     );

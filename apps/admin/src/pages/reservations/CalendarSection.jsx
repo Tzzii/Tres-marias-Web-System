@@ -51,7 +51,10 @@ export default function CalendarSection() {
   const notify = useNotify();
   // Load reservations and calendar settings (blocked dates + daily capacity) together
   const { data, loading, error, reload } = useResource(async () => {
-    const [reservations, availability] = await Promise.all([reservationApi.listReservations(), calendarApi.getCalendar()]);
+    const [reservations, availability] = await Promise.all([
+      reservationApi.listReservations(),
+      calendarApi.getCalendar()
+    ]);
     return { reservations, availability };
   }, []);
 
@@ -98,16 +101,35 @@ export default function CalendarSection() {
     const events = byDate[iso] || [];
     const blocked = data.availability.blocked.find((b) => b.date === iso);
     const slots = data.availability.booked[iso] || 0;
-    const full = !blocked && Boolean(calendarApi.dateUnavailableReason(iso, data.availability, { enforceLeadTime: false }));
+    const full =
+      !blocked && Boolean(calendarApi.dateUnavailableReason(iso, data.availability, { enforceLeadTime: false }));
     return { events, blocked, slots, full };
   };
 
   // Tell the month calendar how to colour and label each day (blocked > full > has events > open)
   const getDay = (iso) => {
     const { events, blocked, slots, full } = describe(iso);
-    if (blocked) return { tone: 'blocked', label: blocked.note ? `${blocked.reason}: ${blocked.note}` : blocked.reason, badge: blocked.reason, dots: events.length };
-    if (full) return { tone: 'full', label: 'Fully booked', badge: `${slots} ${slots === 1 ? 'event' : 'events'} · full`, dots: events.length };
-    if (events.length) return { tone: 'event', label: events.map((e) => e.eventName).join(', '), badge: events.length === 1 ? events[0].eventName : `${events.length} events`, dots: events.length };
+    if (blocked)
+      return {
+        tone: 'blocked',
+        label: blocked.note ? `${blocked.reason}: ${blocked.note}` : blocked.reason,
+        badge: blocked.reason,
+        dots: events.length
+      };
+    if (full)
+      return {
+        tone: 'full',
+        label: 'Fully booked',
+        badge: `${slots} ${slots === 1 ? 'event' : 'events'} · full`,
+        dots: events.length
+      };
+    if (events.length)
+      return {
+        tone: 'event',
+        label: events.map((e) => e.eventName).join(', '),
+        badge: events.length === 1 ? events[0].eventName : `${events.length} events`,
+        dots: events.length
+      };
     return { tone: 'open', label: 'Open' };
   };
 
@@ -120,11 +142,19 @@ export default function CalendarSection() {
     setBlockErrors(found);
     if (Object.keys(found).length) return;
     // Dates in the range that already have bookings; blocking still works, but the admin is warned
-    const conflicts = Object.keys(byDate).filter((d) => d >= block.from && d <= block.to && byDate[d].some((r) => HOLDS_DATE.includes(r.status) || r.status === 'pending'));
+    const conflicts = Object.keys(byDate).filter(
+      (d) =>
+        d >= block.from &&
+        d <= block.to &&
+        byDate[d].some((r) => HOLDS_DATE.includes(r.status) || r.status === 'pending')
+    );
     setBlocking(true);
     try {
       const result = await calendarApi.blockDates(block);
-      notify(`Blocked ${result.total} ${result.total === 1 ? 'date' : 'dates'}.${conflicts.length ? ` Note: ${conflicts.length} already ${conflicts.length === 1 ? 'has' : 'have'} reservations.` : ''}`, conflicts.length ? 'warning' : 'success');
+      notify(
+        `Blocked ${result.total} ${result.total === 1 ? 'date' : 'dates'}.${conflicts.length ? ` Note: ${conflicts.length} already ${conflicts.length === 1 ? 'has' : 'have'} reservations.` : ''}`,
+        conflicts.length ? 'warning' : 'success'
+      );
       setBlock({ from: '', to: '', reason: block.reason, note: '' });
     } catch (e) {
       notify(e.message, 'error');
@@ -146,7 +176,12 @@ export default function CalendarSection() {
     }
   };
 
-  if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
+  if (error)
+    return (
+      <DashCard>
+        <ErrorState error={error} onRetry={reload} />
+      </DashCard>
+    );
 
   // "YYYY-MM" of the month shown, used to list that month's blocked dates
   const monthKey = `${view.year}-${String(view.month + 1).padStart(2, '0')}`;
@@ -156,11 +191,28 @@ export default function CalendarSection() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   // Month / Week switch button. On phones it fills its own row (each button half, 40px tall for fingers).
-  const toggleSx = { px: 1.75, textTransform: 'none', fontWeight: 600, flex: { xs: 1, sm: 'none' }, minHeight: { xs: 40, sm: 0 } };
+  const toggleSx = {
+    px: 1.75,
+    textTransform: 'none',
+    fontWeight: 600,
+    flex: { xs: 1, sm: 'none' },
+    minHeight: { xs: 40, sm: 0 }
+  };
   const modeToggle = (
-    <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, v) => v && setMode(v)} aria-label="Calendar view" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-      <ToggleButton value="month" sx={toggleSx}>Month</ToggleButton>
-      <ToggleButton value="week" sx={toggleSx}>Week</ToggleButton>
+    <ToggleButtonGroup
+      size="small"
+      exclusive
+      value={mode}
+      onChange={(_, v) => v && setMode(v)}
+      aria-label="Calendar view"
+      sx={{ width: { xs: '100%', sm: 'auto' } }}
+    >
+      <ToggleButton value="month" sx={toggleSx}>
+        Month
+      </ToggleButton>
+      <ToggleButton value="week" sx={toggleSx}>
+        Week
+      </ToggleButton>
     </ToggleButtonGroup>
   );
 
@@ -193,14 +245,50 @@ export default function CalendarSection() {
                 {/* Week view: previous/next week buttons, then one row per day.
                     Phones: the Month / Week switch gets the first row, and the dates may wrap to two lines
                     so the arrows and "This week" still fit on one row. */}
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1, rowGap: 1.5, flexWrap: 'wrap' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, flex: { xs: '1 1 100%', sm: '0 1 auto' } }}>
-                    <IconButton size="small" onClick={() => setWeekStart((w) => addDays(w, -7))} aria-label="Previous week"><ChevronLeftRoundedIcon /></IconButton>
-                    <Typography sx={{ fontSize: 15, fontWeight: 700, minWidth: { xs: 0, sm: 190 }, flex: { xs: 1, sm: 'none' }, textAlign: 'center' }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    mb: 2,
+                    gap: 1,
+                    rowGap: 1.5,
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 0.5,
+                      flex: { xs: '1 1 100%', sm: '0 1 auto' }
+                    }}
+                  >
+                    <IconButton
+                      size="small"
+                      onClick={() => setWeekStart((w) => addDays(w, -7))}
+                      aria-label="Previous week"
+                    >
+                      <ChevronLeftRoundedIcon />
+                    </IconButton>
+                    <Typography
+                      sx={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        minWidth: { xs: 0, sm: 190 },
+                        flex: { xs: 1, sm: 'none' },
+                        textAlign: 'center'
+                      }}
+                    >
                       {formatDate(weekDays[0])} – {formatDate(weekDays[6])}
                     </Typography>
-                    <IconButton size="small" onClick={() => setWeekStart((w) => addDays(w, 7))} aria-label="Next week"><ChevronRightRoundedIcon /></IconButton>
-                    <Button size="small" onClick={() => setWeekStart(mondayOf(todayISO()))}>This week</Button>
+                    <IconButton size="small" onClick={() => setWeekStart((w) => addDays(w, 7))} aria-label="Next week">
+                      <ChevronRightRoundedIcon />
+                    </IconButton>
+                    <Button size="small" onClick={() => setWeekStart(mondayOf(todayISO()))}>
+                      This week
+                    </Button>
                   </Box>
                   <Box sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: -1, sm: 0 } }}>{modeToggle}</Box>
                 </Box>
@@ -208,21 +296,46 @@ export default function CalendarSection() {
                   {weekDays.map((iso) => {
                     const info = describe(iso);
                     return (
-                      <ButtonBase key={iso} onClick={() => setSelected(iso)} sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, p: 1.5, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `1.5px solid ${selected === iso ? tokens.ink : iso === todayISO() ? tokens.gold : tokens.cardLightBorder}`, backgroundColor: info.blocked ? tokens.surfaceMuted : '#fff' }}>
+                      <ButtonBase
+                        key={iso}
+                        onClick={() => setSelected(iso)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 2,
+                          p: 1.5,
+                          textAlign: 'left',
+                          fontFamily: 'inherit',
+                          borderRadius: 1.5,
+                          border: `1.5px solid ${selected === iso ? tokens.ink : iso === todayISO() ? tokens.gold : tokens.cardLightBorder}`,
+                          backgroundColor: info.blocked ? tokens.surfaceMuted : '#fff'
+                        }}
+                      >
                         <Box sx={{ width: 110, flexShrink: 0 }}>
-                          <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{formatWeekday(iso)}</Typography>
+                          <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
+                            {formatWeekday(iso)}
+                          </Typography>
                           <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{formatDate(iso)}</Typography>
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          {info.blocked && <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textSecondary }}>Blocked · {info.blocked.reason}{info.blocked.note ? ` · ${info.blocked.note}` : ''}</Typography>}
-                          {info.events.length === 0 && !info.blocked && <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>Open</Typography>}
+                          {info.blocked && (
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textSecondary }}>
+                              Blocked · {info.blocked.reason}
+                              {info.blocked.note ? ` · ${info.blocked.note}` : ''}
+                            </Typography>
+                          )}
+                          {info.events.length === 0 && !info.blocked && (
+                            <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>Open</Typography>
+                          )}
                           {info.events.map((e) => (
                             <Typography key={e.ref} noWrap sx={{ fontSize: 13, color: tokens.textPrimary }}>
                               {formatEventTime(e)} · {e.eventName} · {headcount(e, 'pax')}
                             </Typography>
                           ))}
                         </Box>
-                        {info.full && <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#b91c1c' }}>FULL</Typography>}
+                        {info.full && (
+                          <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#b91c1c' }}>FULL</Typography>
+                        )}
                       </ButtonBase>
                     );
                   })}
@@ -235,15 +348,41 @@ export default function CalendarSection() {
           {selectedInfo && (
             <DashCard>
               {/* Slots count approved events only (not rentals or pending requests); a day can be full before every slot is taken when no start time is left */}
-              <CardTitle subtitle={selectedInfo.blocked ? `Blocked · ${selectedInfo.blocked.reason}${selectedInfo.blocked.note ? ` · ${selectedInfo.blocked.note}` : ''}` : `${selectedInfo.slots} of ${data.availability.capacity} event slots taken${selectedInfo.full && selectedInfo.slots < data.availability.capacity ? ' · no start time left' : ''}`}>{formatDateLong(selected)}</CardTitle>
+              <CardTitle
+                subtitle={
+                  selectedInfo.blocked
+                    ? `Blocked · ${selectedInfo.blocked.reason}${selectedInfo.blocked.note ? ` · ${selectedInfo.blocked.note}` : ''}`
+                    : `${selectedInfo.slots} of ${data.availability.capacity} event slots taken${selectedInfo.full && selectedInfo.slots < data.availability.capacity ? ' · no start time left' : ''}`
+                }
+              >
+                {formatDateLong(selected)}
+              </CardTitle>
               {selectedInfo.events.length === 0 ? (
-                <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>No reservations on this date.</Typography>
+                <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
+                  No reservations on this date.
+                </Typography>
               ) : (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {selectedInfo.events.map((e) => (
-                    <ButtonBase key={e.ref} onClick={() => navigate(`/reservations/${e.ref}`)} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, textAlign: 'left', fontFamily: 'inherit', borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, '&:hover': { borderColor: '#94a3b8' } }}>
+                    <ButtonBase
+                      key={e.ref}
+                      onClick={() => navigate(`/reservations/${e.ref}`)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        p: 1.25,
+                        textAlign: 'left',
+                        fontFamily: 'inherit',
+                        borderRadius: 1.5,
+                        border: `1px solid ${tokens.cardLightBorder}`,
+                        '&:hover': { borderColor: '#94a3b8' }
+                      }}
+                    >
                       <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{e.eventName}</Typography>
+                        <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
+                          {e.eventName}
+                        </Typography>
                         <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                           {formatEventTime(e)} · {e.customerName} · {headcount(e, 'pax')} · {e.venue.city}
                         </Typography>
@@ -255,9 +394,18 @@ export default function CalendarSection() {
               )}
               <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                 {selectedInfo.blocked ? (
-                  <Button variant="outlined" onClick={() => setUnblock(selectedInfo.blocked)}>Unblock this date</Button>
+                  <Button variant="outlined" onClick={() => setUnblock(selectedInfo.blocked)}>
+                    Unblock this date
+                  </Button>
                 ) : (
-                  selected >= todayISO() && <Button variant="outlined" onClick={() => setBlock((b) => ({ ...b, from: selected, to: selected }))}>Block this date</Button>
+                  selected >= todayISO() && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setBlock((b) => ({ ...b, from: selected, to: selected }))}
+                    >
+                      Block this date
+                    </Button>
+                  )
                 )}
               </Box>
             </DashCard>
@@ -270,10 +418,36 @@ export default function CalendarSection() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
                 {/* Picking a From date after the To date moves To forward to match */}
-                <DateField id="block-from" label="From" mode="any" value={block.from} onChange={(v) => { setBlock((b) => ({ ...b, from: v, to: b.to && b.to >= v ? b.to : v })); setBlockErrors({}); }} error={blockErrors.from} />
-                <DateField id="block-to" label="To" mode="any" value={block.to} onChange={(v) => { setBlock((b) => ({ ...b, to: v })); setBlockErrors({}); }} error={blockErrors.to} />
+                <DateField
+                  id="block-from"
+                  label="From"
+                  mode="any"
+                  value={block.from}
+                  onChange={(v) => {
+                    setBlock((b) => ({ ...b, from: v, to: b.to && b.to >= v ? b.to : v }));
+                    setBlockErrors({});
+                  }}
+                  error={blockErrors.from}
+                />
+                <DateField
+                  id="block-to"
+                  label="To"
+                  mode="any"
+                  value={block.to}
+                  onChange={(v) => {
+                    setBlock((b) => ({ ...b, to: v }));
+                    setBlockErrors({});
+                  }}
+                  error={blockErrors.to}
+                />
               </Box>
-              <SelectField id="block-reason" label="Reason shown to customers" value={block.reason} onChange={(e) => setBlock((b) => ({ ...b, reason: e.target.value }))} options={BLOCK_REASONS} />
+              <SelectField
+                id="block-reason"
+                label="Reason shown to customers"
+                value={block.reason}
+                onChange={(e) => setBlock((b) => ({ ...b, reason: e.target.value }))}
+                options={BLOCK_REASONS}
+              />
               {/* Customers see this under the calendar when they tap the date, after the reason */}
               <FormField
                 id="block-note"
@@ -285,31 +459,67 @@ export default function CalendarSection() {
                 hint={`${block.note.length}/${BLOCK_NOTE_MAX} characters. Customers see it when they tap the date.`}
                 inputProps={{ maxLength: BLOCK_NOTE_MAX }}
               />
-              <BusyButton busy={blocking} onClick={submitBlock}>Block these dates</BusyButton>
+              <BusyButton busy={blocking} onClick={submitBlock}>
+                Block these dates
+              </BusyButton>
             </Box>
           </DashCard>
 
           <DashCard>
-            <CardTitle subtitle="How many events can be served in one day. The customer date picker greys out days at capacity.">Daily Capacity</CardTitle>
+            <CardTitle subtitle="How many events can be served in one day. The customer date picker greys out days at capacity.">
+              Daily Capacity
+            </CardTitle>
             <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
-              <FormField id="capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} inputProps={{ min: 1, max: 10, 'aria-label': 'Events per day' }} sx={{ width: 110 }} />
-              <BusyButton busy={savingCapacity} disabled={!data || String(data.availability.capacity) === capacity} onClick={saveCapacity} sx={{ height: 40 }}>Save</BusyButton>
+              <FormField
+                id="capacity"
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                inputProps={{ min: 1, max: 10, 'aria-label': 'Events per day' }}
+                sx={{ width: 110 }}
+              />
+              <BusyButton
+                busy={savingCapacity}
+                disabled={!data || String(data.availability.capacity) === capacity}
+                onClick={saveCapacity}
+                sx={{ height: 40 }}
+              >
+                Save
+              </BusyButton>
             </Box>
           </DashCard>
 
           <DashCard>
             <CardTitle>Blocked This Month</CardTitle>
             {blockedThisMonth.length === 0 ? (
-              <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>No blocked dates in this month.</Typography>
+              <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
+                No blocked dates in this month.
+              </Typography>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                 {blockedThisMonth.map((b) => (
-                  <Box key={b.date} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1, borderBottom: `1px solid ${tokens.cardLightBorder}`, '&:last-child': { borderBottom: 0 } }}>
+                  <Box
+                    key={b.date}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      py: 1,
+                      borderBottom: `1px solid ${tokens.cardLightBorder}`,
+                      '&:last-child': { borderBottom: 0 }
+                    }}
+                  >
                     <Typography sx={{ fontSize: 13.5 }}>
                       <b>{formatDate(b.date)}</b> · {b.reason}
-                      {b.note && <Box component="span" sx={{ display: 'block', fontSize: 12.5, color: tokens.textSecondary }}>{b.note}</Box>}
+                      {b.note && (
+                        <Box component="span" sx={{ display: 'block', fontSize: 12.5, color: tokens.textSecondary }}>
+                          {b.note}
+                        </Box>
+                      )}
                     </Typography>
-                    <Button size="small" color="error" onClick={() => setUnblock(b)}>Remove</Button>
+                    <Button size="small" color="error" onClick={() => setUnblock(b)}>
+                      Remove
+                    </Button>
                   </Box>
                 ))}
               </Box>
@@ -322,7 +532,9 @@ export default function CalendarSection() {
         open={Boolean(unblock)}
         onClose={() => setUnblock(null)}
         title="Unblock This Date?"
-        description={unblock ? `${formatDateLong(unblock.date)} (${unblock.reason}) opens for customer reservations again.` : ''}
+        description={
+          unblock ? `${formatDateLong(unblock.date)} (${unblock.reason}) opens for customer reservations again.` : ''
+        }
         confirmLabel="Unblock"
         onConfirm={async () => {
           await calendarApi.unblockDate(unblock.date);

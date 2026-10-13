@@ -27,7 +27,15 @@ import { tokens } from '../theme/tokens.js';
 import { ConfirmDialog } from './AppDialog.jsx';
 import { MessageHistoryDialog } from './MessageHistory.jsx';
 import { LightSurface } from './Surface.jsx';
-import { formatClock, formatDate, formatRelative, initials, parseISODate, toISODate, todayISO } from '../utils/format.js';
+import {
+  formatClock,
+  formatDate,
+  formatRelative,
+  initials,
+  parseISODate,
+  toISODate,
+  todayISO
+} from '../utils/format.js';
 
 /**
  * Messaging UI shared by the customer Chat page (1l) and the admin Messages page. The admin gets two
@@ -51,7 +59,28 @@ import { formatClock, formatDate, formatRelative, initials, parseISODate, toISOD
  * Automatic messages (quotations, receipts ...) never have the button. On the admin's side, an edited or
  * deleted message (either side's) also has "View history": every version, with Print and Save PDF.
  */
-export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, loadingThread, onSend, onEdit, onDelete, onOpenAttachment, threadTitle, threadSubtitle, headerAction, emptyText, composeTag, onClearComposeTag, embedded = false, compact = false, single = false }) {
+export function ChatPanel({
+  side,
+  threads,
+  activeId,
+  onSelect,
+  onBack,
+  thread,
+  loadingThread,
+  onSend,
+  onEdit,
+  onDelete,
+  onOpenAttachment,
+  threadTitle,
+  threadSubtitle,
+  headerAction,
+  emptyText,
+  composeTag,
+  onClearComposeTag,
+  embedded = false,
+  compact = false,
+  single = false
+}) {
   const [text, setText] = useState(''); // message being typed
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -150,7 +179,9 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
       await onSend(sentText);
       // Only clear the draft that was sent; typing or switching threads creates a new one.
       setText((current) =>
-        conversationVersion.current === sentConversation && draftVersion.current === sentDraft && current === sentText ? '' : current
+        conversationVersion.current === sentConversation && draftVersion.current === sentDraft && current === sentText
+          ? ''
+          : current
       );
     } catch (e) {
       if (conversationVersion.current === sentConversation) setError(e.message);
@@ -183,279 +214,662 @@ export function ChatPanel({ side, threads, activeId, onSelect, onBack, thread, l
 
   return (
     <LightSurface>
-    <Box ref={panel} sx={{ display: 'grid', gridTemplateColumns: compact || single ? fill : { xs: fill, md: `320px ${fill}` }, overflow: 'hidden', backgroundColor: '#fff', ...sizeSx }}>
-      {/* Threads */}
-      <Box sx={{ display: single ? 'none' : compact ? (activeId ? 'none' : 'flex') : { xs: activeId ? 'none' : 'flex', md: 'flex' }, flexDirection: 'column', borderRight: compact ? 'none' : { md: `1px solid ${tokens.cardLightBorder}` }, minHeight: 0, minWidth: 0 }}>
-        <Typography sx={{ px: 2, py: 1.75, fontSize: 15, fontWeight: 700, color: tokens.textPrimary, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>Threads</Typography>
-        <Box className="tm-scroll" sx={{ overflowY: 'auto', flex: 1 }}>
-          {threads.length === 0 && <Typography sx={{ p: 2, fontSize: 13.5, color: tokens.textSecondary }}>{emptyText}</Typography>}
-          {threads.map((t) => {
-            const on = t.id === activeId;
-            return (
-              <ButtonBase key={t.id} onClick={() => onSelect(t.id)} sx={{ width: '100%', display: 'flex', gap: 1.25, alignItems: 'flex-start', px: 2, py: 1.5, textAlign: 'left', fontFamily: 'inherit', borderBottom: `1px solid ${tokens.cardLightBorder}`, backgroundColor: on ? tokens.surfaceMuted : '#fff', borderLeft: `3px solid ${on ? tokens.gold : 'transparent'}` }}>
-                <Avatar sx={{ width: 38, height: 38, fontSize: 13, fontWeight: 700, bgcolor: 'rgba(197,160,89,0.18)', color: tokens.goldDark }}>
-                  {/* The admin sees the customer's initials; customers see TM (Tres Marias) */}
-                  {side === 'admin' ? initials(t.customerName) : 'TM'}
-                </Avatar>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                    <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: t.unread ? 800 : 700, color: tokens.textPrimary }}>
-                      {side === 'admin' ? t.customerName : 'Admin'}
+      <Box
+        ref={panel}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: compact || single ? fill : { xs: fill, md: `320px ${fill}` },
+          overflow: 'hidden',
+          backgroundColor: '#fff',
+          ...sizeSx
+        }}
+      >
+        {/* Threads */}
+        <Box
+          sx={{
+            display: single
+              ? 'none'
+              : compact
+                ? activeId
+                  ? 'none'
+                  : 'flex'
+                : { xs: activeId ? 'none' : 'flex', md: 'flex' },
+            flexDirection: 'column',
+            borderRight: compact ? 'none' : { md: `1px solid ${tokens.cardLightBorder}` },
+            minHeight: 0,
+            minWidth: 0
+          }}
+        >
+          <Typography
+            sx={{
+              px: 2,
+              py: 1.75,
+              fontSize: 15,
+              fontWeight: 700,
+              color: tokens.textPrimary,
+              borderBottom: `1px solid ${tokens.cardLightBorder}`
+            }}
+          >
+            Threads
+          </Typography>
+          <Box className="tm-scroll" sx={{ overflowY: 'auto', flex: 1 }}>
+            {threads.length === 0 && (
+              <Typography sx={{ p: 2, fontSize: 13.5, color: tokens.textSecondary }}>{emptyText}</Typography>
+            )}
+            {threads.map((t) => {
+              const on = t.id === activeId;
+              return (
+                <ButtonBase
+                  key={t.id}
+                  onClick={() => onSelect(t.id)}
+                  sx={{
+                    width: '100%',
+                    display: 'flex',
+                    gap: 1.25,
+                    alignItems: 'flex-start',
+                    px: 2,
+                    py: 1.5,
+                    textAlign: 'left',
+                    fontFamily: 'inherit',
+                    borderBottom: `1px solid ${tokens.cardLightBorder}`,
+                    backgroundColor: on ? tokens.surfaceMuted : '#fff',
+                    borderLeft: `3px solid ${on ? tokens.gold : 'transparent'}`
+                  }}
+                >
+                  <Avatar
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      bgcolor: 'rgba(197,160,89,0.18)',
+                      color: tokens.goldDark
+                    }}
+                  >
+                    {/* The admin sees the customer's initials; customers see TM (Tres Marias) */}
+                    {side === 'admin' ? initials(t.customerName) : 'TM'}
+                  </Avatar>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                      <Typography
+                        noWrap
+                        sx={{
+                          minWidth: 0,
+                          fontSize: 13.5,
+                          fontWeight: t.unread ? 800 : 700,
+                          color: tokens.textPrimary
+                        }}
+                      >
+                        {side === 'admin' ? t.customerName : 'Admin'}
+                      </Typography>
+                      {t.updatedAt > 0 && (
+                        <Typography sx={{ flexShrink: 0, fontSize: 11, color: tokens.textMuted }}>
+                          {formatRelative(t.updatedAt)}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Typography noWrap sx={{ fontSize: 12, color: tokens.goldDark, fontWeight: 600 }}>
+                      {side === 'admin' ? t.customerEmail : 'Tres Marias Catering'}
                     </Typography>
-                    {t.updatedAt > 0 && <Typography sx={{ flexShrink: 0, fontSize: 11, color: tokens.textMuted }}>{formatRelative(t.updatedAt)}</Typography>}
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Typography
+                        noWrap
+                        sx={{
+                          flex: 1,
+                          minWidth: 0,
+                          fontSize: 12.5,
+                          color: t.unread ? tokens.textPrimary : tokens.textMuted
+                        }}
+                      >
+                        {t.lastMessage ? messagePreview(t.lastMessage) : 'No messages yet'}
+                      </Typography>
+                      {t.unread > 0 && (
+                        <Box
+                          sx={{
+                            minWidth: 18,
+                            height: 18,
+                            px: 0.5,
+                            borderRadius: 999,
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            color: '#fff',
+                            backgroundColor: tokens.red
+                          }}
+                        >
+                          {t.unread}
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
-                  <Typography noWrap sx={{ fontSize: 12, color: tokens.goldDark, fontWeight: 600 }}>
-                    {side === 'admin' ? t.customerEmail : 'Tres Marias Catering'}
+                </ButtonBase>
+              );
+            })}
+          </Box>
+        </Box>
+
+        {/* Conversation */}
+        <Box
+          sx={{
+            display: single
+              ? 'flex'
+              : compact
+                ? activeId
+                  ? 'flex'
+                  : 'none'
+                : { xs: activeId ? 'flex' : 'none', md: 'flex' },
+            flexDirection: 'column',
+            minHeight: 0,
+            minWidth: 0
+          }}
+        >
+          {!activeId ? (
+            <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 3, textAlign: 'center' }}>
+              <Typography sx={{ fontSize: 14, color: tokens.textSecondary }}>
+                Select a conversation to read it.
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.25,
+                  px: 2,
+                  py: 1.25,
+                  borderBottom: `1px solid ${tokens.cardLightBorder}`
+                }}
+              >
+                <IconButton
+                  onClick={onBack}
+                  aria-label="Back to threads"
+                  sx={{ display: single ? 'none' : compact ? 'inline-flex' : { md: 'none' } }}
+                >
+                  <ArrowBackRoundedIcon />
+                </IconButton>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography noWrap sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>
+                    {threadTitle}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 12.5, color: t.unread ? tokens.textPrimary : tokens.textMuted }}>{t.lastMessage ? messagePreview(t.lastMessage) : 'No messages yet'}</Typography>
-                    {t.unread > 0 && <Box sx={{ minWidth: 18, height: 18, px: 0.5, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700, color: '#fff', backgroundColor: tokens.red }}>{t.unread}</Box>}
+                  <Typography noWrap sx={{ fontSize: 12, color: tokens.textMuted }}>
+                    {threadSubtitle}
+                  </Typography>
+                </Box>
+                {headerAction}
+              </Box>
+
+              <Box
+                ref={scroller}
+                className="tm-scroll"
+                role="log"
+                aria-live="polite"
+                sx={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  px: { xs: 1.5, sm: 2.5 },
+                  py: 2,
+                  backgroundColor: tokens.surfaceSubtle
+                }}
+              >
+                {loadingThread || !thread ? (
+                  <Box sx={{ display: 'grid', placeItems: 'center', height: '100%' }}>
+                    <CircularProgress size={26} />
+                  </Box>
+                ) : thread.messages.length === 0 ? (
+                  <Typography sx={{ textAlign: 'center', mt: 4, fontSize: 13.5, color: tokens.textSecondary }}>
+                    No messages yet. Say hello!
+                  </Typography>
+                ) : (
+                  thread.messages.map((m, i) => {
+                    const mine = m.from === side; // my messages go on the right in dark bubbles
+                    const deleted = Boolean(m.deletedAt);
+                    const isEditing = Boolean(editing && editing.id === m.id);
+                    // My own typed message, still inside the time limit: it gets the ⋮ (Edit, Delete)
+                    const changeable = canChange && !isEditing && messageChangeable(m, side, clock);
+                    // Show a date divider before the first message of each day
+                    const newDay = i === 0 || dayLabel(thread.messages[i - 1].at) !== dayLabel(m.at);
+                    return (
+                      <Box key={m.id}>
+                        {newDay && (
+                          <Typography
+                            sx={{
+                              textAlign: 'center',
+                              my: 1.5,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              color: tokens.textMuted
+                            }}
+                          >
+                            {dayLabel(m.at)}
+                          </Typography>
+                        )}
+                        {/* With a mouse the ⋮ shows while the pointer is over the message; on touch screens it always shows */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            justifyContent: mine ? 'flex-end' : 'flex-start',
+                            alignItems: 'center',
+                            gap: 0.25,
+                            mb: 1.25,
+                            '&:hover .tm-msg-more': { opacity: 1 }
+                          }}
+                        >
+                          {changeable && (
+                            <IconButton
+                              className="tm-msg-more"
+                              size="small"
+                              aria-label="Message options"
+                              aria-haspopup="menu"
+                              onClick={(e) => setMenu({ anchor: e.currentTarget, message: m })}
+                              sx={{
+                                flexShrink: 0,
+                                color: tokens.textMuted,
+                                '@media (hover: hover)': { opacity: menu.anchor && menu.message.id === m.id ? 1 : 0 },
+                                '&:focus-visible': { opacity: 1 }
+                              }}
+                            >
+                              <MoreVertRoundedIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                          <Box
+                            sx={{
+                              maxWidth: { xs: '85%', sm: '72%' },
+                              ...(isEditing && { width: { xs: '85%', sm: '72%' } })
+                            }}
+                          >
+                            {/* Sender above the other side's bubbles: "Admin" for customers, the customer's name for the admin */}
+                            {!mine && (
+                              <Typography
+                                sx={{ fontSize: 11.5, fontWeight: 600, color: tokens.textMuted, mb: 0.25, ml: 0.5 }}
+                              >
+                                {side === 'customer' ? 'Admin' : m.senderName}
+                              </Typography>
+                            )}
+                            {/* The event this message is about */}
+                            {m.eventName && (
+                              <Box sx={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', mb: 0.4 }}>
+                                <Box
+                                  component="span"
+                                  sx={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 0.5,
+                                    maxWidth: '100%',
+                                    px: 1,
+                                    py: 0.25,
+                                    borderRadius: 999,
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: tokens.goldDark,
+                                    backgroundColor: 'rgba(197,160,89,0.14)'
+                                  }}
+                                >
+                                  <EventOutlinedIcon sx={{ fontSize: 13 }} />
+                                  <Box
+                                    component="span"
+                                    sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                  >
+                                    {m.eventName}
+                                  </Box>
+                                </Box>
+                              </Box>
+                            )}
+                            {isEditing ? (
+                              // The message being edited: Enter saves, Shift+Enter adds a line, Esc cancels
+                              <Box
+                                sx={{
+                                  p: 1,
+                                  borderRadius: 2,
+                                  border: `1px solid ${tokens.borderFocus}`,
+                                  backgroundColor: '#fff'
+                                }}
+                              >
+                                <InputBase
+                                  autoFocus
+                                  multiline
+                                  maxRows={6}
+                                  value={editing.text}
+                                  onChange={(e) => {
+                                    setEditing({ ...editing, text: e.target.value });
+                                    setEditError('');
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      saveEdit();
+                                    } else if (e.key === 'Escape') setEditing(null);
+                                  }}
+                                  inputProps={{ 'aria-label': 'Edit your message', maxLength: 2000 }}
+                                  sx={{
+                                    width: '100%',
+                                    px: 0.75,
+                                    fontSize: 14,
+                                    '@media (pointer: coarse)': { fontSize: 16 },
+                                    color: tokens.textPrimary
+                                  }}
+                                />
+                                <Box sx={{ mt: 0.75, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                                  <Button
+                                    size="small"
+                                    onClick={() => setEditing(null)}
+                                    disabled={editBusy}
+                                    sx={{ color: tokens.textSecondary }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={saveEdit}
+                                    disabled={editBusy || !editing.text.trim()}
+                                  >
+                                    {editBusy ? 'Saving…' : 'Save'}
+                                  </Button>
+                                </Box>
+                                {editError && (
+                                  <Typography
+                                    role="alert"
+                                    sx={{ mt: 0.5, px: 0.75, fontSize: 12.5, color: tokens.redPress }}
+                                  >
+                                    {editError}
+                                  </Typography>
+                                )}
+                              </Box>
+                            ) : deleted ? (
+                              // A deleted message keeps its place, without its text
+                              <Box
+                                sx={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 0.75,
+                                  px: 1.75,
+                                  py: 1.1,
+                                  borderRadius: 2,
+                                  fontSize: 13,
+                                  fontStyle: 'italic',
+                                  color: tokens.textMuted,
+                                  border: `1px dashed ${tokens.borderInput}`
+                                }}
+                              >
+                                <BlockRoundedIcon sx={{ fontSize: 16 }} />
+                                {DELETED_MESSAGE_TEXT}
+                              </Box>
+                            ) : (
+                              <Box
+                                sx={{
+                                  px: 1.75,
+                                  py: 1.1,
+                                  borderRadius: 2,
+                                  borderTopRightRadius: mine ? 4 : 16,
+                                  borderTopLeftRadius: mine ? 16 : 4,
+                                  fontSize: 13.5,
+                                  lineHeight: 1.55,
+                                  whiteSpace: 'pre-wrap',
+                                  overflowWrap: 'anywhere',
+                                  color: mine ? tokens.onInk : tokens.textPrimary,
+                                  backgroundColor: mine ? tokens.ink : tokens.cardLight,
+                                  border: mine ? 'none' : `1px solid ${tokens.cardLightBorder}`
+                                }}
+                              >
+                                {m.body}
+                                {m.attachment && (
+                                  <ButtonBase
+                                    onClick={() => onOpenAttachment && onOpenAttachment(m.attachment)}
+                                    sx={{
+                                      mt: 1,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 1,
+                                      width: '100%',
+                                      px: 1.25,
+                                      py: 1,
+                                      borderRadius: 1.5,
+                                      fontFamily: 'inherit',
+                                      textAlign: 'left',
+                                      backgroundColor: mine ? 'rgba(255,255,255,0.12)' : tokens.surfaceMuted
+                                    }}
+                                  >
+                                    <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
+                                    <Box sx={{ minWidth: 0 }}>
+                                      <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 700 }}>
+                                        {m.attachment.name}
+                                      </Typography>
+                                      <Typography sx={{ fontSize: 11, opacity: 0.75 }}>
+                                        Attachment · tap to open
+                                      </Typography>
+                                    </Box>
+                                  </ButtonBase>
+                                )}
+                              </Box>
+                            )}
+                            <Typography
+                              sx={{
+                                mt: 0.25,
+                                fontSize: 11,
+                                color: tokens.textMuted,
+                                textAlign: mine ? 'right' : 'left',
+                                mx: 0.5
+                              }}
+                            >
+                              {formatClock(m.at)}
+                              {m.editedAt && !deleted ? ' · Edited' : ''}
+                              {/* "read" appears under my message once the other side has seen it */}
+                              {mine && !deleted && (side === 'customer' ? m.readByAdmin : m.readByCustomer)
+                                ? ' · read'
+                                : ''}
+                              {/* The admin can read every version of an edited or deleted message (the server sends them to the admin only) */}
+                              {side === 'admin' && (m.editedAt || deleted) && (
+                                <>
+                                  {' · '}
+                                  <Link
+                                    component="button"
+                                    type="button"
+                                    onClick={() => setHistory(m)}
+                                    sx={{
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      color: tokens.goldDark,
+                                      verticalAlign: 'baseline'
+                                    }}
+                                  >
+                                    View history
+                                  </Link>
+                                </>
+                              )}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                    );
+                  })
+                )}
+              </Box>
+
+              {/* What the next message is about, e.g. after "Message us" on a reservation */}
+              {composeTag && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    px: 1.5,
+                    pt: 1,
+                    borderTop: `1px solid ${tokens.cardLightBorder}`
+                  }}
+                >
+                  <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>About</Typography>
+                  <Box
+                    component="span"
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      minWidth: 0,
+                      pl: 1,
+                      pr: 0.25,
+                      py: 0.1,
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: tokens.goldDark,
+                      backgroundColor: 'rgba(197,160,89,0.14)'
+                    }}
+                  >
+                    <EventOutlinedIcon sx={{ fontSize: 14 }} />
+                    <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {composeTag.label}
+                    </Box>
+                    {onClearComposeTag && (
+                      <IconButton
+                        size="small"
+                        onClick={onClearComposeTag}
+                        aria-label="Remove topic"
+                        sx={{ p: 0.25, color: 'inherit' }}
+                      >
+                        <CloseRoundedIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    )}
                   </Box>
                 </Box>
-              </ButtonBase>
-            );
-          })}
+              )}
+              <Box
+                component="form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  send();
+                }}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  gap: 1,
+                  p: 1.25,
+                  borderTop: composeTag ? 'none' : `1px solid ${tokens.cardLightBorder}`
+                }}
+              >
+                <InputBase
+                  value={text}
+                  onChange={(e) => {
+                    draftVersion.current += 1;
+                    setText(e.target.value);
+                  }}
+                  // Enter sends; Shift+Enter adds a new line
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  placeholder="Write a message"
+                  multiline
+                  maxRows={5}
+                  // enterKeyHint shows "Send" on the phone keyboard's Enter key
+                  inputProps={{ 'aria-label': 'Write a message', maxLength: 2000, enterKeyHint: 'send' }}
+                  // 16px on touch screens: iPhones zoom the whole page in when a smaller text box is tapped
+                  sx={{
+                    flex: 1,
+                    px: 1.5,
+                    py: 1,
+                    fontSize: 14,
+                    '@media (pointer: coarse)': { fontSize: 16 },
+                    color: tokens.textPrimary,
+                    borderRadius: 1.5,
+                    border: `1px solid ${tokens.borderInput}`,
+                    '&.Mui-focused': { borderColor: tokens.borderFocus }
+                  }}
+                />
+                <IconButton
+                  type="submit"
+                  disabled={!text.trim() || sending}
+                  aria-label="Send"
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    color: tokens.onInk,
+                    backgroundColor: tokens.ink,
+                    '&:hover': { backgroundColor: tokens.inkHover },
+                    '&.Mui-disabled': { color: tokens.onInk, backgroundColor: tokens.placeholder }
+                  }}
+                >
+                  {sending ? (
+                    <CircularProgress size={18} sx={{ color: tokens.onInk }} />
+                  ) : (
+                    <SendRoundedIcon sx={{ fontSize: 20 }} />
+                  )}
+                </IconButton>
+              </Box>
+              {error && <Typography sx={{ px: 2, pb: 1, fontSize: 12.5, color: tokens.redPress }}>{error}</Typography>}
+            </>
+          )}
         </Box>
       </Box>
 
-      {/* Conversation */}
-      <Box sx={{ display: single ? 'flex' : compact ? (activeId ? 'flex' : 'none') : { xs: activeId ? 'flex' : 'none', md: 'flex' }, flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
-        {!activeId ? (
-          <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 3, textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 14, color: tokens.textSecondary }}>Select a conversation to read it.</Typography>
-          </Box>
-        ) : (
-          <>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 2, py: 1.25, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
-              <IconButton onClick={onBack} aria-label="Back to threads" sx={{ display: single ? 'none' : compact ? 'inline-flex' : { md: 'none' } }}>
-                <ArrowBackRoundedIcon />
-              </IconButton>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography noWrap sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>{threadTitle}</Typography>
-                <Typography noWrap sx={{ fontSize: 12, color: tokens.textMuted }}>{threadSubtitle}</Typography>
-              </Box>
-              {headerAction}
-            </Box>
-
-            <Box ref={scroller} className="tm-scroll" role="log" aria-live="polite" sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, sm: 2.5 }, py: 2, backgroundColor: tokens.surfaceSubtle }}>
-              {loadingThread || !thread ? (
-                <Box sx={{ display: 'grid', placeItems: 'center', height: '100%' }}>
-                  <CircularProgress size={26} />
-                </Box>
-              ) : thread.messages.length === 0 ? (
-                <Typography sx={{ textAlign: 'center', mt: 4, fontSize: 13.5, color: tokens.textSecondary }}>No messages yet. Say hello!</Typography>
-              ) : (
-                thread.messages.map((m, i) => {
-                  const mine = m.from === side; // my messages go on the right in dark bubbles
-                  const deleted = Boolean(m.deletedAt);
-                  const isEditing = Boolean(editing && editing.id === m.id);
-                  // My own typed message, still inside the time limit: it gets the ⋮ (Edit, Delete)
-                  const changeable = canChange && !isEditing && messageChangeable(m, side, clock);
-                  // Show a date divider before the first message of each day
-                  const newDay = i === 0 || dayLabel(thread.messages[i - 1].at) !== dayLabel(m.at);
-                  return (
-                    <Box key={m.id}>
-                      {newDay && (
-                        <Typography sx={{ textAlign: 'center', my: 1.5, fontSize: 11.5, fontWeight: 700, color: tokens.textMuted }}>{dayLabel(m.at)}</Typography>
-                      )}
-                      {/* With a mouse the ⋮ shows while the pointer is over the message; on touch screens it always shows */}
-                      <Box sx={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', alignItems: 'center', gap: 0.25, mb: 1.25, '&:hover .tm-msg-more': { opacity: 1 } }}>
-                        {changeable && (
-                          <IconButton
-                            className="tm-msg-more"
-                            size="small"
-                            aria-label="Message options"
-                            aria-haspopup="menu"
-                            onClick={(e) => setMenu({ anchor: e.currentTarget, message: m })}
-                            sx={{ flexShrink: 0, color: tokens.textMuted, '@media (hover: hover)': { opacity: menu.anchor && menu.message.id === m.id ? 1 : 0 }, '&:focus-visible': { opacity: 1 } }}
-                          >
-                            <MoreVertRoundedIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                        <Box sx={{ maxWidth: { xs: '85%', sm: '72%' }, ...(isEditing && { width: { xs: '85%', sm: '72%' } }) }}>
-                          {/* Sender above the other side's bubbles: "Admin" for customers, the customer's name for the admin */}
-                          {!mine && <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: tokens.textMuted, mb: 0.25, ml: 0.5 }}>{side === 'customer' ? 'Admin' : m.senderName}</Typography>}
-                          {/* The event this message is about */}
-                          {m.eventName && (
-                            <Box sx={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', mb: 0.4 }}>
-                              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, maxWidth: '100%', px: 1, py: 0.25, borderRadius: 999, fontSize: 11, fontWeight: 600, color: tokens.goldDark, backgroundColor: 'rgba(197,160,89,0.14)' }}>
-                                <EventOutlinedIcon sx={{ fontSize: 13 }} />
-                                <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.eventName}</Box>
-                              </Box>
-                            </Box>
-                          )}
-                          {isEditing ? (
-                            // The message being edited: Enter saves, Shift+Enter adds a line, Esc cancels
-                            <Box sx={{ p: 1, borderRadius: 2, border: `1px solid ${tokens.borderFocus}`, backgroundColor: '#fff' }}>
-                              <InputBase
-                                autoFocus
-                                multiline
-                                maxRows={6}
-                                value={editing.text}
-                                onChange={(e) => {
-                                  setEditing({ ...editing, text: e.target.value });
-                                  setEditError('');
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    saveEdit();
-                                  } else if (e.key === 'Escape') setEditing(null);
-                                }}
-                                inputProps={{ 'aria-label': 'Edit your message', maxLength: 2000 }}
-                                sx={{ width: '100%', px: 0.75, fontSize: 14, '@media (pointer: coarse)': { fontSize: 16 }, color: tokens.textPrimary }}
-                              />
-                              <Box sx={{ mt: 0.75, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                <Button size="small" onClick={() => setEditing(null)} disabled={editBusy} sx={{ color: tokens.textSecondary }}>Cancel</Button>
-                                <Button size="small" variant="contained" onClick={saveEdit} disabled={editBusy || !editing.text.trim()}>{editBusy ? 'Saving…' : 'Save'}</Button>
-                              </Box>
-                              {editError && <Typography role="alert" sx={{ mt: 0.5, px: 0.75, fontSize: 12.5, color: tokens.redPress }}>{editError}</Typography>}
-                            </Box>
-                          ) : deleted ? (
-                            // A deleted message keeps its place, without its text
-                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, px: 1.75, py: 1.1, borderRadius: 2, fontSize: 13, fontStyle: 'italic', color: tokens.textMuted, border: `1px dashed ${tokens.borderInput}` }}>
-                              <BlockRoundedIcon sx={{ fontSize: 16 }} />
-                              {DELETED_MESSAGE_TEXT}
-                            </Box>
-                          ) : (
-                          <Box sx={{ px: 1.75, py: 1.1, borderRadius: 2, borderTopRightRadius: mine ? 4 : 16, borderTopLeftRadius: mine ? 16 : 4, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: mine ? tokens.onInk : tokens.textPrimary, backgroundColor: mine ? tokens.ink : tokens.cardLight, border: mine ? 'none' : `1px solid ${tokens.cardLightBorder}` }}>
-                            {m.body}
-                            {m.attachment && (
-                              <ButtonBase onClick={() => onOpenAttachment && onOpenAttachment(m.attachment)} sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, width: '100%', px: 1.25, py: 1, borderRadius: 1.5, fontFamily: 'inherit', textAlign: 'left', backgroundColor: mine ? 'rgba(255,255,255,0.12)' : tokens.surfaceMuted }}>
-                                <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 700 }}>{m.attachment.name}</Typography>
-                                  <Typography sx={{ fontSize: 11, opacity: 0.75 }}>Attachment · tap to open</Typography>
-                                </Box>
-                              </ButtonBase>
-                            )}
-                          </Box>
-                          )}
-                          <Typography sx={{ mt: 0.25, fontSize: 11, color: tokens.textMuted, textAlign: mine ? 'right' : 'left', mx: 0.5 }}>
-                            {formatClock(m.at)}
-                            {m.editedAt && !deleted ? ' · Edited' : ''}
-                            {/* "read" appears under my message once the other side has seen it */}
-                            {mine && !deleted && (side === 'customer' ? m.readByAdmin : m.readByCustomer) ? ' · read' : ''}
-                            {/* The admin can read every version of an edited or deleted message (the server sends them to the admin only) */}
-                            {side === 'admin' && (m.editedAt || deleted) && (
-                              <>
-                                {' · '}
-                                <Link component="button" type="button" onClick={() => setHistory(m)} sx={{ fontSize: 11, fontWeight: 600, color: tokens.goldDark, verticalAlign: 'baseline' }}>
-                                  View history
-                                </Link>
-                              </>
-                            )}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  );
-                })
-              )}
-            </Box>
-
-            {/* What the next message is about, e.g. after "Message us" on a reservation */}
-            {composeTag && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, pt: 1, borderTop: `1px solid ${tokens.cardLightBorder}` }}>
-                <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>About</Typography>
-                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, minWidth: 0, pl: 1, pr: 0.25, py: 0.1, borderRadius: 999, fontSize: 12, fontWeight: 600, color: tokens.goldDark, backgroundColor: 'rgba(197,160,89,0.14)' }}>
-                  <EventOutlinedIcon sx={{ fontSize: 14 }} />
-                  <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{composeTag.label}</Box>
-                  {onClearComposeTag && (
-                    <IconButton size="small" onClick={onClearComposeTag} aria-label="Remove topic" sx={{ p: 0.25, color: 'inherit' }}>
-                      <CloseRoundedIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  )}
-                </Box>
-              </Box>
-            )}
-            <Box
-              component="form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                send();
-              }}
-              sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, p: 1.25, borderTop: composeTag ? 'none' : `1px solid ${tokens.cardLightBorder}` }}
-            >
-              <InputBase
-                value={text}
-                onChange={(e) => {
-                  draftVersion.current += 1;
-                  setText(e.target.value);
-                }}
-                // Enter sends; Shift+Enter adds a new line
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                placeholder="Write a message"
-                multiline
-                maxRows={5}
-                // enterKeyHint shows "Send" on the phone keyboard's Enter key
-                inputProps={{ 'aria-label': 'Write a message', maxLength: 2000, enterKeyHint: 'send' }}
-                // 16px on touch screens: iPhones zoom the whole page in when a smaller text box is tapped
-                sx={{ flex: 1, px: 1.5, py: 1, fontSize: 14, '@media (pointer: coarse)': { fontSize: 16 }, color: tokens.textPrimary, borderRadius: 1.5, border: `1px solid ${tokens.borderInput}`, '&.Mui-focused': { borderColor: tokens.borderFocus } }}
-              />
-              <IconButton type="submit" disabled={!text.trim() || sending} aria-label="Send" sx={{ width: 44, height: 44, color: tokens.onInk, backgroundColor: tokens.ink, '&:hover': { backgroundColor: tokens.inkHover }, '&.Mui-disabled': { color: tokens.onInk, backgroundColor: tokens.placeholder } }}>
-                {sending ? <CircularProgress size={18} sx={{ color: tokens.onInk }} /> : <SendRoundedIcon sx={{ fontSize: 20 }} />}
-              </IconButton>
-            </Box>
-            {error && <Typography sx={{ px: 2, pb: 1, fontSize: 12.5, color: tokens.redPress }}>{error}</Typography>}
-          </>
+      {/* A message's ⋮ menu: Edit, Delete, and until when they are offered */}
+      <Menu
+        anchorEl={menu.anchor}
+        open={Boolean(menu.anchor)}
+        onClose={closeMenu}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem
+          onClick={() => {
+            setEditing({ id: menu.message.id, text: menu.message.body });
+            setEditError('');
+            closeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <EditOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          Edit
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setDeleting(menu.message);
+            closeMenu();
+          }}
+          sx={{ color: tokens.redPress }}
+        >
+          <ListItemIcon sx={{ color: 'inherit' }}>
+            <DeleteOutlineRoundedIcon fontSize="small" />
+          </ListItemIcon>
+          Delete
+        </MenuItem>
+        {menu.message && (
+          <Typography sx={{ px: 2, pt: 0.75, pb: 0.5, fontSize: 11.5, color: tokens.textMuted }}>
+            Until {formatClock(menu.message.at + MESSAGE_CHANGE_MS)} ({RULES.messageEditMinutes} minutes after sending)
+          </Typography>
         )}
-      </Box>
-    </Box>
+      </Menu>
 
-    {/* A message's ⋮ menu: Edit, Delete, and until when they are offered */}
-    <Menu anchorEl={menu.anchor} open={Boolean(menu.anchor)} onClose={closeMenu} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
-      <MenuItem
-        onClick={() => {
-          setEditing({ id: menu.message.id, text: menu.message.body });
-          setEditError('');
-          closeMenu();
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onClose={() => setDeleting(null)}
+        title="Delete Message?"
+        description={
+          side === 'customer'
+            ? 'You and our team will see "This message was deleted" instead. We keep the original text as a record of the conversation, as our Privacy Policy explains.'
+            : 'The customer will see "This message was deleted" instead. The text stays in View history as a record.'
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={async () => {
+          await onDelete(deleting.id);
+          setDeleting(null);
         }}
-      >
-        <ListItemIcon><EditOutlinedIcon fontSize="small" /></ListItemIcon>
-        Edit
-      </MenuItem>
-      <MenuItem
-        onClick={() => {
-          setDeleting(menu.message);
-          closeMenu();
-        }}
-        sx={{ color: tokens.redPress }}
-      >
-        <ListItemIcon sx={{ color: 'inherit' }}><DeleteOutlineRoundedIcon fontSize="small" /></ListItemIcon>
-        Delete
-      </MenuItem>
-      {menu.message && (
-        <Typography sx={{ px: 2, pt: 0.75, pb: 0.5, fontSize: 11.5, color: tokens.textMuted }}>
-          Until {formatClock(menu.message.at + MESSAGE_CHANGE_MS)} ({RULES.messageEditMinutes} minutes after sending)
-        </Typography>
+      />
+
+      {/* The admin's record of an edited or deleted message */}
+      {side === 'admin' && (
+        <MessageHistoryDialog
+          open={Boolean(history)}
+          onClose={() => setHistory(null)}
+          message={history}
+          conversation={threadTitle}
+        />
       )}
-    </Menu>
-
-    <ConfirmDialog
-      open={Boolean(deleting)}
-      onClose={() => setDeleting(null)}
-      title="Delete Message?"
-      description={
-        side === 'customer'
-          ? 'You and our team will see "This message was deleted" instead. We keep the original text as a record of the conversation, as our Privacy Policy explains.'
-          : 'The customer will see "This message was deleted" instead. The text stays in View history as a record.'
-      }
-      confirmLabel="Delete"
-      tone="danger"
-      onConfirm={async () => {
-        await onDelete(deleting.id);
-        setDeleting(null);
-      }}
-    />
-
-    {/* The admin's record of an edited or deleted message */}
-    {side === 'admin' && <MessageHistoryDialog open={Boolean(history)} onClose={() => setHistory(null)} message={history} conversation={threadTitle} />}
     </LightSurface>
   );
 }

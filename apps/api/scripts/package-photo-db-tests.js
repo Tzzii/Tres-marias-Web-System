@@ -2,18 +2,41 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { adminAccount, client, closePool, pool, requireWriteConsent, runDir, startApi, tokenFor } from './lib/harness.js';
+import {
+  adminAccount,
+  client,
+  closePool,
+  pool,
+  requireWriteConsent,
+  runDir,
+  startApi,
+  tokenFor
+} from './lib/harness.js';
 
 // Creates only its own temporary packages; every one and its photos is cleaned up in finally.
 requireWriteConsent({ writesOk: process.argv.includes('--writes-test-data') }, 'Package photo integration check');
 const uploadDir = path.join(runDir(), 'package-photos');
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-const values = { name: `Photo Check ${crypto.randomBytes(6).toString('hex')}`, price: 1000, guests: 60, description: 'A temporary setup used only for package photo checks.', items: [{ name: 'Buffet Table', qty: null }], visible: true };
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
+const values = {
+  name: `Photo Check ${crypto.randomBytes(6).toString('hex')}`,
+  price: 1000,
+  guests: 60,
+  description: 'A temporary setup used only for package photo checks.',
+  items: [{ name: 'Buffet Table', qty: null }],
+  visible: true
+};
 const ids = [];
 let api;
 let checks = 0;
-const passed = (label) => { checks += 1; console.log(`PASS ${label}`); };
-const files = () => fs.existsSync(path.join(uploadDir, 'packages')) ? fs.readdirSync(path.join(uploadDir, 'packages')) : [];
+const passed = (label) => {
+  checks += 1;
+  console.log(`PASS ${label}`);
+};
+const files = () =>
+  fs.existsSync(path.join(uploadDir, 'packages')) ? fs.readdirSync(path.join(uploadDir, 'packages')) : [];
 const form = (body, bytes = PNG) => {
   const data = new FormData();
   data.append('package', JSON.stringify(body));
@@ -42,7 +65,9 @@ try {
   passed('public photo streams the stored bytes across portal origins');
   result = await call('PUT', `/admin/packages/${id}`, { form: form(values) });
   assert.equal(result.status, 401);
-  const [[customer]] = await pool.query('SELECT id, name, password_changed_at AS passwordChangedAt FROM customers LIMIT 1');
+  const [[customer]] = await pool.query(
+    'SELECT id, name, password_changed_at AS passwordChangedAt FROM customers LIMIT 1'
+  );
   if (customer) {
     result = await call('PUT', `/admin/packages/${id}`, { token: tokenFor(customer, 'customer'), form: form(values) });
     assert.equal(result.status, 403);
@@ -55,17 +80,26 @@ try {
   passed('hidden photos are private to the admin');
   await call('PATCH', `/admin/packages/${id}/visibility`, { token: admin, body: { visible: true } });
   const oldVersion = version;
-  result = await call('PUT', `/admin/packages/${id}`, { token: admin, form: form(values, Buffer.concat([PNG, Buffer.from('replacement')])) });
+  result = await call('PUT', `/admin/packages/${id}`, {
+    token: admin,
+    form: form(values, Buffer.concat([PNG, Buffer.from('replacement')]))
+  });
   assert.equal(result.status, 200);
   version = result.body.photoVersion;
   assert.notEqual(version, oldVersion);
   assert.equal(files().length, 1);
   assert.equal((await fetch(`${api.base}/packages/${id}/photo?v=${oldVersion}`)).status, 404);
   passed('replace photo, discard the old file and reject the stale version');
-  result = await call('PUT', `/admin/packages/${id}`, { token: admin, form: form({ ...values, description: 'This edit must not save.' }, Buffer.from('<svg>not a photo</svg>')) });
+  result = await call('PUT', `/admin/packages/${id}`, {
+    token: admin,
+    form: form({ ...values, description: 'This edit must not save.' }, Buffer.from('<svg>not a photo</svg>'))
+  });
   assert.equal(result.status, 400);
   assert.equal(result.body.meta.field, 'photo');
-  const unchanged = await call('GET', `/packages/by-slug/${result.body.slug || values.name.toLowerCase().replaceAll(' ', '-')}`);
+  const unchanged = await call(
+    'GET',
+    `/packages/by-slug/${result.body.slug || values.name.toLowerCase().replaceAll(' ', '-')}`
+  );
   assert.equal(unchanged.body.description, values.description);
   assert.equal(unchanged.body.photoVersion, version);
   passed('invalid photo leaves the package details and saved photo unchanged');
@@ -76,7 +110,10 @@ try {
   assert.equal(result.body.message, 'The file is larger than 20 MB.');
   assert.equal(files().length, 1);
   passed('over 20 MB rejected without storing a file');
-  result = await call('PUT', `/admin/packages/${id}`, { token: admin, form: form(values, large.subarray(0, 20 * 1024 * 1024)) });
+  result = await call('PUT', `/admin/packages/${id}`, {
+    token: admin,
+    form: form(values, large.subarray(0, 20 * 1024 * 1024))
+  });
   assert.equal(result.status, 200);
   version = result.body.photoVersion;
   assert.equal(files().length, 1);

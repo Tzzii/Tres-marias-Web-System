@@ -40,16 +40,19 @@ const toHHMM = (minutes) => {
  * Minutes from a start time to an end time, counting past midnight when the end is earlier on the clock:
  * ('18:00', '22:00') -> 240, ('22:00', '02:00') -> 240, ('18:00', '18:00') -> 0.
  */
-export const eventMinutes = (startTime, endTime) => (((toMinutes(endTime) - toMinutes(startTime)) % 1440) + 1440) % 1440;
+export const eventMinutes = (startTime, endTime) =>
+  (((toMinutes(endTime) - toMinutes(startTime)) % 1440) + 1440) % 1440;
 
 /**
  * How many hours an event runs: from its end time, or RULES.defaultEventHours for a booking saved before
  * end times existed (endTime empty or null). ('18:00', '22:30') -> 4.5.
  */
-export const eventHours = (startTime, endTime) => (endTime ? eventMinutes(startTime, endTime) / 60 : RULES.defaultEventHours);
+export const eventHours = (startTime, endTime) =>
+  endTime ? eventMinutes(startTime, endTime) / 60 : RULES.defaultEventHours;
 
 /** True when an event from startTime to endTime ends on the next day (it runs past midnight). */
-export const endsNextDay = (startTime, endTime) => Boolean(startTime && endTime) && toMinutes(endTime) <= toMinutes(startTime);
+export const endsNextDay = (startTime, endTime) =>
+  Boolean(startTime && endTime) && toMinutes(endTime) <= toMinutes(startTime);
 
 /**
  * The end times a start time allows, every 30 minutes from RULES.minEventHours to RULES.maxEventHours
@@ -87,7 +90,8 @@ export function endTimeProblem(startTime, endTime) {
  * The end time that keeps an event's length when its start moves, e.g. ('18:00', '22:00', '19:00') -> '23:00',
  * so changing the start never leaves an end time that no longer fits. '' when there was no end time.
  */
-export const shiftEndTime = (oldStart, oldEnd, newStart) => (oldStart && oldEnd && newStart ? toHHMM(toMinutes(newStart) + eventMinutes(oldStart, oldEnd)) : oldEnd || '');
+export const shiftEndTime = (oldStart, oldEnd, newStart) =>
+  oldStart && oldEnd && newStart ? toHHMM(toMinutes(newStart) + eventMinutes(oldStart, oldEnd)) : oldEnd || '';
 
 /**
  * True for a reservation that takes one of the day's event slots: approved to confirmed, and not an
@@ -155,11 +159,13 @@ export function timeUnavailableReason(iso, time, snapshot, hours = RULES.minEven
       const from = toMinutes(e.startTime) + dayShift[e.date];
       return { busyFrom: from - buffer, busyTo: from + e.hours * 60 + buffer };
     });
-  if (windows.some((w) => start >= w.busyFrom && start < w.busyTo)) return 'Another event is already booked around that time';
+  if (windows.some((w) => start >= w.busyFrom && start < w.busyTo))
+    return 'Another event is already booked around that time';
   // The new event has to end by the time the next window begins
   const nextBusy = Math.min(...windows.filter((w) => w.busyFrom > start).map((w) => w.busyFrom));
   if (nextBusy < start + RULES.minEventHours * 60) return "There isn't enough time before the next booked event";
-  if (nextBusy < start + hours * 60) return `Another event is booked after yours: end by ${formatTime(toHHMM(nextBusy))} at the latest`;
+  if (nextBusy < start + hours * 60)
+    return `Another event is booked after yours: end by ${formatTime(toHHMM(nextBusy))} at the latest`;
   return '';
 }
 

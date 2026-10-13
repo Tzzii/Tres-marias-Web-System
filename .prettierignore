@@ -1,0 +1,9 @@
+**/dist/**
+**/node_modules/**
+**/coverage/**
+**/public/**
+**/src/assets/**
+design-backup/**
+docs/**
+*.log
+package-lock.json

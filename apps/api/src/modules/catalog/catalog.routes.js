@@ -29,7 +29,9 @@ async function sendPackagePhoto(req, res, admin = false) {
   await new Promise((resolve, reject) => {
     stream.once('open', resolve);
     stream.once('error', reject);
-  }).catch(() => { throw new ApiError('NOT_FOUND', 'This photo is no longer available.'); });
+  }).catch(() => {
+    throw new ApiError('NOT_FOUND', 'This photo is no longer available.');
+  });
   res.set({
     'Content-Type': photo.mime,
     'Content-Disposition': 'inline',
@@ -60,7 +62,8 @@ async function sendPackagePhoto(req, res, admin = false) {
  * simply a guest, so a customer whose session ended can still browse the site.
  */
 function viewer(req, wantsAdminView) {
-  if (wantsAdminView && !req.user && req.get('Authorization')) throw new ApiError('UNAUTHENTICATED', 'Please sign in again.');
+  if (wantsAdminView && !req.user && req.get('Authorization'))
+    throw new ApiError('UNAUTHENTICATED', 'Please sign in again.');
   return { admin: Boolean(req.user && req.user.role === 'admin') };
 }
 
@@ -117,29 +120,50 @@ export const catalogAdminRoutes = express.Router();
 catalogAdminRoutes.post('/packages', packageForm, validate({ body: schemas.packageBody }), async (req, res) => {
   res.status(201).json(await catalog.savePackage(null, req.valid.body, req.file));
 });
-catalogAdminRoutes.put('/packages/:id', packageForm, validate({ params: schemas.idParams, body: schemas.packageBody }), async (req, res) => {
-  res.json(await catalog.savePackage(req.valid.params.id, req.valid.body, req.file));
-});
+catalogAdminRoutes.put(
+  '/packages/:id',
+  packageForm,
+  validate({ params: schemas.idParams, body: schemas.packageBody }),
+  async (req, res) => {
+    res.json(await catalog.savePackage(req.valid.params.id, req.valid.body, req.file));
+  }
+);
 catalogAdminRoutes.get('/packages/:id/photo', validate({ params: schemas.idParams }), async (req, res) => {
   await sendPackagePhoto(req, res, true);
 });
-catalogAdminRoutes.patch('/packages/:id/visibility', validate({ params: schemas.idParams, body: schemas.visibilityBody }), async (req, res) => {
-  res.json(await catalog.setPackageVisibility(req.valid.params.id, req.valid.body.visible));
-});
-catalogAdminRoutes.patch('/packages/:id/archived', validate({ params: schemas.idParams, body: schemas.archivedBody }), async (req, res) => {
-  res.json(await catalog.setPackageArchived(req.valid.params.id, req.valid.body.archived));
-});
+catalogAdminRoutes.patch(
+  '/packages/:id/visibility',
+  validate({ params: schemas.idParams, body: schemas.visibilityBody }),
+  async (req, res) => {
+    res.json(await catalog.setPackageVisibility(req.valid.params.id, req.valid.body.visible));
+  }
+);
+catalogAdminRoutes.patch(
+  '/packages/:id/archived',
+  validate({ params: schemas.idParams, body: schemas.archivedBody }),
+  async (req, res) => {
+    res.json(await catalog.setPackageArchived(req.valid.params.id, req.valid.body.archived));
+  }
+);
 
 // Additional charges (add-ons): create (201), edit, archive/restore, delete (only when no booking has it)
 catalogAdminRoutes.post('/addons', validate({ body: schemas.addonBody }), async (req, res) => {
   res.status(201).json(await catalog.saveAddon(null, req.valid.body));
 });
-catalogAdminRoutes.put('/addons/:id', validate({ params: schemas.idParams, body: schemas.addonBody }), async (req, res) => {
-  res.json(await catalog.saveAddon(req.valid.params.id, req.valid.body));
-});
-catalogAdminRoutes.patch('/addons/:id/archived', validate({ params: schemas.idParams, body: schemas.archivedBody }), async (req, res) => {
-  res.json(await catalog.setAddonArchived(req.valid.params.id, req.valid.body.archived));
-});
+catalogAdminRoutes.put(
+  '/addons/:id',
+  validate({ params: schemas.idParams, body: schemas.addonBody }),
+  async (req, res) => {
+    res.json(await catalog.saveAddon(req.valid.params.id, req.valid.body));
+  }
+);
+catalogAdminRoutes.patch(
+  '/addons/:id/archived',
+  validate({ params: schemas.idParams, body: schemas.archivedBody }),
+  async (req, res) => {
+    res.json(await catalog.setAddonArchived(req.valid.params.id, req.valid.body.archived));
+  }
+);
 catalogAdminRoutes.delete('/addons/:id', validate({ params: schemas.idParams }), async (req, res) => {
   res.json(await catalog.deleteAddon(req.valid.params.id));
 });
@@ -148,12 +172,20 @@ catalogAdminRoutes.delete('/addons/:id', validate({ params: schemas.idParams }),
 catalogAdminRoutes.post('/dishes', validate({ body: schemas.dishBody }), async (req, res) => {
   res.status(201).json(await catalog.saveDish(null, req.valid.body));
 });
-catalogAdminRoutes.put('/dishes/:id', validate({ params: schemas.idParams, body: schemas.dishBody }), async (req, res) => {
-  res.json(await catalog.saveDish(req.valid.params.id, req.valid.body));
-});
-catalogAdminRoutes.patch('/dishes/:id/archived', validate({ params: schemas.idParams, body: schemas.archivedBody }), async (req, res) => {
-  res.json(await catalog.setDishArchived(req.valid.params.id, req.valid.body.archived));
-});
+catalogAdminRoutes.put(
+  '/dishes/:id',
+  validate({ params: schemas.idParams, body: schemas.dishBody }),
+  async (req, res) => {
+    res.json(await catalog.saveDish(req.valid.params.id, req.valid.body));
+  }
+);
+catalogAdminRoutes.patch(
+  '/dishes/:id/archived',
+  validate({ params: schemas.idParams, body: schemas.archivedBody }),
+  async (req, res) => {
+    res.json(await catalog.setDishArchived(req.valid.params.id, req.valid.body.archived));
+  }
+);
 catalogAdminRoutes.delete('/dishes/:id', validate({ params: schemas.idParams }), async (req, res) => {
   res.json(await catalog.deleteDish(req.valid.params.id));
 });

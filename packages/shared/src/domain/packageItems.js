@@ -49,7 +49,13 @@ export function packageItemsFor(pkg, guests, itemCounts = {}) {
   const counts = helperItemCounts(itemCounts);
   return ((pkg && pkg.items) || []).map((item) => {
     const grows = itemGrows(item, pkg);
-    const base = { name: helperLabel(item.name), qty: item.qty ?? null, defaultQty: item.qty ?? null, grows, toConfirm: false };
+    const base = {
+      name: helperLabel(item.name),
+      qty: item.qty ?? null,
+      defaultQty: item.qty ?? null,
+      grows,
+      toConfirm: false
+    };
     if (!extra || !item.qty) return base;
     if (grows) return { ...base, qty: Math.ceil((item.qty * Number(guests)) / Number(pkg.guests)) };
     const set = Number(counts[base.name]);
@@ -58,7 +64,8 @@ export function packageItemsFor(pkg, guests, itemCounts = {}) {
 }
 
 /** The items whose count the admin sets in the quotation for this guest count (none at or below the default). */
-export const itemsToConfirm = (pkg, guests) => (extraGuestsFor(pkg, guests) ? packageItemsFor(pkg, guests).filter((item) => item.toConfirm) : []);
+export const itemsToConfirm = (pkg, guests) =>
+  extraGuestsFor(pkg, guests) ? packageItemsFor(pkg, guests).filter((item) => item.toConfirm) : [];
 
 /** One item as text for this booking: "600 Porcelain Plates", "Buffet Table", or "Elegant Food Warmers (to confirm)". */
 export const formatBookingItem = (item) => (item.toConfirm ? `${item.name} (to confirm)` : formatPackageItem(item));
@@ -79,9 +86,17 @@ export const usesGuestRule = (reservation) => !reservation.quotation || reservat
  */
 export function bookingItems(reservation) {
   const pkg = reservation.package;
-  if (!usesGuestRule(reservation)) return ((pkg && pkg.items) || []).map((item) => ({ name: helperLabel(item.name), qty: item.qty ?? null, defaultQty: item.qty ?? null, grows: false, toConfirm: false }));
+  if (!usesGuestRule(reservation))
+    return ((pkg && pkg.items) || []).map((item) => ({
+      name: helperLabel(item.name),
+      qty: item.qty ?? null,
+      defaultQty: item.qty ?? null,
+      grows: false,
+      toConfirm: false
+    }));
   return packageItemsFor(pkg, reservation.guests, reservation.quotation && reservation.quotation.itemCounts);
 }
 
 /** How many guests a saved booking has above its package's default, 0 for a booking quoted before the rule (usesGuestRule). */
-export const bookingExtraGuests = (reservation) => (usesGuestRule(reservation) ? extraGuestsFor(reservation.package, reservation.guests) : 0);
+export const bookingExtraGuests = (reservation) =>
+  usesGuestRule(reservation) ? extraGuestsFor(reservation.package, reservation.guests) : 0;

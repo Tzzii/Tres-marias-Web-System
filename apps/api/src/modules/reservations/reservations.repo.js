@@ -95,7 +95,9 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     minDownpayment: row.min_downpayment,
     venue: { name: row.venue_name, address: row.venue_address, city: row.city, accessNotes: row.access_notes },
     addonIds: addonLinks.map((link) => link.addon_id),
-    addonQty: Object.fromEntries(addonLinks.filter((link) => link.has_quantity || link.qty !== 1).map((link) => [link.addon_id, link.qty])),
+    addonQty: Object.fromEntries(
+      addonLinks.filter((link) => link.has_quantity || link.qty !== 1).map((link) => [link.addon_id, link.qty])
+    ),
     status: row.status,
     estimate: parseJson(row.estimate),
     quotation: parseJson(row.quotation),
@@ -114,9 +116,20 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     record.quotation = { ...record.quotation, itemCounts: helperItemCounts(record.quotation.itemCounts) };
   }
   if (row.service_type === RENTAL_SERVICE) {
-    record.rentalItems = rentalLines.map((line) => ({ itemId: line.item_id, name: line.name, qty: line.qty, price: line.price, damageFee: line.damage_fee }));
+    record.rentalItems = rentalLines.map((line) => ({
+      itemId: line.item_id,
+      name: line.name,
+      qty: line.qty,
+      price: line.price,
+      damageFee: line.damage_fee
+    }));
     record.fulfilment = row.fulfilment;
-    record.damageCharges = damageLines.map((line) => ({ itemId: line.item_id, name: line.name, qty: line.qty, fee: line.fee }));
+    record.damageCharges = damageLines.map((line) => ({
+      itemId: line.item_id,
+      name: line.name,
+      qty: line.qty,
+      fee: line.fee
+    }));
   }
   return record;
 }
@@ -169,57 +182,58 @@ export async function findReservations(db, filter = {}) {
   );
   if (!rows.length) return [];
 
-  const [[addonLinks], [activity], [rentalLines], [damageLines], [payments], [refunds], [qrs], [pieces]] = await Promise.all([
-    db.query(
-      `SELECT ra.reservation_ref, ra.addon_id, ra.qty, a.has_quantity
+  const [[addonLinks], [activity], [rentalLines], [damageLines], [payments], [refunds], [qrs], [pieces]] =
+    await Promise.all([
+      db.query(
+        `SELECT ra.reservation_ref, ra.addon_id, ra.qty, a.has_quantity
          FROM reservation_addons ra JOIN reservations r ON r.ref = ra.reservation_ref JOIN addons a ON a.id = ra.addon_id
          ${where} ORDER BY ra.reservation_ref, ra.sort_order`,
-      params
-    ),
-    db.query(
-      `SELECT act.reservation_ref, act.at, act.actor, act.text
+        params
+      ),
+      db.query(
+        `SELECT act.reservation_ref, act.at, act.actor, act.text
          FROM reservation_activity act JOIN reservations r ON r.ref = act.reservation_ref
          ${where} ORDER BY act.id`,
-      params
-    ),
-    db.query(
-      `SELECT l.reservation_ref, l.item_id, l.name, l.qty, l.price, l.damage_fee
+        params
+      ),
+      db.query(
+        `SELECT l.reservation_ref, l.item_id, l.name, l.qty, l.price, l.damage_fee
          FROM reservation_rental_items l JOIN reservations r ON r.ref = l.reservation_ref
          ${where} ORDER BY l.reservation_ref, l.sort_order`,
-      params
-    ),
-    db.query(
-      `SELECT d.reservation_ref, d.item_id, d.name, d.qty, d.fee
+        params
+      ),
+      db.query(
+        `SELECT d.reservation_ref, d.item_id, d.name, d.qty, d.fee
          FROM reservation_damage_charges d JOIN reservations r ON r.ref = d.reservation_ref
          ${where} ORDER BY d.reservation_ref, d.item_id`,
-      params
-    ),
-    db.query(
-      `SELECT pay.id, pay.ref, pay.customer_id, pay.amount, pay.kind, pay.method, pay.reference_no, pay.proof_name, pay.status,
+        params
+      ),
+      db.query(
+        `SELECT pay.id, pay.ref, pay.customer_id, pay.amount, pay.kind, pay.method, pay.reference_no, pay.proof_name, pay.status,
               pay.submitted_at, pay.verified_at, pay.receipt_no, pay.reject_reason
          FROM payments pay JOIN reservations r ON r.ref = pay.ref
          ${where} ORDER BY pay.submitted_at DESC, pay.id`,
-      params
-    ),
-    db.query(
-      `SELECT f.*, a.name AS admin_name
+        params
+      ),
+      db.query(
+        `SELECT f.*, a.name AS admin_name
          FROM refunds f JOIN reservations r ON r.ref = f.ref LEFT JOIN admins a ON a.id = f.recorded_by
          ${where} ORDER BY f.recorded_at DESC, CAST(SUBSTRING(f.id, 4) AS UNSIGNED), f.id`,
-      params
-    ),
-    db.query(
-      `SELECT q.id, q.ref, q.amount, q.status, q.expires_at
+        params
+      ),
+      db.query(
+        `SELECT q.id, q.ref, q.amount, q.status, q.expires_at
          FROM qr_payments q JOIN reservations r ON r.ref = q.ref
          ${where ? `${where} AND` : 'WHERE'} q.status = 'pending' ORDER BY q.created_at DESC`,
-      params
-    ),
-    db.query(
-      `SELECT a.reservation_ref, SUM(a.qty) AS pieces
+        params
+      ),
+      db.query(
+        `SELECT a.reservation_ref, SUM(a.qty) AS pieces
          FROM inventory_allocations a JOIN reservations r ON r.ref = a.reservation_ref
          ${where} GROUP BY a.reservation_ref`,
-      params
-    )
-  ]);
+        params
+      )
+    ]);
 
   const byRef = {
     addonLinks: groupBy(addonLinks, 'reservation_ref'),
@@ -245,14 +259,23 @@ export async function findReservations(db, filter = {}) {
     customerMobile: row.customer_mobile,
     payments: (byRef.payments.get(row.ref) || []).map(toPayment),
     refunds: (byRef.refunds.get(row.ref) || []).map(toRefund),
-    pendingQrs: (byRef.qrs.get(row.ref) || []).map((qr) => ({ id: qr.id, amount: qr.amount, status: qr.status, expiresAt: qr.expires_at })),
+    pendingQrs: (byRef.qrs.get(row.ref) || []).map((qr) => ({
+      id: qr.id,
+      amount: qr.amount,
+      status: qr.status,
+      expiresAt: qr.expires_at
+    })),
     piecesOut: byRef.pieces.get(row.ref) || 0
   }));
 }
 
 /** How many of this customer's events are completed (the admin's "past events" on a booking). */
 export async function countCompleted(db, customerId) {
-  const row = first(await db.query("SELECT COUNT(*) AS n FROM reservations WHERE customer_id = ? AND status = 'completed'", [customerId]));
+  const row = first(
+    await db.query("SELECT COUNT(*) AS n FROM reservations WHERE customer_id = ? AND status = 'completed'", [
+      customerId
+    ])
+  );
   return Number(row.n);
 }
 
@@ -275,7 +298,12 @@ export async function findTestimonial(db, ref) {
     customerId: row.customer_id,
     ref: row.ref,
     rating: row.rating,
-    categories: { food: row.cat_food, service: row.cat_service, punctuality: row.cat_punctuality, setup: row.cat_setup },
+    categories: {
+      food: row.cat_food,
+      service: row.cat_service,
+      punctuality: row.cat_punctuality,
+      setup: row.cat_setup
+    },
     body: row.body,
     createdAt: row.created_at,
     status: row.status,
@@ -295,7 +323,9 @@ export async function findTestimonial(db, ref) {
  * Lock order for every write: the availability lock (when needed), then this row, then the chat thread.
  */
 export async function lockOwner(conn, ref) {
-  const row = first(await conn.query('SELECT ref, customer_id, status FROM reservations WHERE ref = ? FOR UPDATE', [ref]));
+  const row = first(
+    await conn.query('SELECT ref, customer_id, status FROM reservations WHERE ref = ? FOR UPDATE', [ref])
+  );
   return row && { ref: row.ref, customerId: row.customer_id, status: row.status };
 }
 
@@ -336,17 +366,19 @@ export async function refsWithPrefix(conn, prefix) {
  */
 export async function rentalStockInputs(db, date) {
   const [[items], [held], [lines], [allocations], [addonLinks]] = await Promise.all([
-    db.query('SELECT id, name, total, damaged, low_stock_at, rentable, archived, rent_price, damage_fee, addon_id FROM inventory_items ORDER BY code'),
-    db.query('SELECT ref, date, status, service_type FROM reservations WHERE date = ? AND status IN (?)', [date, HOLDS_DATE]),
+    db.query(
+      'SELECT id, name, total, damaged, low_stock_at, rentable, archived, rent_price, damage_fee, addon_id FROM inventory_items ORDER BY code'
+    ),
+    db.query('SELECT ref, date, status, service_type FROM reservations WHERE date = ? AND status IN (?)', [
+      date,
+      HOLDS_DATE
+    ]),
     db.query(
       `SELECT l.reservation_ref, l.item_id, l.qty FROM reservation_rental_items l JOIN reservations r ON r.ref = l.reservation_ref
         WHERE r.date = ? AND r.status IN (?)`,
       [date, HOLDS_DATE]
     ),
-    db.query(
-      'SELECT item_id, reservation_ref, qty FROM inventory_allocations',
-      []
-    ),
+    db.query('SELECT item_id, reservation_ref, qty FROM inventory_allocations', []),
     // The additional charges of those bookings, for the pieces of stock-tracked ones (a tent size)
     db.query(
       `SELECT ra.reservation_ref, ra.addon_id, ra.qty FROM reservation_addons ra JOIN reservations r ON r.ref = ra.reservation_ref
@@ -401,10 +433,37 @@ export async function insertReservation(conn, r) {
                                terms_version)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      r.ref, r.customerId, r.eventName, r.occasion, r.date, r.startTime, r.endTime || null, r.guests, r.packageId, r.serviceType, r.fulfilment || null,
-      toJson(r.menu), r.foodNotes, toJson(r.styling ?? null), r.pricePerPlate, r.minDownpayment, r.venue.name, r.venue.address, r.venue.city, r.venue.accessNotes, r.status,
-      toJson(r.estimate), toJson(r.quotation), r.downpaymentDue, r.preparingAt ?? null, r.notes, r.declineReason, r.cancelReason, r.cancelledBy ?? null,
-      r.createdAt, r.termsVersion || ''
+      r.ref,
+      r.customerId,
+      r.eventName,
+      r.occasion,
+      r.date,
+      r.startTime,
+      r.endTime || null,
+      r.guests,
+      r.packageId,
+      r.serviceType,
+      r.fulfilment || null,
+      toJson(r.menu),
+      r.foodNotes,
+      toJson(r.styling ?? null),
+      r.pricePerPlate,
+      r.minDownpayment,
+      r.venue.name,
+      r.venue.address,
+      r.venue.city,
+      r.venue.accessNotes,
+      r.status,
+      toJson(r.estimate),
+      toJson(r.quotation),
+      r.downpaymentDue,
+      r.preparingAt ?? null,
+      r.notes,
+      r.declineReason,
+      r.cancelReason,
+      r.cancelledBy ?? null,
+      r.createdAt,
+      r.termsVersion || ''
     ]
   );
 }
@@ -420,9 +479,10 @@ export async function insertAddons(conn, ref, addonIds, addonQty) {
 /** A rental's lines ([{ itemId, name, qty, price, damageFee }]), in order. */
 export async function insertRentalLines(conn, ref, lines) {
   if (!lines.length) return;
-  await conn.query('INSERT INTO reservation_rental_items (reservation_ref, item_id, name, qty, price, damage_fee, sort_order) VALUES ?', [
-    lines.map((line, index) => [ref, line.itemId, line.name, line.qty, line.price, line.damageFee, index])
-  ]);
+  await conn.query(
+    'INSERT INTO reservation_rental_items (reservation_ref, item_id, name, qty, price, damage_fee, sort_order) VALUES ?',
+    [lines.map((line, index) => [ref, line.itemId, line.name, line.qty, line.price, line.damageFee, index])]
+  );
 }
 
 /** Swap a rental's lines for a new list (the admin's edit of the rented items), in the new list's order. */
@@ -491,10 +551,19 @@ export async function updateReservation(conn, ref, changes) {
 
 /** Add an entry to the booking's audit trail (always in the transaction of the change it describes). */
 export async function insertActivity(conn, ref, { at, actor, text }) {
-  await conn.query('INSERT INTO reservation_activity (reservation_ref, at, actor, text) VALUES (?, ?, ?, ?)', [ref, at, actor, text]);
+  await conn.query('INSERT INTO reservation_activity (reservation_ref, at, actor, text) VALUES (?, ?, ?, ?)', [
+    ref,
+    at,
+    actor,
+    text
+  ]);
 }
 
 /** Mark a booking cancelled, with the reason and who cancelled it (`by`: 'customer' or 'admin'). */
 export async function setCancelled(conn, ref, reason, by) {
-  await conn.query("UPDATE reservations SET status = 'cancelled', cancel_reason = ?, cancelled_by = ? WHERE ref = ?", [reason, by, ref]);
+  await conn.query("UPDATE reservations SET status = 'cancelled', cancel_reason = ?, cancelled_by = ? WHERE ref = ?", [
+    reason,
+    by,
+    ref
+  ]);
 }

@@ -77,7 +77,8 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
         const raw = store.getItem(lockKey);
         if (!raw) continue;
         const lock = JSON.parse(raw);
-        if (lock && lock.unlockTicket && lock.user && lock.unlockUntil > Date.now()) return { ...lock, persistent: store === localStorage };
+        if (lock && lock.unlockTicket && lock.user && lock.unlockUntil > Date.now())
+          return { ...lock, persistent: store === localStorage };
         store.removeItem(lockKey);
       } catch (e) {
         /* ignore unreadable storage */
@@ -87,7 +88,8 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
   };
 
   // True when an idle session can be locked rather than ended: this portal locks, and its ticket is still good
-  const canLock = (session) => lockOnIdle && Boolean(session && session.unlockTicket && session.unlockUntil > Date.now());
+  const canLock = (session) =>
+    lockOnIdle && Boolean(session && session.unlockTicket && session.unlockUntil > Date.now());
 
   // Turn an idle session into a lock record: write the record first (so other tabs see it when the session
   // disappears), then drop the session and its token. Returns the record.
@@ -103,7 +105,8 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
   };
 
   // True when the last activity was longer ago than the idle limit
-  const isExpired = (session) => session && session.lastActivity && Date.now() - session.lastActivity > RULES.idleMinutes * 60000;
+  const isExpired = (session) =>
+    session && session.lastActivity && Date.now() - session.lastActivity > RULES.idleMinutes * 60000;
 
   /** Holds the current session and provides signIn / signOut / updateUser to the app. */
   function AuthProvider({ children }) {
@@ -137,7 +140,13 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
     }, []);
 
     // The fields of a session that are saved (the unlock ticket travels with the token)
-    const stored = (s) => ({ token: s.token, user: s.user, lastActivity: s.lastActivity, unlockTicket: s.unlockTicket, unlockUntil: s.unlockUntil });
+    const stored = (s) => ({
+      token: s.token,
+      user: s.user,
+      lastActivity: s.lastActivity,
+      unlockTicket: s.unlockTicket,
+      unlockUntil: s.unlockUntil
+    });
 
     // Start a session after a successful login (or an unlock); a lock record left over is removed
     const signIn = useCallback(
@@ -242,7 +251,10 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
 
     // Close on sign-out / lock and reconnect when a renewed or different token is saved.
     const sessionToken = session?.token;
-    useEffect(() => (sessionToken ? startRealtimeSync(sessionToken, { getToken: () => readSession()?.token }) : undefined), [sessionToken]);
+    useEffect(
+      () => (sessionToken ? startRealtimeSync(sessionToken, { getToken: () => readSession()?.token }) : undefined),
+      [sessionToken]
+    );
 
     // The API replaced the token (a customer changed or reset their password; older tokens stopped working).
     // Saved to storage right away, not in a state updater that React may run later: the API client
@@ -259,7 +271,16 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
     );
 
     const value = useMemo(
-      () => ({ session, user: session ? session.user : null, isAuthenticated: Boolean(session), signIn, signOut, updateUser, endReason, locked }),
+      () => ({
+        session,
+        user: session ? session.user : null,
+        isAuthenticated: Boolean(session),
+        signIn,
+        signOut,
+        updateUser,
+        endReason,
+        locked
+      }),
       [session, signIn, signOut, updateUser, endReason, locked]
     );
 

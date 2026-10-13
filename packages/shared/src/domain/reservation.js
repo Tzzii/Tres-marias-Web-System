@@ -35,18 +35,24 @@ export function quotationStaleReason(reservation) {
   const quote = reservation.quotation;
   if (!quote) return '';
   if (isRental(reservation.serviceType)) {
-    if ((quote.rental || 0) !== rentalTotal(reservation.rentalItems)) return 'The rented items changed after it was sent.';
-    if ((quote.fulfilment || 'pickup') !== reservation.fulfilment) return `It was sent for ${quote.fulfilment === 'delivery' ? 'delivery' : 'pick up'}, but this rental is now ${reservation.fulfilment === 'delivery' ? 'delivered' : 'picked up'}.`;
+    if ((quote.rental || 0) !== rentalTotal(reservation.rentalItems))
+      return 'The rented items changed after it was sent.';
+    if ((quote.fulfilment || 'pickup') !== reservation.fulfilment)
+      return `It was sent for ${quote.fulfilment === 'delivery' ? 'delivery' : 'pick up'}, but this rental is now ${reservation.fulfilment === 'delivery' ? 'delivered' : 'picked up'}.`;
     const damage = damageTotal(reservation.damageCharges);
-    if ((quote.damage || 0) !== damage) return `Damage charges of ₱${(damage - (quote.damage || 0)).toLocaleString('en-PH')} were recorded after it was sent.`;
+    if ((quote.damage || 0) !== damage)
+      return `Damage charges of ₱${(damage - (quote.damage || 0)).toLocaleString('en-PH')} were recorded after it was sent.`;
     return '';
   }
-  if (quote.serviceType !== reservation.serviceType) return `It was sent as ${quote.serviceType}, but this booking is now ${reservation.serviceType}.`;
+  if (quote.serviceType !== reservation.serviceType)
+    return `It was sent as ${quote.serviceType}, but this booking is now ${reservation.serviceType}.`;
   const plates = includesFood(reservation.serviceType) ? reservation.guests : 0;
-  if (quote.plates !== plates) return `It was sent for ${quote.plates} guests, but this booking is now for ${reservation.guests}.`;
+  if (quote.plates !== plates)
+    return `It was sent for ${quote.plates} guests, but this booking is now for ${reservation.guests}.`;
   if (quote.extraGuests !== undefined && quote.packageGuests) {
     const extraNow = Math.max(0, reservation.guests - quote.packageGuests);
-    if (extraNow !== quote.extraGuests) return `It was sent with ${quote.extraGuests || 'no'} guests above the package's ${quote.packageGuests}, but this booking now has ${extraNow || 'none'}.`;
+    if (extraNow !== quote.extraGuests)
+      return `It was sent with ${quote.extraGuests || 'no'} guests above the package's ${quote.packageGuests}, but this booking now has ${extraNow || 'none'}.`;
   }
   return '';
 }
@@ -96,11 +102,22 @@ export function rentalStock({ inventory, reservations }, date, excludeRef) {
   const events = sameDay.filter((r) => !isRental(r.serviceType));
   const stock = {};
   inventory.forEach((item) => {
-    const booked = rentals.reduce((sum, r) => sum + Math.max(item.allocations[r.ref] || 0, ((r.rentalItems || []).find((line) => line.itemId === item.id) || { qty: 0 }).qty), 0);
+    const booked = rentals.reduce(
+      (sum, r) =>
+        sum +
+        Math.max(
+          item.allocations[r.ref] || 0,
+          ((r.rentalItems || []).find((line) => line.itemId === item.id) || { qty: 0 }).qty
+        ),
+      0
+    );
     const atEvents = events.reduce((sum, r) => sum + Math.max(item.allocations[r.ref] || 0, addonPieces(r, item)), 0);
     // Pieces still physically out for another date, a closed booking or no event cannot be rented yet.
     const heldRefs = new Set(sameDay.map((r) => r.ref));
-    const elsewhere = Object.entries(item.allocations).reduce((sum, [ref, qty]) => sum + (ref !== excludeRef && !heldRefs.has(ref) ? qty : 0), 0);
+    const elsewhere = Object.entries(item.allocations).reduce(
+      (sum, [ref, qty]) => sum + (ref !== excludeRef && !heldRefs.has(ref) ? qty : 0),
+      0
+    );
     stock[item.id] = Math.max(0, item.total - item.damaged - booked - atEvents - elsewhere);
   });
   return stock;
@@ -130,7 +147,9 @@ export function addonStockProblem(data, booking, date, addons, excludeRef) {
   const left = rentalStock(data, date, excludeRef)[line.itemId] || 0;
   const addon = addons.find((a) => a.id === line.addonId);
   const what = addon ? addon.name : line.name;
-  const message = left ? `Only ${left} ${what} ${left === 1 ? 'is' : 'are'} free on ${formatDate(date)}.` : `${what} is fully booked on ${formatDate(date)}.`;
+  const message = left
+    ? `Only ${left} ${what} ${left === 1 ? 'is' : 'are'} free on ${formatDate(date)}.`
+    : `${what} is fully booked on ${formatDate(date)}.`;
   return { message, field: `addonQty.${line.addonId}` };
 }
 
@@ -161,9 +180,14 @@ export function rentalAvailability(data, date, excludeRef) {
  * delivery). `pkg` is the booking's package. Gives the estimate of a rental with no quotation yet, and
  * the old and new totals the audit trail and the customer's chat show after an edit.
  */
-export function rentalQuote(pkg, reservation, { rentalItems = reservation.rentalItems, fulfilment = reservation.fulfilment } = {}) {
+export function rentalQuote(
+  pkg,
+  reservation,
+  { rentalItems = reservation.rentalItems, fulfilment = reservation.fulfilment } = {}
+) {
   const quote = reservation.quotation;
-  const delivery = fulfilment !== 'delivery' ? 0 : quote && quote.fulfilment === 'delivery' ? quote.deliveryFee : RENTAL.deliveryFee;
+  const delivery =
+    fulfilment !== 'delivery' ? 0 : quote && quote.fulfilment === 'delivery' ? quote.deliveryFee : RENTAL.deliveryFee;
   return computeQuote({
     pkg,
     serviceType: reservation.serviceType,
@@ -207,5 +231,9 @@ export function approvalMessage(reservation, money) {
  */
 export function menuDishes(reservation) {
   if (!includesFood(reservation.serviceType) || !reservation.menu) return [];
-  return DISH_CATEGORIES.flatMap(({ key, label }) => dishesInMenu(reservation.menu, key).filter(Boolean).map((name, i) => ({ key: `${key}-${i}`, label, name })));
+  return DISH_CATEGORIES.flatMap(({ key, label }) =>
+    dishesInMenu(reservation.menu, key)
+      .filter(Boolean)
+      .map((name, i) => ({ key: `${key}-${i}`, label, name }))
+  );
 }

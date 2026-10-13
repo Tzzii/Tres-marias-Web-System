@@ -45,7 +45,10 @@ const baseComponents = {
   MuiButton: {
     defaultProps: { disableElevation: true },
     // Small buttons ("View all", "Open", Prev / Next) are 36px tall on touch screens
-    styleOverrides: { root: { borderRadius: 10, transition: `all 0.2s ${tokens.easeStandard}` }, sizeSmall: { [TOUCH]: { minHeight: 36 } } }
+    styleOverrides: {
+      root: { borderRadius: 10, transition: `all 0.2s ${tokens.easeStandard}` },
+      sizeSmall: { [TOUCH]: { minHeight: 36 } }
+    }
   },
   // Small icon buttons (close X, show password, month arrows, copy) are 36px or more on touch screens.
   // A button that sets its own padding in `sx` keeps it, because `sx` is applied after these styles.
@@ -57,7 +60,12 @@ const baseComponents = {
   MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
   MuiTooltip: {
     styleOverrides: {
-      tooltip: { backgroundColor: tokens.headerBg, color: tokens.textLight, border: `1px solid ${tokens.cardDarkBorder}`, fontSize: 12 }
+      tooltip: {
+        backgroundColor: tokens.headerBg,
+        color: tokens.textLight,
+        border: `1px solid ${tokens.cardDarkBorder}`,
+        fontSize: 12
+      }
     }
   },
   MuiChip: { styleOverrides: { root: { fontWeight: 600 } } }
@@ -131,7 +139,10 @@ const lightComponents = {
         // Full-screen dialogs keep no margin at all.
         '@media (max-width: 599.95px)': {
           '&:not(.MuiDialog-paperFullScreen)': { margin: 16, maxHeight: 'calc(100% - 32px)' },
-          '&.MuiDialog-paperFullWidth:not(.MuiDialog-paperFullScreen)': { width: 'calc(100% - 32px)', maxWidth: 'calc(100% - 32px)' }
+          '&.MuiDialog-paperFullWidth:not(.MuiDialog-paperFullScreen)': {
+            width: 'calc(100% - 32px)',
+            maxWidth: 'calc(100% - 32px)'
+          }
         }
       }
     }
@@ -143,10 +154,24 @@ export const darkTheme = createTheme({
   ...shared,
   palette: {
     mode: 'dark',
-    primary: { main: darkPalette.gold, light: darkPalette.goldLight, dark: darkPalette.goldDark, contrastText: darkPalette.onGold },
-    secondary: { main: darkPalette.headerBg, light: darkPalette.slate700, dark: darkPalette.bgDeep, contrastText: '#fff' },
+    primary: {
+      main: darkPalette.gold,
+      light: darkPalette.goldLight,
+      dark: darkPalette.goldDark,
+      contrastText: darkPalette.onGold
+    },
+    secondary: {
+      main: darkPalette.headerBg,
+      light: darkPalette.slate700,
+      dark: darkPalette.bgDeep,
+      contrastText: '#fff'
+    },
     background: { default: darkPalette.bgBase, paper: darkPalette.bgPanel },
-    text: { primary: darkPalette.textLight, secondary: darkPalette.textOnDarkSoft, disabled: darkPalette.textOnDarkMuted },
+    text: {
+      primary: darkPalette.textLight,
+      secondary: darkPalette.textOnDarkSoft,
+      disabled: darkPalette.textOnDarkMuted
+    },
     success: { main: darkPalette.green },
     warning: { main: darkPalette.amber },
     info: { main: darkPalette.blue },
@@ -166,7 +191,12 @@ export const lightTheme = createTheme({
   ...shared,
   palette: {
     mode: 'light',
-    primary: { main: darkPalette.headerBg, light: darkPalette.slate700, dark: darkPalette.bgDeep, contrastText: '#fff' },
+    primary: {
+      main: darkPalette.headerBg,
+      light: darkPalette.slate700,
+      dark: darkPalette.bgDeep,
+      contrastText: '#fff'
+    },
     secondary: { main: darkPalette.goldDark, light: darkPalette.gold, dark: '#7a5f28', contrastText: '#fff' },
     background: { default: darkPalette.surfaceSubtle, paper: darkPalette.cardLight },
     text: { primary: darkPalette.textPrimary, secondary: darkPalette.textSecondary, disabled: darkPalette.placeholder },
@@ -188,10 +218,24 @@ export const warmTheme = createTheme({
   ...shared,
   palette: {
     mode: 'light',
-    primary: { main: lightPalette.textPrimary, light: '#4a423c', dark: lightPalette.goldText, contrastText: lightPalette.bgBase },
-    secondary: { main: lightPalette.gold, light: lightPalette.goldLight, dark: lightPalette.goldText, contrastText: lightPalette.textPrimary },
+    primary: {
+      main: lightPalette.textPrimary,
+      light: '#4a423c',
+      dark: lightPalette.goldText,
+      contrastText: lightPalette.bgBase
+    },
+    secondary: {
+      main: lightPalette.gold,
+      light: lightPalette.goldLight,
+      dark: lightPalette.goldText,
+      contrastText: lightPalette.textPrimary
+    },
     background: { default: lightPalette.bgBase, paper: lightPalette.cardLight },
-    text: { primary: lightPalette.textPrimary, secondary: lightPalette.textSecondary, disabled: lightPalette.placeholder },
+    text: {
+      primary: lightPalette.textPrimary,
+      secondary: lightPalette.textSecondary,
+      disabled: lightPalette.placeholder
+    },
     success: { main: '#059669' },
     warning: { main: '#d97706' },
     info: { main: '#2563eb' },
@@ -203,7 +247,13 @@ export const warmTheme = createTheme({
     ...lightComponents,
     ...cssBaseline,
     MuiMenu: {
-      styleOverrides: { paper: { backgroundColor: tokens.cardLight, border: `1px solid ${tokens.divider}`, boxShadow: tokens.shadowDash } }
+      styleOverrides: {
+        paper: {
+          backgroundColor: tokens.cardLight,
+          border: `1px solid ${tokens.divider}`,
+          boxShadow: tokens.shadowDash
+        }
+      }
     }
   }
 });

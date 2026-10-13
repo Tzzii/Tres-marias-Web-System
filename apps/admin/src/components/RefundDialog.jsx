@@ -2,14 +2,28 @@ import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import InputAdornment from '@mui/material/InputAdornment';
-import { AlertBanner, AppDialog, BusyButton, DateField, FormField, REFUND_METHODS, SelectField, paymentApi, peso, referenceProblem, todayISO } from '@tm/shared';
+import {
+  AlertBanner,
+  AppDialog,
+  BusyButton,
+  DateField,
+  FormField,
+  REFUND_METHODS,
+  SelectField,
+  paymentApi,
+  peso,
+  referenceProblem,
+  todayISO
+} from '@tm/shared';
 
 // The ways a refund can be sent, for the dropdown
 const METHOD_OPTIONS = Object.entries(REFUND_METHODS).map(([value, label]) => ({ value, label }));
 
 /** The notice shown once a refund is recorded (a refund of ₱0 means everything paid was kept). */
 export const refundRecordedText = (refund) =>
-  refund.amount > 0 ? `Refund of ${peso(refund.amount)} recorded. The customer was told in their chat.` : 'Recorded that nothing is returned. The customer was told in their chat.';
+  refund.amount > 0
+    ? `Refund of ${peso(refund.amount)} recorded. The customer was told in their chat.`
+    : 'Recorded that nothing is returned. The customer was told in their chat.';
 
 /**
  * Dialog to record money returned to a customer, after it was sent outside the system (GCash, bank
@@ -55,12 +69,15 @@ export default function RefundDialog({ open, onClose, booking, onRecorded }) {
   // The same checks as recordRefund, so most mistakes show before anything is sent
   const check = () => {
     const found = {};
-    if (!typed || amount > due) found.amount = `Enter a whole amount from ${peso(overpayment ? 1 : 0)} to ${peso(due)}.`;
+    if (!typed || amount > due)
+      found.amount = `Enter a whole amount from ${peso(overpayment ? 1 : 0)} to ${peso(due)}.`;
     else if (overpayment && amount !== due) found.amount = `Return the whole overpayment of ${peso(due)}.`;
-    if (keeps && values.reason.trim().length < 5) found.reason = `Tell the customer why ${nothingSent ? '' : 'part of '}the payment is kept (at least 5 characters).`;
+    if (keeps && values.reason.trim().length < 5)
+      found.reason = `Tell the customer why ${nothingSent ? '' : 'part of '}the payment is kept (at least 5 characters).`;
     if (!nothingSent) {
       if (!cash && !values.referenceNo.trim()) found.referenceNo = 'Enter the reference number of the refund.';
-      else if (!cash && referenceProblem(values.referenceNo.trim())) found.referenceNo = referenceProblem(values.referenceNo.trim());
+      else if (!cash && referenceProblem(values.referenceNo.trim()))
+        found.referenceNo = referenceProblem(values.referenceNo.trim());
       if (!values.sentOn) found.sentOn = 'Enter the date the refund was sent.';
       else if (values.sentOn > todayISO()) found.sentOn = 'The date sent cannot be later than today.';
     }
@@ -122,14 +139,22 @@ export default function RefundDialog({ open, onClose, booking, onRecorded }) {
           onChange={set('amount')}
           disabled={overpayment}
           error={errors.amount}
-          hint={overpayment ? 'The whole overpayment is returned.' : `${peso(due)} is due. Return less (₱0 keeps all of it) only with a reason.`}
+          hint={
+            overpayment
+              ? 'The whole overpayment is returned.'
+              : `${peso(due)} is due. Return less (₱0 keeps all of it) only with a reason.`
+          }
           InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
           inputProps={{ inputMode: 'numeric' }}
         />
         {keeps && (
           <FormField
             id="refund-reason"
-            label={nothingSent ? 'Why the payment is kept (shown to the customer)' : 'Why part of the payment is kept (shown to the customer)'}
+            label={
+              nothingSent
+                ? 'Why the payment is kept (shown to the customer)'
+                : 'Why part of the payment is kept (shown to the customer)'
+            }
             multiline
             minRows={2}
             value={values.reason}
@@ -142,7 +167,14 @@ export default function RefundDialog({ open, onClose, booking, onRecorded }) {
         {/* How and when the money went back; nothing to fill in when nothing is returned */}
         {!nothingSent && (
           <>
-            <SelectField id="refund-method" label="Sent by" value={values.method} onChange={set('method')} options={METHOD_OPTIONS} error={errors.method} />
+            <SelectField
+              id="refund-method"
+              label="Sent by"
+              value={values.method}
+              onChange={set('method')}
+              options={METHOD_OPTIONS}
+              error={errors.method}
+            />
             {/* Cash has no reference number */}
             {!cash && (
               <FormField
@@ -155,7 +187,14 @@ export default function RefundDialog({ open, onClose, booking, onRecorded }) {
                 inputProps={{ maxLength: 30 }}
               />
             )}
-            <DateField id="refund-sent-on" label="Date sent" mode="past" value={values.sentOn} onChange={set('sentOn')} error={errors.sentOn} />
+            <DateField
+              id="refund-sent-on"
+              label="Date sent"
+              mode="past"
+              value={values.sentOn}
+              onChange={set('sentOn')}
+              error={errors.sentOn}
+            />
           </>
         )}
       </Box>

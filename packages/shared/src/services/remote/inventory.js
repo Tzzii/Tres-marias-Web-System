@@ -19,7 +19,8 @@ const itemNotFound = () => new ApiError('NOT_FOUND', 'Item not found.');
 const rentalNotFound = () => new ApiError('NOT_FOUND', 'We could not find this reservation.');
 
 /** Every item (archived ones only when asked), by category order then name, with its counts and where its pieces are. */
-export const listInventory = ({ includeArchived = false } = {}) => http.get(`/admin/inventory${includeArchived ? '?includeArchived=true' : ''}`);
+export const listInventory = ({ includeArchived = false } = {}) =>
+  http.get(`/admin/inventory${includeArchived ? '?includeArchived=true' : ''}`);
 
 /** The bookings equipment can be checked out for: approved to confirmed, soonest first. */
 export const listCheckoutEvents = () => http.get('/admin/inventory/checkout-events');
@@ -39,9 +40,10 @@ export async function updateInventoryItem(id, changes, { photo } = {}) {
   return http.patch(`/admin/inventory/${segment(id)}`, body);
 }
 
-export const inventoryPhotoUrl = (item) => item?.photoVersion
-  ? apiUrl(`/rental-items/${segment(item.id)}/photo?v=${segment(item.photoVersion)}`) : null;
-export const adminInventoryPhotoUrl = (item) => fetchFileUrl(`/admin/inventory/${segment(item.id)}/photo?v=${segment(item.photoVersion)}`);
+export const inventoryPhotoUrl = (item) =>
+  item?.photoVersion ? apiUrl(`/rental-items/${segment(item.id)}/photo?v=${segment(item.photoVersion)}`) : null;
+export const adminInventoryPhotoUrl = (item) =>
+  fetchFileUrl(`/admin/inventory/${segment(item.id)}/photo?v=${segment(item.photoVersion)}`);
 
 /**
  * Move pieces between Available, In use and Damaged: 'checkout' { qty, ref? } · 'return' { ref, qty,

@@ -29,12 +29,27 @@ export function AlertBanner({ tone = 'info', title, children, action, sx }) {
     // role="alert" makes screen readers announce errors right away
     <Box
       role={['error', 'warning', 'locked'].includes(tone) ? 'alert' : 'status'}
-      sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start', px: 1.75, py: 1.4, borderRadius: 1.5, backgroundColor: a.bg, border: `1px solid ${a.border}`, color: a.fg, ...sx }}
+      sx={{
+        display: 'flex',
+        gap: 1.25,
+        alignItems: 'flex-start',
+        px: 1.75,
+        py: 1.4,
+        borderRadius: 1.5,
+        backgroundColor: a.bg,
+        border: `1px solid ${a.border}`,
+        color: a.fg,
+        ...sx
+      }}
     >
       <Icon sx={{ fontSize: 19, mt: '1px', flexShrink: 0 }} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {title && <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{title}</Typography>}
-        {children && <Typography component="div" sx={{ fontSize: 12.75, lineHeight: 1.55, mt: title ? 0.25 : 0 }}>{children}</Typography>}
+        {children && (
+          <Typography component="div" sx={{ fontSize: 12.75, lineHeight: 1.55, mt: title ? 0.25 : 0 }}>
+            {children}
+          </Typography>
+        )}
       </Box>
       {action && <Box sx={{ flexShrink: 0, alignSelf: 'center' }}>{action}</Box>}
     </Box>
@@ -44,16 +59,49 @@ export function AlertBanner({ tone = 'info', title, children, action, sx }) {
 /** Centered empty state with the neutral-expression illustration. */
 export function EmptyState({ title, description, action, icon: Icon, compact = false, sx }) {
   return (
-    <Box sx={{ textAlign: 'center', py: compact ? 3 : 5, px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, ...sx }}>
-      <Box sx={{ width: compact ? 60 : 76, height: compact ? 60 : 76, borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: tokens.surfaceMuted, border: `1px solid ${tokens.cardLightBorder}`, mb: 1 }}>
+    <Box
+      sx={{
+        textAlign: 'center',
+        py: compact ? 3 : 5,
+        px: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 1,
+        ...sx
+      }}
+    >
+      <Box
+        sx={{
+          width: compact ? 60 : 76,
+          height: compact ? 60 : 76,
+          borderRadius: '50%',
+          display: 'grid',
+          placeItems: 'center',
+          backgroundColor: tokens.surfaceMuted,
+          border: `1px solid ${tokens.cardLightBorder}`,
+          mb: 1
+        }}
+      >
         {Icon ? (
           <Icon sx={{ fontSize: compact ? 28 : 34, color: tokens.textMuted }} />
         ) : (
-          <Box component="img" src="/images/icons/neutral-expression.svg" alt="" sx={{ width: compact ? 34 : 44, height: compact ? 34 : 44, opacity: 0.7 }} />
+          <Box
+            component="img"
+            src="/images/icons/neutral-expression.svg"
+            alt=""
+            sx={{ width: compact ? 34 : 44, height: compact ? 34 : 44, opacity: 0.7 }}
+          />
         )}
       </Box>
-      <Typography sx={{ fontSize: compact ? 14.5 : 16, fontWeight: 700, color: tokens.textPrimary }}>{title}</Typography>
-      {description && <Typography sx={{ maxWidth: 420, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}>{description}</Typography>}
+      <Typography sx={{ fontSize: compact ? 14.5 : 16, fontWeight: 700, color: tokens.textPrimary }}>
+        {title}
+      </Typography>
+      {description && (
+        <Typography sx={{ maxWidth: 420, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}>
+          {description}
+        </Typography>
+      )}
       {action && <Box sx={{ mt: 1.5 }}>{action}</Box>}
     </Box>
   );
@@ -66,7 +114,13 @@ export function ErrorState({ error, onRetry, sx }) {
       icon={ErrorOutlineRoundedIcon}
       title={error && error.code === 'NOT_FOUND' ? 'Not found' : 'Something went wrong'}
       description={(error && error.message) || 'We could not load this page. Please try again.'}
-      action={onRetry && error?.code !== 'NOT_FOUND' ? <Button variant="outlined" onClick={onRetry}>Try again</Button> : null}
+      action={
+        onRetry && error?.code !== 'NOT_FOUND' ? (
+          <Button variant="outlined" onClick={onRetry}>
+            Try again
+          </Button>
+        ) : null
+      }
       sx={sx}
     />
   );

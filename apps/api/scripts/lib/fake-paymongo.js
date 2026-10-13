@@ -15,8 +15,10 @@ const realFetch = globalThis.fetch;
 const BASE = 'https://api.paymongo.com/v1';
 const intents = new Map(); // intent id -> { amount in centavos, payment id }
 const random = () => crypto.randomBytes(10).toString('hex');
-const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const answer = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+const PIXEL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 globalThis.fetch = async (input, init = {}) => {
   const url = typeof input === 'string' ? input : input.url;
@@ -28,7 +30,16 @@ globalThis.fetch = async (input, init = {}) => {
   if (method === 'POST' && route === '/payment_intents') {
     const id = `pi_fake_${random()}`;
     intents.set(id, { amount: body.data.attributes.amount, paymentId: `pay_fake_${random()}` });
-    return answer(200, { data: { id, attributes: { client_key: `${id}_client_${random()}`, amount: body.data.attributes.amount, status: 'awaiting_payment_method' } } });
+    return answer(200, {
+      data: {
+        id,
+        attributes: {
+          client_key: `${id}_client_${random()}`,
+          amount: body.data.attributes.amount,
+          status: 'awaiting_payment_method'
+        }
+      }
+    });
   }
   if (method === 'POST' && route === '/payment_methods') {
     return answer(200, { data: { id: `pm_fake_${random()}`, attributes: { type: 'qrph' } } });
@@ -36,16 +47,34 @@ globalThis.fetch = async (input, init = {}) => {
   const attach = /^\/payment_intents\/([^/]+)\/attach$/.exec(route);
   if (method === 'POST' && attach) {
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    return answer(200, { data: { id: attach[1], attributes: { livemode: false, status: 'awaiting_next_action', next_action: { code: { id: `qr_fake_${random()}`, image_url: PIXEL, expires_at: expiresAt, test_url: '' } } } } });
+    return answer(200, {
+      data: {
+        id: attach[1],
+        attributes: {
+          livemode: false,
+          status: 'awaiting_next_action',
+          next_action: { code: { id: `qr_fake_${random()}`, image_url: PIXEL, expires_at: expiresAt, test_url: '' } }
+        }
+      }
+    });
   }
   const read = /^\/payment_intents\/([^/?]+)$/.exec(route);
   if (method === 'GET' && read) {
     const id = decodeURIComponent(read[1]);
     const intent = intents.get(id);
-    if (!intent) return answer(404, { errors: [{ code: 'resource_not_found', detail: 'No such intent in the test fake.' }] });
+    if (!intent)
+      return answer(404, { errors: [{ code: 'resource_not_found', detail: 'No such intent in the test fake.' }] });
     const paidAt = Math.floor(Date.now() / 1000);
     return answer(200, {
-      data: { id, attributes: { status: 'succeeded', amount: intent.amount, last_payment_error: null, payments: [{ id: intent.paymentId, attributes: { status: 'paid', paid_at: paidAt } }] } }
+      data: {
+        id,
+        attributes: {
+          status: 'succeeded',
+          amount: intent.amount,
+          last_payment_error: null,
+          payments: [{ id: intent.paymentId, attributes: { status: 'paid', paid_at: paidAt } }]
+        }
+      }
     });
   }
   return answer(404, { errors: [{ code: 'not_in_test_fake', detail: `${method} ${route}` }] });

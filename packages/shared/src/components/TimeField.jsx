@@ -44,7 +44,21 @@ const uniq = (slots, part) => [...new Set(slots.map((s) => s[part]))];
  * are those of the AM/PM shown (e.g. 12 AM to 5 AM greyed out before a 6 AM start).
  * `below` is the line under the field (an error is shown in red).
  */
-function ClockSelect({ id, label, required, optional, error, below, slots, step, value, onChange, disabled, hourPicksMeridiem, sx }) {
+function ClockSelect({
+  id,
+  label,
+  required,
+  optional,
+  error,
+  below,
+  slots,
+  step,
+  value,
+  onChange,
+  disabled,
+  hourPicksMeridiem,
+  sx
+}) {
   // The slot currently selected; parts are blank until the value matches a pickable time
   const current = slots.find((s) => s.value === value);
   const hour = current ? current.hour : '';
@@ -57,8 +71,14 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
   const openHours = uniq(hourPicksMeridiem ? slots : slots.filter((s) => s.meridiem === shownMeridiem), 'hour');
   const hours = ALL_HOURS.map((h) => ({ value: h, disabled: !openHours.includes(h) }));
   const shownHour = hour || openHours[0];
-  const openMinutes = uniq(slots.filter((s) => (hourPicksMeridiem || s.meridiem === shownMeridiem) && s.hour === shownHour), 'minute');
-  const minutes = Array.from({ length: Math.ceil(60 / step) }, (_, i) => pad(i * step)).map((m) => ({ value: m, disabled: !openMinutes.includes(m) }));
+  const openMinutes = uniq(
+    slots.filter((s) => (hourPicksMeridiem || s.meridiem === shownMeridiem) && s.hour === shownHour),
+    'minute'
+  );
+  const minutes = Array.from({ length: Math.ceil(60 / step) }, (_, i) => pad(i * step)).map((m) => ({
+    value: m,
+    disabled: !openMinutes.includes(m)
+  }));
 
   // Change one part and keep the rest; if that combination isn't pickable, fall back to the closest slot.
   // With hourPicksMeridiem a new hour is looked up in either AM or PM, so its own AM/PM comes with it.
@@ -86,27 +106,43 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
           {label}
         </FieldLabel>
       )}
-      <Box sx={{
-        display: 'grid', alignItems: 'center', gap: 0.5,
-        gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-        '@container time-field (min-width: 232px)': {
-          gridTemplateColumns: 'minmax(64px, 1fr) auto minmax(64px, 1fr) minmax(76px, 1fr)'
-        },
-        '@container time-field (max-width: 143px)': {
-          gridTemplateColumns: 'minmax(0, 1fr)', '& > .time-colon': { display: 'none' }
-        }
-      }}>
+      <Box
+        sx={{
+          display: 'grid',
+          alignItems: 'center',
+          gap: 0.5,
+          gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+          '@container time-field (min-width: 232px)': {
+            gridTemplateColumns: 'minmax(64px, 1fr) auto minmax(64px, 1fr) minmax(76px, 1fr)'
+          },
+          '@container time-field (max-width: 143px)': {
+            gridTemplateColumns: 'minmax(0, 1fr)',
+            '& > .time-colon': { display: 'none' }
+          }
+        }}
+      >
         {parts.map((part, i) => (
           <Fragment key={part.key}>
             {/* ":" between the hour and minute dropdowns, like a clock */}
-            {i === 1 && <Box component="span" className="time-colon" aria-hidden="true" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textMuted }}>:</Box>}
-            <Box sx={{
-              minWidth: 0,
-              ...(part.key === 'meridiem' && {
-                gridColumn: '1 / -1',
-                '@container time-field (min-width: 232px)': { gridColumn: 'auto' }
-              })
-            }}>
+            {i === 1 && (
+              <Box
+                component="span"
+                className="time-colon"
+                aria-hidden="true"
+                sx={{ fontSize: 15, fontWeight: 700, color: tokens.textMuted }}
+              >
+                :
+              </Box>
+            )}
+            <Box
+              sx={{
+                minWidth: 0,
+                ...(part.key === 'meridiem' && {
+                  gridColumn: '1 / -1',
+                  '@container time-field (min-width: 232px)': { gridColumn: 'auto' }
+                })
+              }}
+            >
               <TextField
                 id={`${id}-${part.key}`}
                 select
@@ -116,11 +152,21 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
                 error={Boolean(error)}
                 value={part.selected}
                 onChange={(e) => pick({ [part.key]: e.target.value })}
-                SelectProps={{ displayEmpty: true, SelectDisplayProps: { 'aria-label': `${label || 'Time'} — ${part.label}` } }}
+                SelectProps={{
+                  displayEmpty: true,
+                  SelectDisplayProps: { 'aria-label': `${label || 'Time'} — ${part.label}` }
+                }}
                 sx={{
                   '& .MuiSelect-select': { pl: 1.25, pr: '28px !important', fontVariantNumeric: 'tabular-nums' },
                   '& .MuiSelect-icon': { right: 3 },
-                  '@media (pointer: coarse)': { '& .MuiSelect-select': { minHeight: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center' } }
+                  '@media (pointer: coarse)': {
+                    '& .MuiSelect-select': {
+                      minHeight: 44,
+                      boxSizing: 'border-box',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }
+                  }
                 }}
               >
                 {/* Placeholder row for a value that isn't a pickable time yet */}
@@ -133,7 +179,8 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
                 )}
                 {/* Options are plain strings, or { value, disabled } for the hour and minute lists */}
                 {part.options.map((option) => {
-                  const { value: optionValue, disabled: off } = typeof option === 'string' ? { value: option, disabled: false } : option;
+                  const { value: optionValue, disabled: off } =
+                    typeof option === 'string' ? { value: option, disabled: false } : option;
                   return (
                     <MenuItem key={optionValue} value={optionValue} disabled={off}>
                       {optionValue}
@@ -145,7 +192,11 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
           </Fragment>
         ))}
       </Box>
-      {(error || below) && <Typography sx={{ mt: 0.75, fontSize: 12, color: error ? tokens.redPress : tokens.textMuted }}>{error || below}</Typography>}
+      {(error || below) && (
+        <Typography sx={{ mt: 0.75, fontSize: 12, color: error ? tokens.redPress : tokens.textMuted }}>
+          {error || below}
+        </Typography>
+      )}
     </Box>
   );
 }
@@ -156,11 +207,40 @@ function ClockSelect({ id, label, required, optional, error, below, slots, step,
  * every `step` minutes can be picked, so an out-of-hours time cannot be entered.
  * When min/max limit the day, the allowed range is shown under the field (unless there is an error or hint).
  */
-export function TimeField({ id, label, required, optional, error, hint, value, onChange, min = '00:00', max = '23:30', step = 30, disabled = false, sx }) {
+export function TimeField({
+  id,
+  label,
+  required,
+  optional,
+  error,
+  hint,
+  value,
+  onChange,
+  min = '00:00',
+  max = '23:30',
+  step = 30,
+  disabled = false,
+  sx
+}) {
   const slots = useMemo(() => buildSlots(min, max, step), [min, max, step]);
   // Shown under the field when there is no error or hint, e.g. "Available from 6:00 am to 11:30 pm"
   const rangeHint = min !== '00:00' || max !== '23:30' ? `Available from ${formatTime(min)} to ${formatTime(max)}` : '';
-  return <ClockSelect id={id} label={label} required={required} optional={optional} error={error} below={hint || rangeHint} slots={slots} step={step} value={value} onChange={onChange} disabled={disabled} sx={sx} />;
+  return (
+    <ClockSelect
+      id={id}
+      label={label}
+      required={required}
+      optional={optional}
+      error={error}
+      below={hint || rangeHint}
+      slots={slots}
+      step={step}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      sx={sx}
+    />
+  );
 }
 
 // 4.5 -> "4½ hours", 2 -> "2 hours"
@@ -181,7 +261,18 @@ const endText = (option) => `${formatTime(option.value)}${option.nextDay ? ' (ne
  * from. A saved end time that no longer fits the start (e.g. an old booking) is named there instead of
  * showing blank dropdowns without a word.
  */
-export function EndTimeField({ id, label = 'End time', required, error, hint, startTime, value, onChange, disabled = false, sx }) {
+export function EndTimeField({
+  id,
+  label = 'End time',
+  required,
+  error,
+  hint,
+  startTime,
+  value,
+  onChange,
+  disabled = false,
+  sx
+}) {
   const options = useMemo(() => endTimeOptions(startTime), [startTime]);
   const slots = useMemo(() => options.map((o) => toSlot(o.value)), [options]);
   const picked = options.find((o) => o.value === value);
@@ -191,8 +282,10 @@ export function EndTimeField({ id, label = 'End time', required, error, hint, st
   let below;
   if (!startTime) below = 'Choose the start time first';
   else if (picked) below = `${formatTime(startTime)} – ${endText(picked)} · ${hoursText(picked.hours)}`;
-  else if (value) below = `Saved end time ${formatTime(value)} no longer fits the start time. Choose ${endText(first)} to ${endText(last)}.`;
-  else below = `${hint || `Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`} Choose ${endText(first)} to ${endText(last)}.`;
+  else if (value)
+    below = `Saved end time ${formatTime(value)} no longer fits the start time. Choose ${endText(first)} to ${endText(last)}.`;
+  else
+    below = `${hint || `Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`} Choose ${endText(first)} to ${endText(last)}.`;
 
   return (
     <ClockSelect

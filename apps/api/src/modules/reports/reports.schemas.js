@@ -9,7 +9,9 @@ import { REPORT_RANGES } from '@tm/shared/src/domain/reports.js';
  */
 
 // ?range=this_year | last_12 | last_year | all (a repeated ?range= arrives as a list and is refused too)
-export const rangeQuery = z.object({ range: z.enum(REPORT_RANGES, { error: 'Unknown report range.' }).default('this_year') });
+export const rangeQuery = z.object({
+  range: z.enum(REPORT_RANGES, { error: 'Unknown report range.' }).default('this_year')
+});
 
 // /saved/:kind (Express always gives text)
 export const kindParams = z.object({ kind: z.string() });

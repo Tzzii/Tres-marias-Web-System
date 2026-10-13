@@ -33,7 +33,17 @@ export function DashCard({ children, sx, component = 'section', ...rest }) {
 /** Card heading with optional subtitle and a right-side action (e.g. a button). */
 export function CardTitle({ children, action, subtitle, sx }) {
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2, ...sx }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 1.5,
+        mb: 2,
+        ...sx
+      }}
+    >
       <Box sx={{ minWidth: 0 }}>
         <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>
           {children}
@@ -67,23 +77,62 @@ export function StatCard({ icon: Icon, tone = 'gold', label, value, meta, onClic
   const palette = ICON_TONES[tone] || ICON_TONES.gold;
   const padSx = { p: 2.25, [NARROW_CARD]: { p: 1.75 } };
   const body = (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', textAlign: 'left', [NARROW_CARD]: { flexDirection: 'column', alignItems: 'flex-start', gap: 1.25 } }}>
-      <Box sx={{ width: 46, height: 46, flexShrink: 0, borderRadius: 1.5, display: 'grid', placeItems: 'center', color: palette.color, backgroundColor: palette.bg, [NARROW_CARD]: { width: 38, height: 38 } }}>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        width: '100%',
+        textAlign: 'left',
+        [NARROW_CARD]: { flexDirection: 'column', alignItems: 'flex-start', gap: 1.25 }
+      }}
+    >
+      <Box
+        sx={{
+          width: 46,
+          height: 46,
+          flexShrink: 0,
+          borderRadius: 1.5,
+          display: 'grid',
+          placeItems: 'center',
+          color: palette.color,
+          backgroundColor: palette.bg,
+          [NARROW_CARD]: { width: 38, height: 38 }
+        }}
+      >
         <Icon sx={{ fontSize: 22 }} />
       </Box>
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={eyebrowSx}>{label}</Typography>
-        <Typography sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, overflowWrap: 'anywhere', color: loading ? tokens.placeholder : tokens.textPrimary }}>
+        <Typography
+          sx={{
+            fontSize: 22,
+            fontWeight: 700,
+            lineHeight: 1.25,
+            overflowWrap: 'anywhere',
+            color: loading ? tokens.placeholder : tokens.textPrimary
+          }}
+        >
           {loading ? '—' : value}
         </Typography>
-        {meta && <Typography sx={{ fontSize: 11.5, overflowWrap: 'anywhere', color: tokens.textMuted }}>{meta}</Typography>}
+        {meta && (
+          <Typography sx={{ fontSize: 11.5, overflowWrap: 'anywhere', color: tokens.textMuted }}>{meta}</Typography>
+        )}
       </Box>
     </Box>
   );
 
   return (
     // containerType lets the card's contents react to the card's own width (NARROW_CARD above)
-    <DashCard sx={{ p: 0, overflow: 'hidden', containerType: 'inline-size', transition: 'box-shadow 0.25s ease, transform 0.25s ease', ...(onClick && { '&:hover': { boxShadow: tokens.shadowDashHover, transform: 'translateY(-2px)' } }) }}>
+    <DashCard
+      sx={{
+        p: 0,
+        overflow: 'hidden',
+        containerType: 'inline-size',
+        transition: 'box-shadow 0.25s ease, transform 0.25s ease',
+        ...(onClick && { '&:hover': { boxShadow: tokens.shadowDashHover, transform: 'translateY(-2px)' } })
+      }}
+    >
       {/* Clickable cards are wrapped in a button; others are a plain box */}
       {onClick ? (
         <ButtonBase onClick={onClick} sx={{ width: '100%', display: 'block', ...padSx }}>
@@ -99,9 +148,33 @@ export function StatCard({ icon: Icon, tone = 'gold', label, value, meta, onClic
 /** Label / value pairs inside detail cards. */
 export function DetailRow({ label, children, sx }) {
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', columnGap: 2, rowGap: 0.5, py: 0.9, ...sx }}>
-      <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
-      <Typography component="div" sx={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere', fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary, textAlign: 'right' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        columnGap: 2,
+        rowGap: 0.5,
+        py: 0.9,
+        ...sx
+      }}
+    >
+      <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 13, color: tokens.textSecondary }}>
+        {label}
+      </Typography>
+      <Typography
+        component="div"
+        sx={{
+          minWidth: 0,
+          maxWidth: '100%',
+          overflowWrap: 'anywhere',
+          fontSize: 13.5,
+          fontWeight: 600,
+          color: tokens.textPrimary,
+          textAlign: 'right'
+        }}
+      >
         {children}
       </Typography>
     </Box>
@@ -113,7 +186,10 @@ export function Field({ label, children, sx }) {
   return (
     <Box sx={{ minWidth: 0, ...sx }}>
       <Typography sx={{ ...eyebrowSx, fontSize: 11.5 }}>{label}</Typography>
-      <Typography component="div" sx={{ mt: 0.25, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary, overflowWrap: 'anywhere' }}>
+      <Typography
+        component="div"
+        sx={{ mt: 0.25, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary, overflowWrap: 'anywhere' }}
+      >
         {children || '—'}
       </Typography>
     </Box>

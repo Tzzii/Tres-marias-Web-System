@@ -57,7 +57,17 @@ export function monthGrid(year, month) {
  * On phones the month arrows move to the two edges (easier to reach with a thumb), and `headerAction`
  * (e.g. the customer's Month / List switch) gets its own full-width row above them.
  */
-export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, selected, size = 'lg', legend, headerAction }) {
+export function MonthCalendar({
+  year,
+  month,
+  onMonthChange,
+  getDay,
+  onSelect,
+  selected,
+  size = 'lg',
+  legend,
+  headerAction
+}) {
   const today = todayISO();
   const cells = monthGrid(year, month);
   const small = size === 'sm';
@@ -88,7 +98,11 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
   // Background, border and text colours for each day type
   const toneSx = {
     event: { bg: 'rgba(197, 160, 89, 0.14)', border: 'rgba(197, 160, 89, 0.55)', fg: tokens.textPrimary },
-    blocked: { bg: 'repeating-linear-gradient(135deg, #f1f5f9 0 6px, #e2e8f0 6px 12px)', border: tokens.cardLightBorder, fg: tokens.textMuted },
+    blocked: {
+      bg: 'repeating-linear-gradient(135deg, #f1f5f9 0 6px, #e2e8f0 6px 12px)',
+      border: tokens.cardLightBorder,
+      fg: tokens.textMuted
+    },
     full: { bg: 'rgba(239, 68, 68, 0.08)', border: 'rgba(239, 68, 68, 0.35)', fg: '#b91c1c' },
     open: { bg: '#fff', border: tokens.cardLightBorder, fg: tokens.textPrimary },
     disabled: { bg: tokens.surfaceSubtle, border: 'transparent', fg: tokens.placeholder }
@@ -96,12 +110,41 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
 
   return (
     <Box sx={{ width: '100%', minWidth: 0 }}>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, rowGap: 1.5, mb: small ? 1 : 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: small ? '1 1 100%' : { xs: '1 1 100%', sm: '0 1 auto' }, justifyContent: small ? 'space-between' : { xs: 'space-between', sm: 'flex-start' } }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
+          rowGap: 1.5,
+          mb: small ? 1 : 2
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            minWidth: 0,
+            flex: small ? '1 1 100%' : { xs: '1 1 100%', sm: '0 1 auto' },
+            justifyContent: small ? 'space-between' : { xs: 'space-between', sm: 'flex-start' }
+          }}
+        >
           <IconButton size="small" onClick={() => shift(-1)} aria-label="Previous month">
             <ChevronLeftRoundedIcon />
           </IconButton>
-          <Typography aria-live="polite" sx={{ minWidth: small ? 0 : 150, flex: small ? 1 : undefined, textAlign: 'center', fontSize: 16, fontWeight: 700, color: tokens.textPrimary }}>
+          <Typography
+            aria-live="polite"
+            sx={{
+              minWidth: small ? 0 : 150,
+              flex: small ? 1 : undefined,
+              textAlign: 'center',
+              fontSize: 16,
+              fontWeight: 700,
+              color: tokens.textPrimary
+            }}
+          >
             {MONTH_NAMES[month]} {year}
           </Typography>
           <IconButton size="small" onClick={() => shift(1)} aria-label="Next month">
@@ -113,9 +156,26 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
       </Box>
 
       <Box role="grid" aria-label={`${MONTH_NAMES[month]} ${year}`}>
-        <Box role="row" sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: small ? 0.5 : { xs: 0.5, sm: 0.75 } }}>
+        <Box
+          role="row"
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+            gap: small ? 0.5 : { xs: 0.5, sm: 0.75 }
+          }}
+        >
           {WEEKDAYS.map((d) => (
-            <Typography key={d} role="columnheader" sx={{ textAlign: 'center', fontSize: small ? 12.5 : 11.5, fontWeight: 700, color: tokens.textMuted, pb: 0.5 }}>
+            <Typography
+              key={d}
+              role="columnheader"
+              sx={{
+                textAlign: 'center',
+                fontSize: small ? 12.5 : 11.5,
+                fontWeight: 700,
+                color: tokens.textMuted,
+                pb: 0.5
+              }}
+            >
               {small ? d.slice(0, 2) : d}
             </Typography>
           ))}
@@ -130,79 +190,118 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
             display: 'grid',
             gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
             gap: small ? 0.5 : { xs: 0.5, sm: 0.75 },
-            animation: direction.current ? `${direction.current > 0 ? slideFromRight : slideFromLeft} 220ms ease-out` : 'none',
+            animation: direction.current
+              ? `${direction.current > 0 ? slideFromRight : slideFromLeft} 220ms ease-out`
+              : 'none',
             ...noMotion
           }}
         >
-        {cells.map((cell) => {
-          // Ask the parent page how this day should look
-          const info = (getDay && getDay(cell.iso, cell)) || { tone: 'open' };
-          const tone = toneSx[info.tone] || toneSx.open;
-          const isToday = cell.iso === today; // gold border
-          const isSelected = selected === cell.iso; // dark border
-          // Disabled or unselectable days can't be clicked, except a `peek` day (tapped to see why it is closed)
-          const clickable = Boolean(onSelect) && (Boolean(info.peek) || (info.tone !== 'disabled' && !info.unselectable));
+          {cells.map((cell) => {
+            // Ask the parent page how this day should look
+            const info = (getDay && getDay(cell.iso, cell)) || { tone: 'open' };
+            const tone = toneSx[info.tone] || toneSx.open;
+            const isToday = cell.iso === today; // gold border
+            const isSelected = selected === cell.iso; // dark border
+            // Disabled or unselectable days can't be clicked, except a `peek` day (tapped to see why it is closed)
+            const clickable =
+              Boolean(onSelect) && (Boolean(info.peek) || (info.tone !== 'disabled' && !info.unselectable));
 
-          return (
-            <ButtonBase
-              key={cell.iso}
-              role="gridcell"
-              aria-selected={isSelected}
-              aria-label={`${cell.iso}${info.label ? `, ${info.label}` : ''}`}
-              title={info.label || undefined}
-              disabled={!clickable}
-              onClick={() => clickable && onSelect(cell.iso, info)}
-              sx={{
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: small ? 'center' : 'flex-start',
-                justifyContent: small ? 'center' : 'flex-start',
-                gap: 0.25,
-                // Scale date-picker cells with their container, including wider inline calendars.
-                aspectRatio: small ? '1 / 1' : undefined,
-                minHeight: small ? { xs: 36, sm: 44 } : { xs: 52, sm: 76, md: 88 },
-                p: small ? 0 : { xs: 0.5, sm: 0.9 },
-                borderRadius: 1.25,
-                fontFamily: 'inherit',
-                textAlign: 'left',
-                opacity: cell.inMonth ? 1 : 0.4,
-                background: tone.bg,
-                color: tone.fg,
-                border: `1.5px solid ${isSelected ? tokens.ink : isToday ? tokens.gold : tone.border}`,
-                boxShadow: isSelected ? '0 0 0 3px rgba(15, 23, 42, 0.14)' : 'none',
-                cursor: clickable ? 'pointer' : 'default',
-                transition: 'border-color 0.15s ease, box-shadow 0.2s ease, transform 0.15s ease',
-                animation: isSelected && popDay.current === cell.iso ? `${dayPop} 240ms ease-out` : 'none',
-                '&:hover': clickable ? { borderColor: tokens.ink } : undefined,
-                '&.Mui-disabled': { color: tone.fg },
-                ...noMotion
-              }}
-            >
-              <Typography component="span" sx={{ fontSize: small ? 15 : 13.5, fontWeight: isToday || isSelected ? 800 : 600, lineHeight: 1.2, textDecoration: info.tone === 'disabled' && small ? 'line-through' : 'none' }}>
-                {cell.day}
-              </Typography>
-              {/* Small calendar: one gold dot under the number when the day already has an event */}
-              {small && info.dots > 0 && (
-                <Box component="span" aria-hidden sx={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', width: 5, height: 5, borderRadius: '50%', backgroundColor: tokens.goldDark }} />
-              )}
-              {/* Large calendar: the badge (e.g. event name) on tablets/desktop, up to 3 dots on phones.
-                  A day with dots but no badge keeps its dots on every screen, so it never looks empty. */}
-              {!small && info.badge && (
-                <Typography component="span" sx={{ display: { xs: 'none', sm: 'block' }, width: '100%', fontSize: 10.5, fontWeight: 700, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {info.badge}
+            return (
+              <ButtonBase
+                key={cell.iso}
+                role="gridcell"
+                aria-selected={isSelected}
+                aria-label={`${cell.iso}${info.label ? `, ${info.label}` : ''}`}
+                title={info.label || undefined}
+                disabled={!clickable}
+                onClick={() => clickable && onSelect(cell.iso, info)}
+                sx={{
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: small ? 'center' : 'flex-start',
+                  justifyContent: small ? 'center' : 'flex-start',
+                  gap: 0.25,
+                  // Scale date-picker cells with their container, including wider inline calendars.
+                  aspectRatio: small ? '1 / 1' : undefined,
+                  minHeight: small ? { xs: 36, sm: 44 } : { xs: 52, sm: 76, md: 88 },
+                  p: small ? 0 : { xs: 0.5, sm: 0.9 },
+                  borderRadius: 1.25,
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  opacity: cell.inMonth ? 1 : 0.4,
+                  background: tone.bg,
+                  color: tone.fg,
+                  border: `1.5px solid ${isSelected ? tokens.ink : isToday ? tokens.gold : tone.border}`,
+                  boxShadow: isSelected ? '0 0 0 3px rgba(15, 23, 42, 0.14)' : 'none',
+                  cursor: clickable ? 'pointer' : 'default',
+                  transition: 'border-color 0.15s ease, box-shadow 0.2s ease, transform 0.15s ease',
+                  animation: isSelected && popDay.current === cell.iso ? `${dayPop} 240ms ease-out` : 'none',
+                  '&:hover': clickable ? { borderColor: tokens.ink } : undefined,
+                  '&.Mui-disabled': { color: tone.fg },
+                  ...noMotion
+                }}
+              >
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: small ? 15 : 13.5,
+                    fontWeight: isToday || isSelected ? 800 : 600,
+                    lineHeight: 1.2,
+                    textDecoration: info.tone === 'disabled' && small ? 'line-through' : 'none'
+                  }}
+                >
+                  {cell.day}
                 </Typography>
-              )}
-              {!small && info.dots > 0 && (
-                <Box sx={{ display: { xs: 'flex', sm: info.badge ? 'none' : 'flex' }, gap: 0.25, mt: 'auto' }}>
-                  {Array.from({ length: Math.min(info.dots, 3) }, (_, i) => (
-                    <Box key={i} sx={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: tokens.goldDark }} />
-                  ))}
-                </Box>
-              )}
-            </ButtonBase>
-          );
-        })}
+                {/* Small calendar: one gold dot under the number when the day already has an event */}
+                {small && info.dots > 0 && (
+                  <Box
+                    component="span"
+                    aria-hidden
+                    sx={{
+                      position: 'absolute',
+                      bottom: 4,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 5,
+                      height: 5,
+                      borderRadius: '50%',
+                      backgroundColor: tokens.goldDark
+                    }}
+                  />
+                )}
+                {/* Large calendar: the badge (e.g. event name) on tablets/desktop, up to 3 dots on phones.
+                  A day with dots but no badge keeps its dots on every screen, so it never looks empty. */}
+                {!small && info.badge && (
+                  <Typography
+                    component="span"
+                    sx={{
+                      display: { xs: 'none', sm: 'block' },
+                      width: '100%',
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      lineHeight: 1.25,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {info.badge}
+                  </Typography>
+                )}
+                {!small && info.dots > 0 && (
+                  <Box sx={{ display: { xs: 'flex', sm: info.badge ? 'none' : 'flex' }, gap: 0.25, mt: 'auto' }}>
+                    {Array.from({ length: Math.min(info.dots, 3) }, (_, i) => (
+                      <Box
+                        key={i}
+                        sx={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: tokens.goldDark }}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </ButtonBase>
+            );
+          })}
         </Box>
       </Box>
 
@@ -211,8 +310,19 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
           {legend.map((item) => {
             const tone = toneSx[item.tone];
             return (
-              <Box key={item.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 12, color: tokens.textSecondary }}>
-                <Box sx={{ width: 14, height: 14, borderRadius: 0.5, background: tone.bg, border: `1.5px solid ${tone.border}` }} />
+              <Box
+                key={item.label}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 12, color: tokens.textSecondary }}
+              >
+                <Box
+                  sx={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 0.5,
+                    background: tone.bg,
+                    border: `1.5px solid ${tone.border}`
+                  }}
+                />
                 {item.label}
               </Box>
             );

@@ -75,13 +75,15 @@ export async function verifyPayment(paymentId) {
 
 /** Admin: turn down a waiting bank transfer with a reason (at least 5 characters) the customer sees. */
 export async function rejectPayment(paymentId, reason) {
-  if (String(reason || '').trim().length < 5) throw new ApiError('INVALID', 'Please give a short reason (at least 5 characters).', { field: 'reason' });
+  if (String(reason || '').trim().length < 5)
+    throw new ApiError('INVALID', 'Please give a short reason (at least 5 characters).', { field: 'reason' });
   if (!paymentId) throw new ApiError('NOT_FOUND', 'Payment not found.');
   return http.post(`/admin/payments/${segment(paymentId)}/reject`, { reason });
 }
 
 /** Admin: record cash collected on site (₱1 up to the balance); returns the verified payment. */
-export const recordCashPayment = (ref, amount) => http.post(`/admin/reservations/${segment(ref)}/cash-payments`, { amount });
+export const recordCashPayment = (ref, amount) =>
+  http.post(`/admin/reservations/${segment(ref)}/cash-payments`, { amount });
 
 /**
  * Admin: remind the customer about the downpayment or the balance, in their chat every time and by email
@@ -104,4 +106,5 @@ export const listRefundsDue = () => http.get('/admin/refunds/due');
  * themselves): the admin's view, or the customer's own. The caller revokes it (URL.revokeObjectURL).
  * NOT_FOUND when nothing was uploaded (cash, a sample payment, a QR payment) or it is not theirs.
  */
-export const proofUrl = (paymentId) => fetchFileUrl(`${isAdmin() ? '/admin/payments' : '/payments'}/${segment(paymentId)}/proof`);
+export const proofUrl = (paymentId) =>
+  fetchFileUrl(`${isAdmin() ? '/admin/payments' : '/payments'}/${segment(paymentId)}/proof`);

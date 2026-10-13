@@ -69,20 +69,27 @@ export default function ProfilePage() {
 
   // Pick up the latest details (in case they changed elsewhere)
   useEffect(() => {
-    authApi.getCustomerProfile(user.id).then((fresh) => {
-      setProfile({ name: fresh.name, mobile: fresh.mobile, company: fresh.company || '' });
-    }).catch(() => {});
+    authApi
+      .getCustomerProfile(user.id)
+      .then((fresh) => {
+        setProfile({ name: fresh.name, mobile: fresh.mobile, company: fresh.company || '' });
+      })
+      .catch(() => {});
   }, [user.id]);
 
   // True when the form differs from the saved profile (the mobile number is compared by its digits after +63,
   // so "09171234567" and "+639171234567" count as the same number)
-  const dirty = profile.name.trim() !== user.name || nationalMobile(profile.mobile) !== nationalMobile(user.mobile) || (profile.company || '') !== (user.company || '');
+  const dirty =
+    profile.name.trim() !== user.name ||
+    nationalMobile(profile.mobile) !== nationalMobile(user.mobile) ||
+    (profile.company || '') !== (user.company || '');
 
   // Validate name and mobile, save, and update the signed-in user so the new name shows everywhere
   const saveProfile = async (e) => {
     e.preventDefault();
     const found = collectErrors(profile, {
-      name: (v) => required(v, 'Full name') || (v.trim().split(/\s+/).length < 2 ? 'Enter your first and last name.' : ''),
+      name: (v) =>
+        required(v, 'Full name') || (v.trim().split(/\s+/).length < 2 ? 'Enter your first and last name.' : ''),
       mobile: validateMobile
     });
     setProfileErrors(found);
@@ -128,7 +135,9 @@ export default function ProfilePage() {
       setEmailForm((current) => ({ ...current, password: '' }));
       if (err.meta && err.meta.field === 'email') setEmailErrors({ email: err.message });
       else if (err.meta && err.meta.field === 'current') {
-        const left = err.meta.remaining ? ` ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.` : '';
+        const left = err.meta.remaining
+          ? ` ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.`
+          : '';
         setEmailErrors({ password: err.message + left });
       } else setEmailFormError(err.message);
     } finally {
@@ -148,7 +157,8 @@ export default function ProfilePage() {
     e.preventDefault();
     const found = collectErrors(pw, {
       current: (v) => (v ? '' : 'Enter your current password.'),
-      next: (v, all) => validatePassword(v) || (v === all.current ? 'Choose a password different from the current one.' : ''),
+      next: (v, all) =>
+        validatePassword(v) || (v === all.current ? 'Choose a password different from the current one.' : ''),
       confirm: (v, all) => (v === all.next ? '' : 'Passwords do not match.')
     });
     setPwErrors(found);
@@ -158,7 +168,10 @@ export default function ProfilePage() {
       setChallenge(await authApi.startPasswordChange({ current: pw.current, next: pw.next }));
     } catch (err) {
       // A wrong current password says how many tries are left before a 5-minute pause
-      const left = err.code === 'INVALID_CREDENTIALS' && err.meta.remaining ? ` ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.` : '';
+      const left =
+        err.code === 'INVALID_CREDENTIALS' && err.meta.remaining
+          ? ` ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.`
+          : '';
       if (err.meta && err.meta.field) setPwErrors({ [err.meta.field]: err.message + left });
       else notify(err.message, 'error');
     } finally {
@@ -176,19 +189,40 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="My Profile" subtitle="Keep your contact details current so our team can reach you about your events." />
+      <PageHeader
+        title="My Profile"
+        subtitle="Keep your contact details current so our team can reach you about your events."
+      />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
         <DashCard component="form" noValidate onSubmit={saveProfile}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
-            <Avatar sx={{ width: 64, height: 64, fontSize: 22, fontWeight: 700, bgcolor: tokens.gold, color: tokens.onGold }}>{initials(user.name)}</Avatar>
+            <Avatar
+              sx={{ width: 64, height: 64, fontSize: 22, fontWeight: 700, bgcolor: tokens.gold, color: tokens.onGold }}
+            >
+              {initials(user.name)}
+            </Avatar>
             <Box>
               <Typography sx={{ fontSize: 18, fontWeight: 700 }}>{user.name}</Typography>
               <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{user.email}</Typography>
-              {user.createdAt && <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>Member since {formatDateLong(toISODate(new Date(user.createdAt)))}</Typography>}
+              {user.createdAt && (
+                <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+                  Member since {formatDateLong(toISODate(new Date(user.createdAt)))}
+                </Typography>
+              )}
             </Box>
           </Box>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <FormField id="profile-name" label="Full name" required value={profile.name} onChange={(e) => { setProfile((p) => ({ ...p, name: e.target.value })); setProfileErrors({}); }} error={profileErrors.name} />
+            <FormField
+              id="profile-name"
+              label="Full name"
+              required
+              value={profile.name}
+              onChange={(e) => {
+                setProfile((p) => ({ ...p, name: e.target.value }));
+                setProfileErrors({});
+              }}
+              error={profileErrors.name}
+            />
             <FormField
               id="profile-email"
               label="Email"
@@ -197,14 +231,36 @@ export default function ProfilePage() {
               hint="Your login email and the address where account codes are sent."
               InputProps={{
                 endAdornment: (
-                  <Button type="button" size="small" onClick={openEmailChange} sx={{ flexShrink: 0, fontWeight: 700, color: tokens.goldDark }}>
+                  <Button
+                    type="button"
+                    size="small"
+                    onClick={openEmailChange}
+                    sx={{ flexShrink: 0, fontWeight: 700, color: tokens.goldDark }}
+                  >
                     Change
                   </Button>
                 )
               }}
             />
-            <MobileField id="profile-mobile" label="Mobile" required value={profile.mobile} onChange={(e) => { setProfile((p) => ({ ...p, mobile: e.target.value })); setProfileErrors({}); }} error={profileErrors.mobile} />
-            <FormField id="profile-company" label="Company" optional value={profile.company} onChange={(e) => setProfile((p) => ({ ...p, company: e.target.value }))} hint="For official receipts under a company name." />
+            <MobileField
+              id="profile-mobile"
+              label="Mobile"
+              required
+              value={profile.mobile}
+              onChange={(e) => {
+                setProfile((p) => ({ ...p, mobile: e.target.value }));
+                setProfileErrors({});
+              }}
+              error={profileErrors.mobile}
+            />
+            <FormField
+              id="profile-company"
+              label="Company"
+              optional
+              value={profile.company}
+              onChange={(e) => setProfile((p) => ({ ...p, company: e.target.value }))}
+              hint="For official receipts under a company name."
+            />
             <Box sx={{ display: 'flex', gap: 1 }}>
               <BusyButton type="submit" busy={savingProfile} disabled={!dirty}>
                 Save changes
@@ -215,21 +271,60 @@ export default function ProfilePage() {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <DashCard component="form" noValidate onSubmit={savePassword}>
-            <CardTitle subtitle="8 characters or more, with a lowercase and an uppercase letter, a number and a special character">Change Password</CardTitle>
+            <CardTitle subtitle="8 characters or more, with a lowercase and an uppercase letter, a number and a special character">
+              Change Password
+            </CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box>
-                <PasswordField id="pw-current" label="Current password" autoComplete="current-password" value={pw.current} onChange={(e) => { setPw((p) => ({ ...p, current: e.target.value })); setPwErrors({}); }} error={pwErrors.current} />
-                <Link component="button" type="button" onClick={() => setResetOpen(true)} sx={{ mt: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.goldDark }}>
+                <PasswordField
+                  id="pw-current"
+                  label="Current password"
+                  autoComplete="current-password"
+                  value={pw.current}
+                  onChange={(e) => {
+                    setPw((p) => ({ ...p, current: e.target.value }));
+                    setPwErrors({});
+                  }}
+                  error={pwErrors.current}
+                />
+                <Link
+                  component="button"
+                  type="button"
+                  onClick={() => setResetOpen(true)}
+                  sx={{ mt: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.goldDark }}
+                >
                   Forgot your current password?
                 </Link>
               </Box>
               <Box>
-                <PasswordField id="pw-next" label="New password" autoComplete="new-password" value={pw.next} onChange={(e) => { setPw((p) => ({ ...p, next: e.target.value })); setPwErrors({}); }} error={pwErrors.next} />
+                <PasswordField
+                  id="pw-next"
+                  label="New password"
+                  autoComplete="new-password"
+                  value={pw.next}
+                  onChange={(e) => {
+                    setPw((p) => ({ ...p, next: e.target.value }));
+                    setPwErrors({});
+                  }}
+                  error={pwErrors.next}
+                />
                 {/* What the new password still needs, ticked live */}
                 <PasswordChecklist value={pw.next} />
               </Box>
-              <PasswordField id="pw-confirm" label="Confirm new password" autoComplete="new-password" value={pw.confirm} onChange={(e) => { setPw((p) => ({ ...p, confirm: e.target.value })); setPwErrors({}); }} error={pwErrors.confirm} />
-              <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>We email you a code to confirm the change before the new password is saved.</Typography>
+              <PasswordField
+                id="pw-confirm"
+                label="Confirm new password"
+                autoComplete="new-password"
+                value={pw.confirm}
+                onChange={(e) => {
+                  setPw((p) => ({ ...p, confirm: e.target.value }));
+                  setPwErrors({});
+                }}
+                error={pwErrors.confirm}
+              />
+              <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
+                We email you a code to confirm the change before the new password is saved.
+              </Typography>
               <Box>
                 <BusyButton type="submit" busy={savingPw}>
                   Update password
@@ -242,10 +337,15 @@ export default function ProfilePage() {
             <CardTitle>Session</CardTitle>
             <AlertBanner tone="info">For your security you are signed out after 15 minutes of inactivity.</AlertBanner>
             {/* Log out: go to the home page, then end the session */}
-            <Button color="error" variant="outlined" sx={{ mt: 2 }} onClick={() => {
-              navigate('/', { replace: true });
-              signOut();
-            }}>
+            <Button
+              color="error"
+              variant="outlined"
+              sx={{ mt: 2 }}
+              onClick={() => {
+                navigate('/', { replace: true });
+                signOut();
+              }}
+            >
               Log out of this device
             </Button>
           </DashCard>
@@ -277,12 +377,22 @@ export default function ProfilePage() {
         description="Your email is also your username. We’ll send a code to the new address before changing it."
         actions={
           <>
-            <Button onClick={() => setEmailOpen(false)} disabled={savingEmail} sx={{ color: tokens.textSecondary }}>Cancel</Button>
-            <BusyButton type="submit" form="customer-email-form" busy={savingEmail}>Send code</BusyButton>
+            <Button onClick={() => setEmailOpen(false)} disabled={savingEmail} sx={{ color: tokens.textSecondary }}>
+              Cancel
+            </Button>
+            <BusyButton type="submit" form="customer-email-form" busy={savingEmail}>
+              Send code
+            </BusyButton>
           </>
         }
       >
-        <Box component="form" id="customer-email-form" noValidate onSubmit={startEmailChange} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box
+          component="form"
+          id="customer-email-form"
+          noValidate
+          onSubmit={startEmailChange}
+          sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+        >
           {emailFormError && <AlertBanner tone="error">{emailFormError}</AlertBanner>}
           <FormField
             id="new-email"

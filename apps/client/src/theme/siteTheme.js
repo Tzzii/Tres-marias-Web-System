@@ -94,6 +94,8 @@ export const siteTheme = createTheme(lightTheme, {
       }
     },
     MuiMenu: { styleOverrides: { paper: { border: `1px solid ${site.border}`, boxShadow: site.shadowCard } } },
-    MuiTooltip: { styleOverrides: { tooltip: { backgroundColor: site.espresso, color: site.onEspresso, border: 'none' } } }
+    MuiTooltip: {
+      styleOverrides: { tooltip: { backgroundColor: site.espresso, color: site.onEspresso, border: 'none' } }
+    }
   }
 });

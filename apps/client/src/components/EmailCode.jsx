@@ -4,7 +4,17 @@ import Button from '@mui/material/Button';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
-import { AlertBanner, AppDialog, BusyButton, OtpInput, RULES, formatCountdown, shakeSx, tokens, useCountdown } from '@tm/shared';
+import {
+  AlertBanner,
+  AppDialog,
+  BusyButton,
+  OtpInput,
+  RULES,
+  formatCountdown,
+  shakeSx,
+  tokens,
+  useCountdown
+} from '@tm/shared';
 
 /**
  * The emailed-code step of the customer site (Phase 12: every customer code goes by email, never by SMS).
@@ -76,7 +86,20 @@ export function useCodeEntry() {
     return error.message;
   }, []);
 
-  return { challenge, code, codeState, setCodeState, attemptsLeft, locked, lockSeconds, resendSeconds, begin, resent, type, wrong };
+  return {
+    challenge,
+    code,
+    codeState,
+    setCodeState,
+    attemptsLeft,
+    locked,
+    lockSeconds,
+    resendSeconds,
+    begin,
+    resent,
+    type,
+    wrong
+  };
 }
 
 /**
@@ -91,7 +114,8 @@ export function CodeEntry({ entry, busy, onComplete, onResend, onType, children 
       <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
         <MarkEmailReadOutlinedIcon sx={{ color: tokens.goldDark, mt: '2px' }} />
         <Typography sx={{ fontSize: 13.5, lineHeight: 1.55, color: tokens.textSecondary }}>
-          We emailed a {RULES.codeLength}-digit code to <b>{entry.challenge.maskedEmail}</b>. It expires in {RULES.codeValidMinutes} minutes. If it is not in your inbox, check the spam folder.
+          We emailed a {RULES.codeLength}-digit code to <b>{entry.challenge.maskedEmail}</b>. It expires in{' '}
+          {RULES.codeValidMinutes} minutes. If it is not in your inbox, check the spam folder.
         </Typography>
       </Box>
       {entry.locked && (
@@ -112,9 +136,17 @@ export function CodeEntry({ entry, busy, onComplete, onResend, onType, children 
       />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         {entry.resendSeconds > 0 ? (
-          <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>Resend code in {formatCountdown(entry.resendSeconds)}</Typography>
+          <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
+            Resend code in {formatCountdown(entry.resendSeconds)}
+          </Typography>
         ) : (
-          <Link component="button" type="button" onClick={onResend} disabled={busy} sx={{ fontSize: 12.5, fontWeight: 700, color: tokens.goldDark }}>
+          <Link
+            component="button"
+            type="button"
+            onClick={onResend}
+            disabled={busy}
+            sx={{ fontSize: 12.5, fontWeight: 700, color: tokens.goldDark }}
+          >
             Resend code
           </Link>
         )}
@@ -134,7 +166,16 @@ export function CodeEntry({ entry, busy, onComplete, onResend, onType, children 
  * the request can no longer be used (it expired: the parent closes the dialog and says why), and
  * onClose() is Cancel. A wrong code shakes the dialog, empties the boxes and says how many tries are left.
  */
-export function EmailCodeDialog({ challenge, title, description, actionLabel = 'Verify', onVerify, onResend, onRestart, onClose }) {
+export function EmailCodeDialog({
+  challenge,
+  title,
+  description,
+  actionLabel = 'Verify',
+  onVerify,
+  onResend,
+  onRestart,
+  onClose
+}) {
   const entry = useCodeEntry();
   const { begin } = entry;
   const [busy, setBusy] = useState(false);
@@ -198,15 +239,30 @@ export function EmailCodeDialog({ challenge, title, description, actionLabel = '
           <Button onClick={onClose} disabled={busy} sx={{ color: tokens.textSecondary }}>
             Cancel
           </Button>
-          <BusyButton busy={busy} onClick={() => verify()} disabled={entry.locked || entry.code.length !== RULES.codeLength}>
+          <BusyButton
+            busy={busy}
+            onClick={() => verify()}
+            disabled={entry.locked || entry.code.length !== RULES.codeLength}
+          >
             {actionLabel}
           </BusyButton>
         </>
       }
     >
-      <Box onAnimationEnd={() => setShake(false)} sx={{ display: 'flex', flexDirection: 'column', gap: 2, ...shakeSx(shake) }}>
+      <Box
+        onAnimationEnd={() => setShake(false)}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2, ...shakeSx(shake) }}
+      >
         {formError && !entry.locked && <AlertBanner tone="error">{formError}</AlertBanner>}
-        {entry.challenge && <CodeEntry entry={entry} busy={busy} onComplete={(value) => verify(value)} onResend={resend} onType={() => setFormError('')} />}
+        {entry.challenge && (
+          <CodeEntry
+            entry={entry}
+            busy={busy}
+            onComplete={(value) => verify(value)}
+            onResend={resend}
+            onType={() => setFormError('')}
+          />
+        )}
       </Box>
     </AppDialog>
   );

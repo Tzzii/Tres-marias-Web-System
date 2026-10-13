@@ -50,7 +50,12 @@ const int = (name, fallback) => {
 // Comma-separated list, e.g. CORS_ORIGINS=http://localhost:5173,http://localhost:5174
 const list = (name, fallback = []) => {
   const raw = text(name);
-  return raw === '' ? fallback : raw.split(',').map((s) => s.trim()).filter(Boolean);
+  return raw === ''
+    ? fallback
+    : raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 };
 
 export const config = {
@@ -126,21 +131,28 @@ export const config = {
 };
 
 // Settings that must be right before real customers use the system
-if (config.corsOrigins.length === 0) problems.push("CORS_ORIGINS must list at least one origin (in production: the two portals' https:// addresses).");
+if (config.corsOrigins.length === 0)
+  problems.push("CORS_ORIGINS must list at least one origin (in production: the two portals' https:// addresses).");
 // Every sign-in signs a token with it, so the API cannot run without one (.env.example has a placeholder for development)
 if (!config.jwtSecret) problems.push('JWT_SECRET must be set (at least 32 random characters in production).');
 // A duration jsonwebtoken understands: a number of seconds, or a number with ms, s, m, h, d, w or y (e.g. 8h, 7d).
 // Checked here so a typo stops the start-up instead of failing every sign-in.
-Object.entries({ JWT_ADMIN_TTL: config.jwt.adminTtl, JWT_CUSTOMER_TTL: config.jwt.customerTtl, JWT_CUSTOMER_REMEMBER_TTL: config.jwt.customerRememberTtl })
+Object.entries({
+  JWT_ADMIN_TTL: config.jwt.adminTtl,
+  JWT_CUSTOMER_TTL: config.jwt.customerTtl,
+  JWT_CUSTOMER_REMEMBER_TTL: config.jwt.customerRememberTtl
+})
   .filter(([, value]) => !/^\d+(ms|s|m|h|d|w|y)?$/.test(value))
   .forEach(([name, value]) => problems.push(`${name} must be a duration such as 8h or 7d (got "${value}").`));
-if (!['log', 'smtp'].includes(config.mail.driver)) problems.push(`MAIL_DRIVER must be "log" or "smtp" (got "${config.mail.driver}").`);
+if (!['log', 'smtp'].includes(config.mail.driver))
+  problems.push(`MAIL_DRIVER must be "log" or "smtp" (got "${config.mail.driver}").`);
 // Caught here rather than as a 500 on the first email (e.g. an admin sign-in code)
 if (config.mail.driver === 'smtp' && (!config.mail.smtp.host || !config.mail.smtp.user)) {
   problems.push('MAIL_DRIVER=smtp needs SMTP_HOST and SMTP_USER (and SMTP_PASS).');
 }
 if (!['log'].includes(config.sms.driver)) problems.push(`SMS_DRIVER must be "log" (got "${config.sms.driver}").`);
-if (!['local'].includes(config.storage.driver)) problems.push(`STORAGE_DRIVER must be "local" (got "${config.storage.driver}").`);
+if (!['local'].includes(config.storage.driver))
+  problems.push(`STORAGE_DRIVER must be "local" (got "${config.storage.driver}").`);
 // Keep existing deployment settings compatible, but reject a conflicting upload limit.
 if (text('MAX_UPLOAD_MB') && int('MAX_UPLOAD_MB', RULES.photoMaxMb) !== RULES.photoMaxMb) {
   problems.push(`MAX_UPLOAD_MB must be ${RULES.photoMaxMb} to match the system-wide photo limit.`);
@@ -164,18 +176,33 @@ if (isProduction) {
   if (!config.db.password) problems.push('DB_PASSWORD must be set in production.');
   // Phase 12: the live server must really send email. Every sign-in, sign-up and password code goes by
   // email; with the log driver they would only be printed in the server's log, and nobody could sign in.
-  if (config.mail.driver !== 'smtp') problems.push('MAIL_DRIVER must be "smtp" in production (the log driver only prints the sign-in and sign-up codes).');
-  if (/@example\.(com|org|net)\b/i.test(config.mail.from)) problems.push('MAIL_FROM must be the business\'s own address in production (it is still the example one).');
+  if (config.mail.driver !== 'smtp')
+    problems.push(
+      'MAIL_DRIVER must be "smtp" in production (the log driver only prints the sign-in and sign-up codes).'
+    );
+  if (/@example\.(com|org|net)\b/i.test(config.mail.from))
+    problems.push("MAIL_FROM must be the business's own address in production (it is still the example one).");
   if (config.sms.driver === 'log' && !config.sms.allowLogInProduction) {
-    problems.push('SMS_DRIVER must be a real SMS provider in production. Until one is connected, set ALLOW_SMS_LOG=true to start anyway (texts are then only logged, not sent).');
+    problems.push(
+      'SMS_DRIVER must be a real SMS provider in production. Until one is connected, set ALLOW_SMS_LOG=true to start anyway (texts are then only logged, not sent).'
+    );
   }
   // The localhost default is development only: the live portals' own https:// addresses must be listed
-  if (config.corsOrigins.some((origin) => origin === '*' || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin))) {
+  if (
+    config.corsOrigins.some(
+      (origin) => origin === '*' || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin)
+    )
+  ) {
     problems.push('CORS_ORIGINS must list only the live portals in production (no "*", no localhost).');
   }
   // Customer emails link to the website (2026-10-10): a link to localhost or plain http would be broken or unsafe
-  if (!/^https:\/\//i.test(config.clientUrl) || /^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(config.clientUrl)) {
-    problems.push("CLIENT_URL must be the live website's https:// address in production (e.g. https://tresmariascater.com), not localhost.");
+  if (
+    !/^https:\/\//i.test(config.clientUrl) ||
+    /^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(config.clientUrl)
+  ) {
+    problems.push(
+      "CLIENT_URL must be the live website's https:// address in production (e.g. https://tresmariascater.com), not localhost."
+    );
   }
 }
 

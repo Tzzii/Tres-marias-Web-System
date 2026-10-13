@@ -60,25 +60,45 @@ feedbackAdminRoutes.post('/:id/read', validate({ params: schemas.idParams }), as
   res.json(await feedback.markFeedbackRead(req.valid.params.id));
 });
 // { status: 'published' | 'hidden' }
-feedbackAdminRoutes.patch('/:id/status', validate({ params: schemas.idParams, body: schemas.statusBody }), async (req, res) => {
-  res.json(await feedback.setFeedbackStatus(req.valid.params.id, req.valid.body.status));
-});
+feedbackAdminRoutes.patch(
+  '/:id/status',
+  validate({ params: schemas.idParams, body: schemas.statusBody }),
+  async (req, res) => {
+    res.json(await feedback.setFeedbackStatus(req.valid.params.id, req.valid.body.status));
+  }
+);
 // { featured }
-feedbackAdminRoutes.patch('/:id/featured', validate({ params: schemas.idParams, body: schemas.featuredBody }), async (req, res) => {
-  res.json(await feedback.setFeedbackFeatured(req.valid.params.id, req.valid.body.featured));
-});
+feedbackAdminRoutes.patch(
+  '/:id/featured',
+  validate({ params: schemas.idParams, body: schemas.featuredBody }),
+  async (req, res) => {
+    res.json(await feedback.setFeedbackFeatured(req.valid.params.id, req.valid.body.featured));
+  }
+);
 // { flagged, reason }
-feedbackAdminRoutes.patch('/:id/flag', validate({ params: schemas.idParams, body: schemas.flagBody }), async (req, res) => {
-  res.json(await feedback.setFeedbackFlag(req.valid.params.id, req.valid.body));
-});
+feedbackAdminRoutes.patch(
+  '/:id/flag',
+  validate({ params: schemas.idParams, body: schemas.flagBody }),
+  async (req, res) => {
+    res.json(await feedback.setFeedbackFlag(req.valid.params.id, req.valid.body));
+  }
+);
 // { archived }
-feedbackAdminRoutes.patch('/:id/archived', validate({ params: schemas.idParams, body: schemas.archivedBody }), async (req, res) => {
-  res.json(await feedback.setFeedbackArchived(req.valid.params.id, req.valid.body.archived));
-});
+feedbackAdminRoutes.patch(
+  '/:id/archived',
+  validate({ params: schemas.idParams, body: schemas.archivedBody }),
+  async (req, res) => {
+    res.json(await feedback.setFeedbackArchived(req.valid.params.id, req.valid.body.archived));
+  }
+);
 // { body } -> the reply is saved under the review and sent to the customer's chat, signed by the signed-in admin
-feedbackAdminRoutes.post('/:id/reply', validate({ params: schemas.idParams, body: schemas.replyBody }), async (req, res) => {
-  res.json(await feedback.replyToFeedback(req.valid.params.id, req.valid.body.body, req.user));
-});
+feedbackAdminRoutes.post(
+  '/:id/reply',
+  validate({ params: schemas.idParams, body: schemas.replyBody }),
+  async (req, res) => {
+    res.json(await feedback.replyToFeedback(req.valid.params.id, req.valid.body.body, req.user));
+  }
+);
 // Delete for good -> { ok: true }
 feedbackAdminRoutes.delete('/:id', validate({ params: schemas.idParams }), async (req, res) => {
   res.json(await feedback.deleteFeedback(req.valid.params.id));

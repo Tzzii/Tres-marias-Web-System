@@ -31,7 +31,10 @@ export function useMailerForTests(stub = defaultMailer) {
 }
 
 // "Wilma W. Cabiscuelas" -> "Wilma", when an account has no first name saved
-const firstWord = (name) => String(name || '').trim().split(/\s+/)[0] || '';
+const firstWord = (name) =>
+  String(name || '')
+    .trim()
+    .split(/\s+/)[0] || '';
 
 /**
  * Queue one email to the booking's customer, inside the transaction `conn` (a tx() connection) of the change
@@ -44,7 +47,9 @@ const firstWord = (name) => String(name || '').trim().split(/\s+/)[0] || '';
  */
 export async function queueCustomerEmail(conn, { customerId, ref, purpose, data = {} }) {
   if (!conn || typeof conn.afterCommit !== 'function') {
-    throw new Error(`[notify] ${purpose} ${ref}: queueCustomerEmail must run inside tx(), so the email is sent only after the change is saved.`);
+    throw new Error(
+      `[notify] ${purpose} ${ref}: queueCustomerEmail must run inside tx(), so the email is sent only after the change is saved.`
+    );
   }
   try {
     const build = CUSTOMER_EMAILS[purpose];
@@ -57,10 +62,20 @@ export async function queueCustomerEmail(conn, { customerId, ref, purpose, data 
     }
     const email = build({ ...data, firstName: (customer.first_name || '').trim() || firstWord(customer.name) });
     const { id } = await saveToOutbox(
-      { channel: 'email', to, subject: email.subject, body: email.text, status: 'queued', provider: mailer.name, meta: { purpose, ref, customerId } },
+      {
+        channel: 'email',
+        to,
+        subject: email.subject,
+        body: email.text,
+        status: 'queued',
+        provider: mailer.name,
+        meta: { purpose, ref, customerId }
+      },
       conn
     );
-    conn.afterCommit(() => deliverQueued(id, { to, subject: email.subject, text: email.text, html: email.html }, purpose, ref));
+    conn.afterCommit(() =>
+      deliverQueued(id, { to, subject: email.subject, text: email.text, html: email.html }, purpose, ref)
+    );
     return id;
   } catch (err) {
     console.error(`[notify] ${purpose} ${ref}: ${err.message}`);

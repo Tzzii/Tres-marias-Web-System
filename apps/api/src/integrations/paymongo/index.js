@@ -44,7 +44,8 @@ async function call(path, attributes) {
   }
   const json = res ? await res.json().catch(() => ({})) : {};
   if (!res || !res.ok) {
-    if (res) console.error('[paymongo]', path, res.status, JSON.stringify((json.errors || []).map((e) => e.code || e.detail)));
+    if (res)
+      console.error('[paymongo]', path, res.status, JSON.stringify((json.errors || []).map((e) => e.code || e.detail)));
     throw new ApiError('PAYMENT_PROVIDER', 'We could not reach the payment provider. Please try again.');
   }
   return json.data;
@@ -66,7 +67,10 @@ export async function createQrPh({ amount, description, metadata }) {
     metadata
   });
   const method = await call('/payment_methods', { type: 'qrph', expiry_seconds: config.paymongo.qrExpirySeconds });
-  const attached = await call(`/payment_intents/${intent.id}/attach`, { payment_method: method.id, client_key: intent.attributes.client_key });
+  const attached = await call(`/payment_intents/${intent.id}/attach`, {
+    payment_method: method.id,
+    client_key: intent.attributes.client_key
+  });
   const code = attached.attributes.next_action && attached.attributes.next_action.code;
   if (!code || !code.image_url) {
     console.error('[paymongo] attach gave no QR code for', intent.id);
@@ -115,6 +119,9 @@ export function verifySignature(header, rawBody, livemode) {
   );
   const given = livemode ? parts.li : parts.te;
   if (!parts.t || !given || !config.paymongo.webhookSecret) return false;
-  const expected = crypto.createHmac('sha256', config.paymongo.webhookSecret).update(`${parts.t}.${rawBody}`).digest('hex');
+  const expected = crypto
+    .createHmac('sha256', config.paymongo.webhookSecret)
+    .update(`${parts.t}.${rawBody}`)
+    .digest('hex');
   return given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
 }

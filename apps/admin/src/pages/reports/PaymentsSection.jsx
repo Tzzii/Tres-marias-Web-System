@@ -88,16 +88,56 @@ function ProofPreview({ payment }) {
   if (proof.kind === 'image') {
     // A PDF can't show as an image: onError switches to the button
     return (
-      <Box component="img" src={proof.url} alt={`Receipt: ${payment.proofName}`} onClick={open} onError={() => setProof((p) => ({ ...p, kind: 'file' }))} sx={{ display: 'block', width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 1.5, backgroundColor: tokens.surfaceMuted, cursor: 'zoom-in' }} />
+      <Box
+        component="img"
+        src={proof.url}
+        alt={`Receipt: ${payment.proofName}`}
+        onClick={open}
+        onError={() => setProof((p) => ({ ...p, kind: 'file' }))}
+        sx={{
+          display: 'block',
+          width: '100%',
+          maxHeight: 360,
+          objectFit: 'contain',
+          borderRadius: 1.5,
+          backgroundColor: tokens.surfaceMuted,
+          cursor: 'zoom-in'
+        }}
+      />
     );
   }
   return (
-    <Box sx={{ height: 180, borderRadius: 1.5, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, backgroundColor: tokens.surfaceMuted, border: `1px dashed ${tokens.borderInput}` }}>
+    <Box
+      sx={{
+        height: 180,
+        borderRadius: 1.5,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1,
+        backgroundColor: tokens.surfaceMuted,
+        border: `1px dashed ${tokens.borderInput}`
+      }}
+    >
       <ImageOutlinedIcon sx={{ fontSize: 40, color: tokens.textMuted }} />
-      <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textSecondary, px: 2, textAlign: 'center', overflowWrap: 'anywhere' }}>
+      <Typography
+        sx={{
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: tokens.textSecondary,
+          px: 2,
+          textAlign: 'center',
+          overflowWrap: 'anywhere'
+        }}
+      >
         {proof.kind === 'loading' ? 'Loading the receipt…' : payment.proofName}
       </Typography>
-      {proof.kind === 'file' && <Button size="small" variant="outlined" onClick={open}>Open file</Button>}
+      {proof.kind === 'file' && (
+        <Button size="small" variant="outlined" onClick={open}>
+          Open file
+        </Button>
+      )}
     </Box>
   );
 }
@@ -106,7 +146,12 @@ function ProofPreview({ payment }) {
 const inFilter = (key, r) => (key === 'all' ? true : key === 'awaiting' ? r.awaitingCount > 0 : r.balanceState === key);
 
 // Why money is owed back, for the "Refunds to Send" rows (listRefundsDue's `why`)
-const REFUND_WHY = { customer: 'Cancelled by the customer', admin: 'Cancelled by the admin', declined: 'Declined', overpaid: 'Overpaid' };
+const REFUND_WHY = {
+  customer: 'Cancelled by the customer',
+  admin: 'Cancelled by the admin',
+  declined: 'Declined',
+  overpaid: 'Overpaid'
+};
 
 /** The Details cell of a "QR Ph Codes" row: when it was paid (and its receipt), until when it is open, or how it ended. */
 function qrDetail(q) {
@@ -132,7 +177,11 @@ export default function PaymentsSection() {
   const [params, setParams] = useSearchParams();
   // Load every reservation with its total, amount paid, balance and payments, the bookings with money to return, and every QR Ph code
   const { data, loading, error, reload } = useResource(async () => {
-    const [balances, refundsDue, qrs] = await Promise.all([paymentApi.listBalances(), paymentApi.listRefundsDue(), paymentApi.listQrPayments()]);
+    const [balances, refundsDue, qrs] = await Promise.all([
+      paymentApi.listBalances(),
+      paymentApi.listRefundsDue(),
+      paymentApi.listQrPayments()
+    ]);
     return { balances, refundsDue, qrs };
   }, []);
   // Open QR Ph codes turn to Checking payment when their time is up, and are settled after the grace
@@ -141,7 +190,9 @@ export default function PaymentsSection() {
   const setting = useResource(() => catalogApi.getCatalog(), []);
 
   // Can start from ?filter= (dashboard link); an unknown value falls back to "All"
-  const [filter, setFilter] = useState(() => (FILTERS.some(([key]) => key === params.get('filter')) ? params.get('filter') : 'all'));
+  const [filter, setFilter] = useState(() =>
+    FILTERS.some(([key]) => key === params.get('filter')) ? params.get('filter') : 'all'
+  );
   const [query, setQuery] = useState('');
   const [verifyId, setVerifyId] = useState(params.get('verify')); // payment open in the verify panel
   const [rejecting, setRejecting] = useState(false); // reject dialog open
@@ -158,7 +209,10 @@ export default function PaymentsSection() {
   // Bring the verification panel into view when it opens (it sits below the table on smaller screens)
   useEffect(() => {
     if (!verifyId || !data) return undefined;
-    const timer = setTimeout(() => document.getElementById('verify-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    const timer = setTimeout(
+      () => document.getElementById('verify-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      150
+    );
     return () => clearTimeout(timer);
   }, [verifyId, Boolean(data)]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -175,7 +229,12 @@ export default function PaymentsSection() {
   const now = new Date();
   // Sum of payments verified during the current calendar month
   const collectedThisMonth = allPayments
-    .filter((p) => p.status === 'verified' && new Date(p.verifiedAt).getMonth() === now.getMonth() && new Date(p.verifiedAt).getFullYear() === now.getFullYear())
+    .filter(
+      (p) =>
+        p.status === 'verified' &&
+        new Date(p.verifiedAt).getMonth() === now.getMonth() &&
+        new Date(p.verifiedAt).getFullYear() === now.getFullYear()
+    )
     .reduce((s, p) => s + p.amount, 0);
   const outstanding = rows.reduce((s, r) => s + r.balance, 0);
   const awaitingCount = allPayments.filter((p) => p.status === 'awaiting').length;
@@ -183,7 +242,17 @@ export default function PaymentsSection() {
 
   // Number of reservations in each filter tab ("Refunds to Send" and "QR Ph Codes" count their own lists)
   const counts = useMemo(
-    () => Object.fromEntries(FILTERS.map(([key]) => [key, key === 'refunds' ? refundsDue.length : key === 'qr' ? qrs.length : rows.filter((r) => inFilter(key, r)).length])),
+    () =>
+      Object.fromEntries(
+        FILTERS.map(([key]) => [
+          key,
+          key === 'refunds'
+            ? refundsDue.length
+            : key === 'qr'
+              ? qrs.length
+              : rows.filter((r) => inFilter(key, r)).length
+        ])
+      ),
     [rows, refundsDue, qrs]
   );
 
@@ -196,7 +265,12 @@ export default function PaymentsSection() {
   const visible = rows
     .filter((r) => inFilter(filter, r))
     .filter(matches)
-    .sort((a, b) => b.awaitingCount - a.awaitingCount || (a.balanceState === 'overdue' ? -1 : 0) - (b.balanceState === 'overdue' ? -1 : 0) || a.date.localeCompare(b.date));
+    .sort(
+      (a, b) =>
+        b.awaitingCount - a.awaitingCount ||
+        (a.balanceState === 'overdue' ? -1 : 0) - (b.balanceState === 'overdue' ? -1 : 0) ||
+        a.date.localeCompare(b.date)
+    );
   // "Refunds to Send" rows, oldest event date first (the order listRefundsDue gives)
   const visibleRefunds = refundsDue.filter(matches);
   // "QR Ph Codes" rows, newest opened first (the order listQrPayments gives)
@@ -231,9 +305,11 @@ export default function PaymentsSection() {
   const remind = async (ref) => {
     try {
       const result = await paymentApi.sendPaymentReminder(ref);
-      notify(result && result.emailed
-        ? 'Reminder sent in chat and by email.'
-        : 'Reminder sent in chat. An email reminder already went out in the last 12 hours, so no email this time.');
+      notify(
+        result && result.emailed
+          ? 'Reminder sent in chat and by email.'
+          : 'Reminder sent in chat. An email reminder already went out in the last 12 hours, so no email this time.'
+      );
     } catch (e) {
       notify(e.message, 'error');
     }
@@ -250,9 +326,23 @@ export default function PaymentsSection() {
   };
 
   const columns = [
-    { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
+    {
+      key: 'ref',
+      label: 'REF',
+      render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography>
+    },
     // card: 'title' — on phone cards the customer and event are the heading (REF becomes a field)
-    { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
+    {
+      key: 'customer',
+      label: 'Customer',
+      card: 'title',
+      render: (r) => (
+        <Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography>
+        </Box>
+      )
+    },
     { key: 'date', label: 'Event Date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
@@ -263,9 +353,13 @@ export default function PaymentsSection() {
       label: 'Standing',
       render: (r) =>
         r.awaitingCount ? (
-          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>Proof to verify</Box>
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>
+            Proof to verify
+          </Box>
         ) : r.openQr ? (
-          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>Waiting for QR payment</Box>
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>
+            Waiting for QR payment
+          </Box>
         ) : (
           <BalanceChip state={r.balanceState} size="sm" />
         )
@@ -278,12 +372,26 @@ export default function PaymentsSection() {
       // Receipt (the most recently verified one) if one exists
       render: (r) => {
         const awaiting = r.payments.find((p) => p.status === 'awaiting');
-        const lastReceipt = r.payments.filter((p) => p.status === 'verified').sort((a, b) => b.verifiedAt - a.verifiedAt)[0];
+        const lastReceipt = r.payments
+          .filter((p) => p.status === 'verified')
+          .sort((a, b) => b.verifiedAt - a.verifiedAt)[0];
         return (
           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
-            {awaiting && <Button size="small" variant="contained" onClick={() => setVerifyId(awaiting.id)}>View proof</Button>}
-            {!awaiting && r.balance > 0 && <Button size="small" onClick={() => remind(r.ref)}>Send reminder</Button>}
-            {lastReceipt && <Button size="small" onClick={() => openReceipt(lastReceipt)}>Receipt</Button>}
+            {awaiting && (
+              <Button size="small" variant="contained" onClick={() => setVerifyId(awaiting.id)}>
+                View proof
+              </Button>
+            )}
+            {!awaiting && r.balance > 0 && (
+              <Button size="small" onClick={() => remind(r.ref)}>
+                Send reminder
+              </Button>
+            )}
+            {lastReceipt && (
+              <Button size="small" onClick={() => openReceipt(lastReceipt)}>
+                Receipt
+              </Button>
+            )}
           </Box>
         );
       }
@@ -293,63 +401,228 @@ export default function PaymentsSection() {
   // "Refunds to Send": one row per booking with money to return. On a phone card the customer and event
   // are the heading, the status chip sits top right, the amount to return is a field, and the button is at the bottom.
   const refundColumns = [
-    { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
-    { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
+    {
+      key: 'ref',
+      label: 'REF',
+      render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography>
+    },
+    {
+      key: 'customer',
+      label: 'Customer',
+      card: 'title',
+      render: (r) => (
+        <Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography>
+        </Box>
+      )
+    },
     { key: 'status', label: 'Status', card: 'aside', render: (r) => <StatusChip status={r.status} size="sm" /> },
     { key: 'date', label: 'Event Date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'why', label: 'Why', render: (r) => REFUND_WHY[r.why] || r.why },
     { key: 'refundDue', label: 'To Return', align: 'right', render: (r) => <b>{peso(r.refundDue)}</b> },
     { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
-    { key: 'action', label: 'Action', align: 'right', card: 'footer', render: (r) => <Button size="small" variant="contained" onClick={() => setRefunding(r)}>Record refund</Button> }
+    {
+      key: 'action',
+      label: 'Action',
+      align: 'right',
+      card: 'footer',
+      render: (r) => (
+        <Button size="small" variant="contained" onClick={() => setRefunding(r)}>
+          Record refund
+        </Button>
+      )
+    }
   ];
 
   // "QR Ph Codes": one row per QR Ph code a customer opened, the record of each try. Nothing to act on
   // (PayMongo confirms them): a click opens the booking. On a phone card the customer and event are the heading.
   const qrColumns = [
-    { key: 'opened', label: 'Opened', render: (q) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDateTime(q.createdAt)}</Box> },
-    { key: 'ref', label: 'REF', render: (q) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{q.ref}</Typography> },
-    { key: 'customer', label: 'Customer', card: 'title', render: (q) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{q.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{q.eventName}</Typography></Box>) },
+    {
+      key: 'opened',
+      label: 'Opened',
+      render: (q) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDateTime(q.createdAt)}</Box>
+    },
+    {
+      key: 'ref',
+      label: 'REF',
+      render: (q) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{q.ref}</Typography>
+    },
+    {
+      key: 'customer',
+      label: 'Customer',
+      card: 'title',
+      render: (q) => (
+        <Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{q.customerName}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{q.eventName}</Typography>
+        </Box>
+      )
+    },
     { key: 'status', label: 'Status', card: 'aside', render: (q) => <QrStatusChip qr={q} size="sm" /> },
     { key: 'amount', label: 'Amount', align: 'right', render: (q) => <b>{peso(q.amount)}</b> },
-    { key: 'detail', label: 'Details', render: (q) => <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{qrDetail(q)}</Typography> }
+    {
+      key: 'detail',
+      label: 'Details',
+      render: (q) => <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{qrDetail(q)}</Typography>
+    }
   ];
 
-  if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
+  if (error)
+    return (
+      <DashCard>
+        <ErrorState error={error} onRetry={reload} />
+      </DashCard>
+    );
 
   return (
     <>
       <SectionBar text="Set the minimum downpayment, verify uploaded proofs, record cash payments, follow up on balances and send refunds." />
 
-      <MinDownpaymentCard setting={setting} onSaved={() => { notify('Minimum downpayment saved.'); setting.reload(); }} />
+      <MinDownpaymentCard
+        setting={setting}
+        onSaved={() => {
+          notify('Minimum downpayment saved.');
+          setting.reload();
+        }}
+      />
 
       {/* Summary cards, two per row on phones and tablets */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
-        <StatCard icon={PendingActionsOutlinedIcon} tone="amber" label="Awaiting Verification" value={awaitingCount} loading={loading} onClick={() => setFilter('awaiting')} />
-        <StatCard icon={PaymentsOutlinedIcon} tone="green" label="Collected This Month" value={peso(collectedThisMonth)} loading={loading} />
-        <StatCard icon={AccountBalanceWalletOutlinedIcon} tone="blue" label="Outstanding Balance" value={peso(outstanding)} loading={loading} onClick={() => setFilter('partial')} />
-        <StatCard icon={WarningAmberRoundedIcon} tone="red" label="Overdue" value={overdueCount} loading={loading} onClick={() => setFilter('overdue')} />
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' },
+          gap: { xs: 1.5, sm: 2.5 },
+          mb: 2.5
+        }}
+      >
+        <StatCard
+          icon={PendingActionsOutlinedIcon}
+          tone="amber"
+          label="Awaiting Verification"
+          value={awaitingCount}
+          loading={loading}
+          onClick={() => setFilter('awaiting')}
+        />
+        <StatCard
+          icon={PaymentsOutlinedIcon}
+          tone="green"
+          label="Collected This Month"
+          value={peso(collectedThisMonth)}
+          loading={loading}
+        />
+        <StatCard
+          icon={AccountBalanceWalletOutlinedIcon}
+          tone="blue"
+          label="Outstanding Balance"
+          value={peso(outstanding)}
+          loading={loading}
+          onClick={() => setFilter('partial')}
+        />
+        <StatCard
+          icon={WarningAmberRoundedIcon}
+          tone="red"
+          label="Overdue"
+          value={overdueCount}
+          loading={loading}
+          onClick={() => setFilter('overdue')}
+        />
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: verifying ? '1.7fr 1fr' : '1fr' }, gap: 2.5, alignItems: 'start' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', xl: verifying ? '1.7fr 1fr' : '1fr' },
+          gap: 2.5,
+          alignItems: 'start'
+        }}
+      >
         <DashCard>
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 1.5, justifyContent: 'space-between', mb: 2 }}>
-            <FilterTabs value={filter} onChange={setFilter} options={FILTERS.map(([value, label]) => ({ value, label, count: loading ? undefined : counts[value] }))} />
-            <SearchField id="payments-search" value={query} onChange={setQuery} placeholder="Search by customer or REF" />
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', lg: 'row' },
+              gap: 1.5,
+              justifyContent: 'space-between',
+              mb: 2
+            }}
+          >
+            <FilterTabs
+              value={filter}
+              onChange={setFilter}
+              options={FILTERS.map(([value, label]) => ({ value, label, count: loading ? undefined : counts[value] }))}
+            />
+            <SearchField
+              id="payments-search"
+              value={query}
+              onChange={setQuery}
+              placeholder="Search by customer or REF"
+            />
           </Box>
           {filter === 'refunds' ? (
-            <DataTable loading={loading} columns={refundColumns} rows={visibleRefunds} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={960} empty={<EmptyState compact title="No refunds to send" description="Cancelled and overpaid bookings with money to return show here." />} />
+            <DataTable
+              loading={loading}
+              columns={refundColumns}
+              rows={visibleRefunds}
+              rowKey={(r) => r.ref}
+              onRowClick={(r) => navigate(`/reservations/${r.ref}`)}
+              minWidth={960}
+              empty={
+                <EmptyState
+                  compact
+                  title="No refunds to send"
+                  description="Cancelled and overpaid bookings with money to return show here."
+                />
+              }
+            />
           ) : filter === 'qr' ? (
-            <DataTable loading={loading} columns={qrColumns} rows={visibleQrs} rowKey={(q) => q.id} onRowClick={(q) => navigate(`/reservations/${q.ref}`)} minWidth={960} empty={<EmptyState compact title="No QR Ph codes yet" description="Every QR Ph code a customer opens shows here: waiting, paid, expired or failed." />} />
+            <DataTable
+              loading={loading}
+              columns={qrColumns}
+              rows={visibleQrs}
+              rowKey={(q) => q.id}
+              onRowClick={(q) => navigate(`/reservations/${q.ref}`)}
+              minWidth={960}
+              empty={
+                <EmptyState
+                  compact
+                  title="No QR Ph codes yet"
+                  description="Every QR Ph code a customer opens shows here: waiting, paid, expired or failed."
+                />
+              }
+            />
           ) : (
-            <DataTable loading={loading} columns={columns} rows={visible} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={960} empty={<EmptyState compact title="Nothing here" description="No reservations match this filter." />} />
+            <DataTable
+              loading={loading}
+              columns={columns}
+              rows={visible}
+              rowKey={(r) => r.ref}
+              onRowClick={(r) => navigate(`/reservations/${r.ref}`)}
+              minWidth={960}
+              empty={<EmptyState compact title="Nothing here" description="No reservations match this filter." />}
+            />
           )}
         </DashCard>
 
         {/* Verify panel: proof image, payment details, and Mark received / Reject buttons */}
         {verifying && verifyingRow && (
-          <DashCard id="verify-panel" sx={{ position: { xl: 'sticky' }, top: { xl: tokens.headerHeight + 24 }, scrollMarginTop: `${tokens.headerHeight + 16}px` }}>
-            <CardTitle subtitle={`${verifyingRow.customerName} · ${verifyingRow.eventName}`} action={<Button size="small" onClick={closeVerify}>Close</Button>}>
+          <DashCard
+            id="verify-panel"
+            sx={{
+              position: { xl: 'sticky' },
+              top: { xl: tokens.headerHeight + 24 },
+              scrollMarginTop: `${tokens.headerHeight + 16}px`
+            }}
+          >
+            <CardTitle
+              subtitle={`${verifyingRow.customerName} · ${verifyingRow.eventName}`}
+              action={
+                <Button size="small" onClick={closeVerify}>
+                  Close
+                </Button>
+              }
+            >
               Verifying · {verifying.ref}
             </CardTitle>
             {/* A bank transfer shows its receipt (the typed reference is below, to compare); a QR Ph payment and cash have none */}
@@ -371,19 +644,27 @@ export default function PaymentsSection() {
             {verifying.status === 'awaiting' ? (
               <>
                 <Box sx={{ mt: 2.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <BusyButton busy={busy} onClick={markReceived}>Mark received</BusyButton>
-                  <Button color="error" variant="outlined" disabled={busy} onClick={() => setRejecting(true)}>Reject with reason</Button>
+                  <BusyButton busy={busy} onClick={markReceived}>
+                    Mark received
+                  </BusyButton>
+                  <Button color="error" variant="outlined" disabled={busy} onClick={() => setRejecting(true)}>
+                    Reject with reason
+                  </Button>
                 </Box>
                 <Box sx={{ mt: 2.5, p: 1.75, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                   <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>What Marking Received Does</Typography>
                   <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
-                    Generates the receipt, moves the booking to Downpayment paid once the minimum downpayment is reached (straight to Confirmed when it is paid in full), and posts the update to the customer's Payments page and chat thread.
+                    Generates the receipt, moves the booking to Downpayment paid once the minimum downpayment is reached
+                    (straight to Confirmed when it is paid in full), and posts the update to the customer's Payments
+                    page and chat thread.
                   </Typography>
                 </Box>
               </>
             ) : (
               <AlertBanner tone={verifying.status === 'verified' ? 'success' : 'error'} sx={{ mt: 2 }}>
-                {verifying.status === 'verified' ? `Verified ${formatDateTime(verifying.verifiedAt)} · ${verifying.receiptNo}` : `Rejected: ${verifying.rejectReason}`}
+                {verifying.status === 'verified'
+                  ? `Verified ${formatDateTime(verifying.verifiedAt)} · ${verifying.receiptNo}`
+                  : `Rejected: ${verifying.rejectReason}`}
               </AlertBanner>
             )}
           </DashCard>
@@ -391,7 +672,9 @@ export default function PaymentsSection() {
       </Box>
 
       <Typography sx={{ mt: 2, fontSize: 12.5, color: tokens.textOnDarkMuted }}>
-        Cash-on-site payments are recorded from the reservation page with “Mark payment received”. QR Ph payments are confirmed by PayMongo; only bank transfers need verifying here. Every QR Ph code a customer opens, paid or not, is kept under “QR Ph Codes”.
+        Cash-on-site payments are recorded from the reservation page with “Mark payment received”. QR Ph payments are
+        confirmed by PayMongo; only bank transfers need verifying here. Every QR Ph code a customer opens, paid or not,
+        is kept under “QR Ph Codes”.
       </Typography>
 
       <ConfirmDialog
@@ -457,7 +740,9 @@ function MinDownpaymentCard({ setting, onSaved }) {
 
   return (
     <DashCard sx={{ mb: 2.5 }}>
-      <CardTitle subtitle="The least a customer pays first to secure a date. They can pay more, up to the full amount.">Minimum Downpayment</CardTitle>
+      <CardTitle subtitle="The least a customer pays first to secure a date. They can pay more, up to the full amount.">
+        Minimum Downpayment
+      </CardTitle>
       {setting.error ? (
         <ErrorState error={setting.error} onRetry={setting.reload} />
       ) : current === null ? (
@@ -469,10 +754,18 @@ function MinDownpaymentCard({ setting, onSaved }) {
               id="min-downpayment"
               type="number"
               value={value}
-              onChange={(e) => { setValue(e.target.value); setError(''); }}
+              onChange={(e) => {
+                setValue(e.target.value);
+                setError('');
+              }}
               error={error}
               InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
-              inputProps={{ min: MIN_DOWNPAYMENT_RANGE.min, max: MIN_DOWNPAYMENT_RANGE.max, step: 500, 'aria-label': 'Minimum downpayment' }}
+              inputProps={{
+                min: MIN_DOWNPAYMENT_RANGE.min,
+                max: MIN_DOWNPAYMENT_RANGE.max,
+                step: 500,
+                'aria-label': 'Minimum downpayment'
+              }}
               sx={{ width: 170 }}
             />
             <BusyButton busy={busy} disabled={String(current) === value} onClick={save} sx={{ height: 40 }}>
@@ -480,7 +773,8 @@ function MinDownpaymentCard({ setting, onSaved }) {
             </BusyButton>
           </Box>
           <Typography sx={{ mt: 1.5, fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
-            A booking whose total is below it is paid in full. Bookings keep the amount in force when they were made, so changing this never changes what an existing customer has to pay first.
+            A booking whose total is below it is paid in full. Bookings keep the amount in force when they were made, so
+            changing this never changes what an existing customer has to pay first.
           </Typography>
         </>
       )}

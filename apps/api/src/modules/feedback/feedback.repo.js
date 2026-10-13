@@ -110,8 +110,21 @@ export async function countUnread(db) {
  * compare it. Only this table's row is locked (no joins), so the lock order above holds.
  */
 export async function lockFeedback(conn, id) {
-  const row = first(await conn.query('SELECT id, ref, status, featured, flagged, archived FROM testimonials WHERE id = ? FOR UPDATE', [id]));
-  return row && { id: row.id, ref: row.ref, status: row.status, featured: Boolean(row.featured), flagged: Boolean(row.flagged), archived: Boolean(row.archived) };
+  const row = first(
+    await conn.query('SELECT id, ref, status, featured, flagged, archived FROM testimonials WHERE id = ? FOR UPDATE', [
+      id
+    ])
+  );
+  return (
+    row && {
+      id: row.id,
+      ref: row.ref,
+      status: row.status,
+      featured: Boolean(row.featured),
+      flagged: Boolean(row.flagged),
+      archived: Boolean(row.archived)
+    }
+  );
 }
 
 /**
@@ -123,7 +136,18 @@ export async function insertFeedback(conn, f) {
     `INSERT INTO testimonials (id, customer_id, ref, rating, cat_food, cat_service, cat_punctuality, cat_setup, body, created_at,
                                status, featured, flagged, flag_reason, archived, read_by_admin, reply_body, reply_at, reply_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'hidden', 0, 0, '', 0, 0, NULL, NULL, NULL)`,
-    [f.id, f.customerId, f.ref, f.rating, f.categories.food, f.categories.service, f.categories.punctuality, f.categories.setup, f.body, f.createdAt]
+    [
+      f.id,
+      f.customerId,
+      f.ref,
+      f.rating,
+      f.categories.food,
+      f.categories.service,
+      f.categories.punctuality,
+      f.categories.setup,
+      f.body,
+      f.createdAt
+    ]
   );
 }
 

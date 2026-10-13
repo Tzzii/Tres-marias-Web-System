@@ -123,8 +123,12 @@ function ChannelChips({ channels, size = 'sm' }) {
   if (!channels.length) return <Pill size={size} label="No contact" bg="rgba(239, 68, 68, 0.1)" fg="#b91c1c" />;
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-      {channels.includes('email') && <Pill size={size} label="Email" bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" dot={false} />}
-      {channels.includes('sms') && <Pill size={size} label="SMS" bg="rgba(16, 185, 129, 0.12)" fg="#047857" dot={false} />}
+      {channels.includes('email') && (
+        <Pill size={size} label="Email" bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" dot={false} />
+      )}
+      {channels.includes('sms') && (
+        <Pill size={size} label="SMS" bg="rgba(16, 185, 129, 0.12)" fg="#047857" dot={false} />
+      )}
     </Box>
   );
 }
@@ -228,7 +232,13 @@ export default function OutsourcePage() {
       .filter(byStatus)
       .filter(byDate)
       .filter((c) => service === 'all' || outsourceApi.partnerServiceCategory(c.service) === service)
-      .filter((c) => !q || [c.partnerName, c.ref, c.eventName, c.itemsSummary, c.service].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
+      .filter(
+        (c) =>
+          !q ||
+          [c.partnerName, c.ref, c.eventName, c.itemsSummary, c.service].some((v) =>
+            String(v).toLowerCase().replace(/\s/g, '').includes(q)
+          )
+      );
   }, [contracts, query, service, when, status]);
 
   // The Partners tab shares the search box and the Service filter, and has its own Active / Archived switch
@@ -237,7 +247,13 @@ export default function OutsourcePage() {
     return partners
       .filter((p) => Boolean(p.archived) === showArchived)
       .filter((p) => service === 'all' || outsourceApi.partnerServiceCategory(p.service) === service)
-      .filter((p) => !q || [p.name, p.contactPerson, p.email, p.mobile, p.service].some((v) => String(v).toLowerCase().replace(/\s/g, '').includes(q)));
+      .filter(
+        (p) =>
+          !q ||
+          [p.name, p.contactPerson, p.email, p.mobile, p.service].some((v) =>
+            String(v).toLowerCase().replace(/\s/g, '').includes(q)
+          )
+      );
   }, [partners, query, service, showArchived]);
 
   const rows = tab === 'contracts' ? filtered : filteredPartners;
@@ -261,22 +277,31 @@ export default function OutsourcePage() {
   };
 
   // Save the request details and the exact message sent to its partner as a branded PDF.
-  const saveContractPdf = (contract) => savePdfDocument({
-    title: `Outsourcing Request - ${contract.ref}`,
-    fileName: `${contract.ref}.pdf`,
-    details: [
-      ['Request', contract.ref],
-      ['Partner', `${contract.partnerName}${contract.contactPerson ? ` (${contract.contactPerson})` : ''}`],
-      ['Supplies', contract.service],
-      ['Event', `${contract.eventName || 'No event linked'}${contract.eventDate ? ` · ${formatDate(contract.eventDate)}` : ''}`],
-      ['Needed on', formatDate(contract.needBy)],
-      ['Items', contract.itemsSummary],
-      ['Outsource price', peso(contract.amount)],
-      ['Status', STATUS[contract.status].label],
-      ['Sent', contract.sentAt ? `${formatDateTime(contract.sentAt)} by ${contract.deliveries.map((d) => (d.channel === 'email' ? `email (${d.to})` : `SMS (${d.to})`)).join(' and ')}` : 'Not sent yet']
-    ],
-    message: contract.body || '(the request text is written when it is sent)'
-  });
+  const saveContractPdf = (contract) =>
+    savePdfDocument({
+      title: `Outsourcing Request - ${contract.ref}`,
+      fileName: `${contract.ref}.pdf`,
+      details: [
+        ['Request', contract.ref],
+        ['Partner', `${contract.partnerName}${contract.contactPerson ? ` (${contract.contactPerson})` : ''}`],
+        ['Supplies', contract.service],
+        [
+          'Event',
+          `${contract.eventName || 'No event linked'}${contract.eventDate ? ` · ${formatDate(contract.eventDate)}` : ''}`
+        ],
+        ['Needed on', formatDate(contract.needBy)],
+        ['Items', contract.itemsSummary],
+        ['Outsource price', peso(contract.amount)],
+        ['Status', STATUS[contract.status].label],
+        [
+          'Sent',
+          contract.sentAt
+            ? `${formatDateTime(contract.sentAt)} by ${contract.deliveries.map((d) => (d.channel === 'email' ? `email (${d.to})` : `SMS (${d.to})`)).join(' and ')}`
+            : 'Not sent yet'
+        ]
+      ],
+      message: contract.body || '(the request text is written when it is sent)'
+    });
 
   // Save the ticked requests as one landscape PDF table.
   const saveTickedPdf = () => {
@@ -314,7 +339,14 @@ export default function OutsourcePage() {
           inputProps={{ 'aria-label': 'Select all on this page' }}
         />
       ),
-      render: (c) => <Checkbox size="small" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} inputProps={{ 'aria-label': `Select ${c.ref}` }} />
+      render: (c) => (
+        <Checkbox
+          size="small"
+          checked={selected.includes(c.id)}
+          onChange={() => toggle(c.id)}
+          inputProps={{ 'aria-label': `Select ${c.ref}` }}
+        />
+      )
     },
     {
       key: 'partner',
@@ -322,22 +354,54 @@ export default function OutsourcePage() {
       render: (c) => (
         <Box>
           <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{c.partnerName}</Typography>
-          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{c.service} · {c.itemsSummary}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+            {c.service} · {c.itemsSummary}
+          </Typography>
         </Box>
       )
     },
-    columns.event && { key: 'event', label: 'Assigned Event', render: (c) => c.eventName || <Box component="span" sx={{ color: tokens.textMuted }}>No event linked</Box> },
-    columns.eventDate && { key: 'eventDate', label: 'Event Date', render: (c) => (c.eventDate ? formatDate(c.eventDate) : '—') },
+    columns.event && {
+      key: 'event',
+      label: 'Assigned Event',
+      render: (c) =>
+        c.eventName || (
+          <Box component="span" sx={{ color: tokens.textMuted }}>
+            No event linked
+          </Box>
+        )
+    },
+    columns.eventDate && {
+      key: 'eventDate',
+      label: 'Event Date',
+      render: (c) => (c.eventDate ? formatDate(c.eventDate) : '—')
+    },
     columns.needBy && { key: 'needBy', label: 'Date Needed', render: (c) => formatDate(c.needBy) },
-    columns.amount && { key: 'amount', label: 'Outsource Price', align: 'right', render: (c) => (c.amount > 0 ? peso(c.amount) : '—') },
-    { key: 'ref', label: 'Request Ref #', render: (c) => <Typography sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{c.ref}</Typography> },
-    { key: 'status', label: 'Request Status', render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} /> },
+    columns.amount && {
+      key: 'amount',
+      label: 'Outsource Price',
+      align: 'right',
+      render: (c) => (c.amount > 0 ? peso(c.amount) : '—')
+    },
+    {
+      key: 'ref',
+      label: 'Request Ref #',
+      render: (c) => <Typography sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{c.ref}</Typography>
+    },
+    {
+      key: 'status',
+      label: 'Request Status',
+      render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} />
+    },
     // Where it went: the channels it was actually sent to, or how it will be sent once it is
     columns.sentTo && {
       key: 'sentTo',
       label: 'Sent To',
       render: (c) =>
-        c.sentAt ? <ChannelChips channels={[...new Set(c.deliveries.map((d) => d.channel))]} /> : <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>Not sent</Typography>
+        c.sentAt ? (
+          <ChannelChips channels={[...new Set(c.deliveries.map((d) => d.channel))]} />
+        ) : (
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>Not sent</Typography>
+        )
     },
     {
       key: 'actions',
@@ -346,7 +410,11 @@ export default function OutsourcePage() {
       width: 72,
       card: 'aside', // on phone cards the ⋮ menu sits at the top right, next to the status
       render: (c) => (
-        <IconButton size="small" aria-label={`Actions for ${c.ref}`} onClick={(e) => setRowMenu({ anchor: e.currentTarget, contract: c })}>
+        <IconButton
+          size="small"
+          aria-label={`Actions for ${c.ref}`}
+          onClick={(e) => setRowMenu({ anchor: e.currentTarget, contract: c })}
+        >
           <MoreVertRoundedIcon fontSize="small" />
         </IconButton>
       )
@@ -361,7 +429,9 @@ export default function OutsourcePage() {
       render: (p) => (
         <Box>
           <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{p.name}</Typography>
-          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{p.contactPerson || 'No contact person'}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+            {p.contactPerson || 'No contact person'}
+          </Typography>
         </Box>
       )
     },
@@ -372,12 +442,25 @@ export default function OutsourcePage() {
       render: (p) => (
         <Box>
           <ChannelChips channels={p.channels} />
-          <Typography sx={{ fontSize: 12, color: tokens.textMuted, mt: 0.25 }}>{[p.email, p.mobile && formatMobile(p.mobile)].filter(Boolean).join(' · ') || 'Add an email or mobile number'}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted, mt: 0.25 }}>
+            {[p.email, p.mobile && formatMobile(p.mobile)].filter(Boolean).join(' · ') ||
+              'Add an email or mobile number'}
+          </Typography>
         </Box>
       )
     },
     { key: 'contracts', label: 'Requests', align: 'right', render: (p) => p.contractCount },
-    { key: 'open', label: 'Awaiting Reply', align: 'right', render: (p) => (p.openCount > 0 ? <Pill size="sm" label={String(p.openCount)} bg="rgba(245, 158, 11, 0.14)" fg="#b45309" /> : '—') },
+    {
+      key: 'open',
+      label: 'Awaiting Reply',
+      align: 'right',
+      render: (p) =>
+        p.openCount > 0 ? (
+          <Pill size="sm" label={String(p.openCount)} bg="rgba(245, 158, 11, 0.14)" fg="#b45309" />
+        ) : (
+          '—'
+        )
+    },
     {
       key: 'actions',
       label: 'Actions',
@@ -385,14 +468,23 @@ export default function OutsourcePage() {
       width: 72,
       card: 'aside', // on phone cards the ⋮ menu sits at the top right
       render: (p) => (
-        <IconButton size="small" aria-label={`Actions for ${p.name}`} onClick={(e) => setPartnerMenu({ anchor: e.currentTarget, partner: p })}>
+        <IconButton
+          size="small"
+          aria-label={`Actions for ${p.name}`}
+          onClick={(e) => setPartnerMenu({ anchor: e.currentTarget, partner: p })}
+        >
           <MoreVertRoundedIcon fontSize="small" />
         </IconButton>
       )
     }
   ];
 
-  if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
+  if (error)
+    return (
+      <DashCard>
+        <ErrorState error={error} onRetry={reload} />
+      </DashCard>
+    );
 
   const menuContract = rowMenu && rowMenu.contract;
   const menuPartner = partnerMenu && partnerMenu.partner;
@@ -405,14 +497,30 @@ export default function OutsourcePage() {
         subtitle="Rent what your own stock can't cover. Ask a partner by email, SMS or both if they can supply it for an event."
         actions={
           <>
-            <Button variant="outlined" startIcon={<StorefrontOutlinedIcon />} onClick={() => setPartnerForm({})}>Add partner</Button>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} disabled={!activePartners.length} onClick={() => setEditing({ prefill: {} })}>New request</Button>
+            <Button variant="outlined" startIcon={<StorefrontOutlinedIcon />} onClick={() => setPartnerForm({})}>
+              Add partner
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              disabled={!activePartners.length}
+              onClick={() => setEditing({ prefill: {} })}
+            >
+              New request
+            </Button>
           </>
         }
       />
 
       {/* Summary cards; clicking one opens the matching request filter. Two per row on phones and tablets. */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' }, gap: { xs: 1.5, sm: 2.5 }, mb: 2.5 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' },
+          gap: { xs: 1.5, sm: 2.5 },
+          mb: 2.5
+        }}
+      >
         <StatCard
           icon={StorefrontOutlinedIcon}
           tone="gold"
@@ -429,7 +537,10 @@ export default function OutsourcePage() {
           value={totals.accepted}
           meta={`${totals.completed} completed`}
           loading={loading}
-          onClick={() => { setParams({ tab: 'contracts' }); setStatus('accepted'); }}
+          onClick={() => {
+            setParams({ tab: 'contracts' });
+            setStatus('accepted');
+          }}
         />
         <StatCard
           icon={HourglassEmptyRoundedIcon}
@@ -438,7 +549,10 @@ export default function OutsourcePage() {
           value={totals.sent}
           meta={`${totals.draft} draft${totals.draft === 1 ? '' : 's'} not sent`}
           loading={loading}
-          onClick={() => { setParams({ tab: 'contracts' }); setStatus('sent'); }}
+          onClick={() => {
+            setParams({ tab: 'contracts' });
+            setStatus('sent');
+          }}
         />
         <StatCard
           icon={BlockRoundedIcon}
@@ -447,7 +561,10 @@ export default function OutsourcePage() {
           value={totals.declined}
           meta={`${totals.cancelled} cancelled`}
           loading={loading}
-          onClick={() => { setParams({ tab: 'contracts' }); setStatus('declined'); }}
+          onClick={() => {
+            setParams({ tab: 'contracts' });
+            setStatus('declined');
+          }}
         />
       </Box>
 
@@ -472,25 +589,70 @@ export default function OutsourcePage() {
             placeholder={tab === 'contracts' ? 'Search partner, Ref # or item' : 'Search partner, contact or number'}
             sx={{ flex: '1 1 240px' }}
           />
-          <TextField select size="small" value={service} onChange={(e) => setService(e.target.value)} inputProps={{ 'aria-label': 'Service' }} sx={{ minWidth: 180 }}>
+          <TextField
+            select
+            size="small"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+            inputProps={{ 'aria-label': 'Service' }}
+            sx={{ minWidth: 180 }}
+          >
             <MenuItem value="all">Category: All</MenuItem>
-            {OUTSOURCE_SERVICES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            {OUTSOURCE_SERVICES.map((s) => (
+              <MenuItem key={s} value={s}>
+                {s}
+              </MenuItem>
+            ))}
           </TextField>
           {tab === 'partners' && (
-            <TextField select size="small" value={showArchived ? 'archived' : 'active'} onChange={(e) => setShowArchived(e.target.value === 'archived')} inputProps={{ 'aria-label': 'Partner list' }} sx={{ minWidth: 170 }}>
+            <TextField
+              select
+              size="small"
+              value={showArchived ? 'archived' : 'active'}
+              onChange={(e) => setShowArchived(e.target.value === 'archived')}
+              inputProps={{ 'aria-label': 'Partner list' }}
+              sx={{ minWidth: 170 }}
+            >
               <MenuItem value="active">Status: Active</MenuItem>
               <MenuItem value="archived">Archived</MenuItem>
             </TextField>
           )}
           {tab === 'contracts' && (
             <>
-              <TextField select size="small" value={when} onChange={(e) => setWhen(e.target.value)} inputProps={{ 'aria-label': 'Event date' }} sx={{ minWidth: 170 }}>
-                {DATE_FILTERS.map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}
+              <TextField
+                select
+                size="small"
+                value={when}
+                onChange={(e) => setWhen(e.target.value)}
+                inputProps={{ 'aria-label': 'Event date' }}
+                sx={{ minWidth: 170 }}
+              >
+                {DATE_FILTERS.map(([key, label]) => (
+                  <MenuItem key={key} value={key}>
+                    {label}
+                  </MenuItem>
+                ))}
               </TextField>
-              <TextField select size="small" value={status} onChange={(e) => setStatus(e.target.value)} inputProps={{ 'aria-label': 'Status' }} sx={{ minWidth: 170 }}>
-                {STATUS_FILTERS.map(([key, label]) => <MenuItem key={key} value={key}>{key === 'all' ? 'Status: All' : label}</MenuItem>)}
+              <TextField
+                select
+                size="small"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                inputProps={{ 'aria-label': 'Status' }}
+                sx={{ minWidth: 170 }}
+              >
+                {STATUS_FILTERS.map(([key, label]) => (
+                  <MenuItem key={key} value={key}>
+                    {key === 'all' ? 'Status: All' : label}
+                  </MenuItem>
+                ))}
               </TextField>
-              <Button variant="outlined" startIcon={<ViewColumnOutlinedIcon />} onClick={(e) => setColumnsAnchor(e.currentTarget)} aria-haspopup="menu">
+              <Button
+                variant="outlined"
+                startIcon={<ViewColumnOutlinedIcon />}
+                onClick={(e) => setColumnsAnchor(e.currentTarget)}
+                aria-haspopup="menu"
+              >
                 Filter columns
               </Button>
               {/* Show or hide the optional columns */}
@@ -498,7 +660,14 @@ export default function OutsourcePage() {
                 {OPTIONAL_COLUMNS.map(([key, label]) => (
                   <MenuItem key={key} dense onClick={() => setColumns((c) => ({ ...c, [key]: !c[key] }))}>
                     {/* The menu row does the toggling; the checkbox only shows the state */}
-                    <Checkbox size="small" checked={columns[key]} tabIndex={-1} disableRipple sx={{ p: 0.5, mr: 1, pointerEvents: 'none' }} inputProps={{ 'aria-label': label, readOnly: true }} />
+                    <Checkbox
+                      size="small"
+                      checked={columns[key]}
+                      tabIndex={-1}
+                      disableRipple
+                      sx={{ p: 0.5, mr: 1, pointerEvents: 'none' }}
+                      inputProps={{ 'aria-label': label, readOnly: true }}
+                    />
                     <ListItemText primaryTypographyProps={{ fontSize: 13.5 }}>{label}</ListItemText>
                   </MenuItem>
                 ))}
@@ -509,10 +678,33 @@ export default function OutsourcePage() {
 
         {/* Bulk bar, shown when requests are ticked */}
         {ticked.length > 0 && (
-          <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
+          <Box
+            sx={{
+              mb: 2,
+              px: 2,
+              py: 1.25,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              flexWrap: 'wrap',
+              borderRadius: 1.5,
+              backgroundColor: tokens.ink,
+              color: tokens.onInk
+            }}
+          >
             <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{ticked.length} selected</Typography>
-            <Button size="small" startIcon={<PictureAsPdfOutlinedIcon />} disabled={savingPdfDocument} sx={{ color: tokens.onInk }} onClick={saveTickedPdf}>{savingPdfDocument ? 'Saving…' : 'Save PDF'}</Button>
-            <Button size="small" sx={{ color: tokens.onInk }} onClick={() => setSelected([])}>Clear</Button>
+            <Button
+              size="small"
+              startIcon={<PictureAsPdfOutlinedIcon />}
+              disabled={savingPdfDocument}
+              sx={{ color: tokens.onInk }}
+              onClick={saveTickedPdf}
+            >
+              {savingPdfDocument ? 'Saving…' : 'Save PDF'}
+            </Button>
+            <Button size="small" sx={{ color: tokens.onInk }} onClick={() => setSelected([])}>
+              Clear
+            </Button>
           </Box>
         )}
 
@@ -524,7 +716,17 @@ export default function OutsourcePage() {
             rowKey={(c) => c.id}
             onRowClick={(c) => setDetailsId(c.id)}
             minWidth={980}
-            empty={<EmptyState compact title="No requests match" description={contracts.length ? 'Try another search, category, date or status.' : 'Start one with "New request" once you have a partner.'} />}
+            empty={
+              <EmptyState
+                compact
+                title="No requests match"
+                description={
+                  contracts.length
+                    ? 'Try another search, category, date or status.'
+                    : 'Start one with "New request" once you have a partner.'
+                }
+              />
+            }
           />
         ) : (
           <DataTable
@@ -538,7 +740,13 @@ export default function OutsourcePage() {
               <EmptyState
                 compact
                 title={showArchived ? 'Nothing archived' : 'No partners match'}
-                description={showArchived ? 'Archived partners appear here and can be restored.' : partners.length ? 'Try another search or category.' : 'Add the suppliers you rent from with "Add partner".'}
+                description={
+                  showArchived
+                    ? 'Archived partners appear here and can be restored.'
+                    : partners.length
+                      ? 'Try another search or category.'
+                      : 'Add the suppliers you rent from with "Add partner".'
+                }
               />
             }
           />
@@ -546,43 +754,118 @@ export default function OutsourcePage() {
         {!loading && rows.length > 0 && <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />}
 
         {/* ⋮ menu for one request; the options depend on its status */}
-        <Menu anchorEl={rowMenu && rowMenu.anchor} open={Boolean(rowMenu)} onClose={() => setRowMenu(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        <Menu
+          anchorEl={rowMenu && rowMenu.anchor}
+          open={Boolean(rowMenu)}
+          onClose={() => setRowMenu(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
           {menuContract && [
-            <MenuItem key="details" onClick={() => openAction('details', menuContract)}>Open request</MenuItem>,
+            <MenuItem key="details" onClick={() => openAction('details', menuContract)}>
+              Open request
+            </MenuItem>,
             ...(menuContract.status === 'draft'
               ? [
-                  <MenuItem key="edit" onClick={() => openAction('edit', menuContract)}>Edit draft</MenuItem>,
-                  <MenuItem key="send" onClick={() => openAction('send', menuContract)}>Review and send</MenuItem>
+                  <MenuItem key="edit" onClick={() => openAction('edit', menuContract)}>
+                    Edit draft
+                  </MenuItem>,
+                  <MenuItem key="send" onClick={() => openAction('send', menuContract)}>
+                    Review and send
+                  </MenuItem>
                 ]
               : []),
             ...(menuContract.status === 'sent'
               ? [
-                  <MenuItem key="accepted" onClick={() => openAction('accepted', menuContract)}>Partner accepted</MenuItem>,
-                  <MenuItem key="declined" onClick={() => openAction('declined', menuContract)}>Partner declined</MenuItem>,
-                  <MenuItem key="resend" onClick={() => openAction('send', menuContract)}>Send again</MenuItem>
+                  <MenuItem key="accepted" onClick={() => openAction('accepted', menuContract)}>
+                    Partner accepted
+                  </MenuItem>,
+                  <MenuItem key="declined" onClick={() => openAction('declined', menuContract)}>
+                    Partner declined
+                  </MenuItem>,
+                  <MenuItem key="resend" onClick={() => openAction('send', menuContract)}>
+                    Send again
+                  </MenuItem>
                 ]
               : []),
-            ...(menuContract.status === 'accepted' ? [<MenuItem key="completed" onClick={() => openAction('completed', menuContract)}>Mark delivered</MenuItem>] : []),
+            ...(menuContract.status === 'accepted'
+              ? [
+                  <MenuItem key="completed" onClick={() => openAction('completed', menuContract)}>
+                    Mark delivered
+                  </MenuItem>
+                ]
+              : []),
             <Divider key="d1" />,
-            <MenuItem key="savePdf" disabled={savingPdfDocument} onClick={() => openAction('savePdf', menuContract)}>Save PDF</MenuItem>,
+            <MenuItem key="savePdf" disabled={savingPdfDocument} onClick={() => openAction('savePdf', menuContract)}>
+              Save PDF
+            </MenuItem>,
             ...(['draft', 'sent', 'accepted'].includes(menuContract.status)
-              ? [<MenuItem key="cancelled" onClick={() => openAction('cancelled', menuContract)} sx={{ color: tokens.redPress }}>Cancel request</MenuItem>]
+              ? [
+                  <MenuItem
+                    key="cancelled"
+                    onClick={() => openAction('cancelled', menuContract)}
+                    sx={{ color: tokens.redPress }}
+                  >
+                    Cancel request
+                  </MenuItem>
+                ]
               : [])
           ]}
         </Menu>
 
         {/* ⋮ menu for one partner */}
-        <Menu anchorEl={partnerMenu && partnerMenu.anchor} open={Boolean(partnerMenu)} onClose={() => setPartnerMenu(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        <Menu
+          anchorEl={partnerMenu && partnerMenu.anchor}
+          open={Boolean(partnerMenu)}
+          onClose={() => setPartnerMenu(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
           {menuPartner && [
-            <MenuItem key="edit" onClick={() => { setPartnerMenu(null); setPartnerForm({ id: menuPartner.id }); }}>Edit details</MenuItem>,
+            <MenuItem
+              key="edit"
+              onClick={() => {
+                setPartnerMenu(null);
+                setPartnerForm({ id: menuPartner.id });
+              }}
+            >
+              Edit details
+            </MenuItem>,
             ...(menuPartner.archived
               ? []
-              : [<MenuItem key="new" onClick={() => { setPartnerMenu(null); setEditing({ prefill: { partnerId: menuPartner.id } }); }}>New request for them</MenuItem>]),
+              : [
+                  <MenuItem
+                    key="new"
+                    onClick={() => {
+                      setPartnerMenu(null);
+                      setEditing({ prefill: { partnerId: menuPartner.id } });
+                    }}
+                  >
+                    New request for them
+                  </MenuItem>
+                ]),
             <Divider key="d1" />,
             menuPartner.archived ? (
-              <MenuItem key="restore" onClick={() => { setPartnerMenu(null); setArchive({ ids: [menuPartner.id], archived: false }); }}>Restore partner</MenuItem>
+              <MenuItem
+                key="restore"
+                onClick={() => {
+                  setPartnerMenu(null);
+                  setArchive({ ids: [menuPartner.id], archived: false });
+                }}
+              >
+                Restore partner
+              </MenuItem>
             ) : (
-              <MenuItem key="archive" onClick={() => { setPartnerMenu(null); setArchive({ ids: [menuPartner.id], archived: true }); }} sx={{ color: tokens.redPress }}>Archive partner</MenuItem>
+              <MenuItem
+                key="archive"
+                onClick={() => {
+                  setPartnerMenu(null);
+                  setArchive({ ids: [menuPartner.id], archived: true });
+                }}
+                sx={{ color: tokens.redPress }}
+              >
+                Archive partner
+              </MenuItem>
             )
           ]}
         </Menu>
@@ -627,13 +910,20 @@ export default function OutsourcePage() {
             notify(contract.deliveryNote, 'warning');
             return;
           }
-          const where = [...new Set(contract.deliveries.map((d) => d.channel))].map((c) => (c === 'email' ? 'email' : 'SMS')).join(' and ');
+          const where = [...new Set(contract.deliveries.map((d) => d.channel))]
+            .map((c) => (c === 'email' ? 'email' : 'SMS'))
+            .join(' and ');
           notify(`${contract.ref} sent to ${contract.partnerName} by ${where}.`);
         }}
       />
 
       {pdfDocument}
-      <DetailsDialog contract={contractById(detailsId)} onClose={() => setDetailsId(null)} onAction={openAction} savingPdf={savingPdfDocument} />
+      <DetailsDialog
+        contract={contractById(detailsId)}
+        onClose={() => setDetailsId(null)}
+        onAction={openAction}
+        savingPdf={savingPdfDocument}
+      />
 
       {/* Record the partner's reply, mark a request delivered, or cancel it */}
       <ConfirmDialog
@@ -641,19 +931,45 @@ export default function OutsourcePage() {
         onClose={() => setAnswer(null)}
         title={
           answerContract
-            ? { accepted: `Record that ${answerContract.partnerName} accepted?`, declined: `Record that ${answerContract.partnerName} declined?`, completed: `Mark ${answerContract.ref} delivered?`, cancelled: `Cancel ${answerContract.ref}?` }[answer.status]
+            ? {
+                accepted: `Record that ${answerContract.partnerName} accepted?`,
+                declined: `Record that ${answerContract.partnerName} declined?`,
+                completed: `Mark ${answerContract.ref} delivered?`,
+                cancelled: `Cancel ${answerContract.ref}?`
+              }[answer.status]
             : ''
         }
         description={
-          answer && { accepted: 'The partner can supply this. It counts under Accepted / Active.', declined: 'The request closes as declined. Make a new request for another partner if you still need the items.', completed: 'The items arrived and the request is closed.', cancelled: 'The request closes. Let the partner know separately if it was already sent.' }[answer.status]
+          answer &&
+          {
+            accepted: 'The partner can supply this. It counts under Accepted / Active.',
+            declined:
+              'The request closes as declined. Make a new request for another partner if you still need the items.',
+            completed: 'The items arrived and the request is closed.',
+            cancelled: 'The request closes. Let the partner know separately if it was already sent.'
+          }[answer.status]
         }
-        confirmLabel={answer ? { accepted: 'Record acceptance', declined: 'Record decline', completed: 'Mark delivered', cancelled: 'Cancel request' }[answer.status] : ''}
+        confirmLabel={
+          answer
+            ? {
+                accepted: 'Record acceptance',
+                declined: 'Record decline',
+                completed: 'Mark delivered',
+                cancelled: 'Cancel request'
+              }[answer.status]
+            : ''
+        }
         tone={answer && ['declined', 'cancelled'].includes(answer.status) ? 'danger' : 'primary'}
         reasonLabel={answer && ['declined', 'cancelled'].includes(answer.status) ? 'Reason' : undefined}
         reasonPlaceholder="e.g. Fully booked for that date"
         onConfirm={async (note) => {
           await outsourceApi.setContractStatus(answer.id, answer.status, { note });
-          const done = { accepted: 'Acceptance recorded.', declined: 'Decline recorded.', completed: 'Request completed.', cancelled: 'Request cancelled.' }[answer.status];
+          const done = {
+            accepted: 'Acceptance recorded.',
+            declined: 'Decline recorded.',
+            completed: 'Request completed.',
+            cancelled: 'Request cancelled.'
+          }[answer.status];
           setAnswer(null);
           setSelected([]);
           notify(done);
@@ -663,7 +979,11 @@ export default function OutsourcePage() {
       <ConfirmDialog
         open={Boolean(archive)}
         onClose={() => setArchive(null)}
-        title={archive ? `${archive.archived ? 'Archive' : 'Restore'} ${(partners.find((p) => p.id === archive.ids[0]) || {}).name}?` : ''}
+        title={
+          archive
+            ? `${archive.archived ? 'Archive' : 'Restore'} ${(partners.find((p) => p.id === archive.ids[0]) || {}).name}?`
+            : ''
+        }
         description={
           archive && archive.archived
             ? 'Archived partners leave the list and cannot be given new requests. Their past requests are kept.'
@@ -704,12 +1024,28 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
   useEffect(() => {
     if (!open) return;
     // An item that is not in the inventory is shown in the "Other item" box instead of the dropdown
-    const asRow = (item) => ({ name: item.name, qty: String(item.qty || ''), custom: Boolean(item.name) && !inventory.some((i) => i.name === item.name) });
+    const asRow = (item) => ({
+      name: item.name,
+      qty: String(item.qty || ''),
+      custom: Boolean(item.name) && !inventory.some((i) => i.name === item.name)
+    });
     if (contract) {
-      setValues({ partnerId: contract.partnerId, reservationRef: contract.reservationRef, needBy: contract.needBy, amount: String(contract.amount || ''), notes: contract.notes });
+      setValues({
+        partnerId: contract.partnerId,
+        reservationRef: contract.reservationRef,
+        needBy: contract.needBy,
+        amount: String(contract.amount || ''),
+        notes: contract.notes
+      });
       setItems(contract.items.map(asRow));
     } else {
-      setValues({ partnerId: prefill.partnerId || '', reservationRef: prefill.reservationRef || NO_EVENT, needBy: prefill.needBy || '', amount: '', notes: '' });
+      setValues({
+        partnerId: prefill.partnerId || '',
+        reservationRef: prefill.reservationRef || NO_EVENT,
+        needBy: prefill.needBy || '',
+        amount: '',
+        notes: ''
+      });
       setItems(prefill.items && prefill.items.length ? prefill.items.map(asRow) : [blankItem()]);
     }
     setErrors({});
@@ -731,12 +1067,19 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
   // The event fills in the date needed and the venue, so the partner is told where to deliver
   const event = events.find((e) => e.ref === values.reservationRef);
   // Item dropdown: the inventory, plus a row for anything not in it
-  const itemOptions = [...inventory.map((i) => ({ value: i.name, label: `${i.name} (${i.available} available)` })), { value: OTHER_ITEM, label: 'Other item…' }];
+  const itemOptions = [
+    ...inventory.map((i) => ({ value: i.name, label: `${i.name} (${i.available} available)` })),
+    { value: OTHER_ITEM, label: 'Other item…' }
+  ];
 
   const save = async () => {
     setBusy(true);
     try {
-      const saved = await outsourceApi.saveContract(id || null, { ...values, items, amount: Number(values.amount || 0) });
+      const saved = await outsourceApi.saveContract(id || null, {
+        ...values,
+        items,
+        amount: Number(values.amount || 0)
+      });
       onSaved(saved, !id);
     } catch (e) {
       setErrors({ [(e.meta && e.meta.field) || 'partnerId']: e.message, itemRow: e.meta && e.meta.row });
@@ -754,7 +1097,16 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
       fullScreenOnMobile
       title={id ? 'Edit Draft Request' : 'New Request'}
       description="Say what you need and when. The request text is written for you on the next step, and you can edit it before it goes out."
-      actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{id ? 'Save draft' : 'Save and review'}</BusyButton></>}
+      actions={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <BusyButton busy={busy} onClick={save}>
+            {id ? 'Save draft' : 'Save and review'}
+          </BusyButton>
+        </>
+      }
     >
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
         <SelectField
@@ -765,8 +1117,15 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
           value={values.partnerId}
           onChange={set('partnerId')}
           error={errors.partnerId}
-          hint={partner ? `Reached by ${channelText(partner.channels).toLowerCase()}.` : 'Only partners with contact details can be sent a request.'}
-          options={partnerChoices.map((p) => ({ value: p.id, label: `${p.name} · ${p.service}${p.archived ? ' (archived)' : ''}` }))}
+          hint={
+            partner
+              ? `Reached by ${channelText(partner.channels).toLowerCase()}.`
+              : 'Only partners with contact details can be sent a request.'
+          }
+          options={partnerChoices.map((p) => ({
+            value: p.id,
+            label: `${p.name} · ${p.service}${p.archived ? ' (archived)' : ''}`
+          }))}
         />
         <SelectField
           id="contract-event"
@@ -780,14 +1139,30 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
             setErrors({});
           }}
           error={errors.reservationRef}
-          options={[{ value: NO_EVENT, label: 'No event (e.g. topping up stock)' }, ...events.map((e) => ({ value: e.ref, label: `${formatDate(e.date)} · ${e.eventName} · ${e.rental ? 'equipment rental' : `${e.guests} pax`}` }))]}
+          options={[
+            { value: NO_EVENT, label: 'No event (e.g. topping up stock)' },
+            ...events.map((e) => ({
+              value: e.ref,
+              label: `${formatDate(e.date)} · ${e.eventName} · ${e.rental ? 'equipment rental' : `${e.guests} pax`}`
+            }))
+          ]}
         />
       </Box>
 
-      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>What You Need</Typography>
+      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
+        What You Need
+      </Typography>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {items.map((item, index) => (
-          <Box key={index} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: item.custom ? '1.4fr 1.4fr 1fr auto' : '2.4fr 1fr auto' }, gap: 1, alignItems: 'start' }}>
+          <Box
+            key={index}
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: item.custom ? '1.4fr 1.4fr 1fr auto' : '2.4fr 1fr auto' },
+              gap: 1,
+              alignItems: 'start'
+            }}
+          >
             <SelectField
               id={`contract-item-${index}`}
               label={isPhone || index === 0 ? 'Item' : undefined}
@@ -797,7 +1172,13 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
               // "Other item…" clears the name and opens the box next to it; anything else is an inventory item
               onChange={(e) => {
                 const chosen = e.target.value;
-                setItems((list) => list.map((row, i) => (i === index ? { ...row, custom: chosen === OTHER_ITEM, name: chosen === OTHER_ITEM ? '' : chosen } : row)));
+                setItems((list) =>
+                  list.map((row, i) =>
+                    i === index
+                      ? { ...row, custom: chosen === OTHER_ITEM, name: chosen === OTHER_ITEM ? '' : chosen }
+                      : row
+                  )
+                );
                 setErrors({});
               }}
               error={errors.itemRow === index ? errors.items : undefined}
@@ -825,14 +1206,22 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
             <IconButton
               aria-label="Remove item"
               disabled={items.length === 1 || busy}
-              onClick={() => { setItems((list) => list.filter((_, i) => i !== index)); setErrors({}); }}
+              onClick={() => {
+                setItems((list) => list.filter((_, i) => i !== index));
+                setErrors({});
+              }}
               sx={{ mt: { sm: index === 0 ? 3.25 : 0 }, justifySelf: { xs: 'start', sm: 'center' } }}
             >
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
           </Box>
         ))}
-        <Button startIcon={<AddRoundedIcon />} disabled={items.length >= 15 || busy} onClick={() => setItems((list) => [...list, blankItem()])} sx={{ alignSelf: 'flex-start' }}>
+        <Button
+          startIcon={<AddRoundedIcon />}
+          disabled={items.length >= 15 || busy}
+          onClick={() => setItems((list) => [...list, blankItem()])}
+          sx={{ alignSelf: 'flex-start' }}
+        >
           Add another item
         </Button>
       </Box>
@@ -844,7 +1233,10 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
           required
           mode="any"
           value={values.needBy}
-          onChange={(date) => { setValues((v) => ({ ...v, needBy: date })); setErrors({}); }}
+          onChange={(date) => {
+            setValues((v) => ({ ...v, needBy: date }));
+            setErrors({});
+          }}
           error={errors.needBy}
           hint={event ? `${event.eventName} is on ${formatDate(event.date)}.` : 'When the items have to be with you.'}
         />
@@ -882,7 +1274,16 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
  * sent to whichever of the two is on file, so a partner who only texts still receives it.
  */
 function PartnerDialog({ open, partner, onClose, onSaved }) {
-  const [values, setValues] = useState({ name: '', service: '', serviceOther: '', contactPerson: '', email: '', mobile: '', address: '', notes: '' });
+  const [values, setValues] = useState({
+    name: '',
+    service: '',
+    serviceOther: '',
+    contactPerson: '',
+    email: '',
+    mobile: '',
+    address: '',
+    notes: ''
+  });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const id = partner && partner.id;
@@ -892,7 +1293,15 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
     if (!open) return;
     setValues(
       partner
-        ? { name: partner.name, ...outsourceApi.partnerServiceInput(partner.service), contactPerson: partner.contactPerson, email: partner.email, mobile: partner.mobile, address: partner.address, notes: partner.notes }
+        ? {
+            name: partner.name,
+            ...outsourceApi.partnerServiceInput(partner.service),
+            contactPerson: partner.contactPerson,
+            email: partner.email,
+            mobile: partner.mobile,
+            address: partner.address,
+            notes: partner.notes
+          }
         : { name: '', service: '', serviceOther: '', contactPerson: '', email: '', mobile: '', address: '', notes: '' }
     );
     setErrors({});
@@ -932,11 +1341,37 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
       fullScreenOnMobile
       title={id ? 'Edit Partner' : 'Add Partner'}
       description="Requests go to the email address and the mobile number on file. One of the two is enough."
-      actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>{id ? 'Save partner' : 'Add partner'}</BusyButton></>}
+      actions={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <BusyButton busy={busy} onClick={save}>
+            {id ? 'Save partner' : 'Add partner'}
+          </BusyButton>
+        </>
+      }
     >
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
-        <FormField id="partner-name" label="Partner name" required value={values.name} onChange={set('name')} error={errors.name} inputProps={{ maxLength: 80 }} />
-        <SelectField id="partner-service" label="What they supply" required placeholder="Choose" value={values.service} onChange={set('service')} error={errors.service} options={OUTSOURCE_SERVICES} />
+        <FormField
+          id="partner-name"
+          label="Partner name"
+          required
+          value={values.name}
+          onChange={set('name')}
+          error={errors.name}
+          inputProps={{ maxLength: 80 }}
+        />
+        <SelectField
+          id="partner-service"
+          label="What they supply"
+          required
+          placeholder="Choose"
+          value={values.service}
+          onChange={set('service')}
+          error={errors.service}
+          options={OUTSOURCE_SERVICES}
+        />
         {values.service === OUTSOURCE_OTHER && (
           <FormField
             id="partner-serviceOther"
@@ -953,8 +1388,24 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
             disabled={busy}
           />
         )}
-        <FormField id="partner-contact" label="Contact person" optional value={values.contactPerson} onChange={set('contactPerson')} error={errors.contactPerson} inputProps={{ maxLength: 60 }} />
-        <FormField id="partner-address" label="Address" optional value={values.address} onChange={set('address')} error={errors.address} inputProps={{ maxLength: 120 }} />
+        <FormField
+          id="partner-contact"
+          label="Contact person"
+          optional
+          value={values.contactPerson}
+          onChange={set('contactPerson')}
+          error={errors.contactPerson}
+          inputProps={{ maxLength: 60 }}
+        />
+        <FormField
+          id="partner-address"
+          label="Address"
+          optional
+          value={values.address}
+          onChange={set('address')}
+          error={errors.address}
+          inputProps={{ maxLength: 120 }}
+        />
         <FormField
           id="partner-email"
           label="Email address"
@@ -975,7 +1426,19 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           autoComplete="off"
         />
       </Box>
-      <FormField id="partner-notes" label="Notes" optional multiline minRows={2} value={values.notes} onChange={set('notes')} error={errors.notes} inputProps={{ maxLength: 300 }} placeholder="Delivery terms, rates, how far ahead they need to be booked…" sx={{ mt: 1.75 }} />
+      <FormField
+        id="partner-notes"
+        label="Notes"
+        optional
+        multiline
+        minRows={2}
+        value={values.notes}
+        onChange={set('notes')}
+        error={errors.notes}
+        inputProps={{ maxLength: 300 }}
+        placeholder="Delivery terms, rates, how far ahead they need to be booked…"
+        sx={{ mt: 1.75 }}
+      />
       {/* Tells the admin, before saving, which way a request will reach this partner */}
       <Box sx={{ mt: 1.75 }}>
         {channels.length ? (
@@ -983,7 +1446,9 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
             {channels.length === 2 ? 'Both get the same text.' : 'The other channel is used once you add it.'}
           </AlertBanner>
         ) : (
-          <AlertBanner tone="locked" title="No way to reach them yet">Add an email address or a mobile number, or requests can't be sent.</AlertBanner>
+          <AlertBanner tone="locked" title="No way to reach them yet">
+            Add an email address or a mobile number, or requests can't be sent.
+          </AlertBanner>
         )}
       </Box>
     </AppDialog>
@@ -1047,25 +1512,50 @@ function SendDialog({ contract, onClose, onSent }) {
       fullScreenOnMobile
       title={`Send ${contract.ref}`}
       description={`To ${contract.partnerName} · ${contract.itemsSummary}`}
-      actions={<><Button onClick={onClose} disabled={busy}>Close</Button><BusyButton busy={busy} disabled={!canSend} startIcon={<SendRoundedIcon />} onClick={send}>{contract.sentAt ? 'Send again' : 'Send request'}</BusyButton></>}
+      actions={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Close
+          </Button>
+          <BusyButton busy={busy} disabled={!canSend} startIcon={<SendRoundedIcon />} onClick={send}>
+            {contract.sentAt ? 'Send again' : 'Send request'}
+          </BusyButton>
+        </>
+      }
     >
       {/* Where it goes, and the promise that both channels carry the same words */}
       {canSend ? (
-        <Box sx={{ mb: 2, p: 1.75, borderRadius: 1.5, backgroundColor: tokens.surfaceMuted, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Box
+          sx={{
+            mb: 2,
+            p: 1.75,
+            borderRadius: 1.5,
+            backgroundColor: tokens.surfaceMuted,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1
+          }}
+        >
           {contract.channels.includes('email') && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <MailOutlineRoundedIcon sx={{ fontSize: 18, color: tokens.blue }} />
-              <Typography sx={{ fontSize: 13 }}>Email to <b>{contract.partnerEmail}</b></Typography>
+              <Typography sx={{ fontSize: 13 }}>
+                Email to <b>{contract.partnerEmail}</b>
+              </Typography>
             </Box>
           )}
           {contract.channels.includes('sms') && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <SmsOutlinedIcon sx={{ fontSize: 18, color: tokens.green }} />
-              <Typography sx={{ fontSize: 13 }}>SMS to <b>{formatMobile(contract.partnerMobile)}</b> · {parts} message{parts === 1 ? '' : 's'}</Typography>
+              <Typography sx={{ fontSize: 13 }}>
+                SMS to <b>{formatMobile(contract.partnerMobile)}</b> · {parts} message{parts === 1 ? '' : 's'}
+              </Typography>
             </Box>
           )}
           <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
-            {contract.channels.length === 2 ? 'Both carry the text below, word for word.' : 'This is the only channel on file for them.'}
+            {contract.channels.length === 2
+              ? 'Both carry the text below, word for word.'
+              : 'This is the only channel on file for them.'}
           </Typography>
         </Box>
       ) : (
@@ -1083,7 +1573,10 @@ function SendDialog({ contract, onClose, onSent }) {
         multiline
         minRows={12}
         value={body}
-        onChange={(e) => { setBody(e.target.value); setError(''); }}
+        onChange={(e) => {
+          setBody(e.target.value);
+          setError('');
+        }}
         error={error}
         hint={`${body.length} characters`}
         inputProps={{ maxLength: 2000, style: { fontSize: 13.5, lineHeight: 1.7 } }}
@@ -1112,20 +1605,65 @@ function DetailsDialog({ contract, onClose, onAction, savingPdf }) {
       description={`${contract.partnerName} · ${contract.service}`}
       actions={
         <>
-          <Button startIcon={<PictureAsPdfOutlinedIcon />} disabled={savingPdf} onClick={() => onAction('savePdf', contract)}>{savingPdf ? 'Saving…' : 'Save PDF'}</Button>
-          {contract.status === 'draft' && <Button variant="outlined" onClick={() => { onClose(); onAction('edit', contract); }}>Edit draft</Button>}
+          <Button
+            startIcon={<PictureAsPdfOutlinedIcon />}
+            disabled={savingPdf}
+            onClick={() => onAction('savePdf', contract)}
+          >
+            {savingPdf ? 'Saving…' : 'Save PDF'}
+          </Button>
+          {contract.status === 'draft' && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                onClose();
+                onAction('edit', contract);
+              }}
+            >
+              Edit draft
+            </Button>
+          )}
           {['draft', 'sent'].includes(contract.status) && (
-            <Button variant="contained" startIcon={<SendRoundedIcon />} onClick={() => { onClose(); onAction('send', contract); }}>
+            <Button
+              variant="contained"
+              startIcon={<SendRoundedIcon />}
+              onClick={() => {
+                onClose();
+                onAction('send', contract);
+              }}
+            >
               {contract.status === 'draft' ? 'Review and send' : 'Send again'}
             </Button>
           )}
-          {contract.status === 'sent' && <Button variant="contained" onClick={() => { onClose(); onAction('accepted', contract); }}>Partner accepted</Button>}
-          {contract.status === 'accepted' && <Button variant="contained" onClick={() => { onClose(); onAction('completed', contract); }}>Mark delivered</Button>}
+          {contract.status === 'sent' && (
+            <Button
+              variant="contained"
+              onClick={() => {
+                onClose();
+                onAction('accepted', contract);
+              }}
+            >
+              Partner accepted
+            </Button>
+          )}
+          {contract.status === 'accepted' && (
+            <Button
+              variant="contained"
+              onClick={() => {
+                onClose();
+                onAction('completed', contract);
+              }}
+            >
+              Mark delivered
+            </Button>
+          )}
         </>
       }
     >
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.75, mb: 2 }}>
-        <Field label="Status"><Pill size="sm" label={chip.label} bg={chip.bg} fg={chip.fg} /></Field>
+        <Field label="Status">
+          <Pill size="sm" label={chip.label} bg={chip.bg} fg={chip.fg} />
+        </Field>
         <Field label="Items">{contract.itemsSummary}</Field>
         <Field label="Outsource price">{contract.amount > 0 ? peso(contract.amount) : 'Not settled'}</Field>
         <Field label="Event">{contract.eventName || 'No event linked'}</Field>
@@ -1138,27 +1676,47 @@ function DetailsDialog({ contract, onClose, onAction, savingPdf }) {
 
       {contract.answerNote && (
         <Box sx={{ mb: 2 }}>
-          <AlertBanner tone={contract.status === 'declined' || contract.status === 'cancelled' ? 'locked' : 'info'} title={contract.status === 'cancelled' ? 'Why it was cancelled' : 'What the partner said'}>
+          <AlertBanner
+            tone={contract.status === 'declined' || contract.status === 'cancelled' ? 'locked' : 'info'}
+            title={contract.status === 'cancelled' ? 'Why it was cancelled' : 'What the partner said'}
+          >
             {contract.answerNote}
           </AlertBanner>
         </Box>
       )}
 
       {/* The text that went out, and every channel it went to */}
-      <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.75 }}>{contract.sentAt ? 'What was sent' : 'Not sent yet'}</Typography>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.75 }}>
+        {contract.sentAt ? 'What was sent' : 'Not sent yet'}
+      </Typography>
       {contract.sentAt ? (
         <>
-          <Box sx={{ p: 1.75, borderRadius: 1.5, backgroundColor: tokens.surfaceMuted, whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.7, color: tokens.textPrimary }}>{contract.body}</Box>
+          <Box
+            sx={{
+              p: 1.75,
+              borderRadius: 1.5,
+              backgroundColor: tokens.surfaceMuted,
+              whiteSpace: 'pre-wrap',
+              fontSize: 13,
+              lineHeight: 1.7,
+              color: tokens.textPrimary
+            }}
+          >
+            {contract.body}
+          </Box>
           <Box sx={{ mt: 1.25, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {contract.deliveries.map((d, i) => (
               <Typography key={i} sx={{ fontSize: 12.5, color: tokens.textMuted }}>
-                {d.channel === 'email' ? 'Email' : 'SMS'} to {d.channel === 'email' ? d.to : formatMobile(d.to)} · {formatDateTime(d.at)}
+                {d.channel === 'email' ? 'Email' : 'SMS'} to {d.channel === 'email' ? d.to : formatMobile(d.to)} ·{' '}
+                {formatDateTime(d.at)}
               </Typography>
             ))}
           </Box>
         </>
       ) : (
-        <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>The request text is written when you send it, and both the email and the SMS carry it word for word.</Typography>
+        <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>
+          The request text is written when you send it, and both the email and the SMS carry it word for word.
+        </Typography>
       )}
 
       <Divider sx={{ my: 2 }} />
@@ -1167,7 +1725,9 @@ function DetailsDialog({ contract, onClose, onAction, savingPdf }) {
         {[...contract.history].reverse().map((entry, i) => (
           <Box key={i}>
             <Typography sx={{ fontSize: 13, color: tokens.textPrimary }}>{entry.text}</Typography>
-            <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>{entry.actor} · {formatDateTime(entry.at)}</Typography>
+            <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
+              {entry.actor} · {formatDateTime(entry.at)}
+            </Typography>
           </Box>
         ))}
       </Box>

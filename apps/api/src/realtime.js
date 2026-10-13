@@ -14,16 +14,19 @@ const AUTH_CODES = new Set(['UNAUTHENTICATED', 'SESSION_REPLACED']);
  * 15 seconds while idle. There are no client-controlled rooms or client-to-server app handlers.
  * Dependency overrides let the security tests exercise real sockets without modifying a database.
  */
-export function createRealtimeServer(server, {
-  authenticate = readSessionToken,
-  subscribe = onChange,
-  origins = config.corsOrigins,
-  authCheckMs = 15000,
-  batchMs = 500,
-  maxPerAccount = 8,
-  maxConnections = 1000,
-  maxAttempts = 60
-} = {}) {
+export function createRealtimeServer(
+  server,
+  {
+    authenticate = readSessionToken,
+    subscribe = onChange,
+    origins = config.corsOrigins,
+    authCheckMs = 15000,
+    batchMs = 500,
+    maxPerAccount = 8,
+    maxConnections = 1000,
+    maxAttempts = 60
+  } = {}
+) {
   const attempts = new Map();
   const counts = new Map();
   let closed = false;
@@ -36,7 +39,13 @@ export function createRealtimeServer(server, {
     // Only our local production proxy is trusted. Ignore spoofed forwarded headers in development
     // or from non-loopback peers. Nginx appends the actual caller as the last forwarded address.
     const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer);
-    const forwarded = config.isProduction && local ? String(req.headers['x-forwarded-for'] || '').split(',').at(-1).trim() : '';
+    const forwarded =
+      config.isProduction && local
+        ? String(req.headers['x-forwarded-for'] || '')
+            .split(',')
+            .at(-1)
+            .trim()
+        : '';
     return ipKeyGenerator(net.isIP(forwarded) ? forwarded : peer);
   }
 
@@ -50,7 +59,8 @@ export function createRealtimeServer(server, {
     cors: { origin: origins, methods: ['GET', 'POST'], credentials: false },
     // WebSockets do not enforce browser CORS. Explicitly check Origin for both transports.
     allowRequest(req, done) {
-      if (!origins.includes(req.headers.origin) || closed || io.engine.clientsCount >= maxConnections) return done(null, false);
+      if (!origins.includes(req.headers.origin) || closed || io.engine.clientsCount >= maxConnections)
+        return done(null, false);
       const address = clientAddress(req);
       const now = Date.now();
       let entry = attempts.get(address);

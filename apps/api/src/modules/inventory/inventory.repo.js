@@ -117,20 +117,31 @@ export async function rentalDispatches(db, ref) {
 }
 
 export async function setRentalDispatch(conn, ref, itemId, qty, at) {
-  await conn.query(`INSERT INTO rental_dispatches (reservation_ref, item_id, qty, dispatched_at) VALUES (?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE qty = ?, dispatched_at = ?`, [ref, itemId, qty, at, qty, at]);
+  await conn.query(
+    `INSERT INTO rental_dispatches (reservation_ref, item_id, qty, dispatched_at) VALUES (?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE qty = ?, dispatched_at = ?`,
+    [ref, itemId, qty, at, qty, at]
+  );
 }
 
 /** Only today's confirmed rentals: avoid retroactively dispatching historical bookings on upgrade. */
 export async function dueRentals(db, { date, time }) {
-  const [rows] = await db.query(`SELECT ref FROM reservations WHERE service_type = 'Equipment rental'
-    AND status = 'confirmed' AND date = ? AND start_time <= ? ORDER BY start_time, created_at, ref`, [date, time]);
+  const [rows] = await db.query(
+    `SELECT ref FROM reservations WHERE service_type = 'Equipment rental'
+    AND status = 'confirmed' AND date = ? AND start_time <= ? ORDER BY start_time, created_at, ref`,
+    [date, time]
+  );
   return rows.map((row) => row.ref);
 }
 
 export async function lastAutomaticNotice(db, ref) {
-  const row = first(await db.query(`SELECT text FROM reservation_activity
-    WHERE reservation_ref = ? AND actor = 'Automatic inventory' ORDER BY id DESC LIMIT 1`, [ref]));
+  const row = first(
+    await db.query(
+      `SELECT text FROM reservation_activity
+    WHERE reservation_ref = ? AND actor = 'Automatic inventory' ORDER BY id DESC LIMIT 1`,
+      [ref]
+    )
+  );
   return row?.text || '';
 }
 
@@ -141,7 +152,20 @@ export async function insertItem(conn, item) {
   await conn.query(
     `INSERT INTO inventory_items (id, code, name, category, total, low_stock_at, damaged, rentable, rent_price, damage_fee, notes, archived)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [item.id, item.code, item.name, item.category, item.total, item.lowStockAt, item.damaged, item.rentable, item.rentPrice, item.damageFee, item.notes, item.archived]
+    [
+      item.id,
+      item.code,
+      item.name,
+      item.category,
+      item.total,
+      item.lowStockAt,
+      item.damaged,
+      item.rentable,
+      item.rentPrice,
+      item.damageFee,
+      item.notes,
+      item.archived
+    ]
   );
 }
 
@@ -160,11 +184,20 @@ const COLUMNS = {
 };
 
 export async function findItemPhoto(db, id) {
-  return first(await db.query('SELECT id, photo_key AS `key`, photo_mime AS mime, rentable, archived, rent_price FROM inventory_items WHERE id = ?', [id]));
+  return first(
+    await db.query(
+      'SELECT id, photo_key AS `key`, photo_mime AS mime, rentable, archived, rent_price FROM inventory_items WHERE id = ?',
+      [id]
+    )
+  );
 }
 
 export async function setItemPhoto(conn, id, photo) {
-  await conn.query('UPDATE inventory_items SET photo_key = ?, photo_mime = ? WHERE id = ?', [photo?.key || null, photo?.mime || null, id]);
+  await conn.query('UPDATE inventory_items SET photo_key = ?, photo_mime = ? WHERE id = ?', [
+    photo?.key || null,
+    photo?.mime || null,
+    id
+  ]);
 }
 
 /**
@@ -190,7 +223,10 @@ export async function updateItem(conn, id, changes) {
  */
 export async function setAllocation(conn, itemId, ref, qty) {
   if (qty > 0) {
-    await conn.query('INSERT INTO inventory_allocations (item_id, reservation_ref, qty) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qty = ?', [itemId, ref, qty, qty]);
+    await conn.query(
+      'INSERT INTO inventory_allocations (item_id, reservation_ref, qty) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qty = ?',
+      [itemId, ref, qty, qty]
+    );
   } else {
     await conn.query('DELETE FROM inventory_allocations WHERE item_id = ? AND reservation_ref = ?', [itemId, ref]);
   }
@@ -198,5 +234,11 @@ export async function setAllocation(conn, itemId, ref, qty) {
 
 /** Add an entry to an item's history; `ref` is the reservation it is about, or null. */
 export async function insertHistory(conn, itemId, { at, actor, text, ref = null }) {
-  await conn.query('INSERT INTO inventory_history (item_id, at, actor, text, ref) VALUES (?, ?, ?, ?, ?)', [itemId, at, actor, text, ref]);
+  await conn.query('INSERT INTO inventory_history (item_id, at, actor, text, ref) VALUES (?, ?, ?, ?, ?)', [
+    itemId,
+    at,
+    actor,
+    text,
+    ref
+  ]);
 }

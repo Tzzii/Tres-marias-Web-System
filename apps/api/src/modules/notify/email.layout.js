@@ -53,18 +53,30 @@ const SANS = "'Segoe UI', Helvetica, Arial, sans-serif";
 
 /** Text made safe to put inside HTML: & < > " ' become entities. Anything that is not text becomes text first. */
 export const escapeHtml = (value) =>
-  String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]
+  );
 
 // Control characters (C0 including CR, LF and tab, DEL, C1) and the Unicode line and paragraph separators
 const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
 
 /** Text on one line: control characters become spaces, runs of spaces become one, and the ends are trimmed. */
-export const oneLine = (value) => String(value ?? '').replace(CONTROL, ' ').replace(/\s+/g, ' ').trim();
+export const oneLine = (value) =>
+  String(value ?? '')
+    .replace(CONTROL, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** One line of at most `max` characters, cut with "…" when longer (never in the middle of an emoji). */
 export function shorten(value, max = 60) {
   const chars = Array.from(oneLine(value));
-  return chars.length > max ? `${chars.slice(0, max - 1).join('').trimEnd()}…` : chars.join('');
+  return chars.length > max
+    ? `${chars
+        .slice(0, max - 1)
+        .join('')
+        .trimEnd()}…`
+    : chars.join('');
 }
 
 /**
@@ -72,10 +84,16 @@ export function shorten(value, max = 60) {
  * (RES-2026-1130-01)". The event name is shortened to about 60 characters, and the whole line is one line
  * (no CR/LF: nothing typed by a person can add a mail header) of at most 200 characters (the outbox column is 255).
  */
-export const emailSubject = (what, eventName, ref) => shorten(`${oneLine(what)}: ${shorten(eventName, 60)} (${oneLine(ref)})`, 200);
+export const emailSubject = (what, eventName, ref) =>
+  shorten(`${oneLine(what)}: ${shorten(eventName, 60)} (${oneLine(ref)})`, 200);
 
 /** The portal pages an email may link to. A reservation's page is built by reservationPath(). */
-export const PORTAL_PATHS = Object.freeze({ payments: '/portal/payments', documents: '/portal/documents', messages: '/portal/messages', testimonials: '/portal/testimonials' });
+export const PORTAL_PATHS = Object.freeze({
+  payments: '/portal/payments',
+  documents: '/portal/documents',
+  messages: '/portal/messages',
+  testimonials: '/portal/testimonials'
+});
 
 /** "/portal/reservations/RES-2026-1130-01", the ref encoded so it can never change the path. */
 export const reservationPath = (ref) => `/portal/reservations/${encodeURIComponent(String(ref ?? ''))}`;
@@ -159,7 +177,9 @@ const footerLines = (reason) => [
 ];
 
 // The footer of every customer notice (renderEmail)
-const FOOTER = footerLines("You're receiving this because you have a reservation with Tres Marias. For questions, message us from your account.");
+const FOOTER = footerLines(
+  "You're receiving this because you have a reservation with Tres Marias. For questions, message us from your account."
+);
 
 /**
  * The frame every email shares, as one HTML page: the hidden inbox preview line, the ivory page, the white
@@ -204,7 +224,11 @@ ${footer.map((line) => `<p style="margin:0 0 6px;font-family:${SANS};font-size:1
 }
 
 // The text version's lines as one text: no two empty lines in a row, the ends trimmed
-const joinLines = (lines) => lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n').trim();
+const joinLines = (lines) =>
+  lines
+    .filter((line, i, all) => !(line === '' && all[i - 1] === ''))
+    .join('\n')
+    .trim();
 
 // Standard request item lines become a real Item / Quantity table. Values still come from the
 // admin's final message, rather than a second copy of the contract that could disagree with their edits.
@@ -213,7 +237,7 @@ function requestItemsTable(items) {
   return `<table width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:4px 0 18px;border:1px solid ${C.border};border-radius:10px;border-collapse:separate;table-layout:fixed">
 <colgroup><col width="65%"><col width="35%"></colgroup>
 <thead><tr bgcolor="${C.sand}"><th scope="col" align="left" style="${cell}">Item</th><th scope="col" align="right" style="${cell}white-space:nowrap">Quantity</th></tr></thead>
-<tbody>${items.map(item => `<tr><td style="${cell}border-top:1px solid ${C.border}">${escapeHtml(item.name)}</td><td align="right" style="${cell}border-top:1px solid ${C.border};font-weight:bold;white-space:nowrap">${escapeHtml(item.qty)} pcs</td></tr>`).join('')}</tbody>
+<tbody>${items.map((item) => `<tr><td style="${cell}border-top:1px solid ${C.border}">${escapeHtml(item.name)}</td><td align="right" style="${cell}border-top:1px solid ${C.border};font-weight:bold;white-space:nowrap">${escapeHtml(item.qty)} pcs</td></tr>`).join('')}</tbody>
 </table>`;
 }
 
@@ -226,28 +250,43 @@ export function renderPartnerRequestEmail({ ref, text }) {
   let words = [];
   let items = [];
   let details = [];
-  const flushWords = () => { if (words.length) blocks.push(paragraph(words.join('\n'))); words = []; };
-  const flushItems = () => { if (items.length) blocks.push(requestItemsTable(items)); items = []; };
-  const flushDetails = () => { if (details.length) blocks.push(detailsTable(details)); details = []; };
+  const flushWords = () => {
+    if (words.length) blocks.push(paragraph(words.join('\n')));
+    words = [];
+  };
+  const flushItems = () => {
+    if (items.length) blocks.push(requestItemsTable(items));
+    items = [];
+  };
+  const flushDetails = () => {
+    if (details.length) blocks.push(detailsTable(details));
+    details = [];
+  };
   for (const line of lines) {
     const item = /^- (.+): ([1-9]\d*) pcs$/.exec(line);
     const detail = /^(Needed on|Agreed amount:) (.+)$/.exec(line);
     if (item) {
-      flushWords(); flushDetails();
+      flushWords();
+      flushDetails();
       items.push({ name: item[1], qty: item[2] });
     } else if (detail) {
-      flushWords(); flushItems();
+      flushWords();
+      flushItems();
       details.push({ label: detail[1].replace(/:$/, ''), value: detail[2], strong: detail[1].startsWith('Agreed') });
     } else {
-      flushItems(); flushDetails();
+      flushItems();
+      flushDetails();
       if (!line.trim()) flushWords();
       else words.push(line);
     }
   }
-  flushWords(); flushItems(); flushDetails();
+  flushWords();
+  flushItems();
+  flushDetails();
   const footer = footerLines('This request was sent to your business as an outsourcing partner of Tres Marias.');
   const html = frame({
-    label: 'Partner Supply Request', tone: 'info',
+    label: 'Partner Supply Request',
+    tone: 'info',
     preheader: `Supply request ${oneLine(ref)} from ${BUSINESS.name}. Please review the details and confirm availability.`,
     heading: 'Outsourcing Request',
     body: detailsTable([{ label: 'Request number', value: ref, strong: true }]) + blocks.join('\n'),
@@ -272,19 +311,40 @@ export function renderPartnerRequestEmail({ ref, text }) {
  *   security     a small note under the button, e.g. "If you didn't cancel this, change your password right away and message us."
  * The text version carries the same facts in the same order, with the link on a line of its own.
  */
-export function renderEmail({ label, tone = 'info', preheader = '', heading, firstName = '', intro = [], details = [], sections = [], box = null, after = [], button, security = '' }) {
+export function renderEmail({
+  label,
+  tone = 'info',
+  preheader = '',
+  heading,
+  firstName = '',
+  intro = [],
+  details = [],
+  sections = [],
+  box = null,
+  after = [],
+  button,
+  security = ''
+}) {
   const greeting = `Hi ${oneLine(firstName) || 'there'},`;
   const url = portalLink(button.path);
 
   const body = [
     paragraph(greeting),
-    intro.filter(Boolean).map((text) => paragraph(text)).join('\n'),
+    intro
+      .filter(Boolean)
+      .map((text) => paragraph(text))
+      .join('\n'),
     detailsTable(details),
     sections.map(listSection).join('\n'),
     boxBlock(box),
-    after.filter(Boolean).map((text) => paragraph(text)).join('\n'),
+    after
+      .filter(Boolean)
+      .map((text) => paragraph(text))
+      .join('\n'),
     buttonBlock(button),
-    security ? `<p style="margin:0 0 18px;font-family:${SANS};font-size:12.5px;line-height:1.5;color:${C.inkSoft}">${multiline(security)}</p>` : ''
+    security
+      ? `<p style="margin:0 0 18px;font-family:${SANS};font-size:12.5px;line-height:1.5;color:${C.inkSoft}">${multiline(security)}</p>`
+      : ''
   ].join('\n');
   const html = frame({ label, tone, preheader, heading, body, footer: FOOTER });
 
@@ -295,11 +355,13 @@ export function renderEmail({ label, tone = 'info', preheader = '', heading, fir
     details.forEach((row) => lines.push(`${oneLine(row.label)}: ${oneLine(row.value)}`));
     lines.push('');
   }
-  sections.filter((section) => section && section.rows && section.rows.length).forEach((section) => {
-    lines.push(oneLine(section.heading));
-    section.rows.forEach((row) => lines.push(`- ${oneLine(row.label)}: ${oneLine(row.value)}`));
-    lines.push('');
-  });
+  sections
+    .filter((section) => section && section.rows && section.rows.length)
+    .forEach((section) => {
+      lines.push(oneLine(section.heading));
+      section.rows.forEach((row) => lines.push(`- ${oneLine(row.label)}: ${oneLine(row.value)}`));
+      lines.push('');
+    });
   if (box && box.text) lines.push(box.title ? `${oneLine(box.title)}:` : '', String(box.text).trim(), '');
   after.filter(Boolean).forEach((text) => lines.push(String(text).trim(), ''));
   lines.push(`${oneLine(button.label)}:`, url, '');
@@ -325,7 +387,17 @@ export function renderEmail({ label, tone = 'info', preheader = '', heading, fir
  * The text version carries the same facts in the same order, with the code on a line of its own (the log
  * mail driver prints that version, and scripts/lib/harness.js codeIn() reads the code from that line).
  */
-export function renderCodeEmail({ label, preheader = '', heading, firstName = '', intro, code, validMinutes, ifNotYou, reason }) {
+export function renderCodeEmail({
+  label,
+  preheader = '',
+  heading,
+  firstName = '',
+  intro,
+  code,
+  validMinutes,
+  ifNotYou,
+  reason
+}) {
   const greeting = `Hi ${oneLine(firstName) || 'there'},`;
   const digits = oneLine(code);
   const footer = footerLines(reason);

@@ -71,7 +71,14 @@ const WRONG_ANSWER = ['INVALID_CREDENTIALS', 'INVALID_CODE'];
  */
 function failure(res, data, path, sentToken, fallback = { code: 'SERVER_ERROR', message: 'Something went wrong.' }) {
   const code = (data && data.code) || fallback.code;
-  if (res.status === 401 && sentToken && !path.startsWith('/auth/') && !WRONG_ANSWER.includes(code) && token() === sentToken) emitSignedOut(code);
+  if (
+    res.status === 401 &&
+    sentToken &&
+    !path.startsWith('/auth/') &&
+    !WRONG_ANSWER.includes(code) &&
+    token() === sentToken
+  )
+    emitSignedOut(code);
   return new ApiError(code, (data && data.message) || fallback.message, (data && data.meta) || {});
 }
 

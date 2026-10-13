@@ -17,7 +17,9 @@ import { cssVarName, lightPalette } from './palettes.js';
 
 // bgBase -> 'var(--tm-bg-base, #fbf7f0)'. Everything after the first comma is the fallback,
 // so multi-part gradients and shadows survive unchanged.
-const colorTokens = Object.fromEntries(Object.keys(lightPalette).map((key) => [key, `var(${cssVarName(key)}, ${lightPalette[key]})`]));
+const colorTokens = Object.fromEntries(
+  Object.keys(lightPalette).map((key) => [key, `var(${cssVarName(key)}, ${lightPalette[key]})`])
+);
 
 export const tokens = {
   // Colours, gradients, textures and shadows (see palettes.js for the values)

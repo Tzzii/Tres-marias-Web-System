@@ -34,7 +34,11 @@ export function createRentalCheckoutScheduler({
   function run() {
     if (stopped) return Promise.resolve();
     if (running) return running;
-    running = processDue().catch(report).finally(() => { running = undefined; });
+    running = processDue()
+      .catch(report)
+      .finally(() => {
+        running = undefined;
+      });
     return running;
   }
 
@@ -42,7 +46,9 @@ export function createRentalCheckoutScheduler({
     run,
     start() {
       if (timer || stopped) return;
-      timer = setInterval(() => { void run(); }, intervalMs);
+      timer = setInterval(() => {
+        void run();
+      }, intervalMs);
       timer.unref();
       void run(); // recover today's missed checkouts after a restart
     },

@@ -19,10 +19,12 @@ import { getCalendar } from './remote/calendar.js';
 const POLL_MS = 15 * 1000;
 
 /** Start polling. Returns stop(), which ends it (on sign-out). */
-export function startChangePolling({ onChange = async () => {
-  await getCalendar().catch(() => {});
-  emitChange();
-} } = {}) {
+export function startChangePolling({
+  onChange = async () => {
+    await getCalendar().catch(() => {});
+    emitChange();
+  }
+} = {}) {
   let last = null; // the stamp of the last answer; null until the first one
   let asking = false; // an ask is on its way, so a slow answer never overlaps the next tick
   let missed = false; // the last ask failed: the next answer reloads the pages even if the stamp stayed

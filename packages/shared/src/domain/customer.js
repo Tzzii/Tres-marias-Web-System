@@ -34,7 +34,10 @@ const ownedBy = (customerId, bookings) => bookings.filter(({ reservation }) => r
 export function customerSummary(customer, bookings) {
   const own = ownedBy(customer.id, bookings);
   const active = own.filter(({ reservation }) => !ENDED.includes(reservation.status));
-  const money = active.map(({ reservation, payments, refunds }) => ({ status: reservation.status, ...financials(reservation, payments, refunds) }));
+  const money = active.map(({ reservation, payments, refunds }) => ({
+    status: reservation.status,
+    ...financials(reservation, payments, refunds)
+  }));
   return {
     id: customer.id,
     name: customer.name,

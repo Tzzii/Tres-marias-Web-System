@@ -6,8 +6,7 @@ import { compactMobile, readPhilippineMobile } from './mobile.js';
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Fails when the value is empty or only spaces. */
-export const required = (value, label = 'This field') =>
-  String(value ?? '').trim() ? '' : `${label} is required.`;
+export const required = (value, label = 'This field') => (String(value ?? '').trim() ? '' : `${label} is required.`);
 
 /** Required, and must look like an email address. */
 export const validateEmail = (value) => {
@@ -47,7 +46,12 @@ export const passwordChecks = (value = '') => [
   { key: 'lower', label: 'A lowercase letter', met: /[a-z]/.test(value), message: 'Include a lowercase letter.' },
   { key: 'upper', label: 'An uppercase letter', met: /[A-Z]/.test(value), message: 'Include an uppercase letter.' },
   { key: 'number', label: 'A number', met: /\d/.test(value), message: 'Include at least one number.' },
-  { key: 'symbol', label: 'A special character (! @ # -)', met: /[^A-Za-z0-9\s]/.test(value), message: 'Include a special character, e.g. ! @ # or -.' }
+  {
+    key: 'symbol',
+    label: 'A special character (! @ # -)',
+    met: /[^A-Za-z0-9\s]/.test(value),
+    message: 'Include a special character, e.g. ! @ # or -.'
+  }
 ];
 
 /**

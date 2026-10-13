@@ -20,7 +20,11 @@ import { LightSurface } from './Surface.jsx';
 const KIND_LABEL = { original: 'Original', edited: 'Edited', deleted: 'Deleted' };
 
 // "Maria Santos" -> "Maria-Santos", for the PDF's file name
-const fileSafe = (text) => String(text || '').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Chat';
+const fileSafe = (text) =>
+  String(text || '')
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'Chat';
 
 /**
  * The admin's "View history" of a chat message that was edited or deleted (2026-10-10): every version,
@@ -45,7 +49,10 @@ export function MessageHistoryDialog({ open, onClose, message, conversation }) {
   const savePdf = async () => {
     setSaving(true);
     try {
-      const saved = await saveElementAsPdf(sheetRef.current, fileName, { title: fileName.replace(/\.pdf$/, ''), footer: `${BUSINESS.name} · Message History` });
+      const saved = await saveElementAsPdf(sheetRef.current, fileName, {
+        title: fileName.replace(/\.pdf$/, ''),
+        footer: `${BUSINESS.name} · Message History`
+      });
       if (saved) notify(`${fileName} saved.`);
     } catch (e) {
       notify("Couldn't create the PDF. Use Print and choose Save as PDF instead.", 'error');
@@ -56,15 +63,46 @@ export function MessageHistoryDialog({ open, onClose, message, conversation }) {
 
   return (
     <LightSurface>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isPhone} className="tm-print-root" scroll="body">
+      <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="sm"
+        fullScreen={isPhone}
+        className="tm-print-root"
+        scroll="body"
+      >
         {/* Top bar, left out of the printout */}
-        <Box className="tm-no-print" sx={{ position: 'sticky', top: 0, zIndex: 1, px: 2, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, borderBottom: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
-          <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>Message History</Typography>
+        <Box
+          className="tm-no-print"
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            px: 2,
+            py: 1.25,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            borderBottom: `1px solid ${tokens.cardLightBorder}`,
+            backgroundColor: tokens.surfaceSubtle
+          }}
+        >
+          <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
+            Message History
+          </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             <Button size="small" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
               Print
             </Button>
-            <Button size="small" variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} disabled={saving} onClick={savePdf}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<PictureAsPdfOutlinedIcon />}
+              disabled={saving}
+              onClick={savePdf}
+            >
               {saving ? 'Saving…' : 'Save PDF'}
             </Button>
             <IconButton size="small" onClick={onClose} aria-label="Close message history">
@@ -76,8 +114,19 @@ export function MessageHistoryDialog({ open, onClose, message, conversation }) {
         {/* The record. Save PDF draws this box; in the PDF the page margins replace its padding. */}
         <Box ref={sheetRef} sx={{ p: { xs: 2.5, sm: 4 }, color: tokens.textPrimary }}>
           <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>{BUSINESS.name}</Typography>
-          <Typography component="h2" sx={{ fontSize: 20, fontWeight: 800, mt: 0.25 }}>Message History</Typography>
-          <Box sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 2, rowGap: 0.25, fontSize: 13 }}>
+          <Typography component="h2" sx={{ fontSize: 20, fontWeight: 800, mt: 0.25 }}>
+            Message History
+          </Typography>
+          <Box
+            sx={{
+              mt: 1.5,
+              display: 'grid',
+              gridTemplateColumns: 'auto minmax(0, 1fr)',
+              columnGap: 2,
+              rowGap: 0.25,
+              fontSize: 13
+            }}
+          >
             <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>Conversation</Typography>
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{conversation}</Typography>
             <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>Written by</Typography>
@@ -93,22 +142,43 @@ export function MessageHistoryDialog({ open, onClose, message, conversation }) {
           </Box>
 
           {/* Every version, oldest first */}
-          <Box component="ol" sx={{ m: 0, mt: 2.5, p: 0, listStyle: 'none', borderTop: `1px solid ${tokens.cardLightBorder}` }}>
+          <Box
+            component="ol"
+            sx={{ m: 0, mt: 2.5, p: 0, listStyle: 'none', borderTop: `1px solid ${tokens.cardLightBorder}` }}
+          >
             {versions.map((version, i) => (
-              <Box component="li" key={`${version.kind}-${i}`} data-pdf-keep sx={{ py: 1.5, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: version.kind === 'deleted' ? tokens.redPress : tokens.textSecondary }}>
+              <Box
+                component="li"
+                key={`${version.kind}-${i}`}
+                data-pdf-keep
+                sx={{ py: 1.5, borderBottom: `1px solid ${tokens.cardLightBorder}` }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: version.kind === 'deleted' ? tokens.redPress : tokens.textSecondary
+                  }}
+                >
                   {KIND_LABEL[version.kind]} · {formatDateTime(version.at)}
                 </Typography>
                 {version.kind === 'deleted' ? (
-                  <Typography sx={{ mt: 0.5, fontSize: 13, fontStyle: 'italic', color: tokens.textMuted }}>Deleted by its writer. The chat now shows "This message was deleted" on both sides.</Typography>
+                  <Typography sx={{ mt: 0.5, fontSize: 13, fontStyle: 'italic', color: tokens.textMuted }}>
+                    Deleted by its writer. The chat now shows "This message was deleted" on both sides.
+                  </Typography>
                 ) : (
-                  <Typography sx={{ mt: 0.5, fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{version.body}</Typography>
+                  <Typography
+                    sx={{ mt: 0.5, fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                  >
+                    {version.body}
+                  </Typography>
                 )}
               </Box>
             ))}
           </Box>
           <Typography sx={{ mt: 2, fontSize: 11.5, color: tokens.textMuted }}>
-            Kept as a record of the conversation. Only the admin can see earlier versions; the chat shows the newest text.
+            Kept as a record of the conversation. Only the admin can see earlier versions; the chat shows the newest
+            text.
           </Typography>
         </Box>
       </Dialog>

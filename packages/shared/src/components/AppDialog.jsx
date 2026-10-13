@@ -15,7 +15,17 @@ import { FormField } from './FormField.jsx';
  * Standard light dialog: title, optional description, body, action row.
  * Goes full-screen on phones when `fullScreenOnMobile` is set.
  */
-export function AppDialog({ open, onClose, title, description, children, actions, maxWidth = 'sm', fullScreenOnMobile = false, busy = false }) {
+export function AppDialog({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  actions,
+  maxWidth = 'sm',
+  fullScreenOnMobile = false,
+  busy = false
+}) {
   const isPhone = useMediaQuery('(max-width:599px)');
   return (
     <LightSurface>
@@ -28,20 +38,69 @@ export function AppDialog({ open, onClose, title, description, children, actions
         fullScreen={fullScreenOnMobile && isPhone}
         aria-labelledby="app-dialog-title"
       >
-        <Box sx={{ px: { xs: 1.5, sm: 3 }, pt: 2.5, pb: description ? 1 : 1.5, display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        <Box
+          sx={{
+            px: { xs: 1.5, sm: 3 },
+            pt: 2.5,
+            pb: description ? 1 : 1.5,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 2
+          }}
+        >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography id="app-dialog-title" component="h2" sx={{ fontSize: 18, fontWeight: 700, color: tokens.textPrimary }}>
+            <Typography
+              id="app-dialog-title"
+              component="h2"
+              sx={{ fontSize: 18, fontWeight: 700, color: tokens.textPrimary }}
+            >
               {title}
             </Typography>
-            {description && <Typography sx={{ mt: 0.75, fontSize: 13.5, lineHeight: 1.6, color: tokens.textSecondary }}>{description}</Typography>}
+            {description && (
+              <Typography sx={{ mt: 0.75, fontSize: 13.5, lineHeight: 1.6, color: tokens.textSecondary }}>
+                {description}
+              </Typography>
+            )}
           </Box>
-          <IconButton onClick={onClose} disabled={busy} aria-label="Close" size="small" sx={{ mt: -0.5, mr: -1, color: tokens.textMuted }}>
+          <IconButton
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Close"
+            size="small"
+            sx={{ mt: -0.5, mr: -1, color: tokens.textMuted }}
+          >
             <CloseRoundedIcon fontSize="small" />
           </IconButton>
         </Box>
-        {children && <Box sx={{ px: { xs: 1.5, sm: 3 }, py: 1.5, minWidth: 0, overflowY: 'auto', overflowWrap: 'anywhere', overscrollBehavior: 'contain' }}>{children}</Box>}
+        {children && (
+          <Box
+            sx={{
+              px: { xs: 1.5, sm: 3 },
+              py: 1.5,
+              minWidth: 0,
+              overflowY: 'auto',
+              overflowWrap: 'anywhere',
+              overscrollBehavior: 'contain'
+            }}
+          >
+            {children}
+          </Box>
+        )}
         {actions && (
-          <Box sx={{ px: { xs: 1.5, sm: 3 }, pt: 1.5, pb: 2.5, display: 'flex', gap: 1.25, justifyContent: 'flex-end', flexWrap: 'wrap', '& > button': { maxWidth: '100%', '@media (max-width: 399px)': { flex: '1 1 100%' } } }}>{actions}</Box>
+          <Box
+            sx={{
+              px: { xs: 1.5, sm: 3 },
+              pt: 1.5,
+              pb: 2.5,
+              display: 'flex',
+              gap: 1.25,
+              justifyContent: 'flex-end',
+              flexWrap: 'wrap',
+              '& > button': { maxWidth: '100%', '@media (max-width: 399px)': { flex: '1 1 100%' } }
+            }}
+          >
+            {actions}
+          </Box>
         )}
       </Dialog>
     </LightSurface>

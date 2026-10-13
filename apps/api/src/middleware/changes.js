@@ -23,7 +23,8 @@ export function stampWrites(req, res, next) {
   const end = res.end;
   res.end = function endAndStamp(...args) {
     res.end = end; // once per request
-    if (res.statusCode < 400) bumpStamp().catch((err) => console.error('[changes] Could not move the change stamp:', err.message));
+    if (res.statusCode < 400)
+      bumpStamp().catch((err) => console.error('[changes] Could not move the change stamp:', err.message));
     return end.apply(this, args);
   };
   return next();

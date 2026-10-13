@@ -23,13 +23,21 @@ import { renderCodeEmail } from '../notify/email.layout.js';
  */
 
 // "Wilma W. Cabiscuelas" -> "Wilma", for the greeting ('' when there is no name: the layout then says "Hi there,")
-const firstWord = (name) => String(name || '').trim().split(/\s+/)[0] || '';
+const firstWord = (name) =>
+  String(name || '')
+    .trim()
+    .split(/\s+/)[0] || '';
 
 // The inbox preview line of every code email: how long the code works, never the code itself
 const PREHEADER = `Your code expires in ${RULES.codeValidMinutes} minutes. Never share it with anyone.`;
 
 // What every code email shares: the greeting's first name, the code, how long it works and the preview line
-const common = ({ name, code }) => ({ firstName: firstWord(name), code, validMinutes: RULES.codeValidMinutes, preheader: PREHEADER });
+const common = ({ name, code }) => ({
+  firstName: firstWord(name),
+  code,
+  validMinutes: RULES.codeValidMinutes,
+  preheader: PREHEADER
+});
 
 /** admin_sign_in: the code for the second step of signing in to the admin dashboard. */
 function adminSignIn(data) {
@@ -53,7 +61,9 @@ function adminSignIn(data) {
 function adminContactChange(data) {
   const isEmail = data.field === 'email';
   return {
-    subject: isEmail ? `Confirm your new email for ${BUSINESS.shortName}` : `Confirm your new mobile number for ${BUSINESS.shortName}`,
+    subject: isEmail
+      ? `Confirm your new email for ${BUSINESS.shortName}`
+      : `Confirm your new mobile number for ${BUSINESS.shortName}`,
     ...renderCodeEmail({
       ...common(data),
       label: isEmail ? 'Confirm New Email' : 'Confirm New Mobile Number',

@@ -73,7 +73,8 @@ export const REFUND_METHODS = {
 };
 
 /** What a payment was for, as shown on receipts and payment lists: 'downpayment' -> 'Downpayment'. */
-export const paymentKindLabel = (kind) => (kind === 'downpayment' ? 'Downpayment' : kind === 'full' ? 'Full payment' : 'Balance');
+export const paymentKindLabel = (kind) =>
+  kind === 'downpayment' ? 'Downpayment' : kind === 'full' ? 'Full payment' : 'Balance';
 
 /** Balance status used by the admin Payments filters. */
 export const BALANCE_STATE = {

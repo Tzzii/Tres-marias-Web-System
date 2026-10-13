@@ -22,18 +22,64 @@ export function PasswordChecklist({ id, value = '', sx }) {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} aria-live="polite">
         <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.5 }}>
           {[1, 2, 3, 4].map((i) => (
-            <Box key={i} sx={{ height: 5, borderRadius: 999, backgroundColor: strength.score >= i ? color : tokens.cardLightBorder, transition: 'background-color 0.2s ease' }} />
+            <Box
+              key={i}
+              sx={{
+                height: 5,
+                borderRadius: 999,
+                backgroundColor: strength.score >= i ? color : tokens.cardLightBorder,
+                transition: 'background-color 0.2s ease'
+              }}
+            />
           ))}
         </Box>
-        <Typography sx={{ width: 48, textAlign: 'right', fontSize: 12, fontWeight: 700, color: color || tokens.textMuted }}>{strength.label}</Typography>
+        <Typography
+          sx={{ width: 48, textAlign: 'right', fontSize: 12, fontWeight: 700, color: color || tokens.textMuted }}
+        >
+          {strength.label}
+        </Typography>
       </Box>
       {/* Every check is required */}
-      <Box component="ul" aria-label="Password needs" sx={{ m: 0, mt: 1, p: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5 }}>
+      <Box
+        component="ul"
+        aria-label="Password needs"
+        sx={{
+          m: 0,
+          mt: 1,
+          p: 0,
+          listStyle: 'none',
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+          gap: 0.5
+        }}
+      >
         {checks.map((c) => (
-          <Box component="li" key={c.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: 12, color: c.met ? tokens.green : tokens.textMuted }}>
+          <Box
+            component="li"
+            key={c.key}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              fontSize: 12,
+              color: c.met ? tokens.green : tokens.textMuted
+            }}
+          >
             {c.met ? <CheckRoundedIcon sx={{ fontSize: 15 }} /> : <CloseRoundedIcon sx={{ fontSize: 15 }} />}
             {c.label}
-            <Box component="span" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{c.met ? ' (done)' : ' (missing)'}</Box>
+            <Box
+              component="span"
+              sx={{
+                position: 'absolute',
+                width: '1px',
+                height: '1px',
+                overflow: 'hidden',
+                clip: 'rect(0 0 0 0)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {c.met ? ' (done)' : ' (missing)'}
+            </Box>
           </Box>
         ))}
       </Box>

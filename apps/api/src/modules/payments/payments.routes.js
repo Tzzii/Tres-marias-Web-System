@@ -114,25 +114,37 @@ paymentAdminRoutes.post('/:id/verify', validate({ params: schemas.idParams }), a
   res.json(await payments.verifyPayment(req.valid.params.id, req.user));
 });
 // Turn it down: { reason } shown to the customer -> the payment
-paymentAdminRoutes.post('/:id/reject', validate({ params: schemas.idParams, body: schemas.rejectBody }), async (req, res) => {
-  res.json(await payments.rejectPayment(req.valid.params.id, req.valid.body.reason, req.user));
-});
+paymentAdminRoutes.post(
+  '/:id/reject',
+  validate({ params: schemas.idParams, body: schemas.rejectBody }),
+  async (req, res) => {
+    res.json(await payments.rejectPayment(req.valid.params.id, req.valid.body.reason, req.user));
+  }
+);
 
 // Mounted at /api/admin/reservations next to reservationAdminRoutes: the money actions on one booking
 export const paymentReservationRoutes = express.Router();
 
 // Cash collected on site: { amount } -> the verified payment with its receipt number
-paymentReservationRoutes.post('/:ref/cash-payments', validate({ params: schemas.refParams, body: schemas.cashBody }), async (req, res) => {
-  res.status(201).json(await payments.recordCashPayment(req.valid.params.ref, req.valid.body.amount, req.user));
-});
+paymentReservationRoutes.post(
+  '/:ref/cash-payments',
+  validate({ params: schemas.refParams, body: schemas.cashBody }),
+  async (req, res) => {
+    res.status(201).json(await payments.recordCashPayment(req.valid.params.ref, req.valid.body.amount, req.user));
+  }
+);
 // A reminder in the customer's chat, and by email at most once per booking every 12 hours -> { ok: true, emailed }
 paymentReservationRoutes.post('/:ref/payment-reminder', validate({ params: schemas.refParams }), async (req, res) => {
   res.json(await payments.sendPaymentReminder(req.valid.params.ref, req.user));
 });
 // Money sent back: { amount, method, referenceNo, sentOn, reason } -> the refund
-paymentReservationRoutes.post('/:ref/refunds', validate({ params: schemas.refParams, body: schemas.refundBody }), async (req, res) => {
-  res.status(201).json(await payments.recordRefund(req.valid.params.ref, req.valid.body, req.user));
-});
+paymentReservationRoutes.post(
+  '/:ref/refunds',
+  validate({ params: schemas.refParams, body: schemas.refundBody }),
+  async (req, res) => {
+    res.status(201).json(await payments.recordRefund(req.valid.params.ref, req.valid.body, req.user));
+  }
+);
 
 export const balanceAdminRoutes = express.Router();
 

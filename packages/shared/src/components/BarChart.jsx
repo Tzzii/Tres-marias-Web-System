@@ -36,7 +36,15 @@ function axisTicks(max, min, minTop) {
  * A value below 0 (net earnings in a month with more refunds than payments) is a red bar hanging
  * below a solid 0 line, so it never reads as an empty month.
  */
-export function BarChart({ data, height = 220, format = (v) => String(v), highlightLast = false, highlightIndex, minTop = 0, ariaLabel }) {
+export function BarChart({
+  data,
+  height = 220,
+  format = (v) => String(v),
+  highlightLast = false,
+  highlightIndex,
+  minTop = 0,
+  ariaLabel
+}) {
   const max = Math.max(1, ...data.map((d) => d.value)); // largest value (at least 1 to avoid dividing by 0)
   const min = Math.min(0, ...data.map((d) => d.value)); // lowest value, 0 unless one is below 0
   const ticks = axisTicks(max, min, minTop);
@@ -56,13 +64,28 @@ export function BarChart({ data, height = 220, format = (v) => String(v), highli
             </Typography>
           ))}
         </Box>
-        <Box sx={{ position: 'relative', height, display: 'flex', alignItems: 'flex-end', gap: { xs: 0.5, sm: 1 }, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
+        <Box
+          sx={{
+            position: 'relative',
+            height,
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: { xs: 0.5, sm: 1 },
+            borderBottom: `1px solid ${tokens.cardLightBorder}`
+          }}
+        >
           {/* One grid line per label; the 0 line is solid when bars hang below it */}
           {ticks.map((tick, i) => (
             <Box
               key={tick}
               aria-hidden
-              sx={{ position: 'absolute', left: 0, right: 0, bottom: `${(1 - i / (ticks.length - 1)) * 100}%`, borderTop: `1px ${tick === 0 && bottom < 0 ? 'solid' : 'dashed'} ${tokens.cardLightBorder}` }}
+              sx={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: `${(1 - i / (ticks.length - 1)) * 100}%`,
+                borderTop: `1px ${tick === 0 && bottom < 0 ? 'solid' : 'dashed'} ${tokens.cardLightBorder}`
+              }}
             />
           ))}
           {data.map((d, i) => {
@@ -70,14 +93,24 @@ export function BarChart({ data, height = 220, format = (v) => String(v), highli
             const below = d.value < 0;
             // Gold bar: the chosen bar (highlightIndex), the last bar (highlightLast) or the highest value; the rest use
             // tokens.gradientBar, and a bar below 0 is red
-            const strong = highlightIndex !== undefined ? i === highlightIndex : highlightLast ? i === data.length - 1 : d.value === max && max > 0;
+            const strong =
+              highlightIndex !== undefined
+                ? i === highlightIndex
+                : highlightLast
+                  ? i === data.length - 1
+                  : d.value === max && max > 0;
             const background = below
               ? `linear-gradient(180deg, ${tokens.red} 0%, ${tokens.redPress} 100%)`
               : strong
                 ? `linear-gradient(180deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`
                 : tokens.gradientBar;
             return (
-              <Tooltip key={`${d.label}-${i}`} title={`${d.title || d.label}: ${format(d.value)}`} placement="top" arrow>
+              <Tooltip
+                key={`${d.label}-${i}`}
+                title={`${d.title || d.label}: ${format(d.value)}`}
+                placement="top"
+                arrow
+              >
                 <Box sx={{ position: 'relative', flex: 1, height: '100%', cursor: 'default' }}>
                   <Box
                     sx={{
@@ -102,7 +135,16 @@ export function BarChart({ data, height = 220, format = (v) => String(v), highli
         <Box />
         <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
           {data.map((d, i) => (
-            <Typography key={`${d.label}-l-${i}`} sx={{ flex: 1, textAlign: 'center', fontSize: { xs: 9.5, sm: 11 }, color: tokens.textMuted, overflow: 'hidden' }}>
+            <Typography
+              key={`${d.label}-l-${i}`}
+              sx={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: { xs: 9.5, sm: 11 },
+                color: tokens.textMuted,
+                overflow: 'hidden'
+              }}
+            >
               {d.label}
             </Typography>
           ))}
@@ -122,10 +164,19 @@ export function RankBars({ items, format = (v) => String(v) }) {
         <Box key={item.label}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
             <Typography sx={{ fontSize: 13, fontWeight: 600, color: tokens.textPrimary }}>{item.label}</Typography>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>{format(item.value)}</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
+              {format(item.value)}
+            </Typography>
           </Box>
           <Box sx={{ height: 8, borderRadius: 999, backgroundColor: tokens.surfaceMuted, overflow: 'hidden' }}>
-            <Box sx={{ width: `${(item.value / max) * 100}%`, height: '100%', borderRadius: 999, background: `linear-gradient(90deg, ${tokens.goldDark}, ${tokens.gold})` }} />
+            <Box
+              sx={{
+                width: `${(item.value / max) * 100}%`,
+                height: '100%',
+                borderRadius: 999,
+                background: `linear-gradient(90deg, ${tokens.goldDark}, ${tokens.gold})`
+              }}
+            />
           </Box>
         </Box>
       ))}

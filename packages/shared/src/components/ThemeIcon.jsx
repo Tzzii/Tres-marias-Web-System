@@ -17,7 +17,9 @@ const ICONS = {
 // Image path for an occasion. "Other" and an occasion the customer typed for it ("Baby Shower") use the
 // gift box (other.svg); no occasion at all uses the default event icon (a serving dome).
 export const themeIconSrc = (occasion) => {
-  const name = String(occasion || '').trim().toLowerCase();
+  const name = String(occasion || '')
+    .trim()
+    .toLowerCase();
   return `/images/icons/${name ? ICONS[name] || 'other' : 'event-default'}.svg`;
 };
 
@@ -37,7 +39,12 @@ export function ThemeIcon({ occasion, size = 72, sx }) {
         ...sx
       }}
     >
-      <Box component="img" src={themeIconSrc(occasion)} alt={`${occasion || 'Event'} theme`} sx={{ width: size * 0.58, height: size * 0.58, objectFit: 'contain' }} />
+      <Box
+        component="img"
+        src={themeIconSrc(occasion)}
+        alt={`${occasion || 'Event'} theme`}
+        sx={{ width: size * 0.58, height: size * 0.58, objectFit: 'contain' }}
+      />
     </Box>
   );
 }

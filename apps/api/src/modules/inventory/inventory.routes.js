@@ -11,8 +11,11 @@ function itemForm(req, res, next) {
   if (!req.is('multipart/form-data')) return next();
   uploadPhoto(req, res, (err) => {
     if (err) return next(err);
-    try { req.body = JSON.parse(req.body.item); }
-    catch { return next(new ApiError('INVALID', 'The inventory form could not be read.')); }
+    try {
+      req.body = JSON.parse(req.body.item);
+    } catch {
+      return next(new ApiError('INVALID', 'The inventory form could not be read.'));
+    }
     return next();
   });
 }
@@ -55,18 +58,31 @@ inventoryAdminRoutes.post('/rentals/:ref/check-out', validate({ params: schemas.
   res.json(await inventory.checkOutRental(req.valid.params.ref, req.user));
 });
 // { returns: [{ itemId, good, damaged }] } -> { pieces, damaged }
-inventoryAdminRoutes.post('/rentals/:ref/return', validate({ params: schemas.refParams, body: schemas.returnBody }), async (req, res) => {
-  res.json(await inventory.returnRental(req.valid.params.ref, req.valid.body.returns, req.user));
-});
+inventoryAdminRoutes.post(
+  '/rentals/:ref/return',
+  validate({ params: schemas.refParams, body: schemas.returnBody }),
+  async (req, res) => {
+    res.json(await inventory.returnRental(req.valid.params.ref, req.valid.body.returns, req.user));
+  }
+);
 
 // One item: edit it, or move its stock ({ action, qty, damagedQty, ref, note }); each answers with the item
 inventoryAdminRoutes.get('/:id/photo', validate({ params: schemas.idParams }), async (req, res) => {
   await sendInventoryPhoto(req, res, true);
 });
-inventoryAdminRoutes.patch('/:id', itemForm, validate({ params: schemas.idParams, body: schemas.updateBody }), async (req, res) => {
-  res.json(await inventory.updateInventoryItem(req.valid.params.id, req.valid.body, req.user, req.file));
-});
-inventoryAdminRoutes.post('/:id/movements', validate({ params: schemas.idParams, body: schemas.moveBody }), async (req, res) => {
-  const { action, ...input } = req.valid.body;
-  res.json(await inventory.moveInventoryStock(req.valid.params.id, action, input, req.user));
-});
+inventoryAdminRoutes.patch(
+  '/:id',
+  itemForm,
+  validate({ params: schemas.idParams, body: schemas.updateBody }),
+  async (req, res) => {
+    res.json(await inventory.updateInventoryItem(req.valid.params.id, req.valid.body, req.user, req.file));
+  }
+);
+inventoryAdminRoutes.post(
+  '/:id/movements',
+  validate({ params: schemas.idParams, body: schemas.moveBody }),
+  async (req, res) => {
+    const { action, ...input } = req.valid.body;
+    res.json(await inventory.moveInventoryStock(req.valid.params.id, action, input, req.user));
+  }
+);

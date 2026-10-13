@@ -14,7 +14,16 @@ import { site, siteContainerSx } from '../theme/siteTheme.js';
 const headingSx = { fontSize: 12.5, fontWeight: 700, color: site.gold, mb: 2 };
 // On touch screens the links get 6px more above and below (a finger-sized target) and the list gap
 // drops to 0, so the space between two links stays about the same (12px instead of 10px)
-const linkSx = { display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5, color: site.onEspressoSoft, textDecoration: 'none', '&:hover': { color: site.goldLight }, '@media (pointer: coarse)': { py: 0.75 } };
+const linkSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+  fontSize: 13.5,
+  color: site.onEspressoSoft,
+  textDecoration: 'none',
+  '&:hover': { color: site.goldLight },
+  '@media (pointer: coarse)': { py: 0.75 }
+};
 const linkListSx = { display: 'flex', flexDirection: 'column', gap: 1.25, '@media (pointer: coarse)': { gap: 0 } };
 // Contact details are plain text, not tel:/mailto: links, so clicking them never asks to open another app
 const contactSx = { display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5, color: site.onEspressoSoft };
@@ -27,13 +36,26 @@ export default function SiteFooter({ bottomSpace = false }) {
 
   return (
     // bottomSpace adds extra padding on phones so the fixed Log in / Sign up bar doesn't cover the footer
-    <Box component="footer" id="contact" sx={{ backgroundColor: site.espresso, borderTop: `3px solid ${site.gold}`, pt: 8, pb: { xs: bottomSpace ? 12 : 4, md: 4 }, scrollMarginTop: '90px' }}>
+    <Box
+      component="footer"
+      id="contact"
+      sx={{
+        backgroundColor: site.espresso,
+        borderTop: `3px solid ${site.gold}`,
+        pt: 8,
+        pb: { xs: bottomSpace ? 12 : 4, md: 4 },
+        scrollMarginTop: '90px'
+      }}
+    >
       <Container maxWidth={false} sx={siteContainerSx}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1.4fr 1fr 1fr 1fr' }, gap: 5 }}>
+        <Box
+          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1.4fr 1fr 1fr 1fr' }, gap: 5 }}
+        >
           <Box>
             <BrandMark />
             <Typography sx={{ mt: 2, maxWidth: 320, fontSize: 13.5, lineHeight: 1.7, color: site.onEspressoSoft }}>
-              Heritage Filipino cooking, elegant table styling and a service team that treats your guests like their own.
+              Heritage Filipino cooking, elegant table styling and a service team that treats your guests like their
+              own.
             </Typography>
           </Box>
 
@@ -72,7 +94,13 @@ export default function SiteFooter({ bottomSpace = false }) {
                 ['signature-wedding', 'Signature Wedding'],
                 ['royal-wedding', 'Royal Wedding']
               ].map(([slug, name]) => (
-                <Link key={slug} component="button" type="button" onClick={() => navigate(`/packages/${slug}`)} sx={{ ...linkSx, textAlign: 'left' }}>
+                <Link
+                  key={slug}
+                  component="button"
+                  type="button"
+                  onClick={() => navigate(`/packages/${slug}`)}
+                  sx={{ ...linkSx, textAlign: 'left' }}
+                >
                   {name}
                 </Link>
               ))}
@@ -82,26 +110,61 @@ export default function SiteFooter({ bottomSpace = false }) {
           <Box>
             <Typography sx={headingSx}>Your Account</Typography>
             <Box sx={linkListSx}>
-              <Link component="button" type="button" onClick={() => navigate('/login')} sx={{ ...linkSx, textAlign: 'left' }}>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => navigate('/login')}
+                sx={{ ...linkSx, textAlign: 'left' }}
+              >
                 Log in
               </Link>
-              <Link component="button" type="button" onClick={() => navigate('/signup')} sx={{ ...linkSx, textAlign: 'left' }}>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => navigate('/signup')}
+                sx={{ ...linkSx, textAlign: 'left' }}
+              >
                 Create an account
               </Link>
-              <Link component="button" type="button" onClick={() => navigate('/portal/reservations')} sx={{ ...linkSx, textAlign: 'left' }}>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => navigate('/portal/reservations')}
+                sx={{ ...linkSx, textAlign: 'left' }}
+              >
                 Track a reservation
               </Link>
-              <Link component="button" type="button" onClick={() => navigate('/terms')} sx={{ ...linkSx, textAlign: 'left' }}>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => navigate('/terms')}
+                sx={{ ...linkSx, textAlign: 'left' }}
+              >
                 Terms of Service
               </Link>
-              <Link component="button" type="button" onClick={() => navigate('/privacy')} sx={{ ...linkSx, textAlign: 'left' }}>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => navigate('/privacy')}
+                sx={{ ...linkSx, textAlign: 'left' }}
+              >
                 Privacy Policy
               </Link>
             </Box>
           </Box>
         </Box>
 
-        <Box sx={{ mt: 6, pt: 3, borderTop: `1px solid ${site.espressoBorder}`, display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+        <Box
+          sx={{
+            mt: 6,
+            pt: 3,
+            borderTop: `1px solid ${site.espressoBorder}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 2,
+            flexWrap: 'wrap'
+          }}
+        >
           <Typography sx={{ fontSize: 12.5, color: site.onEspressoMuted }}>
             © {year} {BUSINESS.name}. All rights reserved.
           </Typography>

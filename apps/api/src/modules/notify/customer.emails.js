@@ -76,7 +76,8 @@ import { PORTAL_PATHS, emailSubject, oneLine, renderEmail, reservationPath, shor
 const METHOD_NAMES = { qrph: 'QR Ph', bank: 'Bank transfer', cash: 'Cash' };
 
 // The box on every email that asks for money: where to pay, and what we never send
-const PAY_ONLY_HERE = 'Pay only from the Payments page of your account. We never send bank details, QR codes or payment links by email.';
+const PAY_ONLY_HERE =
+  'Pay only from the Payments page of your account. We never send bank details, QR codes or payment links by email.';
 
 // Reservation statuses with no way forward: money that arrives on one is returned
 const CLOSED = ['cancelled', 'declined'];
@@ -103,7 +104,9 @@ const eventDateTime = (reservation) => {
 /** The booking's rows for the details card: Event, Date (or "Date and time" with `withTime`) and Reference. */
 const bookingRows = (reservation, { withTime = false } = {}) => [
   { label: 'Event', value: reservation.eventName },
-  withTime ? { label: 'Date and time', value: eventDateTime(reservation) } : { label: 'Date', value: formatDate(reservation.date) },
+  withTime
+    ? { label: 'Date and time', value: eventDateTime(reservation) }
+    : { label: 'Date', value: formatDate(reservation.date) },
   { label: 'Reference', value: reservation.ref }
 ];
 
@@ -115,7 +118,8 @@ const textBox = (title, value, tone = 'info') => (hasText(value) ? { title, text
  * Wedding (RES-2026-1130-01)". Same safety as emailSubject: one line (no CR/LF), the event name shortened to
  * about 60 characters and the whole line at most 200.
  */
-const subjectWithEvent = (what, eventName, ref) => shorten(`${oneLine(what)} ${shorten(eventName, 60)} (${oneLine(ref)})`, 200);
+const subjectWithEvent = (what, eventName, ref) =>
+  shorten(`${oneLine(what)} ${shorten(eventName, 60)} (${oneLine(ref)})`, 200);
 
 /**
  * The approved email's cancel-deadline sentence, by the rule of approvalMessage (domain/reservation.js):
@@ -138,7 +142,20 @@ function cancelSentence(reservation) {
  * status, or an amount paid above the new total. A rental's damage lines are listed under "Damage Charges".
  * The admin's note goes in a "Note from our team" box, or in a paragraph when the box holds the downpayment.
  */
-function quotationReady({ reservation, variant = 'new', net, note, totalBefore, statusBefore, statusAfter, downpaymentStillNeeded, downpaymentDue, overpaid, damageLines = [], firstName }) {
+function quotationReady({
+  reservation,
+  variant = 'new',
+  net,
+  note,
+  totalBefore,
+  statusBefore,
+  statusAfter,
+  downpaymentStillNeeded,
+  downpaymentDue,
+  overpaid,
+  damageLines = [],
+  firstName
+}) {
   const { ref, eventName } = reservation;
   const button = { label: 'Review quotation', path: reservationPath(ref) };
 
@@ -153,7 +170,9 @@ function quotationReady({ reservation, variant = 'new', net, note, totalBefore, 
         heading: revised ? 'Your Revised Quotation Is Ready' : 'Your Quotation Is Ready',
         firstName,
         intro: [
-          revised ? 'We have revised the quotation for your reservation.' : 'We have prepared the quotation for your reservation.',
+          revised
+            ? 'We have revised the quotation for your reservation.'
+            : 'We have prepared the quotation for your reservation.',
           'Please review the charges and tap Accept Quotation on your reservation page. Your date is only held once you accept.'
         ],
         details: [...bookingRows(reservation), { label: 'Net total', value: peso(net), strong: true }],
@@ -167,22 +186,35 @@ function quotationReady({ reservation, variant = 'new', net, note, totalBefore, 
   // only ever listed here: a request still pending has had nothing rented out yet.
   const damage = Array.isArray(damageLines) ? damageLines : [];
   const sections = damage.length
-    ? [{ heading: 'Damage Charges', rows: damage.map((line) => ({ label: `${oneLine(line.name)} × ${line.qty}`, value: peso(line.amount) })) }]
+    ? [
+        {
+          heading: 'Damage Charges',
+          rows: damage.map((line) => ({ label: `${oneLine(line.name)} × ${line.qty}`, value: peso(line.amount) }))
+        }
+      ]
     : [];
   const due = downpaymentDue || reservation.downpaymentDue;
   const backToApproved = statusAfter === 'approved' && statusBefore !== 'approved';
   const payBox = backToApproved
-    ? { text: `Please pay ${peso(downpaymentStillNeeded)} more${due ? ` by ${formatDate(due)}` : ''} to reach the minimum downpayment.`, tone: 'info' }
+    ? {
+        text: `Please pay ${peso(downpaymentStillNeeded)} more${due ? ` by ${formatDate(due)}` : ''} to reach the minimum downpayment.`,
+        tone: 'info'
+      }
     : null;
-  const statusLine = !backToApproved && statusAfter && statusAfter !== statusBefore ? `Your reservation is now ${statusLabel(statusAfter)}.` : '';
-  const overpaidLine = Number(overpaid) > 0 ? `${peso(overpaid)} was paid above the new total and will be returned.` : '';
+  const statusLine =
+    !backToApproved && statusAfter && statusAfter !== statusBefore
+      ? `Your reservation is now ${statusLabel(statusAfter)}.`
+      : '';
+  const overpaidLine =
+    Number(overpaid) > 0 ? `${peso(overpaid)} was paid above the new total and will be returned.` : '';
   // One box only: the downpayment step when there is one, the admin's note otherwise
   const noteBox = textBox('Note from our team', note);
   const noteLine = payBox && noteBox ? `Note from our team: ${noteBox.text}` : '';
 
   const summary = backToApproved
     ? `Please pay ${peso(downpaymentStillNeeded)} more${due ? ` by ${formatDate(due)}` : ''}.`
-    : statusLine || (overpaidLine ? `${peso(overpaid)} will be returned.` : 'See the updated charges on your reservation page.');
+    : statusLine ||
+      (overpaidLine ? `${peso(overpaid)} will be returned.` : 'See the updated charges on your reservation page.');
   return {
     subject: emailSubject('Your quotation was updated', eventName, ref),
     ...renderEmail({
@@ -193,7 +225,9 @@ function quotationReady({ reservation, variant = 'new', net, note, totalBefore, 
       firstName,
       intro: [
         'We updated the quotation for your reservation. You can see the full charges on your reservation page.',
-        damage.length ? 'The new total includes charges for rented items that came back damaged or were not returned, listed below.' : ''
+        damage.length
+          ? 'The new total includes charges for rented items that came back damaged or were not returned, listed below.'
+          : ''
       ],
       details: [
         ...bookingRows(reservation),
@@ -223,7 +257,10 @@ function reservationApproved({ reservation, total, downpayment, acceptedAt, firs
     ? `Please pay the full ${peso(total)}${byDue} to secure your date.`
     : `Please pay a downpayment of at least ${peso(downpayment)}${byDue} to secure your date. You can pay more, up to the full ${peso(total)}.`;
   const moneyRows = full
-    ? [{ label: 'Total', value: peso(total), strong: true }, { label: 'Pay in full by', value: due || '—' }]
+    ? [
+        { label: 'Total', value: peso(total), strong: true },
+        { label: 'Pay in full by', value: due || '—' }
+      ]
     : [
         { label: 'Total', value: peso(total), strong: true },
         { label: 'Minimum downpayment', value: peso(downpayment), strong: true },
@@ -234,7 +271,9 @@ function reservationApproved({ reservation, total, downpayment, acceptedAt, firs
     ...renderEmail({
       label: 'Approved',
       tone: 'success',
-      preheader: full ? `Pay the full ${peso(total)}${byDue} to secure your date.` : `Minimum downpayment ${peso(downpayment)}${byDue} · Total ${peso(total)}.`,
+      preheader: full
+        ? `Pay the full ${peso(total)}${byDue} to secure your date.`
+        : `Minimum downpayment ${peso(downpayment)}${byDue} · Total ${peso(total)}.`,
       heading: 'Your Reservation Is Approved',
       firstName,
       intro: ['Thank you for accepting your quotation. Your reservation is approved.', pay],
@@ -373,13 +412,19 @@ function bookingConfirmed({ reservation, balance, firstName }) {
     ...renderEmail({
       label: 'Booking Confirmed',
       tone: 'success',
-      preheader: owes ? `Remaining balance ${peso(balance)}, due on the event day · Your contract is in Documents.` : 'Fully paid · Your contract is in Documents.',
+      preheader: owes
+        ? `Remaining balance ${peso(balance)}, due on the event day · Your contract is in Documents.`
+        : 'Fully paid · Your contract is in Documents.',
       heading: 'Your Booking Is Confirmed',
       firstName,
       intro: ['Your booking is confirmed. Thank you for choosing Tres Marias.'],
       details: [
         ...bookingRows(reservation, { withTime: true }),
-        { label: 'Remaining balance', value: owes ? `${peso(balance)}, due on the event day` : 'Fully paid', strong: true }
+        {
+          label: 'Remaining balance',
+          value: owes ? `${peso(balance)}, due on the event day` : 'Fully paid',
+          strong: true
+        }
       ],
       after: ['Your contract is in Documents.'],
       button: { label: 'View contract', path: PORTAL_PATHS.documents }
@@ -434,7 +479,11 @@ function reservationCancelled({ reservation, by, reason, paid, at, firstName }) 
         : `Cancelled by our team${hasPaid ? ` · We'll return ${peso(paid)}.` : '.'}`,
       heading: byCustomer ? 'You Cancelled Your Reservation' : 'Your Reservation Was Cancelled',
       firstName,
-      intro: [byCustomer ? 'You cancelled your reservation from your account.' : 'We are sorry, we had to cancel your reservation.'],
+      intro: [
+        byCustomer
+          ? 'You cancelled your reservation from your account.'
+          : 'We are sorry, we had to cancel your reservation.'
+      ],
       details,
       box: textBox(byCustomer ? 'Your reason' : 'Reason', reason, 'attention'),
       after: [refundLine],
@@ -477,7 +526,11 @@ function eventCompleted({ reservation, firstName }) {
   const { ref, eventName } = reservation;
   const rental = isRental(reservation.serviceType);
   return {
-    subject: emailSubject(rental ? 'Thank you for renting with us' : 'Thank you for celebrating with us', eventName, ref),
+    subject: emailSubject(
+      rental ? 'Thank you for renting with us' : 'Thank you for celebrating with us',
+      eventName,
+      ref
+    ),
     ...renderEmail({
       label: rental ? 'Rental Completed' : 'Event Completed',
       tone: 'info',

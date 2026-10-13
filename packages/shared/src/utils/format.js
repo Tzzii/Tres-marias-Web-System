@@ -20,7 +20,8 @@ export const formatPackageItem = (item) => (item.qty ? `${item.qty} ${item.name}
  * A reservation's head count for lists: "150 guests" (or "150 pax" with `word`), and "Equipment rental"
  * for a rental, which has no guests. Same test as isRental in services/config.js.
  */
-export const headcount = (reservation, word = 'guests') => (reservation.serviceType === 'Equipment rental' ? 'Equipment rental' : `${reservation.guests} ${word}`);
+export const headcount = (reservation, word = 'guests') =>
+  reservation.serviceType === 'Equipment rental' ? 'Equipment rental' : `${reservation.guests} ${word}`;
 
 /** The rented items of a rental as one line: [{ qty: 100, name: 'Monobloc chair' }] -> "100 × Monobloc chair". */
 export const formatRentalItems = (lines = []) => lines.map((line) => `${line.qty} × ${line.name}`).join(', ');
@@ -73,7 +74,8 @@ export const formatDateLong = (iso) =>
     : '—';
 
 /** Day of the week: "Saturday", or "Sat" with style 'short' */
-export const formatWeekday = (iso, style = 'long') => (iso ? parseISODate(iso).toLocaleDateString('en-GB', { weekday: style }) : '—');
+export const formatWeekday = (iso, style = 'long') =>
+  iso ? parseISODate(iso).toLocaleDateString('en-GB', { weekday: style }) : '—';
 
 /** "14 Mar 2026" */
 export const formatDate = (iso) =>
@@ -82,7 +84,12 @@ export const formatDate = (iso) =>
 /** "Sat, 14 Mar 2026" */
 export const formatDateShort = (iso) =>
   iso
-    ? parseISODate(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    ? parseISODate(iso).toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      })
     : '—';
 
 /** "18:00" -> "6:00 pm" */
@@ -147,7 +154,29 @@ export const initials = (name = '') => {
 export const firstName = (name = '') => name.split(' ')[0] || '';
 
 // Short words that stay lowercase inside a heading (never as its first or last word)
-const MINOR_WORDS = ['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet', 'as', 'at', 'by', 'in', 'of', 'off', 'on', 'per', 'to', 'via', 'vs'];
+const MINOR_WORDS = [
+  'a',
+  'an',
+  'the',
+  'and',
+  'but',
+  'or',
+  'nor',
+  'for',
+  'so',
+  'yet',
+  'as',
+  'at',
+  'by',
+  'in',
+  'of',
+  'off',
+  'on',
+  'per',
+  'to',
+  'via',
+  'vs'
+];
 
 /**
  * Heading style for text kept in sentence case because it is stored data (e.g. an inventory category):
@@ -203,6 +232,16 @@ export const maskMobile = (value = '') => {
 
 // Month names, index 0 = January (matches Date.getMonth())
 export const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'
 ];

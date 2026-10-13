@@ -22,7 +22,9 @@ const optionalText = (max) => text(max).default('');
 const password = text(200);
 
 // A code request id handed out by a start step (chl-…, chc-…, rst-…, sgn-…, pwc-…)
-const requestId = z.string({ error: 'This request expired. Please start again.' }).max(40, { error: 'This request expired. Please start again.' });
+const requestId = z
+  .string({ error: 'This request expired. Please start again.' })
+  .max(40, { error: 'This request expired. Please start again.' });
 
 // The 6-digit code from the email
 const code = z

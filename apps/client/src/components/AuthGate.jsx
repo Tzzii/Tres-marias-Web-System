@@ -21,8 +21,23 @@ export default function AuthGate({ open, onClose, intent, packageName }) {
   const body = (
     <Box sx={{ p: { xs: 3, sm: 3.5 }, color: site.ink }}>
       {/* Small grab handle at the top of the bottom sheet (phones only) */}
-      {isPhone && <Box sx={{ width: 40, height: 4, borderRadius: 999, backgroundColor: site.border, mx: 'auto', mt: -1, mb: 2 }} />}
-      <Box sx={{ width: 48, height: 48, borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: site.goldTint, color: site.goldText, mb: 2 }}>
+      {isPhone && (
+        <Box
+          sx={{ width: 40, height: 4, borderRadius: 999, backgroundColor: site.border, mx: 'auto', mt: -1, mb: 2 }}
+        />
+      )}
+      <Box
+        sx={{
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          display: 'grid',
+          placeItems: 'center',
+          backgroundColor: site.goldTint,
+          color: site.goldText,
+          mb: 2
+        }}
+      >
         <LockOpenOutlinedIcon />
       </Box>
       <Typography id="gate-title" component="h2" sx={{ fontFamily: site.fontSerif, fontSize: 24, fontWeight: 600 }}>
@@ -49,10 +64,20 @@ export default function AuthGate({ open, onClose, intent, packageName }) {
 
       <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {/* Both options send the customer to the booking form once they're signed in */}
-        <Button variant="contained" size="large" onClick={() => navigate('/signup?continue=booking')} sx={{ borderRadius: 999 }}>
+        <Button
+          variant="contained"
+          size="large"
+          onClick={() => navigate('/signup?continue=booking')}
+          sx={{ borderRadius: 999 }}
+        >
           Create an account
         </Button>
-        <Button variant="outlined" size="large" onClick={() => navigate('/login?next=/portal/book')} sx={{ borderRadius: 999, borderColor: site.border }}>
+        <Button
+          variant="outlined"
+          size="large"
+          onClick={() => navigate('/login?next=/portal/book')}
+          sx={{ borderRadius: 999, borderColor: site.border }}
+        >
           I already have an account — Log in
         </Button>
         <Button onClick={onClose} sx={{ color: site.inkSoft }}>
@@ -66,7 +91,15 @@ export default function AuthGate({ open, onClose, intent, packageName }) {
   return (
     <>
       {isPhone ? (
-        <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: { borderTopLeftRadius: 20, borderTopRightRadius: 20, pt: 2 }, 'aria-labelledby': 'gate-title' }}>
+        <Drawer
+          anchor="bottom"
+          open={open}
+          onClose={onClose}
+          PaperProps={{
+            sx: { borderTopLeftRadius: 20, borderTopRightRadius: 20, pt: 2 },
+            'aria-labelledby': 'gate-title'
+          }}
+        >
           {body}
         </Drawer>
       ) : (

@@ -33,7 +33,8 @@ export function StatusPipeline({ status, compact = false }) {
           const active = !stopped && index === current; // the current step (highlighted)
           const isLast = index === PIPELINE.length - 1;
           // Done steps are green; the active step uses its status colour; future steps are grey
-          const color = done || (active && step === 'completed') ? tokens.green : active ? STATUS[step].color : tokens.placeholder;
+          const color =
+            done || (active && step === 'completed') ? tokens.green : active ? STATUS[step].color : tokens.placeholder;
           return (
             <Box
               component="li"
@@ -92,7 +93,17 @@ export function StatusPipeline({ status, compact = false }) {
       </Box>
 
       {stopped && (
-        <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1, color: STATUS[status].fg, fontSize: 13, fontWeight: 600 }}>
+        <Box
+          sx={{
+            mt: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: STATUS[status].fg,
+            fontSize: 13,
+            fontWeight: 600
+          }}
+        >
           <CloseRoundedIcon sx={{ fontSize: 17 }} />
           This reservation was {STATUS[status].label.toLowerCase()}.
         </Box>

@@ -13,7 +13,10 @@ import { z } from 'zod';
 
 // Text of at most `max` characters; missing -> '' so the service answers with the form's own message
 const text = (max) =>
-  z.string({ error: 'This field is required.' }).max(max, { error: `Use ${max} characters or fewer.` }).default('');
+  z
+    .string({ error: 'This field is required.' })
+    .max(max, { error: `Use ${max} characters or fewer.` })
+    .default('');
 
 // A number field of the package form (price, guests), an items list, a category …: checked by the service.
 // .optional() matters: in zod 4 a z.unknown() object key is still required, and a missing one would be a
@@ -25,7 +28,10 @@ const flag = (label) => z.boolean({ error: `${label} must be true or false.` });
 
 // A query-string switch such as ?includeHidden=true: only "true" or "1" turn it on; missing, anything
 // else, or the switch given twice (an array) is off
-const querySwitch = z.unknown().optional().transform((value) => value === 'true' || value === '1');
+const querySwitch = z
+  .unknown()
+  .optional()
+  .transform((value) => value === 'true' || value === '1');
 
 // A record id or slug from the URL (Express always gives text); an unknown one is a 404 from the service
 const pathText = z.string();

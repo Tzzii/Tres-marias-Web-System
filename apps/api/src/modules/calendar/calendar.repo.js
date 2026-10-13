@@ -47,7 +47,14 @@ export async function listSlotHolders(db = pool) {
     'SELECT ref, date, start_time, end_time, status, service_type FROM reservations WHERE status IN (?) ORDER BY date, start_time, ref',
     [HOLDS_DATE]
   );
-  return rows.map((row) => ({ ref: row.ref, date: row.date, startTime: row.start_time, endTime: row.end_time ?? null, status: row.status, serviceType: row.service_type }));
+  return rows.map((row) => ({
+    ref: row.ref,
+    date: row.date,
+    startTime: row.start_time,
+    endTime: row.end_time ?? null,
+    status: row.status,
+    serviceType: row.service_type
+  }));
 }
 
 /* ============================ Writes (inside a transaction) ============================ */
@@ -76,16 +83,19 @@ export async function touchSettings(conn, at) {
 
 /** How many dates from `from` to `to` (both included) are already blocked. A locking read, so it sees the latest saved rows. */
 export async function countBlocked(conn, from, to) {
-  const row = first(await conn.query('SELECT COUNT(*) AS n FROM calendar_blocks WHERE date BETWEEN ? AND ? FOR UPDATE', [from, to]));
+  const row = first(
+    await conn.query('SELECT COUNT(*) AS n FROM calendar_blocks WHERE date BETWEEN ? AND ? FOR UPDATE', [from, to])
+  );
   return Number(row.n);
 }
 
 /** Block every date in `dates` with this reason and note, in one statement; a date already blocked gets the new reason and note. */
 export async function upsertBlocks(conn, dates, reason, note = '') {
   // `AS fresh` names the new row (MySQL 8.0.19+), instead of the deprecated VALUES(reason) form
-  await conn.query('INSERT INTO calendar_blocks (date, reason, note) VALUES ? AS fresh ON DUPLICATE KEY UPDATE reason = fresh.reason, note = fresh.note', [
-    dates.map((date) => [date, reason, note])
-  ]);
+  await conn.query(
+    'INSERT INTO calendar_blocks (date, reason, note) VALUES ? AS fresh ON DUPLICATE KEY UPDATE reason = fresh.reason, note = fresh.note',
+    [dates.map((date) => [date, reason, note])]
+  );
 }
 
 /** Open a blocked date again (nothing to delete when it was not blocked). */
@@ -97,6 +107,9 @@ export async function deleteBlock(conn, date) {
 
 /** Save the daily capacity and stamp the change, in one statement (so no transaction is needed). */
 export async function setDailyCapacity(capacity, at) {
-  const [result] = await pool.query('UPDATE calendar_settings SET daily_capacity = ?, updated_at = ? WHERE id = 1', [capacity, at]);
+  const [result] = await pool.query('UPDATE calendar_settings SET daily_capacity = ?, updated_at = ? WHERE id = 1', [
+    capacity,
+    at
+  ]);
   if (result.affectedRows === 0) throw new Error(MISSING_SETTINGS);
 }

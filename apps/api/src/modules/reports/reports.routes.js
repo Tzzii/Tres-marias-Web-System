@@ -21,6 +21,10 @@ reportAdminRoutes.get('/', validate({ query: schemas.rangeQuery }), async (req, 
   res.json(await reports.getReport(req.valid.query.range));
 });
 // A saved report's rows: /saved/monthly_sales or /saved/outstanding, with the same ?range=
-reportAdminRoutes.get('/saved/:kind', validate({ params: schemas.kindParams, query: schemas.rangeQuery }), async (req, res) => {
-  res.json(await reports.runSavedReport(req.valid.params.kind, req.valid.query.range));
-});
+reportAdminRoutes.get(
+  '/saved/:kind',
+  validate({ params: schemas.kindParams, query: schemas.rangeQuery }),
+  async (req, res) => {
+    res.json(await reports.runSavedReport(req.valid.params.kind, req.valid.query.range));
+  }
+);

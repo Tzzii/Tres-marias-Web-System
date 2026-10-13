@@ -29,9 +29,10 @@ const toCustomer = (row) => ({
  * so callers compare the id they asked for with the one that comes back.
  */
 export async function findCustomers(db, { customerId } = {}) {
-  const [rows] = customerId != null
-    ? await db.query(`SELECT ${FIELDS} FROM customers WHERE id = ?`, [customerId])
-    : await db.query(`SELECT ${FIELDS} FROM customers ORDER BY created_at, id`);
+  const [rows] =
+    customerId != null
+      ? await db.query(`SELECT ${FIELDS} FROM customers WHERE id = ?`, [customerId])
+      : await db.query(`SELECT ${FIELDS} FROM customers ORDER BY created_at, id`);
   return rows.map(toCustomer);
 }
 

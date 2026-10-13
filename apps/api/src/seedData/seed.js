@@ -93,7 +93,15 @@ const PACKAGES = [
     price: 12000,
     guests: 100,
     description: 'Everything in Classic for up to 100 guests, with 2 helpers.',
-    items: cateringItems({ guests: 100, warmers: 8, warmerName: 'Food Warmers', tables: 10, pitchers: 4, jugs: 1, waiters: 2 }),
+    items: cateringItems({
+      guests: 100,
+      warmers: 8,
+      warmerName: 'Food Warmers',
+      tables: 10,
+      pitchers: 4,
+      jugs: 1,
+      waiters: 2
+    }),
     mood: 1
   },
   {
@@ -103,7 +111,14 @@ const PACKAGES = [
     price: 15000,
     guests: 150,
     description: 'A buffet setup with elegant food warmers, tableware, round tables and chairs for up to 150 guests.',
-    items: cateringItems({ guests: 150, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 15, pitchers: 4, jugs: 1 }),
+    items: cateringItems({
+      guests: 150,
+      warmers: 5,
+      warmerName: 'Elegant Food Warmers',
+      tables: 15,
+      pitchers: 4,
+      jugs: 1
+    }),
     mood: 2
   },
   {
@@ -113,7 +128,15 @@ const PACKAGES = [
     price: 15000,
     guests: 150,
     description: 'Everything in Premier for up to 150 guests, with 3 helpers.',
-    items: cateringItems({ guests: 150, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 15, pitchers: 4, jugs: 1, waiters: 3 }),
+    items: cateringItems({
+      guests: 150,
+      warmers: 5,
+      warmerName: 'Elegant Food Warmers',
+      tables: 15,
+      pitchers: 4,
+      jugs: 1,
+      waiters: 3
+    }),
     mood: 2
   },
   {
@@ -123,7 +146,14 @@ const PACKAGES = [
     price: 20000,
     guests: 200,
     description: 'A buffet setup with elegant food warmers, tableware, round tables and chairs for up to 200 guests.',
-    items: cateringItems({ guests: 200, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 20, pitchers: 6, jugs: 2 }),
+    items: cateringItems({
+      guests: 200,
+      warmers: 5,
+      warmerName: 'Elegant Food Warmers',
+      tables: 20,
+      pitchers: 6,
+      jugs: 2
+    }),
     mood: 3
   },
   {
@@ -133,7 +163,15 @@ const PACKAGES = [
     price: 20000,
     guests: 200,
     description: 'Everything in Grand for up to 200 guests, with 4 helpers.',
-    items: cateringItems({ guests: 200, warmers: 5, warmerName: 'Elegant Food Warmers', tables: 20, pitchers: 6, jugs: 2, waiters: 4 }),
+    items: cateringItems({
+      guests: 200,
+      warmers: 5,
+      warmerName: 'Elegant Food Warmers',
+      tables: 20,
+      pitchers: 6,
+      jugs: 2,
+      waiters: 4
+    }),
     mood: 3
   },
   {
@@ -142,7 +180,8 @@ const PACKAGES = [
     name: 'Signature Wedding',
     price: 25000,
     guests: 150,
-    description: 'A full reception setup for up to 150 guests: presidential table, tent, arc, stage, cake and water tables, with 6 helpers.',
+    description:
+      'A full reception setup for up to 150 guests: presidential table, tent, arc, stage, cake and water tables, with 6 helpers.',
     items: items([
       [5, 'Elegant Food Warmers'],
       [150, 'Plates'],
@@ -167,7 +206,8 @@ const PACKAGES = [
     name: 'Royal Wedding',
     price: 30000,
     guests: 170,
-    description: 'A full reception setup for up to 170 guests: presidential table, a larger tent, arc, stage, cake and water tables, with 8 helpers.',
+    description:
+      'A full reception setup for up to 170 guests: presidential table, a larger tent, arc, stage, cake and water tables, with 8 helpers.',
     items: items([
       [5, 'Elegant Food Warmers'],
       [170, 'Plates'],
@@ -193,7 +233,8 @@ const PACKAGES = [
     kind: 'rental',
     price: 0,
     guests: 0,
-    description: 'Rent only what you need: tables, chairs, linens, food warmers, tableware, tents and decor, priced per piece. Pick up in Magapi, Malvar, Batangas, or have it delivered.',
+    description:
+      'Rent only what you need: tables, chairs, linens, food warmers, tableware, tents and decor, priced per piece. Pick up in Magapi, Malvar, Batangas, or have it delivered.',
     items: [],
     mood: 1,
     icon: 'chair'
@@ -215,17 +256,36 @@ const PACKAGES = [
  * photo and video packages have no price yet, so they are set in each quotation until the admin adds one.
  */
 const ADDONS = [
-  { id: 'add-dessert', name: 'Dessert', description: 'Your choice of dessert, with flavor and presentation requests. Priced separately in your quotation.' },
+  {
+    id: 'add-dessert',
+    name: 'Dessert',
+    description: 'Your choice of dessert, with flavor and presentation requests. Priced separately in your quotation.'
+  },
   { id: 'add-stage', name: 'Stage decoration', description: 'Backdrop and styling for the stage or program area.' },
   { id: 'add-balloons', name: 'Balloon decoration', description: 'Balloon arches, garlands or columns in your motif.' },
   { id: 'add-tent', name: 'Tent', description: 'A tent over the dining area for outdoor venues.' },
-  { id: 'add-sounds-lights', name: 'Sounds and lights', description: 'Speakers, microphones and event lighting for the program.', hasPackages: true },
+  {
+    id: 'add-sounds-lights',
+    name: 'Sounds and lights',
+    description: 'Speakers, microphones and event lighting for the program.',
+    hasPackages: true
+  },
   { id: 'add-host', name: 'Host', description: 'A host or emcee to run the program.' },
   { id: 'add-clown', name: 'Clown', description: 'A clown with games and balloon art for children.' },
   // One charge for both (merged 2026-10-01; there was a separate Videographer before)
-  { id: 'add-photographer', name: 'Photographer and videographer', description: 'Event photographer and videographer, with edited photos and a highlights video after the event.', hasPackages: true },
+  {
+    id: 'add-photographer',
+    name: 'Photographer and videographer',
+    description: 'Event photographer and videographer, with edited photos and a highlights video after the event.',
+    hasPackages: true
+  },
   // The only charge counted by the piece: the customer says how many, and the admin prices one of them
-  { id: 'add-waiters', name: 'Helper', description: 'Extra helpers on top of what your package includes.', hasQuantity: true },
+  {
+    id: 'add-waiters',
+    name: 'Helper',
+    description: 'Extra helpers on top of what your package includes.',
+    hasQuantity: true
+  },
   // The Tent's sizes, priced per piece once the admin sets them
   // Each books its tent in the inventory (inventorySeed.js ADDON_LINKS), so a booking holds it on the date
   { id: 'add-tent-10x10', parentId: 'add-tent', name: '10 × 10', description: '', hasQuantity: true },
@@ -245,14 +305,16 @@ const ADDONS = [
     parentId: 'add-sounds-lights',
     name: 'Basic lights and sounds',
     price: 5000,
-    description: '2 powered speakers\n8 to 12 stage or backdrop lights on T-bar stands\nAudio mixer and 2 microphones\nAn operator for 4 to 5 hours'
+    description:
+      '2 powered speakers\n8 to 12 stage or backdrop lights on T-bar stands\nAudio mixer and 2 microphones\nAn operator for 4 to 5 hours'
   },
   {
     id: 'add-sound-full',
     parentId: 'add-sounds-lights',
     name: 'Medium / full package',
     price: 8000,
-    description: 'Everything in Basic lights and sounds\nSubwoofers and moving head lights\nDMX lighting controller\nFog or smoke machine\nAn on-site technician'
+    description:
+      'Everything in Basic lights and sounds\nSubwoofers and moving head lights\nDMX lighting controller\nFog or smoke machine\nAn on-site technician'
   },
   {
     id: 'add-sound-grand',
@@ -277,7 +339,8 @@ const ADDONS = [
     id: 'add-photo-video',
     parentId: 'add-photographer',
     name: 'Photos and video',
-    description: 'A photographer and a videographer for the whole event\nAll edited photos and a highlights video after the event'
+    description:
+      'A photographer and a videographer for the whole event\nAll edited photos and a highlights video after the event'
   }
 ].map((addon) => ({ parentId: null, price: null, hasQuantity: false, hasPackages: false, archived: false, ...addon }));
 
@@ -287,43 +350,57 @@ const ADDONS = [
  * them on the Packages page. Every dish costs the same, because a buffet is charged per person.
  */
 export const DISHES = [
-  ['pork', [
-    ['lechon-kawali', 'Lechon Kawali'],
-    ['crispy-pata', 'Crispy Pata'],
-    ['menudo', 'Pork Menudo'],
-    ['bbq', 'Pork Barbecue'],
-    ['adobo-gata', 'Pork Adobo sa Gata'],
-    ['humba', 'Pork Humba'],
-    ['sisig', 'Pork Sisig'],
-    ['kare-kare', 'Kare-Kare']
-  ]],
-  ['chicken', [
-    ['inasal', 'Chicken Inasal'],
-    ['cordon-bleu', 'Chicken Cordon Bleu'],
-    ['fried', 'Crispy Fried Chicken'],
-    ['adobo', 'Chicken Adobo'],
-    ['relleno', 'Chicken Relleno'],
-    ['afritada', 'Chicken Afritada'],
-    ['buffalo', 'Buffalo Chicken Wings'],
-    ['teriyaki', 'Chicken Teriyaki']
-  ]],
-  ['fish', [
-    ['fillet-tartar', 'Fish Fillet with Tartar Sauce'],
-    ['fillet-lemon', 'Fish Fillet in Lemon Butter'],
-    ['escabeche', 'Fish Escabeche'],
-    ['grilled-tilapia', 'Grilled Tilapia'],
-    ['sinigang-hipon', 'Sinigang na Hipon'],
-    ['baked-scallops', 'Baked Scallops'],
-    ['tahong', 'Cheesy Baked Tahong']
-  ]],
-  ['vegetable', [
-    ['chopsuey', 'Chopsuey'],
-    ['buttered', 'Buttered Mixed Vegetables'],
-    ['lumpiang-gulay', 'Lumpiang Gulay'],
-    ['pinakbet', 'Pinakbet'],
-    ['laing', 'Laing']
-  ]]
-].flatMap(([category, list]) => list.map(([slug, name]) => ({ id: `dish-${category}-${slug}`, category, name, archived: false })));
+  [
+    'pork',
+    [
+      ['lechon-kawali', 'Lechon Kawali'],
+      ['crispy-pata', 'Crispy Pata'],
+      ['menudo', 'Pork Menudo'],
+      ['bbq', 'Pork Barbecue'],
+      ['adobo-gata', 'Pork Adobo sa Gata'],
+      ['humba', 'Pork Humba'],
+      ['sisig', 'Pork Sisig'],
+      ['kare-kare', 'Kare-Kare']
+    ]
+  ],
+  [
+    'chicken',
+    [
+      ['inasal', 'Chicken Inasal'],
+      ['cordon-bleu', 'Chicken Cordon Bleu'],
+      ['fried', 'Crispy Fried Chicken'],
+      ['adobo', 'Chicken Adobo'],
+      ['relleno', 'Chicken Relleno'],
+      ['afritada', 'Chicken Afritada'],
+      ['buffalo', 'Buffalo Chicken Wings'],
+      ['teriyaki', 'Chicken Teriyaki']
+    ]
+  ],
+  [
+    'fish',
+    [
+      ['fillet-tartar', 'Fish Fillet with Tartar Sauce'],
+      ['fillet-lemon', 'Fish Fillet in Lemon Butter'],
+      ['escabeche', 'Fish Escabeche'],
+      ['grilled-tilapia', 'Grilled Tilapia'],
+      ['sinigang-hipon', 'Sinigang na Hipon'],
+      ['baked-scallops', 'Baked Scallops'],
+      ['tahong', 'Cheesy Baked Tahong']
+    ]
+  ],
+  [
+    'vegetable',
+    [
+      ['chopsuey', 'Chopsuey'],
+      ['buttered', 'Buttered Mixed Vegetables'],
+      ['lumpiang-gulay', 'Lumpiang Gulay'],
+      ['pinakbet', 'Pinakbet'],
+      ['laing', 'Laing']
+    ]
+  ]
+].flatMap(([category, list]) =>
+  list.map(([slug, name]) => ({ id: `dish-${category}-${slug}`, category, name, archived: false }))
+);
 
 /**
  * Build the business data. The admin account's dates are relative to today; the inventory comes from

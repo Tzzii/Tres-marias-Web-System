@@ -6,7 +6,10 @@ import { photoProblem } from '@tm/shared/src/domain/photos.js';
 import { readPhoto } from '../src/lib/photos.js';
 import { photoUpload } from '../src/middleware/photoUpload.js';
 
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
 const maxBytes = RULES.photoMaxMb * 1024 * 1024;
 
 test('all photo forms accept exactly 20 MB and reject larger or unsupported files', () => {
@@ -24,7 +27,11 @@ test('server checks photo bytes and MIME rather than accepting renamed files', (
     { mimetype: 'image/jpeg', buffer: PNG },
     { mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7') },
     { mimetype: 'image/png', buffer: Buffer.from([137, 80, 78, 71]) }
-  ]) assert.throws(() => readPhoto(file), (err) => err.code === 'INVALID' && err.meta.field === 'photo');
+  ])
+    assert.throws(
+      () => readPhoto(file),
+      (err) => err.code === 'INVALID' && err.meta.field === 'photo'
+    );
 });
 
 test('multipart package photo parser enforces the inclusive limit and single photo field', async () => {

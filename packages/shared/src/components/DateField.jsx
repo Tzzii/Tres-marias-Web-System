@@ -64,7 +64,21 @@ const POPUP_MODIFIERS = [
  * The schedule slides open and closed, and its content fades in when the date changes
  * (both off when the device asks for reduced motion).
  */
-export function DateField({ id, label, value, onChange, error, hint, required, mode = 'booking', placeholder = 'Select a date', dark = false, disabled = false, inline = false, rental = false }) {
+export function DateField({
+  id,
+  label,
+  value,
+  onChange,
+  error,
+  hint,
+  required,
+  mode = 'booking',
+  placeholder = 'Select a date',
+  dark = false,
+  disabled = false,
+  inline = false,
+  rental = false
+}) {
   const [anchor, setAnchor] = useState(null); // element the calendar popup opens under (null = closed)
   const [inDialog, setInDialog] = useState(false); // the popup belongs to the dialog's focus scope and layer
   const [preview, setPreview] = useState(''); // date tapped in the popup whose booked times are shown (booking mode)
@@ -139,7 +153,9 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
       return { tone, label: blocked ? `Not available: ${reason}` : reason, unselectable: true, peek: true };
     }
     const count = snapshot.booked[iso] || 0;
-    return count ? { tone: 'open', label: `Available · ${count} ${count === 1 ? 'event' : 'events'} already booked`, dots: count } : { tone: 'open', label: 'Available' };
+    return count
+      ? { tone: 'open', label: `Available · ${count} ${count === 1 ? 'event' : 'events'} already booked`, dots: count }
+      : { tone: 'open', label: 'Available' };
   };
 
   // Date whose schedule is shown: the picked date inline, the tapped date in the popup (none while the map is loading)
@@ -149,7 +165,10 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   const peekNote = peekReason ? blockNote(peek, snapshot) : '';
   // Closed by the admin (its reason is shown as theirs, even when it is "Fully booked"), not full by itself
   const peekBlocked = Boolean(peekReason) && snapshot.blocked.some((b) => b.date === peek);
-  const schedule = booking && !loadingDates && shown && !dateUnavailableReason(shown, snapshot, { rental }) ? daySchedule(shown, snapshot) : null;
+  const schedule =
+    booking && !loadingDates && shown && !dateUnavailableReason(shown, snapshot, { rental })
+      ? daySchedule(shown, snapshot)
+      : null;
   // Popup only: booked times on the chosen date, repeated under the input once the popup closes
   const valueBooked = booking && !inline && value ? daySchedule(value, snapshot).booked : [];
 
@@ -160,7 +179,11 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   const panel = lastPanel.current;
   // True when a new event could start at any time that day. False can also mean a late event the day
   // before or an early one the day after takes part of the day, even with no event on the day itself.
-  const wholeDayOpen = Boolean(panel.schedule) && panel.schedule.openStarts.length === 1 && panel.schedule.openStarts[0].from === RULES.earliestStart && panel.schedule.openStarts[0].to === '23:59';
+  const wholeDayOpen =
+    Boolean(panel.schedule) &&
+    panel.schedule.openStarts.length === 1 &&
+    panel.schedule.openStarts[0].from === RULES.earliestStart &&
+    panel.schedule.openStarts[0].to === '23:59';
 
   const errorColor = dark ? tokens.dangerSoft : tokens.redPress;
   const mutedColor = dark ? tokens.textOnDarkMuted : tokens.textMuted;
@@ -168,12 +191,31 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
   // Calendar, the shown date's schedule and the legend; used in the popup and inline
   const calendarBody = (
     <>
-      <MonthCalendar size="sm" year={view.year} month={view.month} onMonthChange={(year, month) => setView({ year, month })} getDay={getDay} selected={inline || !booking ? value : preview} onSelect={tapDay} />
+      <MonthCalendar
+        size="sm"
+        year={view.year}
+        month={view.month}
+        onMonthChange={(year, month) => setView({ year, month })}
+        getDay={getDay}
+        selected={inline || !booking ? value : preview}
+        onSelect={tapDay}
+      />
 
       {/* A closed day that was tapped: why it can't be booked, with the admin's note for a blocked date */}
       {peekReason && (
-        <Box role="status" sx={{ mt: 1.5, p: 1.25, borderRadius: 1.25, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>{formatDateLong(peek)}</Typography>
+        <Box
+          role="status"
+          sx={{
+            mt: 1.5,
+            p: 1.25,
+            borderRadius: 1.25,
+            backgroundColor: tokens.surfaceSubtle,
+            border: `1px solid ${tokens.cardLightBorder}`
+          }}
+        >
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
+            {formatDateLong(peek)}
+          </Typography>
           <Typography sx={{ mt: 0.25, fontSize: 12.5, lineHeight: 1.5, color: tokens.textSecondary }}>
             {peekReason === 'Fully booked' && !peekBlocked
               ? 'Fully booked. Please choose another date.'
@@ -181,7 +223,11 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
                 ? `Too soon: we need ${RULES.leadDays} days' notice to prepare. Please choose a later date.`
                 : `Not available: ${peekReason}.`}
           </Typography>
-          {peekNote && <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.5, color: tokens.textPrimary }}>Note from us: {peekNote}</Typography>}
+          {peekNote && (
+            <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.5, color: tokens.textPrimary }}>
+              Note from us: {peekNote}
+            </Typography>
+          )}
         </Box>
       )}
 
@@ -189,9 +235,19 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
           Slides open/closed; the key replays the fade-in whenever a different date is shown. */}
       <Collapse in={Boolean(schedule)} timeout={reduceMotion ? 0 : 220} unmountOnExit>
         {panel.schedule && (
-          <Box key={panel.date} sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${tokens.cardLightBorder}`, animation: reduceMotion ? 'none' : `${scheduleFadeIn} 200ms ease-out` }}>
+          <Box
+            key={panel.date}
+            sx={{
+              mt: 1.5,
+              pt: 1.5,
+              borderTop: `1px solid ${tokens.cardLightBorder}`,
+              animation: reduceMotion ? 'none' : `${scheduleFadeIn} 200ms ease-out`
+            }}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>{formatDateLong(panel.date)}</Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
+                {formatDateLong(panel.date)}
+              </Typography>
               {/* Inline optional fields can be emptied again */}
               {inline && !required && (
                 <Button size="small" onClick={() => onChange('')} sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: 12 }}>
@@ -205,7 +261,20 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
                 <Typography sx={scheduleHeadingSx}>Already Booked</Typography>
                 <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                   {panel.schedule.booked.map((slot, i) => (
-                    <Box key={i} component="span" sx={{ px: 1, py: 0.25, borderRadius: 999, fontSize: 12, fontWeight: 600, color: '#b91c1c', backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                    <Box
+                      key={i}
+                      component="span"
+                      sx={{
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#b91c1c',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                      }}
+                    >
                       {timeRange(slot)}
                     </Box>
                   ))}
@@ -215,7 +284,9 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
             {rental ? (
               // A rental never waits for a free slot, so it has no start times to list
               <Typography sx={{ mt: 0.75, fontSize: 12.5, lineHeight: 1.5, color: tokens.textSecondary }}>
-                {panel.schedule.booked.length ? 'A rental does not need a free event slot, so you can still pick up the items or have them delivered at any time that day.' : 'No events booked yet. You can pick up the items or have them delivered at any time that day.'}
+                {panel.schedule.booked.length
+                  ? 'A rental does not need a free event slot, so you can still pick up the items or have them delivered at any time that day.'
+                  : 'No events booked yet. You can pick up the items or have them delivered at any time that day.'}
               </Typography>
             ) : wholeDayOpen ? (
               <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.5, color: tokens.textSecondary }}>
@@ -225,10 +296,14 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
               // Some start times are taken: by events on this date, or by a late/early event on the day next to it
               <>
                 <Typography sx={scheduleHeadingSx}>You Can Start At</Typography>
-                <Typography sx={{ mt: 0.25, fontSize: 12.5, fontWeight: 600, color: tokens.textPrimary }}>{panel.schedule.openStarts.map(timeRange).join(', ')}</Typography>
+                <Typography sx={{ mt: 0.25, fontSize: 12.5, fontWeight: 600, color: tokens.textPrimary }}>
+                  {panel.schedule.openStarts.map(timeRange).join(', ')}
+                </Typography>
                 <Typography sx={{ mt: 0.75, fontSize: 11.5, lineHeight: 1.5, color: tokens.textMuted }}>
-                  {!panel.schedule.booked.length && 'An event late the day before or early the day after takes up part of this day. '}
-                  We keep {RULES.eventBufferHours} hours before each event for setup and {RULES.eventBufferHours} hours after it for tear-down.
+                  {!panel.schedule.booked.length &&
+                    'An event late the day before or early the day after takes up part of this day. '}
+                  We keep {RULES.eventBufferHours} hours before each event for setup and {RULES.eventBufferHours} hours
+                  after it for tear-down.
                 </Typography>
               </>
             )}
@@ -244,7 +319,10 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
       {/* A rental can still take a day that is full for events, so its greyed-out days are only blocked or too soon.
           While the map is loading (API only), this line says so instead. */}
       {booking && (
-        <Typography role={loadingDates ? 'status' : undefined} sx={{ mt: 1.5, fontSize: 11.5, lineHeight: 1.5, color: tokens.textMuted }}>
+        <Typography
+          role={loadingDates ? 'status' : undefined}
+          sx={{ mt: 1.5, fontSize: 11.5, lineHeight: 1.5, color: tokens.textMuted }}
+        >
           {loadingDates
             ? 'Loading available dates…'
             : rental
@@ -264,10 +342,28 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
             {label}
           </FieldLabel>
         )}
-        <Box id={id} role="group" tabIndex={-1} aria-invalid={Boolean(error)} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 1.5, backgroundColor: '#fff', border: `1px solid ${error ? errorColor : tokens.borderInput}`, outline: 'none', opacity: disabled ? 0.6 : 1, pointerEvents: disabled ? 'none' : 'auto' }}>
+        <Box
+          id={id}
+          role="group"
+          tabIndex={-1}
+          aria-invalid={Boolean(error)}
+          sx={{
+            p: { xs: 1.5, sm: 2 },
+            borderRadius: 1.5,
+            backgroundColor: '#fff',
+            border: `1px solid ${error ? errorColor : tokens.borderInput}`,
+            outline: 'none',
+            opacity: disabled ? 0.6 : 1,
+            pointerEvents: disabled ? 'none' : 'auto'
+          }}
+        >
           {calendarBody}
         </Box>
-        {(error || hint) && <Typography sx={{ mt: 0.75, fontSize: 12, color: error ? errorColor : mutedColor }}>{error || hint}</Typography>}
+        {(error || hint) && (
+          <Typography sx={{ mt: 0.75, fontSize: 12, color: error ? errorColor : mutedColor }}>
+            {error || hint}
+          </Typography>
+        )}
       </Box>
     );
   }
@@ -276,7 +372,11 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
     <Box sx={{ minWidth: 0 }}>
       {label &&
         (dark ? (
-          <Typography component="label" htmlFor={id} sx={{ display: 'block', mb: 0.75, fontSize: 12, fontWeight: 700, color: tokens.textOnDarkMuted }}>
+          <Typography
+            component="label"
+            htmlFor={id}
+            sx={{ display: 'block', mb: 0.75, fontSize: 12, fontWeight: 700, color: tokens.textOnDarkMuted }}
+          >
             {label}
           </Typography>
         ) : (
@@ -305,12 +405,22 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
           fontFamily: 'inherit',
           fontSize: 14,
           textAlign: 'left',
-          color: value ? (dark ? tokens.textLight : tokens.textPrimary) : dark ? tokens.textOnDarkMuted : tokens.placeholder,
+          color: value
+            ? dark
+              ? tokens.textLight
+              : tokens.textPrimary
+            : dark
+              ? tokens.textOnDarkMuted
+              : tokens.placeholder,
           backgroundColor: dark ? tokens.shellInset : tokens.cardLight,
           border: `1px solid ${error ? errorColor : dark ? 'rgba(197, 160, 89, 0.28)' : tokens.borderInput}`,
           '&:hover': { borderColor: dark ? 'rgba(197, 160, 89, 0.5)' : tokens.placeholder },
           '&.Mui-disabled': { backgroundColor: dark ? 'transparent' : tokens.surfaceSubtle, color: tokens.textMuted },
-          '&:focus-visible': { outline: 'none', borderColor: dark ? tokens.gold : tokens.borderFocus, boxShadow: dark ? 'none' : '0 0 0 3px rgba(15, 23, 42, 0.12)' }
+          '&:focus-visible': {
+            outline: 'none',
+            borderColor: dark ? tokens.gold : tokens.borderFocus,
+            boxShadow: dark ? 'none' : '0 0 0 3px rgba(15, 23, 42, 0.12)'
+          }
         }}
       >
         <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -318,7 +428,9 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
         </Box>
         <CalendarMonthOutlinedIcon sx={{ fontSize: 19, color: mutedColor }} />
       </ButtonBase>
-      {(error || hint) && <Typography sx={{ mt: 0.75, fontSize: 12, color: error ? errorColor : mutedColor }}>{error || hint}</Typography>}
+      {(error || hint) && (
+        <Typography sx={{ mt: 0.75, fontSize: 12, color: error ? errorColor : mutedColor }}>{error || hint}</Typography>
+      )}
       {/* Reminder of the times already taken on the chosen date, so the start time can avoid them */}
       {valueBooked.length > 0 && (
         <Typography sx={{ mt: 0.5, fontSize: 12, color: mutedColor }}>
@@ -346,7 +458,12 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
           {({ TransitionProps }) => (
             // Tab and Shift+Tab loop inside the popup; a tap outside may still take the focus away (no enforced focus)
             <FocusTrap open={Boolean(anchor)} disableAutoFocus disableRestoreFocus disableEnforceFocus>
-              <Grow {...TransitionProps} timeout={reduceMotion ? 0 : 'auto'} style={{ transformOrigin: 'left top' }} onEntering={() => paperRef.current && paperRef.current.focus({ preventScroll: true })}>
+              <Grow
+                {...TransitionProps}
+                timeout={reduceMotion ? 0 : 'auto'}
+                style={{ transformOrigin: 'left top' }}
+                onEntering={() => paperRef.current && paperRef.current.focus({ preventScroll: true })}
+              >
                 <Paper
                   ref={paperRef}
                   tabIndex={-1}
@@ -358,10 +475,23 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
                       close(true);
                     }
                   }}
-                  sx={{ width: 384, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', overscrollBehavior: 'contain', borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, outline: 'none' }}
+                  sx={{
+                    width: 384,
+                    maxWidth: 'calc(100vw - 24px)',
+                    maxHeight: 'calc(100dvh - 24px)',
+                    overflowY: 'auto',
+                    overscrollBehavior: 'contain',
+                    borderRadius: 2,
+                    border: `1px solid ${tokens.cardLightBorder}`,
+                    outline: 'none'
+                  }}
                 >
                   {/* A tap anywhere outside the popup closes it, except on the input (its own click toggles the popup) */}
-                  <ClickAwayListener onClickAway={(event) => { if (!buttonRef.current || !buttonRef.current.contains(event.target)) close(); }}>
+                  <ClickAwayListener
+                    onClickAway={(event) => {
+                      if (!buttonRef.current || !buttonRef.current.contains(event.target)) close();
+                    }}
+                  >
                     <Box sx={{ p: 2 }}>{calendarBody}</Box>
                   </ClickAwayListener>
                 </Paper>

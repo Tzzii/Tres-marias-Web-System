@@ -28,7 +28,29 @@ const segment = (ref) => encodeURIComponent(String(ref || ''));
 // endTime is an event's (2 to 6 hours after the start), agreeTerms the "I agree to the Terms of Service" tick,
 // styling an event's theme, colour motif and design details ({ theme, themeOther, colors, notes }, domain/styling.js),
 // occasionOther the customer's own occasion when they picked "Other" (saved as the occasion: bookingOccasion in config.js)
-const BOOKING_FIELDS = ['packageId', 'serviceType', 'eventName', 'occasion', 'occasionOther', 'date', 'startTime', 'endTime', 'agreeTerms', 'guests', 'menu', 'foodNotes', 'styling', 'addonIds', 'addonQty', 'venueName', 'venueAddress', 'city', 'accessNotes', 'fulfilment', 'rentalItems'];
+const BOOKING_FIELDS = [
+  'packageId',
+  'serviceType',
+  'eventName',
+  'occasion',
+  'occasionOther',
+  'date',
+  'startTime',
+  'endTime',
+  'agreeTerms',
+  'guests',
+  'menu',
+  'foodNotes',
+  'styling',
+  'addonIds',
+  'addonQty',
+  'venueName',
+  'venueAddress',
+  'city',
+  'accessNotes',
+  'fulfilment',
+  'rentalItems'
+];
 
 // Reload the availability map after a write that can change it (no change event of its own). The
 // write is saved either way, so a failed reload is not an error: the map catches up on its next load.
@@ -74,10 +96,15 @@ export async function getRentalAvailability(date, { excludeRef } = {}) {
 
 /** Submit the booking form (an event, or an equipment rental). Returns the new reservation's summary. */
 export async function createReservation(customerId, form = {}) {
-  const body = Object.fromEntries(BOOKING_FIELDS.filter((field) => form[field] !== undefined).map((field) => [field, form[field]]));
+  const body = Object.fromEntries(
+    BOOKING_FIELDS.filter((field) => form[field] !== undefined).map((field) => [field, form[field]])
+  );
   if (form.referencePhoto) {
     const photo = cleanDraftReferencePhoto(form.referencePhoto);
-    if (!photo) throw new ApiError('INVALID', `Choose a JPG, PNG or WebP reference photo up to ${REFERENCE_PHOTO_MAX_MB} MB.`, { field: 'styling.referencePhoto' });
+    if (!photo)
+      throw new ApiError('INVALID', `Choose a JPG, PNG or WebP reference photo up to ${REFERENCE_PHOTO_MAX_MB} MB.`, {
+        field: 'styling.referencePhoto'
+      });
     const [header, encoded] = photo.dataUrl.split(',');
     const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
     const upload = new FormData();
@@ -88,22 +115,26 @@ export async function createReservation(customerId, form = {}) {
   return http.post('/reservations', body);
 }
 
-export const referencePhotoUrl = (ref, { forAdmin = false } = {}) => fetchFileUrl(`${forAdmin ? '/admin' : ''}/reservations/${segment(ref)}/reference-photo`);
+export const referencePhotoUrl = (ref, { forAdmin = false } = {}) =>
+  fetchFileUrl(`${forAdmin ? '/admin' : ''}/reservations/${segment(ref)}/reference-photo`);
 
 /**
  * Cancel the customer's own reservation online, with a reason, when the rules allow it (the summary's
  * `onlineCancel`; the server checks them again). A cancelled approved booking frees its slot. Returns its summary.
  */
-export const cancelReservation = (ref, customerId, reason) => slotWrite((options) => http.post(`/reservations/${segment(ref)}/cancel`, { reason }, options));
+export const cancelReservation = (ref, customerId, reason) =>
+  slotWrite((options) => http.post(`/reservations/${segment(ref)}/cancel`, { reason }, options));
 
 /** Ask for a change: posted in the customer's chat, tagged with the reservation. Returns { threadId }. */
-export const requestChange = (ref, customerId, message) => http.post(`/reservations/${segment(ref)}/change-request`, { message });
+export const requestChange = (ref, customerId, message) =>
+  http.post(`/reservations/${segment(ref)}/change-request`, { message });
 
 /**
  * Accept the quotation shown (`sentAt` is its sentAt), which approves the request and takes its slot; the
  * server refuses a newer or out-of-date quotation and a date taken meanwhile. Returns the summary.
  */
-export const acceptQuotation = (ref, sentAt) => slotWrite((options) => http.post(`/reservations/${segment(ref)}/accept-quotation`, { sentAt }, options));
+export const acceptQuotation = (ref, sentAt) =>
+  slotWrite((options) => http.post(`/reservations/${segment(ref)}/accept-quotation`, { sentAt }, options));
 
 /* ---------------- Admin actions and edits (Phase 6B) ---------------- */
 
@@ -123,7 +154,8 @@ export const confirmReservation = (ref) => http.post(adminPath(ref, 'confirm'), 
 export const completeReservation = (ref) => slotWrite((options) => http.post(adminPath(ref, 'complete'), {}, options));
 
 /** Cancel an approved to confirmed booking with a reason shown to the customer (its slot is freed). Returns the summary. */
-export const cancelReservationByAdmin = (ref, reason) => slotWrite((options) => http.post(adminPath(ref, 'cancel'), { reason }, options));
+export const cancelReservationByAdmin = (ref, reason) =>
+  slotWrite((options) => http.post(adminPath(ref, 'cancel'), { reason }, options));
 
 /** Mark "Started preparing": the customer can no longer cancel online. Returns the summary. */
 export const startPreparing = (ref) => http.post(adminPath(ref, 'preparing'), {});
@@ -132,7 +164,8 @@ export const startPreparing = (ref) => http.post(adminPath(ref, 'preparing'), {}
 export const undoPreparing = (ref) => http.delete(adminPath(ref, 'preparing'));
 
 /** Edit date, time, guests and venue (pick up or delivery for a rental): a new date or time moves the slot. Returns { changed }. */
-export const updateLogistics = (ref, patch) => slotWrite((options) => http.patch(adminPath(ref, 'logistics'), patch, options));
+export const updateLogistics = (ref, patch) =>
+  slotWrite((options) => http.patch(adminPath(ref, 'logistics'), patch, options));
 
 /** Change the service type, the menu and the food notes. Returns { ok: true }. */
 export const updateMenu = (ref, values) => http.put(adminPath(ref, 'menu'), values);

@@ -49,11 +49,30 @@ const longName = booking({
   endTime: '02:00'
 });
 // Typed text that must stay text: markup, quotes, an ampersand and a line break (also in the event name)
-const hostile = booking({ ref: 'RES-2026-1212-03', eventName: 'Mia & Leo\'s "Garden" Debut <script>alert("x")</script>\r\nBcc: someone@example.com' });
-const HOSTILE_TEXT = 'The receipt shows "₱2,000" & the amount sent was different.\nSee <script>alert("x")</script> and it\'s <b>not</b> bold.';
+const hostile = booking({
+  ref: 'RES-2026-1212-03',
+  eventName: 'Mia & Leo\'s "Garden" Debut <script>alert("x")</script>\r\nBcc: someone@example.com'
+});
+const HOSTILE_TEXT =
+  'The receipt shows "₱2,000" & the amount sent was different.\nSee <script>alert("x")</script> and it\'s <b>not</b> bold.';
 // Requested 60 days ago for an event 10 days away: the paid-booking cancel deadline has passed
-const lateDeadline = booking({ ref: 'RES-2026-1018-04', eventName: 'Reyes 7th Birthday', date: addDays(today, 10), startTime: '10:00', endTime: '14:00', createdAt: Date.now() - 60 * DAY_MS, downpaymentDue: addDays(today, 3) });
-const rental = booking({ ref: 'RES-2026-1015-05', eventName: 'Barangay Fiesta Equipment', serviceType: 'Equipment rental', startTime: '08:00', endTime: '', date: addDays(today, -3) });
+const lateDeadline = booking({
+  ref: 'RES-2026-1018-04',
+  eventName: 'Reyes 7th Birthday',
+  date: addDays(today, 10),
+  startTime: '10:00',
+  endTime: '14:00',
+  createdAt: Date.now() - 60 * DAY_MS,
+  downpaymentDue: addDays(today, 3)
+});
+const rental = booking({
+  ref: 'RES-2026-1015-05',
+  eventName: 'Barangay Fiesta Equipment',
+  serviceType: 'Equipment rental',
+  startTime: '08:00',
+  endTime: '',
+  date: addDays(today, -3)
+});
 
 const payment = (fields) => ({ amount: 3000, method: 'bank', receiptNo: 'OR-1001', verifiedAt: Date.now(), ...fields });
 
@@ -62,82 +81,277 @@ const SAMPLE_CODE = '176498';
 
 // Every variant: [file name, purpose, data] (firstName is what notify.service.js adds)
 const VARIANTS = [
-  ['partner-supply-request', 'outsourcing_request', {
-    ref: 'OUT-2026-0001',
-    body: composeContractText({ ref: 'OUT-2026-0001', partner: { name: 'Sample Studio', contactPerson: 'Rene' }, items: [{ name: 'Rectangular buffet table', qty: 40 }], needBy: '2026-10-17', amount: 700 })
-  }],
-  ['partner-supply-request-edited', 'outsourcing_request', {
-    ref: 'OUT-2026-0002',
-    body: 'Hi Sample Supplier,\n\nPlease supply the following:\n- Photo booth: 1 pcs\n- LED wall: 2 pcs\n\nNeeded on 18 Oct 2026 at Sample Venue.\nAgreed amount: ₱12,000.\nPlease arrive at 8:00 AM.\n\nPlease text or call +63 951 562 1060 to confirm.'
-  }],
-  ['partner-supply-request-hostile', 'outsourcing_request', {
-    ref: 'OUT-2026-0003', body: 'Hi <script>alert(1)</script> & Supplier,\n\n- Table "A" <b>: 4 pcs\n\nPlease keep my edited note.\n<iframe src="https://example.test"></iframe>'
-  }],
+  [
+    'partner-supply-request',
+    'outsourcing_request',
+    {
+      ref: 'OUT-2026-0001',
+      body: composeContractText({
+        ref: 'OUT-2026-0001',
+        partner: { name: 'Sample Studio', contactPerson: 'Rene' },
+        items: [{ name: 'Rectangular buffet table', qty: 40 }],
+        needBy: '2026-10-17',
+        amount: 700
+      })
+    }
+  ],
+  [
+    'partner-supply-request-edited',
+    'outsourcing_request',
+    {
+      ref: 'OUT-2026-0002',
+      body: 'Hi Sample Supplier,\n\nPlease supply the following:\n- Photo booth: 1 pcs\n- LED wall: 2 pcs\n\nNeeded on 18 Oct 2026 at Sample Venue.\nAgreed amount: ₱12,000.\nPlease arrive at 8:00 AM.\n\nPlease text or call +63 951 562 1060 to confirm.'
+    }
+  ],
+  [
+    'partner-supply-request-hostile',
+    'outsourcing_request',
+    {
+      ref: 'OUT-2026-0003',
+      body: 'Hi <script>alert(1)</script> & Supplier,\n\n- Table "A" <b>: 4 pcs\n\nPlease keep my edited note.\n<iframe src="https://example.test"></iframe>'
+    }
+  ],
   ['quotation-new', 'quotation_ready', { reservation: santos, variant: 'new', net: 45000, note: '' }],
-  ['quotation-revised', 'quotation_ready', { reservation: santos, variant: 'revised', net: 48500, note: `We added the extra dessert station you asked for.\n${HOSTILE_TEXT}` }],
-  ['quotation-updated-back-to-approved', 'quotation_ready', {
-    reservation: santos, variant: 'updated', net: 60000, note: 'Updated for 200 guests, as you asked.', totalBefore: 45000,
-    statusBefore: 'downpayment_paid', statusAfter: 'approved', downpaymentStillNeeded: 4500, downpaymentDue: addDays(today, 7), overpaid: 0, damageLines: []
-  }],
-  ['quotation-updated-confirmed', 'quotation_ready', {
-    reservation: santos, variant: 'updated', net: 40000, note: 'The second lechon was removed.', totalBefore: 45000,
-    statusBefore: 'downpayment_paid', statusAfter: 'confirmed', downpaymentStillNeeded: 0, downpaymentDue: null, overpaid: 0, damageLines: []
-  }],
-  ['quotation-updated-overpaid', 'quotation_ready', {
-    reservation: santos, variant: 'updated', net: 38000, note: '', totalBefore: 45000,
-    statusBefore: 'confirmed', statusAfter: 'confirmed', downpaymentStillNeeded: 0, downpaymentDue: null, overpaid: 2000, damageLines: []
-  }],
-  ['quotation-updated-rental-damage', 'quotation_ready', {
-    reservation: rental, variant: 'updated', net: 5650, note: '', totalBefore: 4200,
-    statusBefore: 'confirmed', statusAfter: 'confirmed', downpaymentStillNeeded: 0, downpaymentDue: null, overpaid: 0,
-    damageLines: [{ name: 'Monobloc chair', qty: 3, amount: 900 }, { name: 'Round table cloth (white)', qty: 1, amount: 550 }]
-  }],
-  ['reservation-approved', 'reservation_approved', { reservation: { ...santos, status: 'approved' }, total: 45000, downpayment: 13500, acceptedAt: Date.now() }],
-  ['reservation-approved-deadline-passed', 'reservation_approved', { reservation: { ...lateDeadline, status: 'approved' }, total: 28000, downpayment: 8400, acceptedAt: Date.now() }],
-  ['reservation-approved-full-payment', 'reservation_approved', { reservation: { ...lateDeadline, status: 'approved' }, total: 28000, downpayment: 28000, acceptedAt: Date.now() }],
-  ['payment-received-downpayment', 'payment_received', {
-    reservation: longName, payment: payment({ amount: 13500 }), paidSoFar: 13500, balance: 31500, statusBefore: 'approved', statusAfter: 'downpayment_paid'
-  }],
-  ['payment-received-partial-balance', 'payment_received', {
-    reservation: santos, payment: payment({ amount: 10000, receiptNo: 'OR-1002' }), paidSoFar: 23500, balance: 21500, statusBefore: 'downpayment_paid', statusAfter: 'downpayment_paid'
-  }],
-  ['payment-received-confirmed', 'payment_received', {
-    reservation: santos, payment: payment({ amount: 21500, receiptNo: 'OR-1003' }), paidSoFar: 45000, balance: 0, statusBefore: 'downpayment_paid', statusAfter: 'confirmed'
-  }],
-  ['payment-received-qrph', 'payment_received', {
-    reservation: santos, payment: payment({ amount: 5000, method: 'qrph', receiptNo: 'OR-1004' }), paidSoFar: 5000, balance: 40000, statusBefore: 'approved', statusAfter: 'approved'
-  }],
-  ['payment-received-cash-after-event', 'payment_received', {
-    reservation: { ...santos, date: addDays(today, -1) }, payment: payment({ amount: 8000, method: 'cash', receiptNo: 'OR-1005' }), paidSoFar: 45000, balance: 0, statusBefore: 'completed', statusAfter: 'completed'
-  }],
-  ['payment-received-cancelled-booking', 'payment_received', {
-    reservation: santos, payment: payment({ amount: 13500, method: 'qrph', receiptNo: 'OR-1006' }), paidSoFar: 13500, balance: 0, statusBefore: 'cancelled', statusAfter: 'cancelled'
-  }],
-  ['payment-rejected', 'payment_rejected', { reservation: santos, payment: { amount: 13500, method: 'bank', submittedAt: Date.now() - 3 * 3600000 }, reason: HOSTILE_TEXT }],
+  [
+    'quotation-revised',
+    'quotation_ready',
+    {
+      reservation: santos,
+      variant: 'revised',
+      net: 48500,
+      note: `We added the extra dessert station you asked for.\n${HOSTILE_TEXT}`
+    }
+  ],
+  [
+    'quotation-updated-back-to-approved',
+    'quotation_ready',
+    {
+      reservation: santos,
+      variant: 'updated',
+      net: 60000,
+      note: 'Updated for 200 guests, as you asked.',
+      totalBefore: 45000,
+      statusBefore: 'downpayment_paid',
+      statusAfter: 'approved',
+      downpaymentStillNeeded: 4500,
+      downpaymentDue: addDays(today, 7),
+      overpaid: 0,
+      damageLines: []
+    }
+  ],
+  [
+    'quotation-updated-confirmed',
+    'quotation_ready',
+    {
+      reservation: santos,
+      variant: 'updated',
+      net: 40000,
+      note: 'The second lechon was removed.',
+      totalBefore: 45000,
+      statusBefore: 'downpayment_paid',
+      statusAfter: 'confirmed',
+      downpaymentStillNeeded: 0,
+      downpaymentDue: null,
+      overpaid: 0,
+      damageLines: []
+    }
+  ],
+  [
+    'quotation-updated-overpaid',
+    'quotation_ready',
+    {
+      reservation: santos,
+      variant: 'updated',
+      net: 38000,
+      note: '',
+      totalBefore: 45000,
+      statusBefore: 'confirmed',
+      statusAfter: 'confirmed',
+      downpaymentStillNeeded: 0,
+      downpaymentDue: null,
+      overpaid: 2000,
+      damageLines: []
+    }
+  ],
+  [
+    'quotation-updated-rental-damage',
+    'quotation_ready',
+    {
+      reservation: rental,
+      variant: 'updated',
+      net: 5650,
+      note: '',
+      totalBefore: 4200,
+      statusBefore: 'confirmed',
+      statusAfter: 'confirmed',
+      downpaymentStillNeeded: 0,
+      downpaymentDue: null,
+      overpaid: 0,
+      damageLines: [
+        { name: 'Monobloc chair', qty: 3, amount: 900 },
+        { name: 'Round table cloth (white)', qty: 1, amount: 550 }
+      ]
+    }
+  ],
+  [
+    'reservation-approved',
+    'reservation_approved',
+    { reservation: { ...santos, status: 'approved' }, total: 45000, downpayment: 13500, acceptedAt: Date.now() }
+  ],
+  [
+    'reservation-approved-deadline-passed',
+    'reservation_approved',
+    { reservation: { ...lateDeadline, status: 'approved' }, total: 28000, downpayment: 8400, acceptedAt: Date.now() }
+  ],
+  [
+    'reservation-approved-full-payment',
+    'reservation_approved',
+    { reservation: { ...lateDeadline, status: 'approved' }, total: 28000, downpayment: 28000, acceptedAt: Date.now() }
+  ],
+  [
+    'payment-received-downpayment',
+    'payment_received',
+    {
+      reservation: longName,
+      payment: payment({ amount: 13500 }),
+      paidSoFar: 13500,
+      balance: 31500,
+      statusBefore: 'approved',
+      statusAfter: 'downpayment_paid'
+    }
+  ],
+  [
+    'payment-received-partial-balance',
+    'payment_received',
+    {
+      reservation: santos,
+      payment: payment({ amount: 10000, receiptNo: 'OR-1002' }),
+      paidSoFar: 23500,
+      balance: 21500,
+      statusBefore: 'downpayment_paid',
+      statusAfter: 'downpayment_paid'
+    }
+  ],
+  [
+    'payment-received-confirmed',
+    'payment_received',
+    {
+      reservation: santos,
+      payment: payment({ amount: 21500, receiptNo: 'OR-1003' }),
+      paidSoFar: 45000,
+      balance: 0,
+      statusBefore: 'downpayment_paid',
+      statusAfter: 'confirmed'
+    }
+  ],
+  [
+    'payment-received-qrph',
+    'payment_received',
+    {
+      reservation: santos,
+      payment: payment({ amount: 5000, method: 'qrph', receiptNo: 'OR-1004' }),
+      paidSoFar: 5000,
+      balance: 40000,
+      statusBefore: 'approved',
+      statusAfter: 'approved'
+    }
+  ],
+  [
+    'payment-received-cash-after-event',
+    'payment_received',
+    {
+      reservation: { ...santos, date: addDays(today, -1) },
+      payment: payment({ amount: 8000, method: 'cash', receiptNo: 'OR-1005' }),
+      paidSoFar: 45000,
+      balance: 0,
+      statusBefore: 'completed',
+      statusAfter: 'completed'
+    }
+  ],
+  [
+    'payment-received-cancelled-booking',
+    'payment_received',
+    {
+      reservation: santos,
+      payment: payment({ amount: 13500, method: 'qrph', receiptNo: 'OR-1006' }),
+      paidSoFar: 13500,
+      balance: 0,
+      statusBefore: 'cancelled',
+      statusAfter: 'cancelled'
+    }
+  ],
+  [
+    'payment-rejected',
+    'payment_rejected',
+    {
+      reservation: santos,
+      payment: { amount: 13500, method: 'bank', submittedAt: Date.now() - 3 * 3600000 },
+      reason: HOSTILE_TEXT
+    }
+  ],
   ['qr-payment-failed', 'qr_payment_failed', { reservation: santos, amount: 13500 }],
   ['booking-confirmed-balance', 'booking_confirmed', { reservation: longName, balance: 31500 }],
   ['booking-confirmed-fully-paid', 'booking_confirmed', { reservation: santos, balance: 0 }],
   ['reservation-declined', 'reservation_declined', { reservation: hostile, reason: HOSTILE_TEXT }],
-  ['reservation-cancelled-admin-paid', 'reservation_cancelled', { reservation: santos, by: 'admin', reason: 'Our kitchen is closed that week for repairs.\nWe are very sorry.', paid: 13500, at: Date.now() }],
-  ['reservation-cancelled-admin-unpaid', 'reservation_cancelled', { reservation: santos, by: 'admin', reason: 'The venue is outside our service area.', paid: 0, at: Date.now() }],
-  ['reservation-cancelled-customer-paid', 'reservation_cancelled', { reservation: santos, by: 'customer', reason: 'We moved the wedding to next year.', paid: 13500, at: Date.now() }],
-  ['reservation-cancelled-customer-unpaid', 'reservation_cancelled', { reservation: santos, by: 'customer', reason: '', paid: 0, at: Date.now() }],
-  ['payment-reminder', 'payment_reminder', {
-    reservation: santos,
-    dueText: 'A downpayment of at least ₱13,500 is due on 17 Oct 2026. You can pay more, up to the full balance of ₱45,000.'
-  }],
+  [
+    'reservation-cancelled-admin-paid',
+    'reservation_cancelled',
+    {
+      reservation: santos,
+      by: 'admin',
+      reason: 'Our kitchen is closed that week for repairs.\nWe are very sorry.',
+      paid: 13500,
+      at: Date.now()
+    }
+  ],
+  [
+    'reservation-cancelled-admin-unpaid',
+    'reservation_cancelled',
+    { reservation: santos, by: 'admin', reason: 'The venue is outside our service area.', paid: 0, at: Date.now() }
+  ],
+  [
+    'reservation-cancelled-customer-paid',
+    'reservation_cancelled',
+    { reservation: santos, by: 'customer', reason: 'We moved the wedding to next year.', paid: 13500, at: Date.now() }
+  ],
+  [
+    'reservation-cancelled-customer-unpaid',
+    'reservation_cancelled',
+    { reservation: santos, by: 'customer', reason: '', paid: 0, at: Date.now() }
+  ],
+  [
+    'payment-reminder',
+    'payment_reminder',
+    {
+      reservation: santos,
+      dueText:
+        'A downpayment of at least ₱13,500 is due on 17 Oct 2026. You can pay more, up to the full balance of ₱45,000.'
+    }
+  ],
   // Phase 13B: the completion with its testimonial invite (an event, and a rental thanked for renting)
   ['event-completed', 'event_completed', { reservation: { ...santos, date: addDays(today, -1) } }],
   ['event-completed-long-name', 'event_completed', { reservation: { ...longName, date: addDays(today, -1) } }],
   ['rental-completed', 'event_completed', { reservation: rental }],
   // The one-time-code emails (code.emails.js): the builders take the account's name, not firstName
   ['code-sign-up', 'customer_sign_up', { name: 'Athena', code: SAMPLE_CODE }],
-  ['code-customer-new-email', 'customer_email_change', { name: 'Maria Santos', email: 'maria.new@example.com', code: SAMPLE_CODE }],
+  [
+    'code-customer-new-email',
+    'customer_email_change',
+    { name: 'Maria Santos', email: 'maria.new@example.com', code: SAMPLE_CODE }
+  ],
   ['code-password-reset', 'customer_password_reset', { name: 'Maria Santos', code: SAMPLE_CODE }],
   ['code-password-change', 'customer_password_change', { name: 'Maria Santos', code: SAMPLE_CODE }],
   ['code-admin-sign-in', 'admin_sign_in', { name: 'Wilma W. Cabiscuelas', code: SAMPLE_CODE }],
-  ['code-admin-new-email', 'admin_contact_change', { name: 'Wilma W. Cabiscuelas', field: 'email', value: 'new.address@example.com', code: SAMPLE_CODE }],
-  ['code-admin-new-mobile', 'admin_contact_change', { name: 'Wilma W. Cabiscuelas', field: 'mobile', value: '09259012345', code: SAMPLE_CODE }]
+  [
+    'code-admin-new-email',
+    'admin_contact_change',
+    { name: 'Wilma W. Cabiscuelas', field: 'email', value: 'new.address@example.com', code: SAMPLE_CODE }
+  ],
+  [
+    'code-admin-new-mobile',
+    'admin_contact_change',
+    { name: 'Wilma W. Cabiscuelas', field: 'mobile', value: '09259012345', code: SAMPLE_CODE }
+  ]
 ];
 
 // Every builder by purpose: the customer notices and the one-time-code emails (no purpose is in both)
@@ -164,7 +378,8 @@ function problemsOf({ subject, html, text }) {
   if (typeof subject !== 'string' || !subject.trim()) problems.push('empty subject');
   else {
     if (hasControl(subject)) problems.push('control character in the subject');
-    if (Array.from(subject).length > 200) problems.push(`subject longer than 200 characters (${Array.from(subject).length})`);
+    if (Array.from(subject).length > 200)
+      problems.push(`subject longer than 200 characters (${Array.from(subject).length})`);
   }
   if (!html || /<script/i.test(html)) problems.push(html ? 'raw <script in the HTML' : 'no HTML');
   if (!text) problems.push('no text version');

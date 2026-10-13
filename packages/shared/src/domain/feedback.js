@@ -70,7 +70,9 @@ export function replyProblem(text) {
  * after trimming. Only the admin sees the reason.
  */
 export const flagReasonProblem = (reason) =>
-  (typeof reason === 'string' ? reason.trim() : '').length < 5 ? 'Give a short reason for the flag (at least 5 characters).' : '';
+  (typeof reason === 'string' ? reason.trim() : '').length < 5
+    ? 'Give a short reason for the flag (at least 5 characters).'
+    : '';
 
 /**
  * A review as the public website may show it (Data Privacy Act, RA 10173): its id, the stars, the

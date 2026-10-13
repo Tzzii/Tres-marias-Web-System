@@ -1,4 +1,11 @@
-import { blockNote, buildSnapshot, dateUnavailableReason, endTimeProblem, eventHours, timeUnavailableReason } from '@tm/shared/src/domain/availability.js';
+import {
+  blockNote,
+  buildSnapshot,
+  dateUnavailableReason,
+  endTimeProblem,
+  eventHours,
+  timeUnavailableReason
+} from '@tm/shared/src/domain/availability.js';
 import { BLOCK_NOTE_MAX, BLOCK_REASONS } from '@tm/shared/src/services/config.js';
 import { addDays } from '@tm/shared/src/utils/format.js';
 import { tx } from '../../db.js';
@@ -29,7 +36,8 @@ const MAX_BLOCK_DAYS = 60;
 const invalid = (message, field) => new ApiError('INVALID', message, { field });
 
 // A number sent by the page (a number, or digits as text: the capacity box sends text); anything else is NaN
-const toNumber = (value) => (typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN);
+const toNumber = (value) =>
+  typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
 
 /**
  * The availability map from the database, built by the shared buildSnapshot(). Its events keep their
@@ -38,7 +46,11 @@ const toNumber = (value) => (typeof value === 'number' ? value : typeof value ==
  * or through `db`, a transaction's connection, so a reservation write checks the map it locked.
  */
 export async function availabilityMap(db) {
-  const [capacity, blocked, reservations] = await Promise.all([repo.getDailyCapacity(db), repo.listBlocks(db), repo.listSlotHolders(db)]);
+  const [capacity, blocked, reservations] = await Promise.all([
+    repo.getDailyCapacity(db),
+    repo.listBlocks(db),
+    repo.listSlotHolders(db)
+  ]);
   return buildSnapshot({ capacity, blocked, reservations });
 }
 
@@ -67,9 +79,28 @@ export async function checkAvailability(date, time, end) {
   }
   const map = await availabilityMap();
   const dateReason = dateUnavailableReason(date, map);
-  if (dateReason) return { date, startTime, endTime, available: false, reason: dateReason, note: blockNote(date, map), timeConflict: false };
-  const timeReason = startTime ? timeUnavailableReason(date, startTime, map, endTime ? eventHours(startTime, endTime) : undefined) : '';
-  return { date, startTime, endTime, available: !timeReason, reason: timeReason, note: '', timeConflict: Boolean(timeReason) };
+  if (dateReason)
+    return {
+      date,
+      startTime,
+      endTime,
+      available: false,
+      reason: dateReason,
+      note: blockNote(date, map),
+      timeConflict: false
+    };
+  const timeReason = startTime
+    ? timeUnavailableReason(date, startTime, map, endTime ? eventHours(startTime, endTime) : undefined)
+    : '';
+  return {
+    date,
+    startTime,
+    endTime,
+    available: !timeReason,
+    reason: timeReason,
+    note: '',
+    timeConflict: Boolean(timeReason)
+  };
 }
 
 /**
@@ -91,7 +122,8 @@ export async function blockDates({ from, to, reason, note }) {
   if (note !== undefined && note !== null && typeof note !== 'string') throw invalid('Write the note as text.', 'note');
   // Spaces and line breaks squeezed to single spaces: the note is one short line for customers
   const cleanNote = (note || '').replace(/\s+/g, ' ').trim();
-  if (cleanNote.length > BLOCK_NOTE_MAX) throw invalid(`Keep the note to ${BLOCK_NOTE_MAX} characters or fewer.`, 'note');
+  if (cleanNote.length > BLOCK_NOTE_MAX)
+    throw invalid(`Keep the note to ${BLOCK_NOTE_MAX} characters or fewer.`, 'note');
 
   const dates = Array.from({ length: total }, (_, i) => addDays(from, i));
   return tx(async (conn) => {
@@ -119,7 +151,8 @@ export async function unblockDate(date) {
  */
 export async function setDailyCapacity(value) {
   const capacity = toNumber(value);
-  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 10) throw invalid('Capacity must be between 1 and 10 events.', 'value');
+  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 10)
+    throw invalid('Capacity must be between 1 and 10 events.', 'value');
   await repo.setDailyCapacity(capacity, now());
   return { capacity };
 }

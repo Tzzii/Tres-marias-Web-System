@@ -73,7 +73,10 @@ const MAX_NEW_ITEMS = 100;
 const NAME_MAX = 120;
 
 // True when a save failed because another item already has the name (the UNIQUE name index)
-const isNameTaken = (err) => Boolean(err) && err.code === 'ER_DUP_ENTRY' && String(err.sqlMessage || err.message).includes('uq_inventory_items_name');
+const isNameTaken = (err) =>
+  Boolean(err) &&
+  err.code === 'ER_DUP_ENTRY' &&
+  String(err.sqlMessage || err.message).includes('uq_inventory_items_name');
 const nameTaken = (name, meta) => new ApiError('NAME_TAKEN', `"${name}" is already in the inventory.`, meta);
 
 // The item `id` names exactly, with its row locked until the transaction ends, or NOT_FOUND
@@ -87,7 +90,10 @@ async function lockedItem(conn, id) {
 // One item as the pages show it, read inside the transaction after a change
 async function itemView(conn, id) {
   const { items, eventOf } = await repo.findItems(conn, { ids: [id] });
-  return inventoryView(items.find((i) => i.id === id), eventOf);
+  return inventoryView(
+    items.find((i) => i.id === id),
+    eventOf
+  );
 }
 
 // The booking `ref` names exactly, { ref, customerId, status }, with its row locked until the transaction ends, or null
@@ -101,7 +107,12 @@ async function logMove(conn, item, text, ref, admin) {
   const at = now();
   const linked = ref !== NO_EVENT;
   await repo.insertHistory(conn, item.id, { at, actor: admin.name, text, ref: linked ? ref : null });
-  if (linked) await reservationsRepo.insertActivity(conn, ref, { at, actor: admin.name, text: equipmentActivity(item, text, ref) });
+  if (linked)
+    await reservationsRepo.insertActivity(conn, ref, {
+      at,
+      actor: admin.name,
+      text: equipmentActivity(item, text, ref)
+    });
 }
 
 /**
@@ -136,7 +147,13 @@ export async function listInventory({ includeArchived = false } = {}) {
  */
 export async function listCheckoutEvents() {
   const bookings = await reservationsRepo.listHeldBookings(pool);
-  return bookings.map((r) => ({ ref: r.ref, eventName: r.eventName, date: r.date, guests: r.guests, rental: isRental(r.serviceType) }));
+  return bookings.map((r) => ({
+    ref: r.ref,
+    eventName: r.eventName,
+    date: r.date,
+    guests: r.guests,
+    rental: isRental(r.serviceType)
+  }));
 }
 
 /**
@@ -152,13 +169,19 @@ export async function listReservationEquipment(ref) {
 // Ledger values win; old audit history supplies quantities until an item first enters the ledger.
 async function dispatchedFor(conn, ref, items) {
   const saved = await repo.rentalDispatches(conn, ref);
-  return Object.fromEntries(items.map((item) => [item.id, Math.max(item.allocations[ref] || 0, saved[item.id] ?? legacyRentalDispatched(item, ref))]));
+  return Object.fromEntries(
+    items.map((item) => [
+      item.id,
+      Math.max(item.allocations[ref] || 0, saved[item.id] ?? legacyRentalDispatched(item, ref))
+    ])
+  );
 }
 
 /** Current pieces out and lifetime dispatch counts for the rental card. */
 export async function rentalCheckoutState(ref) {
   const [row] = await reservationsRepo.findReservations(pool, { ref });
-  if (!row || row.reservation.ref !== ref || !isRental(row.reservation.serviceType)) throw new ApiError('NOT_FOUND', 'Rental not found.');
+  if (!row || row.reservation.ref !== ref || !isRental(row.reservation.serviceType))
+    throw new ApiError('NOT_FOUND', 'Rental not found.');
   const { items } = await repo.findItems(pool, { ids: row.reservation.rentalItems.map((line) => line.itemId) });
   return {
     out: Object.fromEntries((await repo.equipmentOut(pool, ref)).map((line) => [line.itemId, line.qty])),
@@ -183,11 +206,16 @@ export async function addInventoryItems(rows, admin) {
     rows.forEach((row, index) => {
       const problem = itemProblem(row, { names, index });
       if (problem) throw toError(problem);
-      if (row.name.trim().length > NAME_MAX) throw new ApiError('INVALID', `Use ${NAME_MAX} characters or fewer.`, { field: 'name', row: index });
+      if (row.name.trim().length > NAME_MAX)
+        throw new ApiError('INVALID', `Use ${NAME_MAX} characters or fewer.`, { field: 'name', row: index });
     });
     const checked = rows.map(itemFields);
     const duplicate = repeatedRow(checked.map((c) => c.name));
-    if (duplicate >= 0) throw new ApiError('NAME_TAKEN', `"${checked[duplicate].name}" is listed twice.`, { field: 'name', row: duplicate });
+    if (duplicate >= 0)
+      throw new ApiError('NAME_TAKEN', `"${checked[duplicate].name}" is listed twice.`, {
+        field: 'name',
+        row: duplicate
+      });
 
     const ids = [];
     for (const [index, row] of rows.entries()) {
@@ -212,11 +240,20 @@ export async function addInventoryItems(rows, admin) {
         if (isNameTaken(err)) throw nameTaken(name, { field: 'name', row: index });
         throw err;
       }
-      await repo.insertHistory(conn, item.id, { at: now(), actor: admin.name, text: addedText(row.total, checked[index]) });
+      await repo.insertHistory(conn, item.id, {
+        at: now(),
+        actor: admin.name,
+        text: addedText(row.total, checked[index])
+      });
       ids.push(item.id);
     }
     const { items, eventOf } = await repo.findItems(conn, { ids });
-    return ids.map((id) => inventoryView(items.find((i) => i.id === id), eventOf));
+    return ids.map((id) =>
+      inventoryView(
+        items.find((i) => i.id === id),
+        eventOf
+      )
+    );
   });
 }
 
@@ -227,7 +264,8 @@ export async function addInventoryItems(rows, admin) {
  * new values. Returns the item.
  */
 export async function updateInventoryItem(id, values, admin, file) {
-  if (file && values.removePhoto) throw new ApiError('INVALID', 'Choose a new photo or use the mock photo, not both.', { field: 'photo' });
+  if (file && values.removePhoto)
+    throw new ApiError('INVALID', 'Choose a new photo or use the mock photo, not both.', { field: 'photo' });
   const type = file ? readPhoto(file) : null;
   let newKey = null;
   let oldKey = null;
@@ -252,7 +290,14 @@ export async function updateInventoryItem(id, values, admin, file) {
         oldKey = (await repo.findItemPhoto(conn, item.id))?.key;
         if (file) newKey = await storage.put(`equipment/${crypto.randomUUID()}.${type.ext}`, file.buffer);
         await repo.setItemPhoto(conn, item.id, file ? { key: newKey, mime: type.mime } : null);
-        if (file || oldKey) await repo.insertHistory(conn, item.id, { at: now(), actor: admin.name, text: file ? 'Updated equipment appearance photo.' : 'Removed uploaded equipment photo; using the mock photo.' });
+        if (file || oldKey)
+          await repo.insertHistory(conn, item.id, {
+            at: now(),
+            actor: admin.name,
+            text: file
+              ? 'Updated equipment appearance photo.'
+              : 'Removed uploaded equipment photo; using the mock photo.'
+          });
       }
       return itemView(conn, item.id);
     });
@@ -266,8 +311,10 @@ export async function updateInventoryItem(id, values, admin, file) {
 
 export async function getInventoryPhoto(id, { admin = false, version } = {}) {
   const photo = await repo.findItemPhoto(pool, id);
-  if (!photo || photo.id !== id || (!admin && (!photo.rentable || photo.archived || photo.rent_price <= 0))) throw itemNotFound();
-  if (!photo.key || (version && version !== photo.key.split('/').pop())) throw new ApiError('NOT_FOUND', 'Equipment photo not found.');
+  if (!photo || photo.id !== id || (!admin && (!photo.rentable || photo.archived || photo.rent_price <= 0)))
+    throw itemNotFound();
+  if (!photo.key || (version && version !== photo.key.split('/').pop()))
+    throw new ApiError('NOT_FOUND', 'Equipment photo not found.');
   return { key: photo.key, mime: photo.mime };
 }
 
@@ -295,12 +342,18 @@ export async function moveInventoryStock(id, action, input, admin) {
       if (isRental(row.reservation.serviceType)) {
         const dispatched = await dispatchedFor(conn, booking.ref, [item]);
         const booked = row.reservation.rentalItems.find((line) => line.itemId === item.id)?.qty || 0;
-        if (booked && dispatched[item.id] + input.qty > booked) throw new ApiError('INVALID_STATE', 'These rented pieces have already been checked out.');
+        if (booked && dispatched[item.id] + input.qty > booked)
+          throw new ApiError('INVALID_STATE', 'These rented pieces have already been checked out.');
         await repo.setRentalDispatch(conn, booking.ref, item.id, dispatched[item.id] + input.qty, now());
       }
     }
-    if (action === 'checkout' || action === 'return') await repo.setAllocation(conn, item.id, move.ref, counts.allocations[move.ref] || 0);
-    await repo.updateItem(conn, item.id, { damaged: counts.damaged, total: counts.total, lowStockAt: counts.lowStockAt });
+    if (action === 'checkout' || action === 'return')
+      await repo.setAllocation(conn, item.id, move.ref, counts.allocations[move.ref] || 0);
+    await repo.updateItem(conn, item.id, {
+      damaged: counts.damaged,
+      total: counts.total,
+      lowStockAt: counts.lowStockAt
+    });
     await logMove(conn, item, move.text, move.ref, admin);
 
     // Damaged pieces coming back from a rental are charged to that customer, the same as on the reservation page
@@ -361,7 +414,10 @@ export async function checkOutRental(ref, admin, { automatic = false, clock = bu
     const { reservation } = await lockedRental(conn, ref);
     // Re-read under the locks: a cancellation, reschedule or manual checkout may have won the race.
     if (automatic && !rentalCheckoutDue(reservation, clock)) return { lines: 0, changed: false };
-    const { items } = await repo.findItems(conn, { ids: (reservation.rentalItems || []).map((line) => line.itemId), lock: true });
+    const { items } = await repo.findItems(conn, {
+      ids: (reservation.rentalItems || []).map((line) => line.itemId),
+      lock: true
+    });
     const dispatched = await dispatchedFor(conn, ref, items);
     const plan = rentalCheckOut(reservation, (itemId) => items.find((item) => item.id === itemId) || null, dispatched);
     if (plan.problem) {
@@ -403,6 +459,9 @@ export async function returnRental(ref, returns, admin, { transact = tx } = {}) 
     }
     const lost = plan.rows.filter((row) => row.damaged).map(({ item, damaged }) => ({ item, qty: damaged }));
     if (lost.length) await chargeDamage(conn, booking, lost, admin);
-    return { pieces: plan.rows.reduce((sum, row) => sum + row.good + row.damaged, 0), damaged: lost.reduce((sum, row) => sum + row.qty, 0) };
+    return {
+      pieces: plan.rows.reduce((sum, row) => sum + row.good + row.damaged, 0),
+      damaged: lost.reduce((sum, row) => sum + row.qty, 0)
+    };
   });
 }

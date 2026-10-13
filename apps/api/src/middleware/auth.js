@@ -28,8 +28,15 @@ function bearer(req) {
 // with replaced: true when it is an admin token whose sign-in a newer sign-in has replaced
 export async function readSessionToken(token, findAccount = findSessionAccount) {
   const payload = token ? readToken(token) : null;
-  if (!payload || typeof payload.sub !== 'string' || !payload.sub || payload.sub.length > 128 ||
-      !Number.isFinite(payload.exp) || (payload.role !== 'customer' && payload.role !== 'admin')) return { user: null };
+  if (
+    !payload ||
+    typeof payload.sub !== 'string' ||
+    !payload.sub ||
+    payload.sub.length > 128 ||
+    !Number.isFinite(payload.exp) ||
+    (payload.role !== 'customer' && payload.role !== 'admin')
+  )
+    return { user: null };
   const account = await findAccount(payload.role, payload.sub);
   if (!account || (Number(account.passwordChangedAt) || 0) !== payload.pwv) return { user: null };
   if (payload.role === 'admin') {

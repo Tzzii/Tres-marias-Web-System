@@ -20,7 +20,9 @@ export const MESSAGE_CHANGE_MS = RULES.messageEditMinutes * 60 * 1000;
  * it is that side's own typed message, not deleted, sent no more than MESSAGE_CHANGE_MS ago.
  */
 export function messageChangeable(message, side, now = Date.now()) {
-  return Boolean(message && message.typed && message.from === side && !message.deletedAt && now - message.at <= MESSAGE_CHANGE_MS);
+  return Boolean(
+    message && message.typed && message.from === side && !message.deletedAt && now - message.at <= MESSAGE_CHANGE_MS
+  );
 }
 
 /**
@@ -32,7 +34,11 @@ export function messageChangeable(message, side, now = Date.now()) {
 export function messageVersions(message) {
   const earlier = Array.isArray(message.history) ? message.history : [];
   const texts = [...earlier, { body: message.body, at: message.editedAt || message.at }];
-  const versions = texts.map((version, i) => ({ kind: i === 0 ? 'original' : 'edited', body: version.body, at: version.at }));
+  const versions = texts.map((version, i) => ({
+    kind: i === 0 ? 'original' : 'edited',
+    body: version.body,
+    at: version.at
+  }));
   if (message.deletedAt) versions.push({ kind: 'deleted', body: '', at: message.deletedAt });
   return versions;
 }

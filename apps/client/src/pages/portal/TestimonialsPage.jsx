@@ -49,14 +49,19 @@ export default function TestimonialsPage() {
   const [params, setParams] = useSearchParams();
   // Load the customer's reservations and the reviews they've written
   const { data, loading, error, reload } = useResource(async () => {
-    const [reservations, testimonials] = await Promise.all([reservationApi.listReservations({ customerId: user.id }), feedbackApi.listFeedbacks({ customerId: user.id })]);
+    const [reservations, testimonials] = await Promise.all([
+      reservationApi.listReservations({ customerId: user.id }),
+      feedbackApi.listFeedbacks({ customerId: user.id })
+    ]);
     return { reservations, testimonials };
   }, [user.id]);
 
   const [writing, setWriting] = useState(null); // reservation being reviewed in the dialog
 
   // Completed events that don't have a review yet
-  const reviewable = data ? data.reservations.filter((r) => r.status === 'completed' && !data.testimonials.some((t) => t.ref === r.ref)) : [];
+  const reviewable = data
+    ? data.reservations.filter((r) => r.status === 'completed' && !data.testimonials.some((t) => t.ref === r.ref))
+    : [];
 
   // Arriving from a reservation's "Write a testimonial" opens the form for it
   const refParam = params.get('ref');
@@ -67,11 +72,19 @@ export default function TestimonialsPage() {
     setParams({}, { replace: true });
   }, [data, refParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
+  if (error)
+    return (
+      <DashCard>
+        <ErrorState error={error} onRetry={reload} />
+      </DashCard>
+    );
 
   return (
     <>
-      <PageHeader title="My Testimonials" subtitle="Share how your celebration went. Your review goes to the Tres Marias team, who may publish it on our website." />
+      <PageHeader
+        title="My Testimonials"
+        subtitle="Share how your celebration went. Your review goes to the Tres Marias team, who may publish it on our website."
+      />
       {loading ? (
         <DashCard>
           <ListSkeleton rows={3} height={80} />
@@ -83,7 +96,18 @@ export default function TestimonialsPage() {
               <CardTitle subtitle="Completed events you have not reviewed yet">Waiting for Your Review</CardTitle>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {reviewable.map((r) => (
-                  <Box key={r.ref} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, flexWrap: 'wrap' }}>
+                  <Box
+                    key={r.ref}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      border: `1px solid ${tokens.cardLightBorder}`,
+                      flexWrap: 'wrap'
+                    }}
+                  >
                     <Box sx={{ flex: 1, minWidth: 180 }}>
                       <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{r.eventName}</Typography>
                       <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
@@ -102,18 +126,33 @@ export default function TestimonialsPage() {
           <DashCard>
             <CardTitle>Your Reviews</CardTitle>
             {data.testimonials.length === 0 ? (
-              <EmptyState compact icon={RateReviewOutlinedIcon} title="No testimonials yet" description="After your event is completed, you can rate it and leave a short review here." />
+              <EmptyState
+                compact
+                icon={RateReviewOutlinedIcon}
+                title="No testimonials yet"
+                description="After your event is completed, you can rate it and leave a short review here."
+              />
             ) : (
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.5 }}>
                 {data.testimonials.map((t) => {
                   const state = websiteState(t);
                   return (
                     <Box key={t.id} sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 1,
+                          flexWrap: 'wrap'
+                        }}
+                      >
                         <StarRating value={t.rating} />
                         <Pill label={state.label} bg={state.bg} fg={state.fg} size="sm" />
                       </Box>
-                      <Typography sx={{ mt: 1, fontSize: 13.5, lineHeight: 1.6, color: tokens.textPrimary }}>“{t.body}”</Typography>
+                      <Typography sx={{ mt: 1, fontSize: 13.5, lineHeight: 1.6, color: tokens.textPrimary }}>
+                        “{t.body}”
+                      </Typography>
                       {/* What they rated part by part */}
                       <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                         {FEEDBACK_CATEGORIES.filter(({ key }) => t.categories[key]).map(({ key, label }) => (
@@ -127,11 +166,21 @@ export default function TestimonialsPage() {
                       </Typography>
                       {/* The admin's answer, the same one sent to the customer's chat */}
                       {t.reply && (
-                        <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
+                        <Box
+                          sx={{
+                            mt: 1.5,
+                            p: 1.5,
+                            borderRadius: 1.5,
+                            backgroundColor: tokens.surfaceSubtle,
+                            border: `1px solid ${tokens.cardLightBorder}`
+                          }}
+                        >
                           <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textSecondary }}>
                             Reply from Admin · {formatDateTime(t.reply.at)}
                           </Typography>
-                          <Typography sx={{ mt: 0.25, fontSize: 12.5, lineHeight: 1.6, color: tokens.textPrimary }}>{t.reply.body}</Typography>
+                          <Typography sx={{ mt: 0.25, fontSize: 12.5, lineHeight: 1.6, color: tokens.textPrimary }}>
+                            {t.reply.body}
+                          </Typography>
                         </Box>
                       )}
                     </Box>
@@ -185,7 +234,9 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
   const chooseOverall = (value) => {
     const stars = value || 0;
     setRating(stars);
-    setCategories((current) => Object.fromEntries(Object.entries(current).map(([key, v]) => [key, touched.includes(key) ? v : stars])));
+    setCategories((current) =>
+      Object.fromEntries(Object.entries(current).map(([key, v]) => [key, touched.includes(key) ? v : stars]))
+    );
     setErrors({});
   };
 
@@ -238,19 +289,53 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
       {errors.rating && <Typography sx={{ fontSize: 12, color: tokens.redPress }}>{errors.rating}</Typography>}
 
       <Typography sx={{ mt: 2, fontSize: 13, fontWeight: 600, mb: 0.5 }}>How Was Each Part?</Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+          gap: 1,
+          p: 1.5,
+          borderRadius: 1.5,
+          backgroundColor: tokens.surfaceSubtle,
+          border: `1px solid ${tokens.cardLightBorder}`
+        }}
+      >
         {FEEDBACK_CATEGORIES.map(({ key, label }) => (
           <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
             <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{label}</Typography>
             {/* Each part is its own radio group, so MUI needs a name of its own.
                 Touch screens get bigger stars (26px instead of 18px) so the right one is easy to tap. */}
-            <Rating name={`rating-${key}`} aria-label={label} value={categories[key]} onChange={(_, v) => chooseCategory(key, v)} size="small" sx={{ color: tokens.gold, '@media (pointer: coarse)': { fontSize: '1.625rem' } }} />
+            <Rating
+              name={`rating-${key}`}
+              aria-label={label}
+              value={categories[key]}
+              onChange={(_, v) => chooseCategory(key, v)}
+              size="small"
+              sx={{ color: tokens.gold, '@media (pointer: coarse)': { fontSize: '1.625rem' } }}
+            />
           </Box>
         ))}
       </Box>
-      {errors.categories && <Typography sx={{ mt: 0.5, fontSize: 12, color: tokens.redPress }}>{errors.categories}</Typography>}
+      {errors.categories && (
+        <Typography sx={{ mt: 0.5, fontSize: 12, color: tokens.redPress }}>{errors.categories}</Typography>
+      )}
 
-      <FormField id="testimonial-body" label="Your review" multiline minRows={4} value={body} onChange={(e) => { setBody(e.target.value); setErrors({}); }} error={errors.body} hint={`${body.trim().length}/600`} inputProps={{ maxLength: 600 }} placeholder="What did your guests love? How was the service?" sx={{ mt: 2 }} />
+      <FormField
+        id="testimonial-body"
+        label="Your review"
+        multiline
+        minRows={4}
+        value={body}
+        onChange={(e) => {
+          setBody(e.target.value);
+          setErrors({});
+        }}
+        error={errors.body}
+        hint={`${body.trim().length}/600`}
+        inputProps={{ maxLength: 600 }}
+        placeholder="What did your guests love? How was the service?"
+        sx={{ mt: 2 }}
+      />
     </AppDialog>
   );
 }

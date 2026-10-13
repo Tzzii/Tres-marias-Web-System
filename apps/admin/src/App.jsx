@@ -7,7 +7,7 @@ import LoginPage from './pages/LoginPage.jsx';
 import SplashPage from './pages/SplashPage.jsx';
 import UnlockPage from './pages/UnlockPage.jsx';
 
-// Each page is lazy-loaded: its code is only downloaded the first time the admin opens it.
+// Keep the initial dashboard bundle small by loading each page on demand.
 const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const ReservationsCalendarPage = lazy(() => import('./pages/ReservationsCalendarPage.jsx'));
 const ReservationDetailPage = lazy(() => import('./pages/ReservationDetailPage.jsx'));
@@ -20,25 +20,15 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage.jsx'));
 const FeedbacksPage = lazy(() => import('./pages/FeedbacksPage.jsx'));
 const AccountPage = lazy(() => import('./pages/AccountPage.jsx'));
 
-/**
- * Admin Dashboard routes. Everything except /, /login and /locked requires an admin session.
- * Reservation requests, all reservations and the calendar share /reservations (as tabs);
- * payments is a tab of /reports; contracts and partners share /outsource (as tabs);
- * customer conversations have their own page at /messages (?thread=ID opens one);
- * customer reviews have their own page at /feedbacks.
- * The old /requests, /calendar and /payments URLs redirect there.
- */
 export default function App() {
   return (
     <>
       <ScrollToTop />
       <Routes>
-        {/* Public routes: the logo splash screen (first page) and the admin sign-in screen */}
         <Route path="/" element={<SplashPage />} />
         <Route path="/login" element={<LoginPage />} />
-        {/* The screen locked after 15 minutes without activity: the password alone unlocks it */}
         <Route path="/locked" element={<UnlockPage />} />
-        {/* Protected routes: RequireAuth sends signed-out users to /login, and a locked session to /locked; AdminLayout draws the sidebar and top bar */}
+
         <Route
           element={
             <RequireAuth>
@@ -57,19 +47,17 @@ export default function App() {
           <Route path="reports" element={<Lazy page={ReportsPage} />} />
           <Route path="feedbacks" element={<Lazy page={FeedbacksPage} />} />
           <Route path="account" element={<Lazy page={AccountPage} />} />
-          {/* Old addresses of pages that became tabs */}
+          {/* Preserve bookmarks that point to the old standalone pages. */}
           <Route path="requests" element={<TabRedirect to="/reservations" tab="requests" />} />
           <Route path="calendar" element={<TabRedirect to="/reservations" tab="calendar" />} />
           <Route path="payments" element={<TabRedirect to="/reports" tab="payments" />} />
         </Route>
-        {/* Any unknown URL shows the 404 page */}
         <Route path="*" element={<NotFoundPage homePath="/dashboard" homeLabel="Back to the dashboard" />} />
       </Routes>
     </>
   );
 }
 
-/** Sends an old page address to the page and tab that replaced it, keeping any other URL options (e.g. ?verify=). */
 function TabRedirect({ to, tab }) {
   const { search } = useLocation();
   const params = new URLSearchParams(search);
@@ -77,7 +65,6 @@ function TabRedirect({ to, tab }) {
   return <Navigate to={`${to}?${params}`} replace />;
 }
 
-/** Wraps a lazy page so a loading spinner shows while its code is downloading. */
 function Lazy({ page: Page }) {
   return (
     <Suspense fallback={<Spinner />}>

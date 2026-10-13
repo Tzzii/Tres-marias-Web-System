@@ -47,6 +47,11 @@ export function errorHandler(err, req, res, next) {
   }
 
   console.error(`[error] ${req.method} ${req.originalUrl}`, err);
-  return send(res, 500, 'SERVER_ERROR', 'Something went wrong. Please try again.',
-    config.isProduction ? {} : { detail: err.message });
+  return send(
+    res,
+    500,
+    'SERVER_ERROR',
+    'Something went wrong. Please try again.',
+    config.isProduction ? {} : { detail: err.message }
+  );
 }

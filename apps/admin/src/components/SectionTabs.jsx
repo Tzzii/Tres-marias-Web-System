@@ -51,7 +51,21 @@ export function SectionTabs({ options, value, onChange, ariaLabel }) {
             {option.label}
             {/* Red count bubble, only when there is something waiting */}
             {option.badge > 0 && (
-              <Box component="span" sx={{ ml: 0.75, px: 0.75, minWidth: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: '18px', textAlign: 'center', backgroundColor: '#dc2626', color: '#fff' }}>
+              <Box
+                component="span"
+                sx={{
+                  ml: 0.75,
+                  px: 0.75,
+                  minWidth: 18,
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  lineHeight: '18px',
+                  textAlign: 'center',
+                  backgroundColor: '#dc2626',
+                  color: '#fff'
+                }}
+              >
                 {option.badge}
               </Box>
             )}
@@ -65,7 +79,9 @@ export function SectionTabs({ options, value, onChange, ariaLabel }) {
 /** One line under the tabs: a short description of the section on the left, its buttons on the right. */
 export function SectionBar({ text, actions }) {
   return (
-    <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+    <Box
+      sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}
+    >
       <Typography sx={{ fontSize: 13.5, color: tokens.textOnDarkSoft }}>{text}</Typography>
       {actions && <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>{actions}</Box>}
     </Box>

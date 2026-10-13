@@ -27,7 +27,12 @@ export default function ReservationsCalendarPage() {
     <>
       <PageHeader title="Reservation & Calendar" />
       {/* Switching tabs clears the other tab's URL options, e.g. ?q= */}
-      <SectionTabs ariaLabel="Reservation & Calendar sections" value={tab} onChange={(next) => setParams({ tab: next })} options={TABS.map(([value, label]) => ({ value, label }))} />
+      <SectionTabs
+        ariaLabel="Reservation & Calendar sections"
+        value={tab}
+        onChange={(next) => setParams({ tab: next })}
+        options={TABS.map(([value, label]) => ({ value, label }))}
+      />
       {tab === 'requests' && <RequestsSection />}
       {tab === 'all' && <AllReservationsSection />}
       {tab === 'calendar' && <CalendarSection />}

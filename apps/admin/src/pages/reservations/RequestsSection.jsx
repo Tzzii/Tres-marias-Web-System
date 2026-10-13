@@ -51,13 +51,18 @@ export default function RequestsSection() {
 
   const rows = data || [];
   // Number of reservations per tab
-  const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t, rows.filter((r) => r.status === t).length])), [rows]);
+  const counts = useMemo(
+    () => Object.fromEntries(TABS.map((t) => [t, rows.filter((r) => r.status === t).length])),
+    [rows]
+  );
   const pending = rows.filter((r) => r.status === 'pending');
   // The requests the admin still has to quote (or re-quote), and those waiting for the customer to accept
   const toQuote = pending.filter((r) => pendingStep(r) !== 'accept');
   const toAccept = pending.length - toQuote.length;
   // Age in days of the oldest request still needing a quotation (86400000 ms = 1 day)
-  const oldestDays = toQuote.length ? Math.max(...toQuote.map((r) => Math.floor((Date.now() - r.createdAt) / 86400000))) : 0;
+  const oldestDays = toQuote.length
+    ? Math.max(...toQuote.map((r) => Math.floor((Date.now() - r.createdAt) / 86400000)))
+    : 0;
 
   // Rows for the current tab matching the search.
   // Pending: oldest request first (first come, first served). Others: by event date.
@@ -65,7 +70,10 @@ export default function RequestsSection() {
     const q = query.trim().toLowerCase();
     return rows
       .filter((r) => r.status === tab)
-      .filter((r) => !q || [r.customerName, r.eventName, r.ref, r.packageName, r.occasion].some((v) => v.toLowerCase().includes(q)))
+      .filter(
+        (r) =>
+          !q || [r.customerName, r.eventName, r.ref, r.packageName, r.occasion].some((v) => v.toLowerCase().includes(q))
+      )
       .sort((a, b) => (tab === 'pending' ? a.createdAt - b.createdAt : a.date.localeCompare(b.date)));
   }, [rows, tab, query]);
 
@@ -108,16 +116,57 @@ export default function RequestsSection() {
               />
             ),
             width: 48,
-            render: (r) => <Checkbox size="small" checked={selected.includes(r.ref)} onChange={() => toggle(r.ref)} inputProps={{ 'aria-label': `Select ${r.ref}` }} />
+            render: (r) => (
+              <Checkbox
+                size="small"
+                checked={selected.includes(r.ref)}
+                onChange={() => toggle(r.ref)}
+                inputProps={{ 'aria-label': `Select ${r.ref}` }}
+              />
+            )
           }
         ]
       : []),
-    { key: 'customer', label: 'Customer', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.ref} · {formatRelative(r.createdAt)}</Typography></Box>) },
-    { key: 'event', label: 'Event and Date', render: (r) => (<Box><Typography sx={{ fontSize: 13.5 }}>{r.occasion} · {formatDate(r.date)}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
+    {
+      key: 'customer',
+      label: 'Customer',
+      render: (r) => (
+        <Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{r.customerName}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
+            {r.ref} · {formatRelative(r.createdAt)}
+          </Typography>
+        </Box>
+      )
+    },
+    {
+      key: 'event',
+      label: 'Event and Date',
+      render: (r) => (
+        <Box>
+          <Typography sx={{ fontSize: 13.5 }}>
+            {r.occasion} · {formatDate(r.date)}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography>
+        </Box>
+      )
+    },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
     // An equipment rental has no guest count
     { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
-    { key: 'quoted', label: 'Quoted', align: 'right', render: (r) => (r.quotation ? peso(r.quotation.net) : <Typography component="span" sx={{ color: tokens.textMuted }} title={`Estimate ${peso(r.estimate.net)}`}>—</Typography>) },
+    {
+      key: 'quoted',
+      label: 'Quoted',
+      align: 'right',
+      render: (r) =>
+        r.quotation ? (
+          peso(r.quotation.net)
+        ) : (
+          <Typography component="span" sx={{ color: tokens.textMuted }} title={`Estimate ${peso(r.estimate.net)}`}>
+            —
+          </Typography>
+        )
+    },
     tab === 'pending'
       ? {
           key: 'action',
@@ -128,9 +177,13 @@ export default function RequestsSection() {
               {pendingStep(r) === 'accept' ? (
                 <Pill size="sm" label="Waiting for customer" bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" dot={false} />
               ) : (
-                <Button size="small" variant="contained" onClick={() => navigate(`/reservations/${r.ref}`)}>{pendingStep(r) === 'revise' ? 'Re-send quotation' : 'Send quotation'}</Button>
+                <Button size="small" variant="contained" onClick={() => navigate(`/reservations/${r.ref}`)}>
+                  {pendingStep(r) === 'revise' ? 'Re-send quotation' : 'Send quotation'}
+                </Button>
               )}
-              <Button size="small" color="error" onClick={() => setConfirm({ type: 'decline', refs: [r.ref] })}>Decline</Button>
+              <Button size="small" color="error" onClick={() => setConfirm({ type: 'decline', refs: [r.ref] })}>
+                Decline
+              </Button>
             </Box>
           )
         }
@@ -145,9 +198,13 @@ export default function RequestsSection() {
             ? 'Loading…'
             : pending.length
               ? [
-                  toQuote.length ? `${toQuote.length} to quote · oldest ${oldestDays === 0 ? 'today' : `${oldestDays} ${oldestDays === 1 ? 'day' : 'days'}`}` : 'Nothing to quote',
+                  toQuote.length
+                    ? `${toQuote.length} to quote · oldest ${oldestDays === 0 ? 'today' : `${oldestDays} ${oldestDays === 1 ? 'day' : 'days'}`}`
+                    : 'Nothing to quote',
                   toAccept ? `${toAccept} waiting for the customer` : ''
-                ].filter(Boolean).join(' · ')
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
               : 'No requests waiting'
         }
       />
@@ -157,7 +214,15 @@ export default function RequestsSection() {
           <ErrorState error={error} onRetry={reload} />
         ) : (
           <>
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 1.5, justifyContent: 'space-between', mb: 2 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', lg: 'row' },
+                gap: 1.5,
+                justifyContent: 'space-between',
+                mb: 2
+              }}
+            >
               <FilterTabs
                 value={tab}
                 // Switching tabs clears the ticked rows
@@ -165,16 +230,39 @@ export default function RequestsSection() {
                   setTab(v);
                   setSelected([]);
                 }}
-                options={TABS.map((t) => ({ value: t, label: titleCase(statusLabel(t)), count: loading ? undefined : counts[t] }))}
+                options={TABS.map((t) => ({
+                  value: t,
+                  label: titleCase(statusLabel(t)),
+                  count: loading ? undefined : counts[t]
+                }))}
               />
               <SearchField id="requests-search" value={query} onChange={setQuery} />
             </Box>
 
             {/* Bulk action bar, shown when at least one row is ticked */}
             {selectedRows.length > 0 && (
-              <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
-                <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{selectedRows.length} selected</Typography>
-                <Button size="small" sx={{ color: tokens.dangerOnInk }} onClick={() => setConfirm({ type: 'decline', refs: selectedRows.map((r) => r.ref) })}>
+              <Box
+                sx={{
+                  mb: 2,
+                  px: 2,
+                  py: 1.25,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  flexWrap: 'wrap',
+                  borderRadius: 1.5,
+                  backgroundColor: tokens.ink,
+                  color: tokens.onInk
+                }}
+              >
+                <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>
+                  {selectedRows.length} selected
+                </Typography>
+                <Button
+                  size="small"
+                  sx={{ color: tokens.dangerOnInk }}
+                  onClick={() => setConfirm({ type: 'decline', refs: selectedRows.map((r) => r.ref) })}
+                >
                   Decline selected
                 </Button>
               </Box>
@@ -187,7 +275,17 @@ export default function RequestsSection() {
               rowKey={(r) => r.ref}
               onRowClick={(r) => navigate(`/reservations/${r.ref}`)}
               minWidth={860}
-              empty={<EmptyState compact title={query ? 'No matches' : `No ${statusLabel(tab).toLowerCase()} reservations`} description={tab === 'pending' && !query ? 'New requests from customers will appear here.' : 'Try another tab or search.'} />}
+              empty={
+                <EmptyState
+                  compact
+                  title={query ? 'No matches' : `No ${statusLabel(tab).toLowerCase()} reservations`}
+                  description={
+                    tab === 'pending' && !query
+                      ? 'New requests from customers will appear here.'
+                      : 'Try another tab or search.'
+                  }
+                />
+              }
             />
           </>
         )}
@@ -197,12 +295,16 @@ export default function RequestsSection() {
         <DashCard>
           <CardTitle>Quotation — What Happens</CardTitle>
           <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>
-            Open the reservation to price the additional charges and send the quotation. The customer accepts it in their portal, which moves the status to Approved and gives them a payment instruction: at least the minimum downpayment (or more, up to the full amount) by a due date. The date is held only once they accept.
+            Open the reservation to price the additional charges and send the quotation. The customer accepts it in
+            their portal, which moves the status to Approved and gives them a payment instruction: at least the minimum
+            downpayment (or more, up to the full amount) by a due date. The date is held only once they accept.
           </Typography>
         </DashCard>
         <DashCard>
           <CardTitle>Decline — What Happens</CardTitle>
-          <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>A reason is required and shown to the customer. The date stays open for other bookings.</Typography>
+          <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>
+            A reason is required and shown to the customer. The date stays open for other bookings.
+          </Typography>
         </DashCard>
       </Box>
 
@@ -210,7 +312,11 @@ export default function RequestsSection() {
       <ConfirmDialog
         open={confirm?.type === 'decline'}
         onClose={() => setConfirm(null)}
-        title={confirm && confirm.refs.length > 1 ? `Decline ${confirm.refs.length} Reservations?` : 'Decline This Reservation?'}
+        title={
+          confirm && confirm.refs.length > 1
+            ? `Decline ${confirm.refs.length} Reservations?`
+            : 'Decline This Reservation?'
+        }
         description="The reason is shown to the customer. The date stays open for other bookings."
         confirmLabel="Decline"
         tone="danger"

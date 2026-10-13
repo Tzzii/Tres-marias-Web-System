@@ -21,18 +21,57 @@ export function PackageItemList({ items }) {
         <Box
           component="li"
           key={`${i}-${item.name}`}
-          sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, py: 0.75, breakInside: 'avoid', borderBottom: `1px dashed ${tokens.cardLightBorder}` }}
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 1.25,
+            py: 0.75,
+            breakInside: 'avoid',
+            borderBottom: `1px dashed ${tokens.cardLightBorder}`
+          }}
         >
           <Box
             component="span"
-            sx={{ minWidth: 44, height: LINE, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontSize: 13.5, fontWeight: 800, color: tokens.goldDark, fontVariantNumeric: 'tabular-nums' }}
+            sx={{
+              minWidth: 44,
+              height: LINE,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              fontSize: 13.5,
+              fontWeight: 800,
+              color: tokens.goldDark,
+              fontVariantNumeric: 'tabular-nums'
+            }}
           >
-            {item.toConfirm ? '—' : item.qty ? item.qty.toLocaleString('en-PH') : <CheckRoundedIcon sx={{ fontSize: 17 }} />}
+            {item.toConfirm ? (
+              '—'
+            ) : item.qty ? (
+              item.qty.toLocaleString('en-PH')
+            ) : (
+              <CheckRoundedIcon sx={{ fontSize: 17 }} />
+            )}
           </Box>
           {/* The "To confirm" tag sits under the name, so every tagged item looks the same however long its name is */}
-          <Box component="span" sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.25, fontSize: 13.5, lineHeight: LINE, fontWeight: 600, color: tokens.textPrimary }}>
+          <Box
+            component="span"
+            sx={{
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 0.25,
+              fontSize: 13.5,
+              lineHeight: LINE,
+              fontWeight: 600,
+              color: tokens.textPrimary
+            }}
+          >
             {item.name}
-            {item.toConfirm && <Pill label="To confirm" dot={false} size="sm" bg="rgba(245, 158, 11, 0.14)" fg="#b45309" />}
+            {item.toConfirm && (
+              <Pill label="To confirm" dot={false} size="sm" bg="rgba(245, 158, 11, 0.14)" fg="#b45309" />
+            )}
           </Box>
         </Box>
       ))}

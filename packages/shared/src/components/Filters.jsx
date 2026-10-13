@@ -10,7 +10,12 @@ import { tokens } from '../theme/tokens.js';
 /** Horizontal filter chips with optional counts. Scrolls sideways on phones; chips are 36px tall on touch screens. */
 export function FilterTabs({ options, value, onChange, ariaLabel = 'Filter' }) {
   return (
-    <Box role="tablist" aria-label={ariaLabel} className="tm-scroll" sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', pb: 0.5, mx: -0.25, px: 0.25 }}>
+    <Box
+      role="tablist"
+      aria-label={ariaLabel}
+      className="tm-scroll"
+      sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', pb: 0.5, mx: -0.25, px: 0.25 }}
+    >
       {options.map((option) => {
         const active = option.value === value; // the selected tab is dark
         return (
@@ -40,7 +45,18 @@ export function FilterTabs({ options, value, onChange, ariaLabel = 'Filter' }) {
             {option.label}
             {/* Count bubble (hidden while loading, when count is undefined) */}
             {option.count !== undefined && (
-              <Box component="span" sx={{ ml: 0.75, px: 0.75, borderRadius: 999, fontSize: 11, fontWeight: 700, backgroundColor: active ? 'rgba(255,255,255,0.18)' : tokens.cardLight, color: active ? tokens.onInk : tokens.textMuted }}>
+              <Box
+                component="span"
+                sx={{
+                  ml: 0.75,
+                  px: 0.75,
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  backgroundColor: active ? 'rgba(255,255,255,0.18)' : tokens.cardLight,
+                  color: active ? tokens.onInk : tokens.textMuted
+                }}
+              >
                 {option.count}
               </Box>
             )}

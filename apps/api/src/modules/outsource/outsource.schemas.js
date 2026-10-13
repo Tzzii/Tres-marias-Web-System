@@ -14,14 +14,20 @@ import { z } from 'zod';
 
 // Text of at most `max` characters; missing -> '' so the service answers with the dialog's own message
 const text = (max) =>
-  z.string({ error: 'This field is required.' }).max(max, { error: `Use ${max} characters or fewer.` }).default('');
+  z
+    .string({ error: 'This field is required.' })
+    .max(max, { error: `Use ${max} characters or fewer.` })
+    .default('');
 
 // Checked by the service. .optional() matters: in zod 4 a z.unknown() object key is still required,
 // and a missing one would be a 400 with zod's own wording instead of the service's message.
 const passThrough = z.unknown().optional();
 
 // A query-string switch such as ?includeArchived=true: only "true" or "1" turn it on (catalog.schemas.js)
-const querySwitch = z.unknown().optional().transform((value) => value === 'true' || value === '1');
+const querySwitch = z
+  .unknown()
+  .optional()
+  .transform((value) => value === 'true' || value === '1');
 
 // A partner or contract id from the URL (Express always gives text); an unknown one is a 404 from the service
 export const idParams = z.object({ id: z.string() });
@@ -47,7 +53,9 @@ export const partnerBody = z.object({
 
 // POST /api/admin/outsource/partners/archive { ids, archived }
 export const archiveBody = z.object({
-  ids: z.array(z.string({ error: 'Each partner id must be text.' }), { error: 'Send the partners as a list of ids.' }).max(500, { error: 'Archive up to 500 partners at a time.' }),
+  ids: z
+    .array(z.string({ error: 'Each partner id must be text.' }), { error: 'Send the partners as a list of ids.' })
+    .max(500, { error: 'Archive up to 500 partners at a time.' }),
   archived: passThrough
 });
 
@@ -60,7 +68,9 @@ export const contractBody = z.object({
   partnerId: passThrough,
   reservationRef: passThrough,
   items: z
-    .array(z.object({ name: z.string({ error: 'Each item needs a name.' }).default(''), qty: passThrough }), { error: 'List the items.' })
+    .array(z.object({ name: z.string({ error: 'Each item needs a name.' }).default(''), qty: passThrough }), {
+      error: 'List the items.'
+    })
     .max(200, { error: 'List up to 200 items.' })
     .default([]),
   needBy: passThrough,

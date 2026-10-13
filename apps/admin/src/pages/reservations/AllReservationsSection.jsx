@@ -38,7 +38,16 @@ import ReservationsSheet from './ReservationsSheet.jsx';
 // Rows shown per table page
 const PAGE_SIZE = 10;
 // Status filter tabs, in the order a booking moves through them
-const STATUS_TABS = ['all', 'pending', 'approved', 'downpayment_paid', 'confirmed', 'completed', 'declined', 'cancelled'];
+const STATUS_TABS = [
+  'all',
+  'pending',
+  'approved',
+  'downpayment_paid',
+  'confirmed',
+  'completed',
+  'declined',
+  'cancelled'
+];
 // The event date filter's options, as the menu and the printed list name them
 const WHEN_LABEL = { all: 'All dates', upcoming: 'Upcoming events', past: 'Past events' };
 
@@ -81,19 +90,42 @@ export default function AllReservationsSection() {
 
   const rows = data || [];
   // Number of reservations per status, shown on each tab
-  const counts = useMemo(() => Object.fromEntries(STATUS_TABS.map((s) => [s, s === 'all' ? rows.length : rows.filter((r) => r.status === s).length])), [rows]);
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(
+        STATUS_TABS.map((s) => [s, s === 'all' ? rows.length : rows.filter((r) => r.status === s).length])
+      ),
+    [rows]
+  );
 
   // Apply the status tab, date range and search text, then sort by event date
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows
-      .filter((r) => status === 'all' || r.status === status)
-      // upcoming = today or later, past = before today
-      .filter((r) => (when === 'upcoming' ? daysFromToday(r.date) >= 0 : when === 'past' ? daysFromToday(r.date) < 0 : true))
-      // match the search text against REF, customer, event, package, city or date
-      .filter((r) => !q || [r.ref, r.customerName, r.customerEmail, r.customerMobile, r.eventName, r.packageName, r.venue.city, formatDate(r.date)].some((v) => String(v).toLowerCase().includes(q)))
-      // past events: newest first; otherwise: soonest first
-      .sort((a, b) => (when === 'past' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
+    return (
+      rows
+        .filter((r) => status === 'all' || r.status === status)
+        // upcoming = today or later, past = before today
+        .filter((r) =>
+          when === 'upcoming' ? daysFromToday(r.date) >= 0 : when === 'past' ? daysFromToday(r.date) < 0 : true
+        )
+        // match the search text against REF, customer, event, package, city or date
+        .filter(
+          (r) =>
+            !q ||
+            [
+              r.ref,
+              r.customerName,
+              r.customerEmail,
+              r.customerMobile,
+              r.eventName,
+              r.packageName,
+              r.venue.city,
+              formatDate(r.date)
+            ].some((v) => String(v).toLowerCase().includes(q))
+        )
+        // past events: newest first; otherwise: soonest first
+        .sort((a, b) => (when === 'past' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)))
+    );
   }, [rows, status, when, query]);
 
   // Keep the page in range when rows leave the list (e.g. a reservation moved to another status)
@@ -128,15 +160,40 @@ export default function AllReservationsSection() {
 
   // Table columns: `render` decides what each cell shows for a reservation
   const columns = [
-    { key: 'ref', label: 'REF', render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography> },
+    {
+      key: 'ref',
+      label: 'REF',
+      render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography>
+    },
     // card: 'title' — on phone cards the customer and event are the heading (REF becomes a field)
-    { key: 'customer', label: 'Customer', card: 'title', render: (r) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography></Box>) },
+    {
+      key: 'customer',
+      label: 'Customer',
+      card: 'title',
+      render: (r) => (
+        <Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{r.customerName}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{r.eventName}</Typography>
+        </Box>
+      )
+    },
     { key: 'date', label: 'Event Date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
     // An equipment rental has no guest count
     { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
-    { key: 'balance', label: 'Payment', render: (r) => (['pending', 'declined', 'cancelled'].includes(r.status) ? <Typography component="span" sx={{ fontSize: 12.5, color: tokens.textMuted }}>—</Typography> : <BalanceChip state={r.balanceState} size="sm" />) },
+    {
+      key: 'balance',
+      label: 'Payment',
+      render: (r) =>
+        ['pending', 'declined', 'cancelled'].includes(r.status) ? (
+          <Typography component="span" sx={{ fontSize: 12.5, color: tokens.textMuted }}>
+            —
+          </Typography>
+        ) : (
+          <BalanceChip state={r.balanceState} size="sm" />
+        )
+    },
     { key: 'status', label: 'Status', render: (r) => <StatusChip status={r.status} size="sm" /> }
   ];
 
@@ -147,32 +204,93 @@ export default function AllReservationsSection() {
         // Print and Save PDF take the list as filtered, so they wait for at least one row
         actions={
           <>
-            <Button variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()} disabled={loading || !filtered.length} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
+            <Button
+              variant="outlined"
+              startIcon={<PrintOutlinedIcon />}
+              onClick={() => window.print()}
+              disabled={loading || !filtered.length}
+              sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
+            >
               Print
             </Button>
-            <Button variant="outlined" startIcon={<PictureAsPdfOutlinedIcon />} onClick={savePdf} disabled={loading || !filtered.length || savingPdf} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
+            <Button
+              variant="outlined"
+              startIcon={<PictureAsPdfOutlinedIcon />}
+              onClick={savePdf}
+              disabled={loading || !filtered.length || savingPdf}
+              sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
+            >
               {savingPdf ? 'Saving…' : 'Save PDF'}
             </Button>
           </>
         }
       />
       {/* The formatted list for Print and Save PDF; it stays off screen */}
-      {!loading && !error && filtered.length > 0 && <ReservationsSheet rows={filtered} filters={sheetFilters} newestFirst={when === 'past'} generatedAt={stampedAt} sheetRef={sheetRef} />}
+      {!loading && !error && filtered.length > 0 && (
+        <ReservationsSheet
+          rows={filtered}
+          filters={sheetFilters}
+          newestFirst={when === 'past'}
+          generatedAt={stampedAt}
+          sheetRef={sheetRef}
+        />
+      )}
       <DashCard>
         {error ? (
           <ErrorState error={error} onRetry={reload} />
         ) : (
           <>
-            <FilterTabs value={status} onChange={setStatus} options={STATUS_TABS.map((s) => ({ value: s, label: s === 'all' ? 'All' : titleCase(statusLabel(s)), count: loading ? undefined : counts[s] }))} />
+            <FilterTabs
+              value={status}
+              onChange={setStatus}
+              options={STATUS_TABS.map((s) => ({
+                value: s,
+                label: s === 'all' ? 'All' : titleCase(statusLabel(s)),
+                count: loading ? undefined : counts[s]
+              }))}
+            />
             <Box sx={{ mt: 1.5, mb: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-              <SearchField id="all-search" value={query} onChange={setQuery} placeholder="Search REF, customer, event or city" sx={{ flex: 1 }} />
-              <TextField select size="small" value={when} onChange={(e) => setWhen(e.target.value)} sx={{ minWidth: 170 }} inputProps={{ 'aria-label': 'Event date range' }}>
-                {Object.entries(WHEN_LABEL).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+              <SearchField
+                id="all-search"
+                value={query}
+                onChange={setQuery}
+                placeholder="Search REF, customer, event or city"
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                select
+                size="small"
+                value={when}
+                onChange={(e) => setWhen(e.target.value)}
+                sx={{ minWidth: 170 }}
+                inputProps={{ 'aria-label': 'Event date range' }}
+              >
+                {Object.entries(WHEN_LABEL).map(([value, label]) => (
+                  <MenuItem key={value} value={value}>
+                    {label}
+                  </MenuItem>
+                ))}
               </TextField>
             </Box>
             {/* Show only the rows for the current page; clicking a row opens the reservation */}
-            <DataTable loading={loading} columns={columns} rows={filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)} rowKey={(r) => r.ref} onRowClick={(r) => navigate(`/reservations/${r.ref}`)} minWidth={900} empty={<EmptyState compact title="No reservations match" description="Try another status, date range or search term." />} />
-            {!loading && filtered.length > 0 && <Pager page={current} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}
+            <DataTable
+              loading={loading}
+              columns={columns}
+              rows={filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)}
+              rowKey={(r) => r.ref}
+              onRowClick={(r) => navigate(`/reservations/${r.ref}`)}
+              minWidth={900}
+              empty={
+                <EmptyState
+                  compact
+                  title="No reservations match"
+                  description="Try another status, date range or search term."
+                />
+              }
+            />
+            {!loading && filtered.length > 0 && (
+              <Pager page={current} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
+            )}
           </>
         )}
       </DashCard>

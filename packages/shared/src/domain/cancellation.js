@@ -60,17 +60,35 @@ export function onlineCancellation(reservation, money, { piecesOut = 0, openQrUn
   const deadline = cancelDeadline(reservation);
   const refuse = (code, reason) => ({ allowed: false, deadline, reason, code });
   if (['cancelled', 'declined', 'completed'].includes(reservation.status)) {
-    return refuse('INVALID_STATE', reservation.status === 'cancelled' ? 'This reservation is already cancelled.' : `A ${statusLabel(reservation.status).toLowerCase()} reservation can no longer be cancelled.`);
+    return refuse(
+      'INVALID_STATE',
+      reservation.status === 'cancelled'
+        ? 'This reservation is already cancelled.'
+        : `A ${statusLabel(reservation.status).toLowerCase()} reservation can no longer be cancelled.`
+    );
   }
-  if (today >= reservation.date) return refuse('INVALID_STATE', 'The event day has come, so this reservation can no longer be cancelled online.');
-  if (money.paid > 0 && reservation.preparingAt) return refuse('INVALID_STATE', "We've started preparing for your event, so it can no longer be cancelled online.");
-  if (money.paid > 0 && today > deadline) return refuse('INVALID_STATE', `Online cancellation ended on ${formatDate(deadline)}.`);
-  if (piecesOut > 0) return refuse('INVALID_STATE', 'Some of the equipment for this booking is already out, so it can no longer be cancelled online.');
+  if (today >= reservation.date)
+    return refuse('INVALID_STATE', 'The event day has come, so this reservation can no longer be cancelled online.');
+  if (money.paid > 0 && reservation.preparingAt)
+    return refuse('INVALID_STATE', "We've started preparing for your event, so it can no longer be cancelled online.");
+  if (money.paid > 0 && today > deadline)
+    return refuse('INVALID_STATE', `Online cancellation ended on ${formatDate(deadline)}.`);
+  if (piecesOut > 0)
+    return refuse(
+      'INVALID_STATE',
+      'Some of the equipment for this booking is already out, so it can no longer be cancelled online.'
+    );
   if (money.awaitingCount > 0) {
-    return refuse('PENDING_PAYMENT', 'A payment for this reservation is still being verified. Please wait until our team checks it, or message us to cancel.');
+    return refuse(
+      'PENDING_PAYMENT',
+      'A payment for this reservation is still being verified. Please wait until our team checks it, or message us to cancel.'
+    );
   }
   if (openQrUntil) {
-    return refuse('PENDING_PAYMENT', 'A QR Ph payment for this reservation is still open. Please wait until it is paid or expires, or message us to cancel.');
+    return refuse(
+      'PENDING_PAYMENT',
+      'A QR Ph payment for this reservation is still open. Please wait until it is paid or expires, or message us to cancel.'
+    );
   }
   return { allowed: true, deadline, reason: '', code: '' };
 }

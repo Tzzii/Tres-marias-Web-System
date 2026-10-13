@@ -8,7 +8,17 @@ import { shakeSx, tokens } from '../theme/tokens.js';
  * arrow keys and pasting the whole code.
  * `state` is 'idle' | 'error' | 'success' and colours the boxes.
  */
-export function OtpInput({ length = 6, value, onChange, onComplete, disabled, state = 'idle', shake = false, onShakeEnd, autoFocus = true }) {
+export function OtpInput({
+  length = 6,
+  value,
+  onChange,
+  onComplete,
+  disabled,
+  state = 'idle',
+  shake = false,
+  onShakeEnd,
+  autoFocus = true
+}) {
   const refs = useRef([]); // one ref per box, to move the cursor between boxes
   // Latest code, updated right away when a digit is entered. The `value` prop only
   // updates after React re-renders, which is too late for the focus handler that
@@ -88,14 +98,24 @@ export function OtpInput({ length = 6, value, onChange, onComplete, disabled, st
 
   // Red boxes for a wrong code, green for correct, grey otherwise
   const border = state === 'error' ? tokens.red : state === 'success' ? tokens.green : tokens.borderInput;
-  const ring = state === 'error' ? '0 0 0 3px rgba(239, 68, 68, 0.15)' : state === 'success' ? '0 0 0 3px rgba(16, 185, 129, 0.18)' : 'none';
+  const ring =
+    state === 'error'
+      ? '0 0 0 3px rgba(239, 68, 68, 0.15)'
+      : state === 'success'
+        ? '0 0 0 3px rgba(16, 185, 129, 0.18)'
+        : 'none';
 
   return (
     <Box
       role="group"
       aria-label="Verification code"
       onAnimationEnd={onShakeEnd}
-      sx={{ display: 'grid', gridTemplateColumns: `repeat(${length}, 1fr)`, gap: { xs: 0.75, sm: 1.25 }, ...shakeSx(shake) }}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${length}, 1fr)`,
+        gap: { xs: 0.75, sm: 1.25 },
+        ...shakeSx(shake)
+      }}
     >
       {digits.map((digit, index) => (
         <Box
@@ -133,7 +153,10 @@ export function OtpInput({ length = 6, value, onChange, onComplete, disabled, st
             outline: 'none',
             boxShadow: ring,
             transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
-            '&:focus': { borderColor: state === 'idle' ? tokens.ink : border, boxShadow: state === 'idle' ? '0 0 0 3px rgba(15, 23, 42, 0.12)' : ring }
+            '&:focus': {
+              borderColor: state === 'idle' ? tokens.ink : border,
+              boxShadow: state === 'idle' ? '0 0 0 3px rgba(15, 23, 42, 0.12)' : ring
+            }
           }}
         />
       ))}

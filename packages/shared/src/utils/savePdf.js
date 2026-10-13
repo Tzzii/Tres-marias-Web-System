@@ -62,7 +62,9 @@ export function pageBreaks(total, pageHeight, blocked, repeats = []) {
     let end = full;
     for (;;) {
       // Spans that begin on this page and run past the cut
-      const crossing = blocked.filter(([top, bottom]) => top > start && top < end && bottom - end > 0.5 && bottom - top < room);
+      const crossing = blocked.filter(
+        ([top, bottom]) => top > start && top < end && bottom - end > 0.5 && bottom - top < room
+      );
       if (!crossing.length) break;
       end = Math.min(...crossing.map(([top]) => top));
     }
@@ -129,7 +131,15 @@ export async function saveElementAsPdf(element, fileName, { title, footer = '', 
         lineHeight: inherited.lineHeight,
         letterSpacing: inherited.letterSpacing
       });
-      Object.assign(copy.style, { position: 'static', left: 'auto', top: 'auto', width: 'auto', margin: '0', padding: '0', transform: 'none' });
+      Object.assign(copy.style, {
+        position: 'static',
+        left: 'auto',
+        top: 'auto',
+        width: 'auto',
+        margin: '0',
+        padding: '0',
+        transform: 'none'
+      });
       wrapper.appendChild(copy);
       doc.body.appendChild(wrapper);
 
@@ -185,7 +195,14 @@ export async function saveElementAsPdf(element, fileName, { title, footer = '', 
     if (head) ctx.drawImage(canvas, 0, headFrom, strip.width, headHeight, 0, 0, strip.width, headHeight);
     ctx.drawImage(canvas, 0, from, strip.width, bodyHeight, 0, headHeight, strip.width, bodyHeight);
     if (i) pdf.addPage();
-    pdf.addImage(strip.toDataURL('image/jpeg', 0.95), 'JPEG', left, MARGIN.top, width, (strip.height / scale) * MM_PER_PX);
+    pdf.addImage(
+      strip.toDataURL('image/jpeg', 0.95),
+      'JPEG',
+      left,
+      MARGIN.top,
+      width,
+      (strip.height / scale) * MM_PER_PX
+    );
 
     // Footer: a hairline, then the footer text on the left and the page number on the right
     const lineY = page.height - MARGIN.bottom + 5;

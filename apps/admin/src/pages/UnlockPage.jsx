@@ -100,8 +100,20 @@ export default function UnlockPage() {
 
   const name = locked ? locked.user.name : '';
   return (
-    <Box component="main" sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', px: 2, py: 5, backgroundImage: tokens.gradientCentered }}>
-      <Box sx={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+    <Box
+      component="main"
+      sx={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        px: 2,
+        py: 5,
+        backgroundImage: tokens.gradientCentered
+      }}
+    >
+      <Box
+        sx={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}
+      >
         <BrandLogo size={96} />
 
         <LightSurface>
@@ -111,7 +123,16 @@ export default function UnlockPage() {
             onSubmit={unlock}
             onAnimationEnd={() => setShake(false)}
             elevation={0}
-            sx={{ width: '100%', p: { xs: 3, sm: 3.5 }, display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 2, boxShadow: tokens.shadowCard, ...shakeSx(shake) }}
+            sx={{
+              width: '100%',
+              p: { xs: 3, sm: 3.5 },
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              borderRadius: 2,
+              boxShadow: tokens.shadowCard,
+              ...shakeSx(shake)
+            }}
           >
             {lockedUntil ? (
               <>
@@ -127,39 +148,76 @@ export default function UnlockPage() {
                     'You can sign in again now.'
                   )}
                 </AlertBanner>
-                <BusyButton size="large" disabled={lockSeconds > 0} onClick={() => navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true })}>
+                <BusyButton
+                  size="large"
+                  disabled={lockSeconds > 0}
+                  onClick={() => navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true })}
+                >
                   Go to sign in
                 </BusyButton>
               </>
             ) : (
               <>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Avatar sx={{ width: 48, height: 48, bgcolor: tokens.ink, color: tokens.gold, fontWeight: 700 }}>{initials(name)}</Avatar>
+                  <Avatar sx={{ width: 48, height: 48, bgcolor: tokens.ink, color: tokens.gold, fontWeight: 700 }}>
+                    {initials(name)}
+                  </Avatar>
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography component="h1" sx={{ fontSize: 19, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Typography
+                      component="h1"
+                      sx={{ fontSize: 19, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.75 }}
+                    >
                       <LockOutlinedIcon sx={{ fontSize: 19, color: tokens.goldDark }} /> Screen Locked
                     </Typography>
-                    <Typography noWrap sx={{ fontSize: 13.5, color: tokens.textSecondary }}>{name}</Typography>
+                    <Typography noWrap sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
+                      {name}
+                    </Typography>
                   </Box>
                 </Box>
                 <Typography sx={{ fontSize: 13.5, lineHeight: 1.55, color: tokens.textSecondary }}>
-                  You were away for {RULES.idleMinutes} minutes, so we locked the screen. Enter your password to continue where you left off. No code is needed.
+                  You were away for {RULES.idleMinutes} minutes, so we locked the screen. Enter your password to
+                  continue where you left off. No code is needed.
                 </Typography>
                 {error && (
                   <AlertBanner tone="error">
                     {error}
-                    {attemptsLeft < RULES.maxLoginAttempts ? ` ${attemptsLeft} ${attemptsLeft === 1 ? 'try' : 'tries'} left before the account is locked.` : ''}
+                    {attemptsLeft < RULES.maxLoginAttempts
+                      ? ` ${attemptsLeft} ${attemptsLeft === 1 ? 'try' : 'tries'} left before the account is locked.`
+                      : ''}
                   </AlertBanner>
                 )}
                 {/* The username stays in the page for password managers, but can't be changed here */}
-                <input type="email" name="username" autoComplete="username" value={locked ? locked.user.email : ''} readOnly hidden />
-                <PasswordField id="unlock-password" label="Password" autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError(''); }} disabled={busy} autoFocus />
+                <input
+                  type="email"
+                  name="username"
+                  autoComplete="username"
+                  value={locked ? locked.user.email : ''}
+                  readOnly
+                  hidden
+                />
+                <PasswordField
+                  id="unlock-password"
+                  label="Password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
+                  disabled={busy}
+                  autoFocus
+                />
                 <BusyButton type="submit" size="large" busy={busy} sx={{ py: 1.3 }}>
                   Unlock
                 </BusyButton>
                 <Typography sx={{ textAlign: 'center', fontSize: 13, color: tokens.textSecondary }}>
                   Not {name.split(' ')[0] || 'you'}?{' '}
-                  <Link component="button" type="button" onClick={switchAccount} sx={{ fontSize: 13, fontWeight: 600, color: tokens.goldDark, verticalAlign: 'baseline' }}>
+                  <Link
+                    component="button"
+                    type="button"
+                    onClick={switchAccount}
+                    sx={{ fontSize: 13, fontWeight: 600, color: tokens.goldDark, verticalAlign: 'baseline' }}
+                  >
                     Sign in with another account
                   </Link>
                 </Typography>

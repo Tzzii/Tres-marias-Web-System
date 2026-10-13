@@ -84,9 +84,15 @@ export async function findPartners(db, { ids, includeArchived = true, lock = fal
   }
   if (!includeArchived) conditions.push('p.archived = 0');
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const [rows] = await db.query(`SELECT p.* FROM outsource_partners p ${where} ORDER BY p.id${lock ? ' FOR UPDATE' : ''}`, params);
+  const [rows] = await db.query(
+    `SELECT p.* FROM outsource_partners p ${where} ORDER BY p.id${lock ? ' FOR UPDATE' : ''}`,
+    params
+  );
   if (!rows.length) return [];
-  const [history] = await db.query('SELECT partner_id, at, actor, text FROM outsource_partner_history WHERE partner_id IN (?) ORDER BY id', [rows.map((row) => row.id)]);
+  const [history] = await db.query(
+    'SELECT partner_id, at, actor, text FROM outsource_partner_history WHERE partner_id IN (?) ORDER BY id',
+    [rows.map((row) => row.id)]
+  );
   const byPartner = groupBy(history, 'partner_id');
   return rows.map((row) => toPartner(row, byPartner.get(row.id)));
 }
@@ -124,14 +130,24 @@ export async function partnerContractStats(db) {
        FROM outsource_contracts GROUP BY partner_id`
   );
   return new Map(
-    rows.map((row) => [row.partner_id, { contractCount: Number(row.contracts), openCount: Number(row.open), lastSentAt: row.last_sent === null ? null : Number(row.last_sent) }])
+    rows.map((row) => [
+      row.partner_id,
+      {
+        contractCount: Number(row.contracts),
+        openCount: Number(row.open),
+        lastSentAt: row.last_sent === null ? null : Number(row.last_sent)
+      }
+    ])
   );
 }
 
 /** The ids of the partners in `ids` that have a contract sent and still waiting for their answer (status 'sent'). */
 export async function partnersWithOpenContracts(db, ids) {
   if (!ids.length) return new Set();
-  const [rows] = await db.query("SELECT DISTINCT partner_id FROM outsource_contracts WHERE partner_id IN (?) AND status = 'sent'", [ids]);
+  const [rows] = await db.query(
+    "SELECT DISTINCT partner_id FROM outsource_contracts WHERE partner_id IN (?) AND status = 'sent'",
+    [ids]
+  );
   return new Set(rows.map((row) => row.partner_id));
 }
 
@@ -140,7 +156,17 @@ export async function insertPartner(conn, partner) {
   await conn.query(
     `INSERT INTO outsource_partners (id, name, service, contact_person, email, mobile, address, notes, archived)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [partner.id, partner.name, partner.service, partner.contactPerson, partner.email, partner.mobile, partner.address, partner.notes, partner.archived]
+    [
+      partner.id,
+      partner.name,
+      partner.service,
+      partner.contactPerson,
+      partner.email,
+      partner.mobile,
+      partner.address,
+      partner.notes,
+      partner.archived
+    ]
   );
 }
 
@@ -171,7 +197,12 @@ export async function updatePartner(conn, id, changes) {
 
 /** Add an entry to a partner's history. */
 export async function insertPartnerHistory(conn, partnerId, { at, actor, text }) {
-  await conn.query('INSERT INTO outsource_partner_history (partner_id, at, actor, text) VALUES (?, ?, ?, ?)', [partnerId, at, actor, text]);
+  await conn.query('INSERT INTO outsource_partner_history (partner_id, at, actor, text) VALUES (?, ?, ?, ?)', [
+    partnerId,
+    at,
+    actor,
+    text
+  ]);
 }
 
 /* ============================ Contracts ============================ */
@@ -198,8 +229,14 @@ export async function findContracts(db, { id } = {}) {
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
   const [[deliveries], [history]] = await Promise.all([
-    db.query('SELECT contract_id, channel, to_address, at, body FROM outsource_deliveries WHERE contract_id IN (?) ORDER BY id', [ids]),
-    db.query('SELECT contract_id, at, actor, text FROM outsource_contract_history WHERE contract_id IN (?) ORDER BY id', [ids])
+    db.query(
+      'SELECT contract_id, channel, to_address, at, body FROM outsource_deliveries WHERE contract_id IN (?) ORDER BY id',
+      [ids]
+    ),
+    db.query(
+      'SELECT contract_id, at, actor, text FROM outsource_contract_history WHERE contract_id IN (?) ORDER BY id',
+      [ids]
+    )
   ]);
   const byContract = { deliveries: groupBy(deliveries, 'contract_id'), history: groupBy(history, 'contract_id') };
   return rows.map((row) => ({
@@ -209,12 +246,22 @@ export async function findContracts(db, { id } = {}) {
         ? null
         : toPartner(
             {
-              id: row.partner_id, name: row.p_name, service: row.p_service, contact_person: row.p_contact_person, email: row.p_email,
-              mobile: row.p_mobile, address: row.p_address, notes: row.p_notes, archived: row.p_archived
+              id: row.partner_id,
+              name: row.p_name,
+              service: row.p_service,
+              contact_person: row.p_contact_person,
+              email: row.p_email,
+              mobile: row.p_mobile,
+              address: row.p_address,
+              notes: row.p_notes,
+              archived: row.p_archived
             },
             []
           ),
-    reservation: row.r_ref === null ? null : { eventName: row.r_event_name, date: row.r_date, venue: { name: row.r_venue_name, city: row.r_city } }
+    reservation:
+      row.r_ref === null
+        ? null
+        : { eventName: row.r_event_name, date: row.r_date, venue: { name: row.r_venue_name, city: row.r_city } }
   }));
 }
 
@@ -233,7 +280,22 @@ export async function insertContract(conn, c) {
   await conn.query(
     `INSERT INTO outsource_contracts (id, ref, partner_id, reservation_ref, items, need_by, amount, notes, status, body, created_at, sent_at, answered_at, answer_note)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [c.id, c.ref, c.partnerId, c.reservationRef, toJson(c.items), c.needBy, c.amount, c.notes, c.status, c.body, c.createdAt, c.sentAt, c.answeredAt, c.answerNote]
+    [
+      c.id,
+      c.ref,
+      c.partnerId,
+      c.reservationRef,
+      toJson(c.items),
+      c.needBy,
+      c.amount,
+      c.notes,
+      c.status,
+      c.body,
+      c.createdAt,
+      c.sentAt,
+      c.answeredAt,
+      c.answerNote
+    ]
   );
 }
 
@@ -269,12 +331,20 @@ export async function updateContract(conn, id, changes) {
 
 /** Add a delivery (one channel of one send) with the outbox row that carries it. */
 export async function insertDelivery(conn, contractId, { channel, to, at, body, outboxId }) {
-  await conn.query('INSERT INTO outsource_deliveries (contract_id, channel, to_address, at, body, outbox_id) VALUES (?, ?, ?, ?, ?, ?)', [contractId, channel, to, at, body, outboxId]);
+  await conn.query(
+    'INSERT INTO outsource_deliveries (contract_id, channel, to_address, at, body, outbox_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [contractId, channel, to, at, body, outboxId]
+  );
 }
 
 /** Add an entry to a contract's history. */
 export async function insertContractHistory(conn, contractId, { at, actor, text }) {
-  await conn.query('INSERT INTO outsource_contract_history (contract_id, at, actor, text) VALUES (?, ?, ?, ?)', [contractId, at, actor, text]);
+  await conn.query('INSERT INTO outsource_contract_history (contract_id, at, actor, text) VALUES (?, ?, ?, ?)', [
+    contractId,
+    at,
+    actor,
+    text
+  ]);
 }
 
 /** A booking's status and ref as stored, { ref, status }, or null (no lock). The lookup ignores case, so callers compare the ref. */

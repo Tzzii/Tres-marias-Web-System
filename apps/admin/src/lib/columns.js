@@ -9,7 +9,8 @@ export function useColumnChoice(storageKey, options) {
   const [columns, setColumns] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey));
-      if (saved && typeof saved === 'object') return Object.fromEntries(options.map(([key]) => [key, saved[key] !== false]));
+      if (saved && typeof saved === 'object')
+        return Object.fromEntries(options.map(([key]) => [key, saved[key] !== false]));
     } catch (e) {
       /* storage unavailable: use the default */
     }

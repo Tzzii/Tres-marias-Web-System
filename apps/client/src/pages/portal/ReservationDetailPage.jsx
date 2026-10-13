@@ -80,7 +80,12 @@ export default function ReservationDetailPage() {
   const notify = useNotify();
   const { user } = useAuth();
   // Load the reservation. Passing customerId makes sure customers can only open their own bookings.
-  const { data: r, loading, error, reload } = useResource(() => reservationApi.getReservation(ref, { customerId: user.id }), [ref, user.id]);
+  const {
+    data: r,
+    loading,
+    error,
+    reload
+  } = useResource(() => reservationApi.getReservation(ref, { customerId: user.id }), [ref, user.id]);
   useDocumentTitle(r ? r.eventName : 'Reservation');
 
   const [changeOpen, setChangeOpen] = useState(false); // "Request a change" dialog
@@ -145,12 +150,21 @@ export default function ReservationDetailPage() {
         actions={
           <>
             {editable && (
-              <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => setChangeOpen(true)} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
+              <Button
+                variant="outlined"
+                startIcon={<EditOutlinedIcon />}
+                onClick={() => setChangeOpen(true)}
+                sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
+              >
                 Request a change
               </Button>
             )}
             {online.allowed && (
-              <Button startIcon={<EventBusyOutlinedIcon />} onClick={() => setCancelOpen(true)} sx={{ color: tokens.dangerSoft }}>
+              <Button
+                startIcon={<EventBusyOutlinedIcon />}
+                onClick={() => setCancelOpen(true)}
+                sx={{ color: tokens.dangerSoft }}
+              >
                 Cancel
               </Button>
             )}
@@ -165,9 +179,12 @@ export default function ReservationDetailPage() {
           {/* The button sits under the text, so the text keeps the banner's full width on a phone */}
           {step === 'accept' && (
             <AlertBanner tone="info" sx={{ mt: 2 }} title="Your Quotation Is Ready">
-              Net total {peso(r.quotation.net)}. Open the quotation under Documents to see every line, then accept it to approve your reservation. To change something first, use Request a Change.
+              Net total {peso(r.quotation.net)}. Open the quotation under Documents to see every line, then accept it to
+              approve your reservation. To change something first, use Request a Change.
               <Box sx={{ mt: 1.25 }}>
-                <Button size="small" variant="contained" onClick={() => setAcceptOpen(true)}>Accept Quotation</Button>
+                <Button size="small" variant="contained" onClick={() => setAcceptOpen(true)}>
+                  Accept Quotation
+                </Button>
               </Box>
             </AlertBanner>
           )}
@@ -179,7 +196,24 @@ export default function ReservationDetailPage() {
             </AlertBanner>
           )}
           {r.status === 'approved' && !r.downpaymentPaid && (
-            <AlertBanner tone={r.awaitingCount ? 'info' : r.balanceState === 'overdue' ? 'error' : 'locked'} sx={{ mt: 2 }} title={r.awaitingCount ? 'Payment being verified' : r.balanceState === 'overdue' ? 'Downpayment overdue' : 'Downpayment due'} action={canPay && <Button size="small" variant="contained" onClick={() => navigate(`/portal/payments?ref=${r.ref}`)}>Pay now</Button>}>
+            <AlertBanner
+              tone={r.awaitingCount ? 'info' : r.balanceState === 'overdue' ? 'error' : 'locked'}
+              sx={{ mt: 2 }}
+              title={
+                r.awaitingCount
+                  ? 'Payment being verified'
+                  : r.balanceState === 'overdue'
+                    ? 'Downpayment overdue'
+                    : 'Downpayment due'
+              }
+              action={
+                canPay && (
+                  <Button size="small" variant="contained" onClick={() => navigate(`/portal/payments?ref=${r.ref}`)}>
+                    Pay now
+                  </Button>
+                )
+              }
+            >
               {r.awaitingCount
                 ? 'Your payment is being verified, usually within a day.'
                 : r.downpayment < r.total
@@ -187,10 +221,18 @@ export default function ReservationDetailPage() {
                   : `Pay the full ${peso(r.balance)} by ${formatDateLong(r.downpaymentDue)} to secure your date.`}
             </AlertBanner>
           )}
-          {r.status === 'declined' && <AlertBanner tone="error" sx={{ mt: 2 }} title="Reason from our team">{r.declineReason}</AlertBanner>}
+          {r.status === 'declined' && (
+            <AlertBanner tone="error" sx={{ mt: 2 }} title="Reason from our team">
+              {r.declineReason}
+            </AlertBanner>
+          )}
           {/* Records without cancelledBy are the customer's own cancellations */}
           {r.status === 'cancelled' && (
-            <AlertBanner tone="error" sx={{ mt: 2 }} title={r.cancelledBy === 'admin' ? 'Cancelled by Tres Marias' : 'You cancelled this reservation'}>
+            <AlertBanner
+              tone="error"
+              sx={{ mt: 2 }}
+              title={r.cancelledBy === 'admin' ? 'Cancelled by Tres Marias' : 'You cancelled this reservation'}
+            >
               {r.cancelReason}
             </AlertBanner>
           )}
@@ -203,9 +245,15 @@ export default function ReservationDetailPage() {
           {/* Each refund recorded; a refund of ₱0 means everything paid was kept, with the reason */}
           {refunds.map((f) =>
             f.amount > 0 ? (
-              <AlertBanner key={f.id} tone="success" sx={{ mt: 2 }} title={`Refunded ${peso(f.amount)} on ${formatDateLong(f.sentOn)}`}>
+              <AlertBanner
+                key={f.id}
+                tone="success"
+                sx={{ mt: 2 }}
+                title={`Refunded ${peso(f.amount)} on ${formatDateLong(f.sentOn)}`}
+              >
                 Via {REFUND_METHODS[f.method]}
-                {f.referenceNo ? ` · Ref ${f.referenceNo}` : ''}.{f.reason ? ` We kept ${peso(f.due - f.amount)}: ${f.reason}` : ''}
+                {f.referenceNo ? ` · Ref ${f.referenceNo}` : ''}.
+                {f.reason ? ` We kept ${peso(f.due - f.amount)}: ${f.reason}` : ''}
               </AlertBanner>
             ) : (
               <AlertBanner key={f.id} tone="info" sx={{ mt: 2 }} title="No refund">
@@ -215,11 +263,15 @@ export default function ReservationDetailPage() {
           )}
           {/* Preparation has started: the booking can no longer be cancelled online */}
           {r.preparingAt && !closed && (
-            <Typography sx={{ mt: 2, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>Preparation started on {formatDateLong(toISODate(new Date(r.preparingAt)))}.</Typography>
+            <Typography sx={{ mt: 2, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>
+              Preparation started on {formatDateLong(toISODate(new Date(r.preparingAt)))}.
+            </Typography>
           )}
           {/* Online cancellation: until when, or why not and how to cancel instead (nothing once the event day has come) */}
           {!closed && daysFromToday(r.date) > 0 && (
-            <Typography sx={{ mt: r.preparingAt ? 0.5 : 2, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}>
+            <Typography
+              sx={{ mt: r.preparingAt ? 0.5 : 2, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}
+            >
               {!online.allowed
                 ? `${online.reason} To cancel, message us in your chat or call ${BUSINESS.phone}.`
                 : r.paid > 0
@@ -233,17 +285,32 @@ export default function ReservationDetailPage() {
           )}
         </DashCard>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
+        <Box
+          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}
+        >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
               <CardTitle>Event Details</CardTitle>
               <Box sx={{ display: 'flex', gap: 2.5, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
                 <ThemeIcon occasion={r.occasion} size={84} />
-                <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                <Box
+                  sx={{
+                    flex: 1,
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' },
+                    gap: 2
+                  }}
+                >
                   <Field label="Date">{formatDateLong(r.date)}</Field>
-                  <Field label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Time'}>{formatEventTime(r)}</Field>
+                  <Field label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Time'}>
+                    {formatEventTime(r)}
+                  </Field>
                   <Field label="Occasion">{r.occasion}</Field>
-                  {rental ? <Field label="Getting the items">{delivered ? 'Delivery' : 'Pick up'}</Field> : <Field label="Guests">{r.guests}</Field>}
+                  {rental ? (
+                    <Field label="Getting the items">{delivered ? 'Delivery' : 'Pick up'}</Field>
+                  ) : (
+                    <Field label="Guests">{r.guests}</Field>
+                  )}
                 </Box>
               </Box>
             </DashCard>
@@ -251,47 +318,69 @@ export default function ReservationDetailPage() {
             {rental ? (
               <RentalItemsCard r={r} />
             ) : (
-            <DashCard>
-              <CardTitle subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`}>{r.serviceType}</CardTitle>
-              {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and
+              <DashCard>
+                <CardTitle
+                  subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`}
+                >
+                  {r.serviceType}
+                </CardTitle>
+                {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and
                   the other counted items show the counts our quotation set, or a "To confirm" tag before it.
                   One item per row, its count in its own column (PackageItemList), so a long list stays easy to read. */}
-              <Field label={bookingExtraGuests(r) ? `Package includes, for your ${r.guests} guests` : 'Package includes'}>
-                <PackageItemList items={items} />
-              </Field>
-              {items.some((item) => item.toConfirm) && (
-                <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>Our quotation sets the counts marked To confirm.</Typography>
-              )}
-              <Divider sx={{ my: 2 }} />
-              {/* A buffet lists the dish chosen for each category; catering only has no menu */}
-              {includesFood(r.serviceType) ? (
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
-                  {(r.menuDishes || []).map((dish) => (
-                    <Field key={dish.key} label={dish.label}>
-                      {dish.name}
-                    </Field>
-                  ))}
-                </Box>
-              ) : (
-                <Field label="Food">Catering only: equipment and setup, with no food.</Field>
-              )}
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {includesFood(r.serviceType) && <Field label="Drinks">{buffetDrinks(r.menu)} for every guest</Field>}
-                {/* Charges counted by the piece show how many were asked for */}
-                <Field label="Additional charges">
-                  {r.addons.length ? r.addons.map((a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name)).join(', ') : 'None'}
+                <Field
+                  label={bookingExtraGuests(r) ? `Package includes, for your ${r.guests} guests` : 'Package includes'}
+                >
+                  <PackageItemList items={items} />
                 </Field>
-                {dessertSummary(r.menu) && <Field label="Dessert (additional charge)">{dessertSummary(r.menu)}</Field>}
-                {r.foodNotes && <Field label="Your note about the food">{r.foodNotes}</Field>}
-              </Box>
-            </DashCard>
+                {items.some((item) => item.toConfirm) && (
+                  <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textMuted }}>
+                    Our quotation sets the counts marked To confirm.
+                  </Typography>
+                )}
+                <Divider sx={{ my: 2 }} />
+                {/* A buffet lists the dish chosen for each category; catering only has no menu */}
+                {includesFood(r.serviceType) ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                    {(r.menuDishes || []).map((dish) => (
+                      <Field key={dish.key} label={dish.label}>
+                        {dish.name}
+                      </Field>
+                    ))}
+                  </Box>
+                ) : (
+                  <Field label="Food">Catering only: equipment and setup, with no food.</Field>
+                )}
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                  {includesFood(r.serviceType) && <Field label="Drinks">{buffetDrinks(r.menu)} for every guest</Field>}
+                  {/* Charges counted by the piece show how many were asked for */}
+                  <Field label="Additional charges">
+                    {r.addons.length
+                      ? r.addons
+                          .map((a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name))
+                          .join(', ')
+                      : 'None'}
+                  </Field>
+                  {dessertSummary(r.menu) && (
+                    <Field label="Dessert (additional charge)">{dessertSummary(r.menu)}</Field>
+                  )}
+                  {r.foodNotes && <Field label="Your note about the food">{r.foodNotes}</Field>}
+                </Box>
+              </DashCard>
             )}
 
             {/* The look chosen on the booking form; hidden when there is none (a rental, a blank section, an older booking) */}
             {!rental && !stylingEmpty(r.styling) && (
               <DashCard>
-                <CardTitle subtitle={editable ? 'To change it, use Request a change and our team will update it.' : 'The look our team sets up for your event.'}>Theme and Colors</CardTitle>
+                <CardTitle
+                  subtitle={
+                    editable
+                      ? 'To change it, use Request a change and our team will update it.'
+                      : 'The look our team sets up for your event.'
+                  }
+                >
+                  Theme and Colors
+                </CardTitle>
                 <StylingSummary styling={r.styling} reservationRef={r.ref} />
               </DashCard>
             )}
@@ -304,7 +393,9 @@ export default function ReservationDetailPage() {
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                   <Field label={rental ? 'Deliver to' : 'Venue'}>{r.venue.name}</Field>
                   <Field label="Address">{`${r.venue.address}, ${r.venue.city}`}</Field>
-                  <Field label={rental ? 'Notes for the delivery' : 'Access notes'}>{r.venue.accessNotes || 'None'}</Field>
+                  <Field label={rental ? 'Notes for the delivery' : 'Access notes'}>
+                    {r.venue.accessNotes || 'None'}
+                  </Field>
                 </Box>
               )}
             </DashCard>
@@ -312,10 +403,26 @@ export default function ReservationDetailPage() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
             <DashCard>
-              <CardTitle subtitle={step === 'accept' ? 'Your quotation, waiting for you to accept it' : step === 'revise' ? 'A revised quotation is on its way' : r.quotation ? 'Final quotation' : rental ? 'Your items and delivery, until our quotation confirms them' : 'An estimate until your quotation confirms the final amounts'}>Payment Summary</CardTitle>
+              <CardTitle
+                subtitle={
+                  step === 'accept'
+                    ? 'Your quotation, waiting for you to accept it'
+                    : step === 'revise'
+                      ? 'A revised quotation is on its way'
+                      : r.quotation
+                        ? 'Final quotation'
+                        : rental
+                          ? 'Your items and delivery, until our quotation confirms them'
+                          : 'An estimate until your quotation confirms the final amounts'
+                }
+              >
+                Payment Summary
+              </CardTitle>
               {/* What the total is made of, line by line, so the customer need not open the quotation to see it */}
               <ChargeLines r={r} rental={rental} delivered={delivered} />
-              <DetailRow label="Minimum downpayment" sx={{ mt: 1 }}>{peso(r.downpayment)}</DetailRow>
+              <DetailRow label="Minimum downpayment" sx={{ mt: 1 }}>
+                {peso(r.downpayment)}
+              </DetailRow>
               {/* Paid = what was received; money given back shows on its own row */}
               <DetailRow label="Paid">{peso(r.paid + refunded)}</DetailRow>
               {refunded > 0 && <DetailRow label="Refunded">− {peso(refunded)}</DetailRow>}
@@ -334,22 +441,46 @@ export default function ReservationDetailPage() {
               )}
               {step === 'accept' && (
                 <>
-                  <Button fullWidth variant="contained" startIcon={<TaskAltRoundedIcon />} onClick={() => setAcceptOpen(true)} sx={{ mt: 1.5 }}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={<TaskAltRoundedIcon />}
+                    onClick={() => setAcceptOpen(true)}
+                    sx={{ mt: 1.5 }}
+                  >
                     Accept quotation
                   </Button>
                   {quotationDoc && (
-                    <Button fullWidth variant="outlined" startIcon={<DescriptionOutlinedIcon />} onClick={() => setDoc(quotationDoc)} sx={{ mt: 1.25 }}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<DescriptionOutlinedIcon />}
+                      onClick={() => setDoc(quotationDoc)}
+                      sx={{ mt: 1.25 }}
+                    >
                       View quotation
                     </Button>
                   )}
                 </>
               )}
               {canPay && (
-                <Button fullWidth variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => navigate(`/portal/payments?ref=${r.ref}`)} sx={{ mt: 1.5 }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<PaymentsOutlinedIcon />}
+                  onClick={() => navigate(`/portal/payments?ref=${r.ref}`)}
+                  sx={{ mt: 1.5 }}
+                >
                   {r.downpaymentPaid ? 'Pay balance' : 'Pay downpayment'}
                 </Button>
               )}
-              <Button fullWidth variant="outlined" startIcon={<ChatBubbleOutlineRoundedIcon />} onClick={() => navigate(`/portal/messages?ref=${r.ref}`)} sx={{ mt: 1.25 }}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<ChatBubbleOutlineRoundedIcon />}
+                onClick={() => navigate(`/portal/messages?ref=${r.ref}`)}
+                sx={{ mt: 1.25 }}
+              >
                 Message us
               </Button>
             </DashCard>
@@ -358,10 +489,22 @@ export default function ReservationDetailPage() {
               <CardTitle>Documents</CardTitle>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {docs.map((d) => (
-                  <Box key={d.key} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.25, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
+                  <Box
+                    key={d.key}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.25,
+                      p: 1.25,
+                      borderRadius: 1.5,
+                      border: `1px solid ${tokens.cardLightBorder}`
+                    }}
+                  >
                     <DescriptionOutlinedIcon sx={{ color: d.available ? tokens.goldDark : tokens.placeholder }} />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 600 }}>{d.name}</Typography>
+                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 600 }}>
+                        {d.name}
+                      </Typography>
                       <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>{d.note}</Typography>
                     </Box>
                     {d.available ? (
@@ -383,10 +526,14 @@ export default function ReservationDetailPage() {
                 {r.testimonial ? (
                   <>
                     <StarRating value={r.testimonial.rating} showValue />
-                    <Typography sx={{ mt: 1, fontSize: 13.5, color: tokens.textSecondary }}>“{r.testimonial.body}”</Typography>
+                    <Typography sx={{ mt: 1, fontSize: 13.5, color: tokens.textSecondary }}>
+                      “{r.testimonial.body}”
+                    </Typography>
                     {/* What you rated part by part */}
                     <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                      {FEEDBACK_CATEGORIES.filter(({ key }) => r.testimonial.categories && r.testimonial.categories[key]).map(({ key, label }) => (
+                      {FEEDBACK_CATEGORIES.filter(
+                        ({ key }) => r.testimonial.categories && r.testimonial.categories[key]
+                      ).map(({ key, label }) => (
                         <Typography key={key} sx={{ fontSize: 12, color: tokens.textSecondary }}>
                           {label}: <b>{r.testimonial.categories[key]}/5</b>
                         </Typography>
@@ -394,18 +541,34 @@ export default function ReservationDetailPage() {
                     </Box>
                     {/* The admin's answer to this review */}
                     {r.testimonial.reply && (
-                      <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle, border: `1px solid ${tokens.cardLightBorder}` }}>
+                      <Box
+                        sx={{
+                          mt: 1.5,
+                          p: 1.5,
+                          borderRadius: 1.5,
+                          backgroundColor: tokens.surfaceSubtle,
+                          border: `1px solid ${tokens.cardLightBorder}`
+                        }}
+                      >
                         <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textSecondary }}>
                           Reply from Admin · {formatDateTime(r.testimonial.reply.at)}
                         </Typography>
-                        <Typography sx={{ mt: 0.25, fontSize: 12.5, lineHeight: 1.6, color: tokens.textPrimary }}>{r.testimonial.reply.body}</Typography>
+                        <Typography sx={{ mt: 0.25, fontSize: 12.5, lineHeight: 1.6, color: tokens.textPrimary }}>
+                          {r.testimonial.reply.body}
+                        </Typography>
                       </Box>
                     )}
                   </>
                 ) : (
                   <>
-                    <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>How did we do? Your review helps other families plan their celebrations.</Typography>
-                    <Button variant="contained" sx={{ mt: 1.5 }} onClick={() => navigate(`/portal/testimonials?ref=${r.ref}`)}>
+                    <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
+                      How did we do? Your review helps other families plan their celebrations.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      sx={{ mt: 1.5 }}
+                      onClick={() => navigate(`/portal/testimonials?ref=${r.ref}`)}
+                    >
                       Write a testimonial
                     </Button>
                   </>
@@ -415,19 +578,34 @@ export default function ReservationDetailPage() {
 
             <DashCard>
               <CardTitle>Activity</CardTitle>
-              <Box component="ol" sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 1.75 }}>
+              <Box
+                component="ol"
+                sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 1.75 }}
+              >
                 {/* History of the booking, newest first */}
-                {r.activity.slice().reverse().map((a, i) => (
-                  <Box component="li" key={`${a.at}-${i}`} sx={{ display: 'flex', gap: 1.5 }}>
-                    <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: '50%', flexShrink: 0, backgroundColor: i === 0 ? tokens.gold : tokens.cardLightBorder }} />
-                    <Box>
-                      <Typography sx={{ fontSize: 13, color: tokens.textPrimary }}>{a.text}</Typography>
-                      <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
-                        {a.actor} · {formatDateTime(a.at)}
-                      </Typography>
+                {r.activity
+                  .slice()
+                  .reverse()
+                  .map((a, i) => (
+                    <Box component="li" key={`${a.at}-${i}`} sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box
+                        sx={{
+                          mt: 0.75,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          flexShrink: 0,
+                          backgroundColor: i === 0 ? tokens.gold : tokens.cardLightBorder
+                        }}
+                      />
+                      <Box>
+                        <Typography sx={{ fontSize: 13, color: tokens.textPrimary }}>{a.text}</Typography>
+                        <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
+                          {a.actor} · {formatDateTime(a.at)}
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
-                ))}
+                  ))}
               </Box>
             </DashCard>
           </Box>
@@ -471,7 +649,11 @@ export default function ReservationDetailPage() {
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
         title="Cancel This Reservation?"
-        description={r.paid > 0 ? `You paid ${peso(r.paid)}. We'll return it and tell you in your chat when it's sent.` : 'The date will be released for other bookings. This cannot be undone.'}
+        description={
+          r.paid > 0
+            ? `You paid ${peso(r.paid)}. We'll return it and tell you in your chat when it's sent.`
+            : 'The date will be released for other bookings. This cannot be undone.'
+        }
         confirmLabel="Cancel reservation"
         cancelLabel="Keep reservation"
         tone="danger"
@@ -531,7 +713,20 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
         </>
       }
     >
-      <FormField id="change-message" label="Your request" multiline minRows={4} value={message} onChange={(e) => { setMessage(e.target.value); setError(''); }} error={error} placeholder="e.g. Please change the guest count from 150 to 170 and add Mango Float to the food." inputProps={{ maxLength: 2000 }} />
+      <FormField
+        id="change-message"
+        label="Your request"
+        multiline
+        minRows={4}
+        value={message}
+        onChange={(e) => {
+          setMessage(e.target.value);
+          setError('');
+        }}
+        error={error}
+        placeholder="e.g. Please change the guest count from 150 to 170 and add Mango Float to the food."
+        inputProps={{ maxLength: 2000 }}
+      />
     </AppDialog>
   );
 }
@@ -556,7 +751,8 @@ function ChargeLines({ r, rental, delivered }) {
   // the rule of 2026-10-09), or, before any quotation, the booking's own
   const extraGuests = rental ? 0 : quoted ? r.quotation.extraGuests || 0 : bookingExtraGuests(r);
   // An add-on's line total (price × how many); a quotation saved before quantities only has the price
-  const addonTotal = (id) => (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
+  const addonTotal = (id) =>
+    (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
   const addonCount = (id) => (quote.addonQty && quote.addonQty[id]) || (r.addonQty || {})[id] || 1;
   // A charge the sent quotation priced (one added after it waits for the revised quotation)
   const inQuotation = (id) => [quote.addonPrices, quote.addonTotals].some((prices) => prices && id in prices);
@@ -567,17 +763,54 @@ function ChargeLines({ r, rental, delivered }) {
   // Each line: { key, label, note (small text under the label), value, toQuote (no price yet) }
   const lines = rental
     ? [
-        { key: 'items', label: 'Rented items', note: `${rentalLines.length} ${rentalLines.length === 1 ? 'item' : 'items'}, ${pieces(rentalLines)} pieces`, value: peso(quote.rental || 0) },
-        delivered ? { key: 'delivery', label: 'Delivery', value: peso(quote.deliveryFee || 0) } : { key: 'pickup', label: 'Pick up', value: 'Free' },
-        ...(quote.damage > 0 ? [{ key: 'damage', label: 'Damage charges', note: `${pieces(damageLines)} pieces damaged or missing`, value: peso(quote.damage) }] : [])
+        {
+          key: 'items',
+          label: 'Rented items',
+          note: `${rentalLines.length} ${rentalLines.length === 1 ? 'item' : 'items'}, ${pieces(rentalLines)} pieces`,
+          value: peso(quote.rental || 0)
+        },
+        delivered
+          ? { key: 'delivery', label: 'Delivery', value: peso(quote.deliveryFee || 0) }
+          : { key: 'pickup', label: 'Pick up', value: 'Free' },
+        ...(quote.damage > 0
+          ? [
+              {
+                key: 'damage',
+                label: 'Damage charges',
+                note: `${pieces(damageLines)} pieces damaged or missing`,
+                value: peso(quote.damage)
+              }
+            ]
+          : [])
       ]
     : [
-        { key: 'package', label: `Package · ${r.packageName}`, note: `Covers ${quote.packageGuests || r.package.guests} guests`, value: peso(quote.packageTotal) },
+        {
+          key: 'package',
+          label: `Package · ${r.packageName}`,
+          note: `Covers ${quote.packageGuests || r.package.guests} guests`,
+          value: peso(quote.packageTotal)
+        },
         ...(extraGuests > 0
-          ? [{ key: 'extra', label: `Extra ${extraGuests} guests (equipment)`, value: quoted ? peso(quote.extraGuestsCharge || 0) : 'To be quoted', toQuote: !quoted }]
+          ? [
+              {
+                key: 'extra',
+                label: `Extra ${extraGuests} guests (equipment)`,
+                value: quoted ? peso(quote.extraGuestsCharge || 0) : 'To be quoted',
+                toQuote: !quoted
+              }
+            ]
           : []),
         // The buffet is charged per person, so the line shows the sum it came from
-        ...(quote.plates > 0 ? [{ key: 'buffet', label: 'Buffet', note: `${quote.plates} × ${peso(quote.pricePerPlate)} per person`, value: peso(quote.food) }] : []),
+        ...(quote.plates > 0
+          ? [
+              {
+                key: 'buffet',
+                label: 'Buffet',
+                note: `${quote.plates} × ${peso(quote.pricePerPlate)} per person`,
+                value: peso(quote.food)
+              }
+            ]
+          : []),
         // Before the quotation, a charge without its own price has none yet
         ...r.addons.map((a) => {
           const priced = quoted ? inQuotation(a.id) : addonTotal(a.id) > 0;
@@ -592,22 +825,57 @@ function ChargeLines({ r, rental, delivered }) {
           };
         })
       ];
-  if (quote.otherCharges > 0) lines.push({ key: 'other', label: quote.otherLabel || 'Other charges', value: peso(quote.otherCharges) });
+  if (quote.otherCharges > 0)
+    lines.push({ key: 'other', label: quote.otherLabel || 'Other charges', value: peso(quote.otherCharges) });
   if (quote.discount > 0) lines.push({ key: 'discount', label: 'Discount', value: `− ${peso(quote.discount)}` });
   const toQuote = lines.some((line) => line.toQuote);
 
   return (
     <Box sx={{ borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, overflow: 'hidden' }}>
       {lines.map((line) => (
-        <Box key={line.key} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2, px: 1.75, py: 1.1, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
+        <Box
+          key={line.key}
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            gap: 2,
+            px: 1.75,
+            py: 1.1,
+            borderBottom: `1px solid ${tokens.cardLightBorder}`
+          }}
+        >
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: tokens.textPrimary, overflowWrap: 'anywhere' }}>{line.label}</Typography>
-            {line.note && <Typography sx={{ mt: 0.125, fontSize: 11.5, color: tokens.textMuted }}>{line.note}</Typography>}
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: tokens.textPrimary, overflowWrap: 'anywhere' }}>
+              {line.label}
+            </Typography>
+            {line.note && (
+              <Typography sx={{ mt: 0.125, fontSize: 11.5, color: tokens.textMuted }}>{line.note}</Typography>
+            )}
           </Box>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', color: line.toQuote ? tokens.textMuted : tokens.textPrimary }}>{line.value}</Typography>
+          <Typography
+            sx={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              color: line.toQuote ? tokens.textMuted : tokens.textPrimary
+            }}
+          >
+            {line.value}
+          </Typography>
         </Box>
       ))}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2, px: 1.75, py: 1.25, backgroundColor: tokens.surfaceSubtle }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: 2,
+          px: 1.75,
+          py: 1.25,
+          backgroundColor: tokens.surfaceSubtle
+        }}
+      >
         <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>Total</Typography>
         <Typography sx={{ fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>
           {peso(r.total)}
@@ -634,11 +902,16 @@ function RentalItemsCard({ r }) {
         </DetailRow>
       ))}
       <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textSecondary }}>
-        Pieces that come back damaged or missing are charged at each item's damage fee: {r.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}.
+        Pieces that come back damaged or missing are charged at each item's damage fee:{' '}
+        {r.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}.
       </Typography>
       {damage.length > 0 && (
         <AlertBanner tone="warning" sx={{ mt: 2 }} title="Damage charges">
-          {damage.map((line) => `${line.qty} × ${line.name} (${peso(line.fee)} each)`).join(', ')}: {peso(damage.reduce((sum, line) => sum + line.qty * line.fee, 0))}. {r.quotationStale ? 'They apply once our revised quotation reaches you.' : 'They are included in your quotation.'}
+          {damage.map((line) => `${line.qty} × ${line.name} (${peso(line.fee)} each)`).join(', ')}:{' '}
+          {peso(damage.reduce((sum, line) => sum + line.qty * line.fee, 0))}.{' '}
+          {r.quotationStale
+            ? 'They apply once our revised quotation reaches you.'
+            : 'They are included in your quotation.'}
         </AlertBanner>
       )}
     </DashCard>

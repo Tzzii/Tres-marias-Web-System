@@ -88,7 +88,8 @@ export function financials(reservation, payments, refunds = []) {
  * Returns the status unchanged when nothing moves (any status other than Approved or Downpayment paid).
  */
 export function statusForPayments(status, money) {
-  if (['approved', 'downpayment_paid'].includes(status) && money.paid > 0 && money.paid >= money.total) return 'confirmed';
+  if (['approved', 'downpayment_paid'].includes(status) && money.paid > 0 && money.paid >= money.total)
+    return 'confirmed';
   if (status === 'approved' && money.paid > 0 && money.downpaymentPaid) return 'downpayment_paid';
   if (status === 'downpayment_paid' && !money.downpaymentPaid) return 'approved';
   return status;
@@ -113,6 +114,7 @@ export function downpaymentDueFor(eventDate, due = addDays(todayISO(), RULES.dow
  */
 export function dueAfterMove(reservation, date) {
   const due = reservation.downpaymentDue;
-  if (reservation.status !== 'approved' || !due || date === reservation.date || due <= addDays(date, -3)) return { due, moved: false };
+  if (reservation.status !== 'approved' || !due || date === reservation.date || due <= addDays(date, -3))
+    return { due, moved: false };
   return { due: downpaymentDueFor(date, due), moved: true };
 }

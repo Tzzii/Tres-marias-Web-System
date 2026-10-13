@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "dev": "concurrently -n api,client,admin -c yellow,cyan,magenta \"npm:dev:api\" \"npm:dev:client\" \"npm:dev:admin\"",
+    "format": "prettier --write \"apps/**/*.{js,jsx,json,css,html}\" \"packages/**/*.{js,jsx,json,css}\" \"scripts/**/*.{js,mjs}\" package.json",
+    "format:check": "prettier --check \"apps/**/*.{js,jsx,json,css,html}\" \"packages/**/*.{js,jsx,json,css}\" \"scripts/**/*.{js,mjs}\" package.json",
     "dev:api": "npm run dev -w apps/api",
     "seed:api": "npm run seed -w apps/api",
     "seed:starter": "npm run seed:starter -w apps/api",
@@ -45,6 +47,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6"
+    "concurrently": "^10.0.6",
+    "prettier": "^3.6.2"
   }
 }

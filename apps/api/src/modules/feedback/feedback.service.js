@@ -119,7 +119,8 @@ export async function unreadFeedbackCount() {
 export async function createFeedback(customer, { ref, rating, categories, body } = {}) {
   return tx(async (conn) => {
     const booking = typeof ref === 'string' && ref ? await lockOwner(conn, ref) : null;
-    if (!booking || booking.ref !== ref || booking.customerId !== customer.id || booking.status !== 'completed') throw notOpen();
+    if (!booking || booking.ref !== ref || booking.customerId !== customer.id || booking.status !== 'completed')
+      throw notOpen();
     if (await repo.findFeedbackIdFor(conn, booking.ref)) throw alreadyReviewed();
     const problem = reviewProblem({ rating, categories, body });
     if (problem) throw new ApiError('INVALID', problem.message, { field: problem.field });
@@ -167,9 +168,15 @@ export async function setFeedbackStatus(id, status) {
   if (!FEEDBACK_STATUSES.includes(status)) throw new ApiError('INVALID', 'A feedback is either published or hidden.');
   return tx(async (conn) => {
     const feedback = await lockedFeedback(conn, id);
-    if (status === 'published' && feedback.flagged) throw new ApiError('INVALID_STATE', 'Remove the flag before publishing this feedback.');
-    if (status === 'published' && feedback.archived) throw new ApiError('INVALID_STATE', 'Restore this feedback from the archive first.');
-    await repo.updateFeedback(conn, feedback.id, { status, ...(status === 'hidden' ? { featured: false } : {}), readByAdmin: true });
+    if (status === 'published' && feedback.flagged)
+      throw new ApiError('INVALID_STATE', 'Remove the flag before publishing this feedback.');
+    if (status === 'published' && feedback.archived)
+      throw new ApiError('INVALID_STATE', 'Restore this feedback from the archive first.');
+    await repo.updateFeedback(conn, feedback.id, {
+      status,
+      ...(status === 'hidden' ? { featured: false } : {}),
+      readByAdmin: true
+    });
     return adminView(conn, feedback.id);
   });
 }
@@ -243,7 +250,8 @@ export async function replyToFeedback(id, body, admin) {
     const reply = { body: text.toWellFormed(), at: now(), by: admin.name };
     await repo.updateFeedback(conn, feedback.id, { reply, readByAdmin: true });
     const [row] = await repo.findFeedbacks(conn, { id: feedback.id });
-    if (booking) await postAdminMessage(conn, booking, `About your feedback on ${row.eventName}: ${reply.body}`, null, admin.name);
+    if (booking)
+      await postAdminMessage(conn, booking, `About your feedback on ${row.eventName}: ${reply.body}`, null, admin.name);
     return view(row, { admin: true });
   });
 }

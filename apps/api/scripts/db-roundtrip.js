@@ -101,7 +101,9 @@ async function check() {
   if (adminEmail.problem) fail(adminEmail.problem);
   if (adminEmail.email) business.admins[0].email = adminEmail.email;
   const seed = buildSample(business);
-  console.log(`DB ${config.db.database} on ${config.db.host}:${config.db.port}; fresh sample data dated ${seed.seededOn}, TZ ${process.env.TZ}`);
+  console.log(
+    `DB ${config.db.database} on ${config.db.host}:${config.db.port}; fresh sample data dated ${seed.seededOn}, TZ ${process.env.TZ}`
+  );
 
   // ---- accounts (each password hash checked with bcrypt against the seed passwords in .env) ----
   const passwords = seedPasswords({ customers: true });
@@ -145,63 +147,129 @@ async function check() {
 
   // ---- catalogue (ordered by sort_order: the order the pages show) ----
   const packages = (await q('SELECT * FROM packages ORDER BY sort_order, id')).map((p) => ({
-    id: p.id, slug: p.slug, name: p.name, kind: p.kind, price: p.price, guests: p.guests, description: p.description,
-    items: parseJson(p.items), mood: p.mood, icon: p.icon, featured: bool(p.featured), visible: bool(p.visible), archived: bool(p.archived)
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    kind: p.kind,
+    price: p.price,
+    guests: p.guests,
+    description: p.description,
+    items: parseJson(p.items),
+    mood: p.mood,
+    icon: p.icon,
+    featured: bool(p.featured),
+    visible: bool(p.visible),
+    archived: bool(p.archived)
   }));
   compare('packages', packages, seed.packages);
   const addonRows = await q('SELECT * FROM addons ORDER BY sort_order, id');
   const addons = addonRows.map((a) => ({
-    id: a.id, parentId: a.parent_id, name: a.name, description: a.description, price: a.price,
-    hasQuantity: bool(a.has_quantity), hasPackages: bool(a.has_packages), archived: bool(a.archived)
+    id: a.id,
+    parentId: a.parent_id,
+    name: a.name,
+    description: a.description,
+    price: a.price,
+    hasQuantity: bool(a.has_quantity),
+    hasPackages: bool(a.has_packages),
+    archived: bool(a.archived)
   }));
   compare('addons', addons, seed.addons);
-  const dishes = (await q('SELECT * FROM dishes ORDER BY sort_order, id')).map((d) => ({ id: d.id, category: d.category, name: d.name, archived: bool(d.archived) }));
+  const dishes = (await q('SELECT * FROM dishes ORDER BY sort_order, id')).map((d) => ({
+    id: d.id,
+    category: d.category,
+    name: d.name,
+    archived: bool(d.archived)
+  }));
   compare('dishes', dishes, seed.dishes);
   const hasQty = new Set(addonRows.filter((a) => a.has_quantity).map((a) => a.id));
 
   // ---- reservations with their child rows (the database -> record mapping for reservations.repo.js) ----
-  const addonLinks = group(await q('SELECT * FROM reservation_addons ORDER BY reservation_ref, sort_order'), 'reservation_ref');
+  const addonLinks = group(
+    await q('SELECT * FROM reservation_addons ORDER BY reservation_ref, sort_order'),
+    'reservation_ref'
+  );
   const activityById = group(await q('SELECT * FROM reservation_activity ORDER BY id'), 'reservation_ref');
   const activityByAt = group(await q('SELECT * FROM reservation_activity ORDER BY at, id'), 'reservation_ref');
-  const rentalLines = group(await q('SELECT * FROM reservation_rental_items ORDER BY reservation_ref, sort_order'), 'reservation_ref');
+  const rentalLines = group(
+    await q('SELECT * FROM reservation_rental_items ORDER BY reservation_ref, sort_order'),
+    'reservation_ref'
+  );
   // No sort_order on damage lines: they come back by item id (one line per item and booking)
-  const damageLines = group(await q('SELECT * FROM reservation_damage_charges ORDER BY reservation_ref, item_id'), 'reservation_ref');
-  const dispatches = group(await q('SELECT * FROM rental_dispatches ORDER BY reservation_ref, item_id'), 'reservation_ref');
+  const damageLines = group(
+    await q('SELECT * FROM reservation_damage_charges ORDER BY reservation_ref, item_id'),
+    'reservation_ref'
+  );
+  const dispatches = group(
+    await q('SELECT * FROM rental_dispatches ORDER BY reservation_ref, item_id'),
+    'reservation_ref'
+  );
   const reservations = (await q('SELECT * FROM reservations')).map((r) => {
     const links = addonLinks.get(r.ref) || [];
     links.forEach((l, i) => l.sort_order !== i && fail(`reservation_addons ${r.ref}: sort_order gap`));
     const acts = activityById.get(r.ref) || [];
     const actsAt = activityByAt.get(r.ref) || [];
-    if (acts.map((a) => a.id).join() !== actsAt.map((a) => a.id).join()) notes.push(`${r.ref}: activity insertion order is not chronological`);
+    if (acts.map((a) => a.id).join() !== actsAt.map((a) => a.id).join())
+      notes.push(`${r.ref}: activity insertion order is not chronological`);
     const out = {
-      ref: r.ref, customerId: r.customer_id, eventName: r.event_name, occasion: r.occasion, date: r.date, startTime: r.start_time,
+      ref: r.ref,
+      customerId: r.customer_id,
+      eventName: r.event_name,
+      occasion: r.occasion,
+      date: r.date,
+      startTime: r.start_time,
       endTime: r.end_time,
-      guests: r.guests, packageId: r.package_id, serviceType: r.service_type, menu: parseJson(r.menu), foodNotes: r.food_notes,
+      guests: r.guests,
+      packageId: r.package_id,
+      serviceType: r.service_type,
+      menu: parseJson(r.menu),
+      foodNotes: r.food_notes,
       // The theme, colours and design details: a JSON object, or NULL when the row left them blank (every rental)
       styling: parseJson(r.styling),
-      pricePerPlate: r.price_per_plate, minDownpayment: r.min_downpayment,
+      pricePerPlate: r.price_per_plate,
+      minDownpayment: r.min_downpayment,
       venue: { name: r.venue_name, address: r.venue_address, city: r.city, accessNotes: r.access_notes },
       addonIds: links.map((l) => l.addon_id),
       // Only add-ons counted by the piece carry a quantity in the record; the others are stored as 1
       addonQty: Object.fromEntries(links.filter((l) => hasQty.has(l.addon_id)).map((l) => [l.addon_id, l.qty])),
-      status: r.status, estimate: parseJson(r.estimate), quotation: parseJson(r.quotation), downpaymentDue: r.downpayment_due,
+      status: r.status,
+      estimate: parseJson(r.estimate),
+      quotation: parseJson(r.quotation),
+      downpaymentDue: r.downpayment_due,
       preparingAt: r.preparing_at,
-      notes: r.notes, declineReason: r.decline_reason, cancelReason: r.cancel_reason, cancelledBy: r.cancelled_by,
-      activity: acts.map((a) => ({ at: a.at, actor: a.actor, text: a.text })), createdAt: r.created_at
+      notes: r.notes,
+      declineReason: r.decline_reason,
+      cancelReason: r.cancel_reason,
+      cancelledBy: r.cancelled_by,
+      activity: acts.map((a) => ({ at: a.at, actor: a.actor, text: a.text })),
+      createdAt: r.created_at
     };
     // The Terms version agreed to when booking: none on the sample bookings, so only a set one is compared
     if (r.terms_version) out.termsVersion = r.terms_version;
-    links.filter((l) => !hasQty.has(l.addon_id)).forEach((l) => l.qty !== 1 && fail(`${r.ref}: qty ${l.qty} on an add-on without hasQuantity`));
+    links
+      .filter((l) => !hasQty.has(l.addon_id))
+      .forEach((l) => l.qty !== 1 && fail(`${r.ref}: qty ${l.qty} on an add-on without hasQuantity`));
     // The rental fields exist on an equipment rental only (not even empty on other bookings)
     if (r.service_type === 'Equipment rental') {
-      out.rentalItems = (rentalLines.get(r.ref) || []).map((l) => ({ itemId: l.item_id, name: l.name, qty: l.qty, price: l.price, damageFee: l.damage_fee }));
+      out.rentalItems = (rentalLines.get(r.ref) || []).map((l) => ({
+        itemId: l.item_id,
+        name: l.name,
+        qty: l.qty,
+        price: l.price,
+        damageFee: l.damage_fee
+      }));
       out.fulfilment = r.fulfilment;
-      out.damageCharges = (damageLines.get(r.ref) || []).map((l) => ({ itemId: l.item_id, name: l.name, qty: l.qty, fee: l.fee }));
+      out.damageCharges = (damageLines.get(r.ref) || []).map((l) => ({
+        itemId: l.item_id,
+        name: l.name,
+        qty: l.qty,
+        fee: l.fee
+      }));
       const sent = dispatches.get(r.ref) || [];
       if (sent.length) {
-        out.rentalDispatches = Object.fromEntries(sent.map(line => [line.item_id, line.qty]));
+        out.rentalDispatches = Object.fromEntries(sent.map((line) => [line.item_id, line.qty]));
         out.dispatchedAt = sent[0].dispatched_at;
-        if (sent.some(line => line.dispatched_at !== out.dispatchedAt)) fail(`${r.ref}: sample dispatch timestamps differ`);
+        if (sent.some((line) => line.dispatched_at !== out.dispatchedAt))
+          fail(`${r.ref}: sample dispatch timestamps differ`);
       }
     } else if (r.fulfilment !== null || rentalLines.has(r.ref) || damageLines.has(r.ref)) {
       fail(`${r.ref}: rental data on a non-rental`);
@@ -216,9 +284,13 @@ async function check() {
     if (p.proof_key) {
       try {
         const file = await stat(path.join(config.storage.uploadDir, p.proof_key));
-        if (p.method !== 'bank' || p.proof_mime !== 'image/png' || p.proof_size !== file.size) fail(`payments[${p.id}]: sample proof metadata differs from its file`);
-      } catch { fail(`payments[${p.id}]: sample proof file is missing`); }
-    } else if (p.proof_mime !== null || p.proof_size !== null) fail(`payments[${p.id}]: proof metadata without a file key`);
+        if (p.method !== 'bank' || p.proof_mime !== 'image/png' || p.proof_size !== file.size)
+          fail(`payments[${p.id}]: sample proof metadata differs from its file`);
+      } catch {
+        fail(`payments[${p.id}]: sample proof file is missing`);
+      }
+    } else if (p.proof_mime !== null || p.proof_size !== null)
+      fail(`payments[${p.id}]: proof metadata without a file key`);
   }
   const payments = paymentRows.map((p) => {
     // PayMongo confirms a GCash QR payment ('qrph'), so it has no admin; the admin verified every other verified one
@@ -226,83 +298,189 @@ async function check() {
     if (p.verified_by !== verifier) fail(`payments[${p.id}]: verified_by ${p.verified_by} for ${p.method} ${p.status}`);
     if (p.receipt_no === '') fail(`payments[${p.id}]: receipt_no stored as ''`);
     return {
-      id: p.id, ref: p.ref, customerId: p.customer_id, amount: p.amount, kind: p.kind, method: p.method, referenceNo: p.reference_no,
-      proofName: p.proof_name, status: p.status, submittedAt: p.submitted_at, verifiedAt: p.verified_at, receiptNo: p.receipt_no ?? '', rejectReason: p.reject_reason
+      id: p.id,
+      ref: p.ref,
+      customerId: p.customer_id,
+      amount: p.amount,
+      kind: p.kind,
+      method: p.method,
+      referenceNo: p.reference_no,
+      proofName: p.proof_name,
+      status: p.status,
+      submittedAt: p.submitted_at,
+      verifiedAt: p.verified_at,
+      receiptNo: p.receipt_no ?? '',
+      rejectReason: p.reject_reason
     };
   });
   compareKeyed('payments', payments, seed.payments, 'id');
 
   // ---- refunds (the admin's id comes back as the name, like the API's answers) ----
-  const refunds = await q('SELECT f.*, a.name AS admin_name FROM refunds f JOIN admins a ON a.id = f.recorded_by').then((rows) => rows.map((f) => ({
-    id: f.id, ref: f.ref, customerId: f.customer_id, kind: f.kind, amount: f.amount, due: f.due, method: f.method, referenceNo: f.reference_no,
-    sentOn: f.sent_on, reason: f.reason, recordedAt: f.recorded_at, recordedBy: f.admin_name
-  })));
+  const refunds = await q('SELECT f.*, a.name AS admin_name FROM refunds f JOIN admins a ON a.id = f.recorded_by').then(
+    (rows) =>
+      rows.map((f) => ({
+        id: f.id,
+        ref: f.ref,
+        customerId: f.customer_id,
+        kind: f.kind,
+        amount: f.amount,
+        due: f.due,
+        method: f.method,
+        referenceNo: f.reference_no,
+        sentOn: f.sent_on,
+        reason: f.reason,
+        recordedAt: f.recorded_at,
+        recordedBy: f.admin_name
+      }))
+  );
   compareKeyed('refunds', refunds, seed.refunds, 'id');
 
   // ---- chat (messages come back in time order; ids left out, see above) ----
   const withoutId = ({ id, ...message }) => message; // eslint-disable-line no-unused-vars
   const msgRows = group(await q('SELECT * FROM messages ORDER BY thread_id, at, id'), 'thread_id');
   const threads = (await q('SELECT * FROM threads ORDER BY id')).map((t) => ({
-    id: t.id, customerId: t.customer_id,
+    id: t.id,
+    customerId: t.customer_id,
     messages: (msgRows.get(t.id) || []).map((m) => ({
-      from: m.from_side, senderName: m.sender_name, body: m.body, ref: m.ref, at: m.at,
-      readByCustomer: bool(m.read_by_customer), readByAdmin: bool(m.read_by_admin), attachment: parseJson(m.attachment),
-      typed: bool(m.typed), editedAt: m.edited_at, deletedAt: m.deleted_at, history: parseJson(m.history) || []
+      from: m.from_side,
+      senderName: m.sender_name,
+      body: m.body,
+      ref: m.ref,
+      at: m.at,
+      readByCustomer: bool(m.read_by_customer),
+      readByAdmin: bool(m.read_by_admin),
+      attachment: parseJson(m.attachment),
+      typed: bool(m.typed),
+      editedAt: m.edited_at,
+      deletedAt: m.deleted_at,
+      history: parseJson(m.history) || []
     }))
   }));
   // The seed's arrays sorted by `at` (stable), the way the database returns them
   const seedThreadsSorted = seed.threads.map((t) => ({ ...t, messages: [...t.messages].sort((a, b) => a.at - b.at) }));
   seed.threads.forEach((t, i) => {
-    if (t.messages.some((m, n) => m !== seedThreadsSorted[i].messages[n])) notes.push(`seed thread ${t.id} (${t.customerId}): its messages array is NOT in time order; the database returns it in time order`);
+    if (t.messages.some((m, n) => m !== seedThreadsSorted[i].messages[n]))
+      notes.push(
+        `seed thread ${t.id} (${t.customerId}): its messages array is NOT in time order; the database returns it in time order`
+      );
   });
-  compareKeyed('threads', threads, seedThreadsSorted.map((t) => ({ ...t, messages: t.messages.map(withoutId) })), 'id');
+  compareKeyed(
+    'threads',
+    threads,
+    seedThreadsSorted.map((t) => ({ ...t, messages: t.messages.map(withoutId) })),
+    'id'
+  );
 
   // ---- feedback ----
   const testimonials = (await q('SELECT * FROM testimonials')).map((t) => ({
-    id: t.id, customerId: t.customer_id, ref: t.ref, rating: t.rating,
+    id: t.id,
+    customerId: t.customer_id,
+    ref: t.ref,
+    rating: t.rating,
     categories: { food: t.cat_food, service: t.cat_service, punctuality: t.cat_punctuality, setup: t.cat_setup },
-    body: t.body, createdAt: t.created_at, status: t.status, featured: bool(t.featured), flagged: bool(t.flagged), flagReason: t.flag_reason,
-    archived: bool(t.archived), readByAdmin: bool(t.read_by_admin), reply: t.reply_body === null ? null : { body: t.reply_body, at: t.reply_at, by: t.reply_by }
+    body: t.body,
+    createdAt: t.created_at,
+    status: t.status,
+    featured: bool(t.featured),
+    flagged: bool(t.flagged),
+    flagReason: t.flag_reason,
+    archived: bool(t.archived),
+    readByAdmin: bool(t.read_by_admin),
+    reply: t.reply_body === null ? null : { body: t.reply_body, at: t.reply_at, by: t.reply_by }
   }));
   compareKeyed('testimonials', testimonials, seed.testimonials, 'id');
 
   // ---- calendar and settings (always exactly one row each) ----
   const [calSettings] = await q('SELECT * FROM calendar_settings');
   const [catSettings] = await q('SELECT * FROM catalog_settings');
-  const settingsRows = [(await q('SELECT COUNT(*) AS n FROM calendar_settings'))[0].n, (await q('SELECT COUNT(*) AS n FROM catalog_settings'))[0].n];
-  if (settingsRows.join() !== '1,1' || calSettings.id !== 1 || catSettings.id !== 1) fail(`settings rows: ${settingsRows}`);
+  const settingsRows = [
+    (await q('SELECT COUNT(*) AS n FROM calendar_settings'))[0].n,
+    (await q('SELECT COUNT(*) AS n FROM catalog_settings'))[0].n
+  ];
+  if (settingsRows.join() !== '1,1' || calSettings.id !== 1 || catSettings.id !== 1)
+    fail(`settings rows: ${settingsRows}`);
   const ageMin = (ms) => ((Date.now() - ms) / 60000).toFixed(1);
-  compare('calendar', { dailyCapacity: calSettings.daily_capacity, blocked: (await q('SELECT * FROM calendar_blocks ORDER BY date')).map((b) => ({ date: b.date, reason: b.reason, note: b.note })) }, seed.calendar);
-  compare('settings', { pricePerPlate: catSettings.price_per_plate, minDownpayment: catSettings.min_downpayment }, seed.settings);
+  compare(
+    'calendar',
+    {
+      dailyCapacity: calSettings.daily_capacity,
+      blocked: (await q('SELECT * FROM calendar_blocks ORDER BY date')).map((b) => ({
+        date: b.date,
+        reason: b.reason,
+        note: b.note
+      }))
+    },
+    seed.calendar
+  );
+  compare(
+    'settings',
+    { pricePerPlate: catSettings.price_per_plate, minDownpayment: catSettings.min_downpayment },
+    seed.settings
+  );
 
   // ---- inventory ----
   const allocs = group(await q('SELECT * FROM inventory_allocations'), 'item_id');
   const invHistory = group(await q('SELECT * FROM inventory_history ORDER BY id'), 'item_id');
   const inventory = (await q('SELECT * FROM inventory_items')).map((i) => ({
-    id: i.id, code: i.code, name: i.name, category: i.category, total: i.total, lowStockAt: i.low_stock_at,
+    id: i.id,
+    code: i.code,
+    name: i.name,
+    category: i.category,
+    total: i.total,
+    lowStockAt: i.low_stock_at,
     allocations: Object.fromEntries((allocs.get(i.id) || []).map((a) => [a.reservation_ref, a.qty])),
-    damaged: i.damaged, rentable: bool(i.rentable), rentPrice: i.rent_price, damageFee: i.damage_fee, notes: i.notes, archived: bool(i.archived), addonId: i.addon_id,
-    history: (invHistory.get(i.id) || []).map((h) => ({ at: h.at, actor: h.actor, text: h.text, ...(h.ref === null ? {} : { ref: h.ref }) }))
+    damaged: i.damaged,
+    rentable: bool(i.rentable),
+    rentPrice: i.rent_price,
+    damageFee: i.damage_fee,
+    notes: i.notes,
+    archived: bool(i.archived),
+    addonId: i.addon_id,
+    history: (invHistory.get(i.id) || []).map((h) => ({
+      at: h.at,
+      actor: h.actor,
+      text: h.text,
+      ...(h.ref === null ? {} : { ref: h.ref })
+    }))
   }));
   compareKeyed('inventory', inventory, seed.inventory, 'id');
 
   // ---- outsourcing ----
   const partnerHistory = group(await q('SELECT * FROM outsource_partner_history ORDER BY id'), 'partner_id');
   const partners = (await q('SELECT * FROM outsource_partners')).map((p) => ({
-    id: p.id, name: p.name, service: p.service, contactPerson: p.contact_person, email: p.email, mobile: p.mobile, address: p.address, notes: p.notes,
-    archived: bool(p.archived), history: (partnerHistory.get(p.id) || []).map((h) => ({ at: h.at, actor: h.actor, text: h.text }))
+    id: p.id,
+    name: p.name,
+    service: p.service,
+    contactPerson: p.contact_person,
+    email: p.email,
+    mobile: p.mobile,
+    address: p.address,
+    notes: p.notes,
+    archived: bool(p.archived),
+    history: (partnerHistory.get(p.id) || []).map((h) => ({ at: h.at, actor: h.actor, text: h.text }))
   }));
   compareKeyed('partners', partners, seed.outsourcing.partners, 'id');
   const deliveries = group(await q('SELECT * FROM outsource_deliveries ORDER BY id'), 'contract_id');
   const contractHistory = group(await q('SELECT * FROM outsource_contract_history ORDER BY id'), 'contract_id');
   const contracts = (await q('SELECT * FROM outsource_contracts')).map((c) => ({
-    id: c.id, ref: c.ref, partnerId: c.partner_id, reservationRef: c.reservation_ref, items: parseJson(c.items), needBy: c.need_by, amount: c.amount,
-    notes: c.notes, status: c.status, body: c.body,
+    id: c.id,
+    ref: c.ref,
+    partnerId: c.partner_id,
+    reservationRef: c.reservation_ref,
+    items: parseJson(c.items),
+    needBy: c.need_by,
+    amount: c.amount,
+    notes: c.notes,
+    status: c.status,
+    body: c.body,
     deliveries: (deliveries.get(c.id) || []).map((d) => {
       if (d.outbox_id !== null) fail(`delivery ${d.id}: outbox_id not NULL`);
       return { channel: d.channel, to: d.to_address, at: d.at, body: d.body };
     }),
-    createdAt: c.created_at, sentAt: c.sent_at, answeredAt: c.answered_at, answerNote: c.answer_note,
+    createdAt: c.created_at,
+    sentAt: c.sent_at,
+    answeredAt: c.answered_at,
+    answerNote: c.answer_note,
     history: (contractHistory.get(c.id) || []).map((h) => ({ at: h.at, actor: h.actor, text: h.text }))
   }));
   compareKeyed('contracts', contracts, seed.outsourcing.contracts, 'id');
@@ -311,10 +489,24 @@ async function check() {
   const counterRows = await q("SELECT * FROM counters WHERE name <> 'change'");
   const counters = Object.fromEntries(counterRows.map((c) => [c.name, c.name === 'receipt' ? c.value + 1 : c.value]));
   compare('counters', counters, seed.counters);
-  console.log('counters in db:', counterRows.map((c) => `${c.name}=${c.value}`).join(' '), `| seed.counters.receipt=${seed.counters.receipt}`);
+  console.log(
+    'counters in db:',
+    counterRows.map((c) => `${c.name}=${c.value}`).join(' '),
+    `| seed.counters.receipt=${seed.counters.receipt}`
+  );
 
   // ---- tables the seed leaves empty (sign-ins, codes and deliveries fill them) ----
-  for (const t of ['login_attempts', 'auth_challenges', 'password_resets', 'signup_requests', 'password_changes', 'customer_email_changes', 'outbox', 'qr_payments', 'webhook_events']) {
+  for (const t of [
+    'login_attempts',
+    'auth_challenges',
+    'password_resets',
+    'signup_requests',
+    'password_changes',
+    'customer_email_changes',
+    'outbox',
+    'qr_payments',
+    'webhook_events'
+  ]) {
     const [{ n }] = await q(`SELECT COUNT(*) AS n FROM ${t}`);
     if (n !== 0) fail(`${t} has ${n} rows`);
   }
@@ -324,17 +516,27 @@ async function check() {
     FROM information_schema.KEY_COLUMN_USAGE k WHERE k.TABLE_SCHEMA = DATABASE() AND k.REFERENCED_TABLE_NAME IS NOT NULL`);
   let fkChecked = 0;
   for (const { t, c, pt, pc } of fks) {
-    const [{ n }] = await q(`SELECT COUNT(*) AS n FROM ${t} x LEFT JOIN ${pt} p ON p.${pc} = x.${c} WHERE x.${c} IS NOT NULL AND p.${pc} IS NULL`);
+    const [{ n }] = await q(
+      `SELECT COUNT(*) AS n FROM ${t} x LEFT JOIN ${pt} p ON p.${pc} = x.${c} WHERE x.${c} IS NOT NULL AND p.${pc} IS NULL`
+    );
     fkChecked++;
     if (n) fail(`orphans: ${t}.${c} -> ${pt}.${pc}: ${n}`);
   }
-  for (const [t, c] of [['inventory_allocations', 'reservation_ref'], ['outsource_contracts', 'reservation_ref']]) {
-    const [{ n }] = await q(`SELECT COUNT(*) AS n FROM ${t} x LEFT JOIN reservations r ON r.ref = x.${c} WHERE x.${c} <> 'none' AND r.ref IS NULL`);
+  for (const [t, c] of [
+    ['inventory_allocations', 'reservation_ref'],
+    ['outsource_contracts', 'reservation_ref']
+  ]) {
+    const [{ n }] = await q(
+      `SELECT COUNT(*) AS n FROM ${t} x LEFT JOIN reservations r ON r.ref = x.${c} WHERE x.${c} <> 'none' AND r.ref IS NULL`
+    );
     if (n) fail(`${t}.${c}: ${n} values neither 'none' nor a reservation`);
   }
-  const dupReceipts = await q('SELECT receipt_no, COUNT(*) n FROM payments WHERE receipt_no IS NOT NULL GROUP BY receipt_no HAVING n > 1');
+  const dupReceipts = await q(
+    'SELECT receipt_no, COUNT(*) n FROM payments WHERE receipt_no IS NOT NULL GROUP BY receipt_no HAVING n > 1'
+  );
   if (dupReceipts.length) fail(`duplicate receipt numbers: ${JSON.stringify(dupReceipts)}`);
-  const [receiptStats] = await q(`SELECT COUNT(receipt_no) AS withReceipt, SUM(receipt_no IS NULL) AS nullReceipt, MIN(receipt_no) AS first, MAX(receipt_no) AS last,
+  const [receiptStats] =
+    await q(`SELECT COUNT(receipt_no) AS withReceipt, SUM(receipt_no IS NULL) AS nullReceipt, MIN(receipt_no) AS first, MAX(receipt_no) AS last,
     (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments' AND INDEX_NAME = 'uq_payments_receipt_no' AND NON_UNIQUE = 0) AS uniqueIndex FROM payments`);
 
   // ---- special characters, byte for byte ----
@@ -352,7 +554,10 @@ async function check() {
   try {
     await conn.beginTransaction();
     const text = 'Salamat po! 🎉🙏 ₱1,500 – Parañaque · sago’t gulaman';
-    await conn.query("INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment) VALUES ('m-emoji-test', ?, 'customer', 'Test', ?, NULL, 1, 1, 0, ?)", [seed.threads[0].id, text, JSON.stringify({ name: '🎉.pdf' })]);
+    await conn.query(
+      "INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment) VALUES ('m-emoji-test', ?, 'customer', 'Test', ?, NULL, 1, 1, 0, ?)",
+      [seed.threads[0].id, text, JSON.stringify({ name: '🎉.pdf' })]
+    );
     const [[row]] = await conn.query("SELECT body, attachment, HEX(body) AS h FROM messages WHERE id = 'm-emoji-test'");
     emojiOk = row.body === text && parseJson(row.attachment).name === '🎉.pdf' && row.h.includes('F09F8E89');
   } catch (err) {
@@ -367,17 +572,31 @@ async function check() {
   // ---- the numbers the plan lists ----
   const count = async (t) => (await q(`SELECT COUNT(*) AS n FROM ${t}`))[0].n;
   const summary = {
-    admins: await count('admins'), customers: await count('customers'), packages: await count('packages'), addons: await count('addons'), dishes: await count('dishes'),
-    reservations: await count('reservations'), payments: await count('payments'), threads: await count('threads'), testimonials: await count('testimonials'),
-    inventory_items: await count('inventory_items'), partners: await count('outsource_partners'), contracts: await count('outsource_contracts'),
-    blocked: await count('calendar_blocks'), dailyCapacity: calSettings.daily_capacity
+    admins: await count('admins'),
+    customers: await count('customers'),
+    packages: await count('packages'),
+    addons: await count('addons'),
+    dishes: await count('dishes'),
+    reservations: await count('reservations'),
+    payments: await count('payments'),
+    threads: await count('threads'),
+    testimonials: await count('testimonials'),
+    inventory_items: await count('inventory_items'),
+    partners: await count('outsource_partners'),
+    contracts: await count('outsource_contracts'),
+    blocked: await count('calendar_blocks'),
+    dailyCapacity: calSettings.daily_capacity
   };
   console.log('counts:', JSON.stringify(summary));
-  console.log(`receipt_no: ${receiptStats.withReceipt} set (${receiptStats.first}..${receiptStats.last}), ${receiptStats.nullReceipt} NULL, duplicates ${dupReceipts.length}, UNIQUE index present ${receiptStats.uniqueIndex === 1}`);
+  console.log(
+    `receipt_no: ${receiptStats.withReceipt} set (${receiptStats.first}..${receiptStats.last}), ${receiptStats.nullReceipt} NULL, duplicates ${dupReceipts.length}, UNIQUE index present ${receiptStats.uniqueIndex === 1}`
+  );
   console.log(`foreign keys checked for orphans: ${fkChecked} (0 orphans unless listed below)`);
   console.log(`characters: ${JSON.stringify(chars)}; emoji round trip ${emojiOk}, test row left behind ${leftover}`);
   // A seed from another day moves every relative date, so say how old the seed is
-  console.log(`settings updated_at: catalog ${ageMin(catSettings.updated_at)} min ago, calendar ${ageMin(calSettings.updated_at)} min ago (both set by seed:api)`);
+  console.log(
+    `settings updated_at: catalog ${ageMin(catSettings.updated_at)} min ago, calendar ${ageMin(calSettings.updated_at)} min ago (both set by seed:api)`
+  );
   notes.forEach((n) => console.log('NOTE:', n));
   if (problems.length) {
     console.log(`\nROUND TRIP: ${problems.length} PROBLEM(S)`);
@@ -385,7 +604,9 @@ async function check() {
     if (problems.length > 60) console.log(`  … and ${problems.length - 60} more`);
     return 1;
   }
-  console.log('\nROUND TRIP: every record and field matches (allowed differences only: receiptNo \'\' vs NULL, counters.receipt - 1, seededOn, key order, message order and ids; passwords checked against .env).');
+  console.log(
+    "\nROUND TRIP: every record and field matches (allowed differences only: receiptNo '' vs NULL, counters.receipt - 1, seededOn, key order, message order and ids; passwords checked against .env)."
+  );
   return 0;
 }
 

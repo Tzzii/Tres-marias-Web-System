@@ -25,7 +25,14 @@ export function BrandLogo({ size = 165, sx }) {
         ...sx
       }}
     >
-      <Box component="img" src={LOGO_SRC} alt="Tres Marias Catering Services" width={500} height={500} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      <Box
+        component="img"
+        src={LOGO_SRC}
+        alt="Tres Marias Catering Services"
+        width={500}
+        height={500}
+        sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
     </Box>
   );
 }
@@ -35,7 +42,14 @@ export function BrandLogo({ size = 165, sx }) {
  * `light` (the default) is for the app shell, where the wordmark and the gold subtitle follow
  * the dark / light mode; `light={false}` is for the public website's ivory nav bar.
  * `textColor` overrides the wordmark colour (the phone drawer uses cream on the dark sidebar). */
-export function BrandMark({ subtitle = 'Catering Services', size = 42, hideTextOnXs = false, onClick, light = true, textColor }) {
+export function BrandMark({
+  subtitle = 'Catering Services',
+  size = 42,
+  hideTextOnXs = false,
+  onClick,
+  light = true,
+  textColor
+}) {
   return (
     // Rendered as a real <button> when clickable (keyboard accessible), otherwise a plain <div>
     <Box
@@ -43,13 +57,37 @@ export function BrandMark({ subtitle = 'Catering Services', size = 42, hideTextO
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       aria-label={onClick ? 'Tres Marias home' : undefined}
-      sx={{ display: 'inline-flex', alignItems: 'center', gap: 1.5, p: 0, border: 0, background: 'none', cursor: onClick ? 'pointer' : 'default', textAlign: 'left', flexShrink: 0 }}
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 1.5,
+        p: 0,
+        border: 0,
+        background: 'none',
+        cursor: onClick ? 'pointer' : 'default',
+        textAlign: 'left',
+        flexShrink: 0
+      }}
     >
       <Avatar src={LOGO_SRC} alt="" sx={{ width: size, height: size, border: `2px solid ${tokens.gold}` }} />
-      <Box sx={{ display: hideTextOnXs ? { xs: 'none', sm: 'flex' } : 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-        <Typography sx={{ fontSize: 15.5, fontWeight: 700, color: textColor || (light ? tokens.textLight : tokens.textPrimary) }}>Tres Marias</Typography>
+      <Box
+        sx={{ display: hideTextOnXs ? { xs: 'none', sm: 'flex' } : 'flex', flexDirection: 'column', lineHeight: 1.15 }}
+      >
+        <Typography
+          sx={{ fontSize: 15.5, fontWeight: 700, color: textColor || (light ? tokens.textLight : tokens.textPrimary) }}
+        >
+          Tres Marias
+        </Typography>
         {subtitle && (
-          <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: light ? tokens.goldText : tokens.goldDark }}>
+          <Typography
+            sx={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: light ? tokens.goldText : tokens.goldDark
+            }}
+          >
             {subtitle}
           </Typography>
         )}

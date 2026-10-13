@@ -17,7 +17,7 @@ export function cleanDraftReferencePhoto(value) {
   if (value.dataUrl.length > Math.ceil(REFERENCE_PHOTO_MAX_BYTES / 3) * 4 + 64) return null;
   const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value.dataUrl);
   if (!match || match[2].length % 4 !== 0) return null;
-  const size = match[2].length * 3 / 4 - (match[2].endsWith('==') ? 2 : match[2].endsWith('=') ? 1 : 0);
+  const size = (match[2].length * 3) / 4 - (match[2].endsWith('==') ? 2 : match[2].endsWith('=') ? 1 : 0);
   if (referencePhotoProblem({ size, type: match[1] })) return null;
   return { name: value.name.slice(0, 160), dataUrl: value.dataUrl };
 }
@@ -28,5 +28,10 @@ export function cleanReferencePhoto(value) {
   const match = /^styling\/[0-9a-f-]{36}\.(jpg|png|webp)$/.exec(value.key || '');
   const type = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[match?.[1]];
   if (!match || value.mime !== type || referencePhotoProblem({ size: value.size, type })) return null;
-  return { key: value.key, name: typeof value.name === 'string' ? value.name.slice(0, 160) : 'Reference photo', mime: type, size: value.size };
+  return {
+    key: value.key,
+    name: typeof value.name === 'string' ? value.name.slice(0, 160) : 'Reference photo',
+    mime: type,
+    size: value.size
+  };
 }

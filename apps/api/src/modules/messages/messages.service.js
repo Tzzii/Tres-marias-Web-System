@@ -40,7 +40,11 @@ function forSide(message, side) {
 }
 
 // Thread info for the conversation list, as `side` may see it. `row` is an entry of repo.findThreads().
-const summarize = (row, side) => ({ ...row, lastMessage: forSide(row.lastMessage, side), updatedAt: row.lastMessage ? row.lastMessage.at : 0 });
+const summarize = (row, side) => ({
+  ...row,
+  lastMessage: forSide(row.lastMessage, side),
+  updatedAt: row.lastMessage ? row.lastMessage.at : 0
+});
 
 // The thread the asker may use: it exists, is spelled as stored, and is the customer's own when `customerId` is set; else null
 async function allowedThread(db, threadId, customerId) {
@@ -63,7 +67,10 @@ export async function listThreads({ customerId, side }) {
 export async function getThread(threadId, { customerId, side }) {
   const thread = await allowedThread(pool, threadId, customerId);
   if (!thread) throw conversationNotFound();
-  const [[row], messages] = await Promise.all([repo.findThreads(pool, { threadId: thread.id }, side), repo.findMessages(pool, thread.id)]);
+  const [[row], messages] = await Promise.all([
+    repo.findThreads(pool, { threadId: thread.id }, side),
+    repo.findMessages(pool, thread.id)
+  ]);
   return { ...summarize(row, side), messages: messages.map((message) => forSide(message, side)) };
 }
 
@@ -98,10 +105,18 @@ export async function sendMessage(threadId, { side, senderName, body, customerId
     let tag = null;
     if (ref !== null && ref !== undefined && ref !== '') {
       const owner = typeof ref === 'string' ? await lockOwner(conn, ref) : null;
-      if (!owner || owner.ref !== ref || owner.customerId !== thread.customerId) throw new ApiError('NOT_FOUND', 'We could not find this reservation.');
+      if (!owner || owner.ref !== ref || owner.customerId !== thread.customerId)
+        throw new ApiError('NOT_FOUND', 'We could not find this reservation.');
       tag = owner.ref;
     }
-    const { message } = await repo.postMessage(conn, { customerId: thread.customerId, ref: tag, from: side, senderName, body: text, typed: true });
+    const { message } = await repo.postMessage(conn, {
+      customerId: thread.customerId,
+      ref: tag,
+      from: side,
+      senderName,
+      body: text,
+      typed: true
+    });
     return forSide(message, side);
   });
 }
@@ -116,10 +131,14 @@ async function changeableMessage(conn, threadId, messageId, { side, customerId }
   if (!thread) throw conversationNotFound();
   const message = typeof messageId === 'string' ? await repo.lockMessage(conn, thread.id, messageId) : null;
   if (!message || message.id !== messageId) throw new ApiError('NOT_FOUND', 'Message not found.');
-  if (message.from !== side || !message.typed) throw new ApiError('FORBIDDEN', 'You can only edit or delete messages you typed yourself.');
+  if (message.from !== side || !message.typed)
+    throw new ApiError('FORBIDDEN', 'You can only edit or delete messages you typed yourself.');
   if (message.deletedAt) throw new ApiError('INVALID_STATE', 'This message was already deleted.');
   if (!messageChangeable(message, side, now())) {
-    throw new ApiError('INVALID_STATE', `Messages can only be edited or deleted within ${RULES.messageEditMinutes} minutes of sending.`);
+    throw new ApiError(
+      'INVALID_STATE',
+      `Messages can only be edited or deleted within ${RULES.messageEditMinutes} minutes of sending.`
+    );
   }
   return message;
 }

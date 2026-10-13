@@ -16,7 +16,16 @@ import { buffetDrinks, dessertSummary } from '../domain/menu.js';
 import { BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
 import { useNotify } from '../hooks/useNotify.jsx';
 import { tokens } from '../theme/tokens.js';
-import { formatDate, formatDateLong, formatDateTime, formatEventTime, formatMobile, formatTime, peso, toISODate } from '../utils/format.js';
+import {
+  formatDate,
+  formatDateLong,
+  formatDateTime,
+  formatEventTime,
+  formatMobile,
+  formatTime,
+  peso,
+  toISODate
+} from '../utils/format.js';
 import { saveElementAsPdf } from '../utils/savePdf.js';
 import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
@@ -35,8 +44,10 @@ const minimumOf = (detail) => detail.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT;
 function CancellationTerm({ detail, day }) {
   return (
     <li>
-      Before you pay, you can cancel online any time before {day}. After you pay, you can cancel online until {formatDateLong(cancelDeadline(detail))}, which is {cancelWindowText()}, and only
-      before we start preparing. After that, message us in your chat or call {BUSINESS.phone}. We return everything you paid; if we return less, we tell you the amount and the reason in your chat.
+      Before you pay, you can cancel online any time before {day}. After you pay, you can cancel online until{' '}
+      {formatDateLong(cancelDeadline(detail))}, which is {cancelWindowText()}, and only before we start preparing. After
+      that, message us in your chat or call {BUSINESS.phone}. We return everything you paid; if we return less, we tell
+      you the amount and the reason in your chat.
     </li>
   );
 }
@@ -63,26 +74,48 @@ export function documentsFor(detail) {
     kind: 'contract',
     name: `Contract-${detail.ref}.pdf`,
     available: Boolean(detail.quotation),
-    note: !detail.quotation ? 'Available once the quotation is sent' : contractFinal ? 'Final' : 'Draft · final once confirmed'
+    note: !detail.quotation
+      ? 'Available once the quotation is sent'
+      : contractFinal
+        ? 'Final'
+        : 'Draft · final once confirmed'
   });
   // One receipt per verified payment
   detail.payments
     .filter((p) => p.status === 'verified')
     .forEach((p) => {
-      docs.push({ key: `receipt-${p.id}`, kind: 'receipt', name: `Receipt-${p.receiptNo}.pdf`, available: true, paymentId: p.id, note: `${peso(p.amount)} · ${PAYMENT_METHODS[p.method]}` });
+      docs.push({
+        key: `receipt-${p.id}`,
+        kind: 'receipt',
+        name: `Receipt-${p.receiptNo}.pdf`,
+        available: true,
+        paymentId: p.id,
+        note: `${peso(p.amount)} · ${PAYMENT_METHODS[p.method]}`
+      });
     });
   return docs;
 }
 
 // Heading printed on each document type (an equipment rental's contract has its own title)
-const TITLES = { quotation: 'Quotation', contract: 'Catering Service Contract', rentalContract: 'Equipment Rental Contract', receipt: 'Official Receipt' };
+const TITLES = {
+  quotation: 'Quotation',
+  contract: 'Catering Service Contract',
+  rentalContract: 'Equipment Rental Contract',
+  receipt: 'Official Receipt'
+};
 
 /** One label/amount row in a document's totals. */
 function Line({ label, value, strong, muted }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 0.6 }}>
-      <Typography sx={{ fontSize: 13, color: muted ? tokens.textMuted : tokens.textSecondary, fontWeight: strong ? 700 : 400 }}>{label}</Typography>
-      <Typography sx={{ fontSize: strong ? 15 : 13, fontWeight: strong ? 800 : 600, color: tokens.textPrimary }}>{value}</Typography>
+      <Typography
+        sx={{ fontSize: 13, color: muted ? tokens.textMuted : tokens.textSecondary, fontWeight: strong ? 700 : 400 }}
+      >
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: strong ? 15 : 13, fontWeight: strong ? 800 : 600, color: tokens.textPrimary }}>
+        {value}
+      </Typography>
     </Box>
   );
 }
@@ -112,7 +145,10 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   const savePdf = async () => {
     setSaving(true);
     try {
-      const saved = await saveElementAsPdf(sheetRef.current, doc.name, { title: doc.name.replace(/\.pdf$/, ''), footer: `${BUSINESS.name} · ${doc.name.replace(/\.pdf$/, '')}` });
+      const saved = await saveElementAsPdf(sheetRef.current, doc.name, {
+        title: doc.name.replace(/\.pdf$/, ''),
+        footer: `${BUSINESS.name} · ${doc.name.replace(/\.pdf$/, '')}`
+      });
       if (saved) notify(`${doc.name} saved.`);
     } catch (e) {
       notify("Couldn't create the PDF. Use Print and choose Save as PDF instead.", 'error');
@@ -129,7 +165,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   // For receipts: the payment the receipt is for
   const payment = doc.paymentId ? detail.payments.find((p) => p.id === doc.paymentId) : null;
   // For quotations: the verified payments, oldest first, listed in the payment record
-  const verifiedPayments = detail.payments.filter((p) => p.status === 'verified').sort((a, b) => a.verifiedAt - b.verifiedAt);
+  const verifiedPayments = detail.payments
+    .filter((p) => p.status === 'verified')
+    .sort((a, b) => a.verifiedAt - b.verifiedAt);
   // Money given back on this booking (0 when there were no refunds, or on an API answer before Phase 8)
   const refunded = detail.refunded || 0;
   // A cancelled or declined booking owes nothing more, so its quotation is never stamped "fully paid"
@@ -137,7 +175,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   // Admin's price for one add-on (0 on an estimate, where add-ons aren't priced yet)
   // What an add-on costs on this quotation: for one counted by the piece that is the unit price
   // times the quantity, which computeQuote has already worked out into `addonTotals`.
-  const addonPrice = (id) => (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
+  const addonPrice = (id) =>
+    (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
   // How many of an add-on were asked for (1 for anything not counted by the piece)
   const addonCount = (id) => (quote.addonQty && quote.addonQty[id]) || 1;
   // Guests above the package's default: the ones the sent quotation priced (none on one sent before the
@@ -146,16 +185,47 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
 
   return (
     <LightSurface>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={isPhone} className="tm-print-root" scroll="body">
+      <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="md"
+        fullScreen={isPhone}
+        className="tm-print-root"
+        scroll="body"
+      >
         {/* Top bar. Sticky, so on a phone the close button is always in reach; a long file name ends in "…" */}
-        <Box className="tm-no-print" sx={{ position: 'sticky', top: 0, zIndex: 1, px: 2, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, borderBottom: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
-          <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>{doc.name}</Typography>
+        <Box
+          className="tm-no-print"
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            px: 2,
+            py: 1.25,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            borderBottom: `1px solid ${tokens.cardLightBorder}`,
+            backgroundColor: tokens.surfaceSubtle
+          }}
+        >
+          <Typography noWrap sx={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
+            {doc.name}
+          </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             {/* Print opens the browser's print window; Save PDF downloads the file without it */}
             <Button size="small" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
               Print
             </Button>
-            <Button size="small" variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} disabled={saving} onClick={savePdf}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<PictureAsPdfOutlinedIcon />}
+              disabled={saving}
+              onClick={savePdf}
+            >
               {saving ? 'Saving…' : 'Save PDF'}
             </Button>
             <IconButton size="small" onClick={onClose} aria-label="Close document">
@@ -169,7 +239,12 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
           {/* Letterhead */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Box component="img" src={LOGO_SRC} alt="" sx={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${tokens.gold}` }} />
+              <Box
+                component="img"
+                src={LOGO_SRC}
+                alt=""
+                sx={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${tokens.gold}` }}
+              />
               <Box>
                 <Typography sx={{ fontSize: 18, fontWeight: 800 }}>{BUSINESS.name}</Typography>
                 <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>{BUSINESS.address}</Typography>
@@ -180,7 +255,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
             </Box>
             {/* A title too long to sit beside the name (the contracts, on A4) moves under it, still on the right */}
             <Box sx={{ ml: { sm: 'auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
-              <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark }}>{TITLES[rental && doc.kind === 'contract' ? 'rentalContract' : doc.kind]}</Typography>
+              <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark }}>
+                {TITLES[rental && doc.kind === 'contract' ? 'rentalContract' : doc.kind]}
+              </Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {doc.kind === 'receipt' ? `No. ${payment.receiptNo}` : `Ref. ${detail.ref}`}
               </Typography>
@@ -202,24 +279,40 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
               </Typography>
               <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.customerName}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{detail.customerEmail}</Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{formatMobile(detail.customerMobile)}</Typography>
+              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                {formatMobile(detail.customerMobile)}
+              </Typography>
             </Box>
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Event</Typography>
               <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.eventName}</Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
                 {/* An event shows its start and end ("6:00 pm – 10:00 pm"); a rental its pick-up or delivery time */}
-                {formatDateLong(detail.date)} · {rental ? `${delivered ? 'delivery at ' : 'pick-up at '}${formatTime(detail.startTime)}` : formatEventTime(detail)}
+                {formatDateLong(detail.date)} ·{' '}
+                {rental
+                  ? `${delivered ? 'delivery at ' : 'pick-up at '}${formatTime(detail.startTime)}`
+                  : formatEventTime(detail)}
               </Typography>
               <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                {rental && !delivered ? `Pick up at ${RENTAL.pickupAddress}` : `${detail.venue.name}, ${detail.venue.address}, ${detail.venue.city}`}
+                {rental && !delivered
+                  ? `Pick up at ${RENTAL.pickupAddress}`
+                  : `${detail.venue.name}, ${detail.venue.address}, ${detail.venue.city}`}
               </Typography>
             </Box>
           </Box>
 
           {/* Receipt: payment summary. Quotation/contract: package, food request and price breakdown. */}
           {doc.kind === 'receipt' ? (
-            <Box data-pdf-keep sx={{ mt: 4, p: 3, borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, backgroundColor: tokens.surfaceSubtle }}>
+            <Box
+              data-pdf-keep
+              sx={{
+                mt: 4,
+                p: 3,
+                borderRadius: 2,
+                border: `1px solid ${tokens.cardLightBorder}`,
+                backgroundColor: tokens.surfaceSubtle
+              }}
+            >
               <Line label="Payment for" value={`${paymentKindLabel(payment.kind)} · ${detail.ref}`} />
               <Line label="Payment method" value={PAYMENT_METHODS[payment.method]} />
               {payment.referenceNo && <Line label="Reference no." value={payment.referenceNo} />}
@@ -233,43 +326,61 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
                     {detail.packageName} · {delivered ? 'Delivery' : 'Pick up'}
                   </Typography>
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Damage Fee per Piece</Typography>
-                  <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{detail.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                    Damage Fee per Piece
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
+                    {detail.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}
+                  </Typography>
                 </Box>
               ) : (
-              <Box sx={{ mt: 4 }}>
-                <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
-                  {detail.packageName} · {detail.guests} guests · {detail.serviceType}
-                </Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-                  <Box>
-                    {/* For the booking's guest count: plates, chairs and tables grown, the other items as the quotation set them */}
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>{extraGuests ? `Package Includes, for ${detail.guests} Guests` : 'Package Includes'}</Typography>
-                    <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{bookingItems(detail).map(formatBookingItem).join(', ')}</Typography>
+                <Box sx={{ mt: 4 }}>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
+                    {detail.packageName} · {detail.guests} guests · {detail.serviceType}
+                  </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+                    <Box>
+                      {/* For the booking's guest count: plates, chairs and tables grown, the other items as the quotation set them */}
+                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                        {extraGuests ? `Package Includes, for ${detail.guests} Guests` : 'Package Includes'}
+                      </Typography>
+                      <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
+                        {bookingItems(detail).map(formatBookingItem).join(', ')}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      {/* A buffet prints its four dishes and the drinks; catering only says there is no food */}
+                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                        {includesFood(detail.serviceType) ? 'Buffet Menu' : 'Food'}
+                      </Typography>
+                      <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
+                        {includesFood(detail.serviceType)
+                          ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${buffetDrinks(detail.menu).toLowerCase()}.`
+                          : 'Catering only: equipment and setup, no food.'}
+                      </Typography>
+                      {dessertSummary(detail.menu) && (
+                        <Typography sx={{ mt: 0.5, fontSize: 12.5 }}>
+                          Dessert (additional charge): {dessertSummary(detail.menu)}
+                        </Typography>
+                      )}
+                      {detail.foodNotes && (
+                        <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>
+                          Note: {detail.foodNotes}
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
-                  <Box>
-                    {/* A buffet prints its four dishes and the drinks; catering only says there is no food */}
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
-                      {includesFood(detail.serviceType) ? 'Buffet Menu' : 'Food'}
-                    </Typography>
-                    <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
-                      {includesFood(detail.serviceType)
-                        ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${buffetDrinks(detail.menu).toLowerCase()}.`
-                        : 'Catering only: equipment and setup, no food.'}
-                    </Typography>
-                    {dessertSummary(detail.menu) && <Typography sx={{ mt: 0.5, fontSize: 12.5 }}>Dessert (additional charge): {dessertSummary(detail.menu)}</Typography>}
-                    {detail.foodNotes && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>Note: {detail.foodNotes}</Typography>}
-                  </Box>
-                </Box>
-                {/* The look agreed for the event (the booking form's Theme and Colors), so it is on paper too.
+                  {/* The look agreed for the event (the booking form's Theme and Colors), so it is on paper too.
                     Each colour prints its square, name and code, which still reads in black and white. */}
-                {!stylingEmpty(detail.styling) && (
-                  <Box data-pdf-keep sx={{ mt: 1.5 }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Theme and Colors</Typography>
-                    <StylingSummary styling={detail.styling} compact />
-                  </Box>
-                )}
-              </Box>
+                  {!stylingEmpty(detail.styling) && (
+                    <Box data-pdf-keep sx={{ mt: 1.5 }}>
+                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                        Theme and Colors
+                      </Typography>
+                      <StylingSummary styling={detail.styling} compact />
+                    </Box>
+                  )}
+                </Box>
               )}
 
               {/* Price breakdown: package, extra guests, food, each add-on, other charges, discount.
@@ -278,26 +389,56 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                 {rental ? (
                   <>
                     {(quote.rentalItems || []).map((line) => (
-                      <Line key={line.itemId} label={`${line.name} (${line.qty} x ${peso(line.price)})`} value={peso(line.total)} />
+                      <Line
+                        key={line.itemId}
+                        label={`${line.name} (${line.qty} x ${peso(line.price)})`}
+                        value={peso(line.total)}
+                      />
                     ))}
-                    <Line label={delivered ? 'Delivery' : `Pick up at ${RENTAL.pickupAddress}`} value={delivered ? peso(quote.deliveryFee) : 'Free'} />
+                    <Line
+                      label={delivered ? 'Delivery' : `Pick up at ${RENTAL.pickupAddress}`}
+                      value={delivered ? peso(quote.deliveryFee) : 'Free'}
+                    />
                     {(quote.damageCharges || []).map((line) => (
-                      <Line key={`damage-${line.itemId}`} label={`Damaged or missing: ${line.name} (${line.qty} x ${peso(line.fee)})`} value={peso(line.total)} />
+                      <Line
+                        key={`damage-${line.itemId}`}
+                        label={`Damaged or missing: ${line.name} (${line.qty} x ${peso(line.fee)})`}
+                        value={peso(line.total)}
+                      />
                     ))}
                   </>
                 ) : (
                   <>
-                    <Line label={`Package (default: ${detail.package.guests} guests)`} value={peso(quote.packageTotal)} />
+                    <Line
+                      label={`Package (default: ${detail.package.guests} guests)`}
+                      value={peso(quote.packageTotal)}
+                    />
                     {/* The equipment for the guests above the package's default, priced in the quotation */}
-                    {extraGuests > 0 && <Line label={`Extra ${extraGuests} guests (equipment)`} value={detail.quotation ? peso(quote.extraGuestsCharge || 0) : 'To be quoted'} />}
+                    {extraGuests > 0 && (
+                      <Line
+                        label={`Extra ${extraGuests} guests (equipment)`}
+                        value={detail.quotation ? peso(quote.extraGuestsCharge || 0) : 'To be quoted'}
+                      />
+                    )}
                   </>
                 )}
                 {/* The buffet is charged per person, so the line shows the sum it came from */}
-                {quote.plates > 0 && <Line label={`Buffet (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`} value={peso(quote.food)} />}
+                {quote.plates > 0 && (
+                  <Line
+                    label={`Buffet (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`}
+                    value={peso(quote.food)}
+                  />
+                )}
                 {detail.addons.map((a) => (
-                  <Line key={a.id} label={a.hasQuantity ? `${a.name} x ${addonCount(a.id)}` : a.name} value={peso(addonPrice(a.id))} />
+                  <Line
+                    key={a.id}
+                    label={a.hasQuantity ? `${a.name} x ${addonCount(a.id)}` : a.name}
+                    value={peso(addonPrice(a.id))}
+                  />
                 ))}
-                {quote.otherCharges > 0 && <Line label={quote.otherLabel || 'Other charges'} value={peso(quote.otherCharges)} />}
+                {quote.otherCharges > 0 && (
+                  <Line label={quote.otherLabel || 'Other charges'} value={peso(quote.otherCharges)} />
+                )}
                 {quote.discount > 0 && <Line label="Discount" value={`− ${peso(quote.discount)}`} />}
                 <Divider sx={{ my: 1 }} />
                 <Line label="Net total" value={peso(quote.net)} strong />
@@ -310,7 +451,18 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                 <Box sx={{ mt: 4 }}>
                   {/* Before confirmation the contract is shown as a draft for the customer to review */}
                   {!['confirmed', 'completed'].includes(detail.status) && (
-                    <Typography sx={{ mb: 2, p: 1.25, fontSize: 12.5, fontWeight: 600, textAlign: 'center', borderRadius: 1, border: `1px dashed ${tokens.goldDark}`, color: tokens.goldDark }}>
+                    <Typography
+                      sx={{
+                        mb: 2,
+                        p: 1.25,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        borderRadius: 1,
+                        border: `1px dashed ${tokens.goldDark}`,
+                        color: tokens.goldDark
+                      }}
+                    >
                       Draft · This contract becomes final once your booking is confirmed.
                     </Typography>
                   )}
@@ -318,51 +470,72 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   {rental ? (
                     <RentalTerms detail={detail} quote={quote} delivered={delivered} />
                   ) : (
-                  <Box component="ol" sx={{ m: 0, pl: 2.5, fontSize: 12.5, lineHeight: 1.7, color: tokens.textSecondary }}>
-                    {/* The minimum is the one this booking was made with, not today's setting */}
-                    <li>
-                      {minimum < quote.net
-                        ? `A downpayment of at least ${peso(minimum)} secures the event date. You choose how much to pay, up to the full amount. The balance is due on or before the event day.`
-                        : `Paying the full amount of ${peso(quote.net)} secures the event date.`}
-                    </li>
-                    {/* The per-person rate is read off this quotation, not today's price list, so an old
+                    <Box
+                      component="ol"
+                      sx={{ m: 0, pl: 2.5, fontSize: 12.5, lineHeight: 1.7, color: tokens.textSecondary }}
+                    >
+                      {/* The minimum is the one this booking was made with, not today's setting */}
+                      <li>
+                        {minimum < quote.net
+                          ? `A downpayment of at least ${peso(minimum)} secures the event date. You choose how much to pay, up to the full amount. The balance is due on or before the event day.`
+                          : `Paying the full amount of ${peso(quote.net)} secures the event date.`}
+                      </li>
+                      {/* The per-person rate is read off this quotation, not today's price list, so an old
                         contract keeps printing the rate it was actually agreed at. */}
-                    {includesFood(detail.serviceType) ? (
+                      {includesFood(detail.serviceType) ? (
+                        <li>
+                          The buffet is served plated and charged per person at {peso(quote.pricePerPlate)} per plate,
+                          as shown above, multiplied by the guest count. It covers four dishes, with up to two in each
+                          category, and {buffetDrinks(detail.menu).toLowerCase()} for every guest.
+                        </li>
+                      ) : (
+                        <li>
+                          This booking is catering only: equipment and setup, with no food and no per-person charge.
+                        </li>
+                      )}
                       <li>
-                        The buffet is served plated and charged per person at {peso(quote.pricePerPlate)} per plate, as shown above, multiplied by the guest count. It covers four dishes, with up to two in each category, and {buffetDrinks(detail.menu).toLowerCase()} for every guest.
+                        The final guest count may be adjusted up to 7 days before the event.{' '}
+                        <b>
+                          Any change to it changes the total, so we send you a revised quotation; the new amount applies
+                          only from the quotation we send you, never before.
+                        </b>{' '}
+                        Increases made later than 7 days before the event are billed per guest on the day.
                       </li>
-                    ) : (
-                      <li>This booking is catering only: equipment and setup, with no food and no per-person charge.</li>
-                    )}
-                    <li>
-                      The final guest count may be adjusted up to 7 days before the event. <b>Any change to it changes the total, so we send you a revised quotation; the new amount applies only
-                      from the quotation we send you, never before.</b> Increases made later than 7 days before the event are billed per guest on the day.
-                    </li>
-                    <li>If a revised quotation is lower than what you have paid, we return the difference.</li>
-                    {/* More guests than the package's default: what grows, and that the rest was set in the quotation */}
-                    {extraGuests > 0 && (
+                      <li>If a revised quotation is lower than what you have paid, we return the difference.</li>
+                      {/* More guests than the package's default: what grows, and that the rest was set in the quotation */}
+                      {extraGuests > 0 && (
+                        <li>
+                          The package covers {detail.package.guests} guests. For your{' '}
+                          {detail.package.guests + extraGuests} guests, the plates, glasses, cutlery, chairs and tables
+                          grow with the guest count, the other items are as listed above, and the equipment for the{' '}
+                          {extraGuests} extra guests is charged as shown.
+                        </li>
+                      )}
+                      <CancellationTerm detail={detail} day="the event day" />
+                      {/* Same setup time the booking calendar keeps free before every event (RULES.eventBufferHours) */}
                       <li>
-                        The package covers {detail.package.guests} guests. For your {detail.package.guests + extraGuests} guests, the plates, glasses, cutlery, chairs and tables grow with the guest count,
-                        the other items are as listed above, and the equipment for the {extraGuests} extra guests is charged as shown.
+                        The client provides safe access to the venue at least {RULES.eventBufferHours} hours before the
+                        start time for setup.
                       </li>
-                    )}
-                    <CancellationTerm detail={detail} day="the event day" />
-                    {/* Same setup time the booking calendar keeps free before every event (RULES.eventBufferHours) */}
-                    <li>The client provides safe access to the venue at least {RULES.eventBufferHours} hours before the start time for setup.</li>
-                    {/* The booked start and end time (older bookings without an end time keep the old wording) */}
-                    <li>
-                      {detail.endTime
-                        ? `The service runs ${formatEventTime(detail)}, as booked. Extending it past the end time is billed at ₱3,500 per hour.`
-                        : 'Service time is as agreed with our team. Extensions are billed at ₱3,500 per hour.'}
-                    </li>
-                    <li>Tres Marias is responsible for all catering equipment it brings. Loss or damage caused by guests is charged at cost.</li>
-                  </Box>
+                      {/* The booked start and end time (older bookings without an end time keep the old wording) */}
+                      <li>
+                        {detail.endTime
+                          ? `The service runs ${formatEventTime(detail)}, as booked. Extending it past the end time is billed at ₱3,500 per hour.`
+                          : 'Service time is as agreed with our team. Extensions are billed at ₱3,500 per hour.'}
+                      </li>
+                      <li>
+                        Tres Marias is responsible for all catering equipment it brings. Loss or damage caused by guests
+                        is charged at cost.
+                      </li>
+                    </Box>
                   )}
                   <Box data-pdf-keep sx={{ mt: 5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
                     {[detail.customerName, `For ${BUSINESS.shortName}`].map((who) => (
                       <Box key={who} sx={{ pt: 1, borderTop: `1px solid ${tokens.textPrimary}` }}>
                         <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{who}</Typography>
-                        <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>Signature over printed name</Typography>
+                        <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
+                          Signature over printed name
+                        </Typography>
                       </Box>
                     ))}
                   </Box>
@@ -375,13 +548,43 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
                     <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Payment Record</Typography>
                     {verifiedPayments.length > 0 && detail.balance <= 0 && !ended && (
-                      <Typography sx={{ px: 1.25, py: 0.25, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', borderRadius: 1, border: '2px solid #047857', color: '#047857' }}>FULLY PAID</Typography>
+                      <Typography
+                        sx={{
+                          px: 1.25,
+                          py: 0.25,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          letterSpacing: '0.08em',
+                          borderRadius: 1,
+                          border: '2px solid #047857',
+                          color: '#047857'
+                        }}
+                      >
+                        FULLY PAID
+                      </Typography>
                     )}
                   </Box>
                   {verifiedPayments.length === 0 ? (
-                    <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>No payments received yet.</Typography>
+                    <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                      No payments received yet.
+                    </Typography>
                   ) : (
-                    <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, '& th, & td': { py: 0.75, px: 0.5, textAlign: 'left', borderBottom: `1px solid ${tokens.cardLightBorder}` }, '& th': { fontSize: 12, fontWeight: 700, color: tokens.textMuted }, '& .amt': { textAlign: 'right' } }}>
+                    <Box
+                      component="table"
+                      sx={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        fontSize: 12.5,
+                        '& th, & td': {
+                          py: 0.75,
+                          px: 0.5,
+                          textAlign: 'left',
+                          borderBottom: `1px solid ${tokens.cardLightBorder}`
+                        },
+                        '& th': { fontSize: 12, fontWeight: 700, color: tokens.textMuted },
+                        '& .amt': { textAlign: 'right' }
+                      }}
+                    >
                       <thead>
                         <tr>
                           <th>Date Paid</th>
@@ -428,7 +631,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     : 'The package covers the equipment and service listed above; the food is cooked to your request and priced separately.'}
                   {detail.quotation?.note ? ` Note: ${detail.quotation.note}` : ''}
                   {/* A request is approved when the customer accepts its quotation */}
-                  {detail.status === 'pending' && detail.quotation ? ' Accept it on your reservation page to approve your reservation.' : ''}
+                  {detail.status === 'pending' && detail.quotation
+                    ? ' Accept it on your reservation page to approve your reservation.'
+                    : ''}
                 </Typography>
               )}
             </>
@@ -466,11 +671,18 @@ function RentalTerms({ detail, quote, delivered }) {
           : `You pick up the items at ${RENTAL.pickupAddress} at the time above, free of charge, and bring them back there as agreed with our team.`}
       </li>
       <li>
-        The items are counted with you when you receive them and again when they come back. A piece that comes back damaged or does not come back is charged at its damage fee, listed above for each item.{' '}
-        <b>Damage charges are added through a revised quotation we send you; the new amount applies only from that quotation, never before.</b>
+        The items are counted with you when you receive them and again when they come back. A piece that comes back
+        damaged or does not come back is charged at its damage fee, listed above for each item.{' '}
+        <b>
+          Damage charges are added through a revised quotation we send you; the new amount applies only from that
+          quotation, never before.
+        </b>
       </li>
       <li>
-        <b>Any change to the items or to pick up or delivery changes the total, so we send you a revised quotation; the new amount applies only from the quotation we send you, never before.</b>{' '}
+        <b>
+          Any change to the items or to pick up or delivery changes the total, so we send you a revised quotation; the
+          new amount applies only from the quotation we send you, never before.
+        </b>{' '}
         If a revised quotation is lower than what you have paid, we return the difference.
       </li>
       <CancellationTerm detail={detail} day="the day you need the items" />

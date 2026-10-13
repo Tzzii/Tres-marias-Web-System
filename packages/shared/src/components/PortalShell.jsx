@@ -117,7 +117,10 @@ export default function PortalShell({
   };
 
   // Items match their path and everything under it, unless marked `exact`
-  const isActive = (item) => (item.match || [item.to]).some((pattern) => matchPath({ path: pattern, end: Boolean(item.exact) }, location.pathname));
+  const isActive = (item) =>
+    (item.match || [item.to]).some((pattern) =>
+      matchPath({ path: pattern, end: Boolean(item.exact) }, location.pathname)
+    );
 
   const unread = notifications.filter((n) => !readIds.has(n.id));
 
@@ -175,21 +178,54 @@ export default function PortalShell({
           backgroundColor: active ? tokens.sidebarActiveBg : 'transparent',
           borderLeft: `3px solid ${active ? tokens.gold : 'transparent'}`,
           transition: EASE,
-          '&:hover': { backgroundColor: active ? tokens.sidebarActiveHover : tokens.sidebarHover, color: tokens.sidebarActiveText }
+          '&:hover': {
+            backgroundColor: active ? tokens.sidebarActiveHover : tokens.sidebarHover,
+            color: tokens.sidebarActiveText
+          }
         }}
       >
-        <Badge color="error" variant={narrow ? 'dot' : 'standard'} badgeContent={narrow ? (item.badge ? 1 : 0) : 0} invisible={!narrow || !item.badge}>
+        <Badge
+          color="error"
+          variant={narrow ? 'dot' : 'standard'}
+          badgeContent={narrow ? (item.badge ? 1 : 0) : 0}
+          invisible={!narrow || !item.badge}
+        >
           <item.icon sx={{ fontSize: 19 }} />
         </Badge>
         {!narrow && (
           <>
             {/* minWidth 0 lets a long label shrink (with …) instead of pushing the badge out of line */}
-            <Box component="span" sx={{ flex: 1, minWidth: 0, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Box
+              component="span"
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                textAlign: 'left',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
               {item.label}
             </Box>
             {/* Count bubble; flexShrink 0 keeps every badge the same size at the right edge */}
             {item.badge ? (
-              <Box component="span" sx={{ flexShrink: 0, minWidth: 20, height: 20, px: 0.75, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700, color: '#fff', backgroundColor: tokens.red }}>
+              <Box
+                component="span"
+                sx={{
+                  flexShrink: 0,
+                  minWidth: 20,
+                  height: 20,
+                  px: 0.75,
+                  borderRadius: 999,
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: '#fff',
+                  backgroundColor: tokens.red
+                }}
+              >
                 {item.badge > 99 ? '99+' : item.badge}
               </Box>
             ) : null}
@@ -216,7 +252,9 @@ export default function PortalShell({
 
   const secondaryList = (forceExpanded) =>
     secondaryNavItems.length > 0 && (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>{secondaryNavItems.map((item) => renderNavItem(item, forceExpanded))}</Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        {secondaryNavItems.map((item) => renderNavItem(item, forceExpanded))}
+      </Box>
     );
 
   const hasBottomNav = Boolean(bottomNav && bottomNav.length);
@@ -228,7 +266,14 @@ export default function PortalShell({
   }, [location.pathname, bottomNav]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: tokens.bgBase, backgroundImage: tokens.gradientPage, backgroundAttachment: 'fixed' }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: tokens.bgBase,
+        backgroundImage: tokens.gradientPage,
+        backgroundAttachment: 'fixed'
+      }}
+    >
       {/* --tm-bottom-nav: height of the phone tab bar (56px plus the iPhone home-bar area), 0px where there
           is none. Set on :root so fixed bars and windows outside this frame (e.g. the booking bar of the customer's Book page) see it too. */}
       <GlobalStyles
@@ -240,14 +285,48 @@ export default function PortalShell({
         })}
       />
       {/* Hidden "Skip to content" link; appears when keyboard users press Tab */}
-      <Box component="a" href="#main" sx={{ position: 'absolute', left: -9999, '&:focus': { left: 12, top: 12, zIndex: 2000, px: 2, py: 1, borderRadius: 1, backgroundColor: tokens.gold, color: tokens.onGold, fontWeight: 700 } }}>
+      <Box
+        component="a"
+        href="#main"
+        sx={{
+          position: 'absolute',
+          left: -9999,
+          '&:focus': {
+            left: 12,
+            top: 12,
+            zIndex: 2000,
+            px: 2,
+            py: 1,
+            borderRadius: 1,
+            backgroundColor: tokens.gold,
+            color: tokens.onGold,
+            fontWeight: 700
+          }
+        }}
+      >
         Skip to content
       </Box>
 
       {/* ==================== TOP BAR ==================== */}
-      <AppBar className="tm-no-print" position="fixed" elevation={0} sx={{ height: tokens.headerHeight, justifyContent: 'center', backgroundColor: tokens.headerBg, color: tokens.textLight, borderBottom: `1px solid ${tokens.divider}`, zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+      <AppBar
+        className="tm-no-print"
+        position="fixed"
+        elevation={0}
+        sx={{
+          height: tokens.headerHeight,
+          justifyContent: 'center',
+          backgroundColor: tokens.headerBg,
+          color: tokens.textLight,
+          borderBottom: `1px solid ${tokens.divider}`,
+          zIndex: (theme) => theme.zIndex.drawer + 1
+        }}
+      >
         <Toolbar sx={{ gap: { xs: 1, md: 2 }, px: { xs: 1.5, md: 3 } }}>
-          <IconButton onClick={() => setDrawerOpen(true)} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', lg: 'none' }, color: tokens.textOnDarkSoft }}>
+          <IconButton
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open navigation"
+            sx={{ display: { xs: 'inline-flex', lg: 'none' }, color: tokens.textOnDarkSoft }}
+          >
             <MenuRoundedIcon />
           </IconButton>
           <BrandMark subtitle={null} hideTextOnXs onClick={() => navigate(navItems[0].to)} />
@@ -259,10 +338,29 @@ export default function PortalShell({
                 component="form"
                 role="search"
                 onSubmit={submitSearch}
-                sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, width: '100%', maxWidth: 440, px: 1.75, py: 0.75, borderRadius: 999, backgroundColor: tokens.shellInset, border: `1px solid ${tokens.shellBorder}`, transition: EASE, '&:focus-within': { borderColor: tokens.gold, backgroundColor: tokens.shellHover } }}
+                sx={{
+                  display: { xs: 'none', md: 'flex' },
+                  alignItems: 'center',
+                  gap: 1,
+                  width: '100%',
+                  maxWidth: 440,
+                  px: 1.75,
+                  py: 0.75,
+                  borderRadius: 999,
+                  backgroundColor: tokens.shellInset,
+                  border: `1px solid ${tokens.shellBorder}`,
+                  transition: EASE,
+                  '&:focus-within': { borderColor: tokens.gold, backgroundColor: tokens.shellHover }
+                }}
               >
                 <SearchRoundedIcon sx={{ fontSize: 18, color: tokens.textOnDarkMuted }} />
-                <InputBase value={query} onChange={(e) => setQuery(e.target.value)} placeholder={search.placeholder} inputProps={{ 'aria-label': search.placeholder, autoComplete: 'off' }} sx={{ flex: 1, fontSize: 13.5, color: tokens.textLight }} />
+                <InputBase
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={search.placeholder}
+                  inputProps={{ 'aria-label': search.placeholder, autoComplete: 'off' }}
+                  sx={{ flex: 1, fontSize: 13.5, color: tokens.textLight }}
+                />
               </Box>
             )}
           </Box>
@@ -270,7 +368,15 @@ export default function PortalShell({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.25, sm: 0.75 }, flexShrink: 0 }}>
             {/* Phone / tablet: the magnifier opens the search bar over the top bar */}
             {search && (
-              <IconButton onClick={() => setSearchOpen(true)} aria-label="Search" sx={{ display: { xs: 'inline-flex', md: 'none' }, color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}>
+              <IconButton
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search"
+                sx={{
+                  display: { xs: 'inline-flex', md: 'none' },
+                  color: tokens.textOnDarkSoft,
+                  '&:hover': { color: tokens.gold }
+                }}
+              >
                 <SearchRoundedIcon sx={{ fontSize: 22 }} />
               </IconButton>
             )}
@@ -280,7 +386,9 @@ export default function PortalShell({
                   setNotifAnchor(e.currentTarget);
                   if (onNotificationsOpen) onNotificationsOpen();
                 }}
-                aria-label={`Notifications, ${unread.length} unread`} sx={{ color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}>
+                aria-label={`Notifications, ${unread.length} unread`}
+                sx={{ color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}
+              >
                 <Badge badgeContent={unread.length} color="error" max={9}>
                   <NotificationsNoneRoundedIcon sx={{ fontSize: 21 }} />
                 </Badge>
@@ -294,12 +402,53 @@ export default function PortalShell({
               aria-haspopup="menu"
               aria-expanded={Boolean(profileAnchor)}
               endIcon={<ExpandMoreRoundedIcon sx={{ fontSize: 14, display: { xs: 'none', sm: 'block' } }} />}
-              sx={{ gap: 1, minWidth: 0, pl: 0.5, pr: { xs: 0.5, sm: 1.25 }, py: 0.5, borderRadius: 999, color: tokens.textLight, border: `1px solid ${tokens.shellBorder}`, '&:hover': { backgroundColor: tokens.shellInset, borderColor: tokens.gold } }}
+              sx={{
+                gap: 1,
+                minWidth: 0,
+                pl: 0.5,
+                pr: { xs: 0.5, sm: 1.25 },
+                py: 0.5,
+                borderRadius: 999,
+                color: tokens.textLight,
+                border: `1px solid ${tokens.shellBorder}`,
+                '&:hover': { backgroundColor: tokens.shellInset, borderColor: tokens.gold }
+              }}
             >
-              <Avatar sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, color: tokens.onGold, backgroundColor: tokens.gold }}>{initials(user?.name)}</Avatar>
-              <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.15, maxWidth: 160 }}>
-                <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 700, maxWidth: 160 }}>{user?.name}</Typography>
-                <Typography sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.09em', color: tokens.goldText, textTransform: 'uppercase' }}>{user?.role}</Typography>
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: tokens.onGold,
+                  backgroundColor: tokens.gold
+                }}
+              >
+                {initials(user?.name)}
+              </Avatar>
+              <Box
+                sx={{
+                  display: { xs: 'none', md: 'flex' },
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  lineHeight: 1.15,
+                  maxWidth: 160
+                }}
+              >
+                <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 700, maxWidth: 160 }}>
+                  {user?.name}
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    letterSpacing: '0.09em',
+                    color: tokens.goldText,
+                    textTransform: 'uppercase'
+                  }}
+                >
+                  {user?.role}
+                </Typography>
               </Box>
             </Button>
           </Box>
@@ -312,14 +461,47 @@ export default function PortalShell({
               role="search"
               onSubmit={submitSearch}
               onKeyDown={(e) => e.key === 'Escape' && setSearchOpen(false)}
-              sx={{ position: 'absolute', inset: 0, zIndex: 1, display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1, px: 1.5, backgroundColor: tokens.headerBg }}
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 1,
+                display: { xs: 'flex', md: 'none' },
+                alignItems: 'center',
+                gap: 1,
+                px: 1.5,
+                backgroundColor: tokens.headerBg
+              }}
             >
-              <IconButton onClick={() => setSearchOpen(false)} aria-label="Close search" sx={{ color: tokens.textOnDarkSoft }}>
+              <IconButton
+                onClick={() => setSearchOpen(false)}
+                aria-label="Close search"
+                sx={{ color: tokens.textOnDarkSoft }}
+              >
                 <ArrowBackRoundedIcon />
               </IconButton>
-              <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, px: 1.75, py: 0.75, borderRadius: 999, backgroundColor: tokens.shellHover, border: `1px solid ${tokens.gold}` }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1.75,
+                  py: 0.75,
+                  borderRadius: 999,
+                  backgroundColor: tokens.shellHover,
+                  border: `1px solid ${tokens.gold}`
+                }}
+              >
                 <SearchRoundedIcon sx={{ fontSize: 18, color: tokens.textOnDarkMuted }} />
-                <InputBase autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={search.placeholder} inputProps={{ 'aria-label': search.placeholder, autoComplete: 'off', enterKeyHint: 'search' }} sx={{ flex: 1, fontSize: 16, color: tokens.textLight }} />
+                <InputBase
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={search.placeholder}
+                  inputProps={{ 'aria-label': search.placeholder, autoComplete: 'off', enterKeyHint: 'search' }}
+                  sx={{ flex: 1, fontSize: 16, color: tokens.textLight }}
+                />
               </Box>
             </Box>
           )}
@@ -343,53 +525,87 @@ export default function PortalShell({
         disableScrollLock
         disableEnforceFocus
         sx={{ pointerEvents: 'none' }}
-        slotProps={{ paper: { sx: { mt: 1, width: 360, maxWidth: 'calc(100vw - 24px)', borderRadius: 1.5, pointerEvents: 'auto' } } }}
+        slotProps={{
+          paper: { sx: { mt: 1, width: 360, maxWidth: 'calc(100vw - 24px)', borderRadius: 1.5, pointerEvents: 'auto' } }
+        }}
         MenuListProps={{ sx: { py: 0 } }}
       >
         {/* Clicking anywhere outside the list closes it (clicking the bell again also closes it) */}
         <ClickAwayListener onClickAway={() => setNotifAnchor(null)}>
-        <Box>
-        <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textLight }}>Notifications</Typography>
-          <Button size="small" disabled={!unread.length} onClick={() => markRead(notifications.map((n) => n.id))} sx={{ fontSize: 12, minWidth: 0, p: 0 }}>
-            Mark all as read
-          </Button>
-        </Box>
-        <Divider sx={{ borderColor: tokens.dividerFaint }} />
-        {notifications.length === 0 ? (
-          <Box sx={{ px: 3, py: 4, textAlign: 'center', color: tokens.textOnDarkMuted }}>
-            <NotificationsNoneRoundedIcon sx={{ fontSize: 32, opacity: 0.55 }} />
-            <Typography sx={{ mt: 1, fontSize: 13, fontWeight: 600, color: tokens.textOnDarkSoft }}>You're all caught up</Typography>
-            <Typography sx={{ mt: 0.5, fontSize: 12 }}>Updates about reservations and payments appear here.</Typography>
+          <Box>
+            <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textLight }}>Notifications</Typography>
+              <Button
+                size="small"
+                disabled={!unread.length}
+                onClick={() => markRead(notifications.map((n) => n.id))}
+                sx={{ fontSize: 12, minWidth: 0, p: 0 }}
+              >
+                Mark all as read
+              </Button>
+            </Box>
+            <Divider sx={{ borderColor: tokens.dividerFaint }} />
+            {notifications.length === 0 ? (
+              <Box sx={{ px: 3, py: 4, textAlign: 'center', color: tokens.textOnDarkMuted }}>
+                <NotificationsNoneRoundedIcon sx={{ fontSize: 32, opacity: 0.55 }} />
+                <Typography sx={{ mt: 1, fontSize: 13, fontWeight: 600, color: tokens.textOnDarkSoft }}>
+                  You're all caught up
+                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 12 }}>
+                  Updates about reservations and payments appear here.
+                </Typography>
+              </Box>
+            ) : (
+              <Box className="tm-scroll" sx={{ maxHeight: 380, overflowY: 'auto' }}>
+                {notifications.map((n) => {
+                  const isUnread = !readIds.has(n.id);
+                  return (
+                    <MenuItem
+                      key={n.id}
+                      // Clicking a notification marks it read, closes the menu and runs its onClick or opens its page
+                      onClick={() => {
+                        markRead([n.id]);
+                        setNotifAnchor(null);
+                        if (n.onClick) n.onClick();
+                        else if (n.to) navigate(n.to);
+                      }}
+                      sx={{
+                        alignItems: 'flex-start',
+                        gap: 1.25,
+                        py: 1.25,
+                        whiteSpace: 'normal',
+                        borderBottom: `1px solid ${tokens.dividerFaint}`
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          mt: 0.75,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          flexShrink: 0,
+                          backgroundColor: isUnread ? tokens.gold : 'transparent'
+                        }}
+                      />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: tokens.textLight }}>
+                          {n.title}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, lineHeight: 1.45, color: tokens.textOnDarkSoft }}>
+                          {n.body}
+                        </Typography>
+                        {n.at && (
+                          <Typography sx={{ mt: 0.25, fontSize: 11, color: tokens.textOnDarkMuted }}>
+                            {formatRelative(n.at)}
+                          </Typography>
+                        )}
+                      </Box>
+                    </MenuItem>
+                  );
+                })}
+              </Box>
+            )}
           </Box>
-        ) : (
-          <Box className="tm-scroll" sx={{ maxHeight: 380, overflowY: 'auto' }}>
-            {notifications.map((n) => {
-              const isUnread = !readIds.has(n.id);
-              return (
-                <MenuItem
-                  key={n.id}
-                  // Clicking a notification marks it read, closes the menu and runs its onClick or opens its page
-                  onClick={() => {
-                    markRead([n.id]);
-                    setNotifAnchor(null);
-                    if (n.onClick) n.onClick();
-                    else if (n.to) navigate(n.to);
-                  }}
-                  sx={{ alignItems: 'flex-start', gap: 1.25, py: 1.25, whiteSpace: 'normal', borderBottom: `1px solid ${tokens.dividerFaint}` }}
-                >
-                  <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: '50%', flexShrink: 0, backgroundColor: isUnread ? tokens.gold : 'transparent' }} />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: tokens.textLight }}>{n.title}</Typography>
-                    <Typography sx={{ fontSize: 12, lineHeight: 1.45, color: tokens.textOnDarkSoft }}>{n.body}</Typography>
-                    {n.at && <Typography sx={{ mt: 0.25, fontSize: 11, color: tokens.textOnDarkMuted }}>{formatRelative(n.at)}</Typography>}
-                  </Box>
-                </MenuItem>
-              );
-            })}
-          </Box>
-        )}
-        </Box>
         </ClickAwayListener>
       </Menu>
 
@@ -403,8 +619,12 @@ export default function PortalShell({
         slotProps={{ paper: { sx: { mt: 1, width: 240, borderRadius: 1.5 } } }}
       >
         <Box sx={{ px: 2, py: 1.25 }}>
-          <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textLight }}>{user?.name}</Typography>
-          <Typography noWrap sx={{ fontSize: 12, color: tokens.textOnDarkMuted }}>{user?.email}</Typography>
+          <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textLight }}>
+            {user?.name}
+          </Typography>
+          <Typography noWrap sx={{ fontSize: 12, color: tokens.textOnDarkMuted }}>
+            {user?.email}
+          </Typography>
         </Box>
         <Divider sx={{ borderColor: tokens.dividerFaint }} />
         {profileItems.map((item) => (
@@ -444,16 +664,29 @@ export default function PortalShell({
         onClose={() => setDrawerOpen(false)}
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 2 }}
         // Same dark colour as the desktop sidebar
-        PaperProps={{ sx: { width: 280, backgroundColor: tokens.sidebarBg, backgroundImage: 'none', borderRight: `1px solid ${tokens.sidebarBorder}` } }}
+        PaperProps={{
+          sx: {
+            width: 280,
+            backgroundColor: tokens.sidebarBg,
+            backgroundImage: 'none',
+            borderRight: `1px solid ${tokens.sidebarBorder}`
+          }
+        }}
       >
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <BrandMark subtitle={null} textColor={tokens.onInk} />
-          <IconButton onClick={() => setDrawerOpen(false)} aria-label="Close navigation" sx={{ color: tokens.sidebarText, '&:hover': { color: tokens.gold } }}>
+          <IconButton
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close navigation"
+            sx={{ color: tokens.sidebarText, '&:hover': { color: tokens.gold } }}
+          >
             <MenuOpenRoundedIcon />
           </IconButton>
         </Box>
         <Divider sx={{ borderColor: tokens.sidebarBorder }} />
-        <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, gap: 2 }}>
+        <Box
+          sx={{ p: 1.25, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, gap: 2 }}
+        >
           {navList(true)}
           {secondaryList(true)}
         </Box>
@@ -485,9 +718,26 @@ export default function PortalShell({
           }}
         >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', px: collapsed ? 0 : 1, pb: 1 }}>
-              {!collapsed && <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.sidebarTextMuted }}>Navigation</Typography>}
-              <IconButton onClick={toggleSidebar} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} size="small" sx={{ color: tokens.sidebarText, '&:hover': { color: tokens.gold } }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'space-between',
+                px: collapsed ? 0 : 1,
+                pb: 1
+              }}
+            >
+              {!collapsed && (
+                <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.sidebarTextMuted }}>
+                  Navigation
+                </Typography>
+              )}
+              <IconButton
+                onClick={toggleSidebar}
+                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                size="small"
+                sx={{ color: tokens.sidebarText, '&:hover': { color: tokens.gold } }}
+              >
                 {collapsed ? <MenuRoundedIcon sx={{ fontSize: 20 }} /> : <MenuOpenRoundedIcon sx={{ fontSize: 20 }} />}
               </IconButton>
             </Box>
@@ -497,17 +747,61 @@ export default function PortalShell({
         </Box>
 
         {/* Empty spacer the same width as the fixed sidebar, so page content isn't hidden behind it */}
-        <Box className="tm-no-print" sx={{ width, flexShrink: 0, display: { xs: 'none', lg: 'block' }, transition: EASE }} />
+        <Box
+          className="tm-no-print"
+          sx={{ width, flexShrink: 0, display: { xs: 'none', lg: 'block' }, transition: EASE }}
+        />
 
         {/* On phones the bottom padding clears the tab bar (its height plus 32px), so the end of the page is never hidden under it */}
-        <Box component="main" id="main" tabIndex={-1} sx={{ flex: 1, minWidth: 0, outline: 'none', '--tm-sidebar-offset': { xs: '0px', lg: `${width}px` }, px: { xs: 1.5, sm: 2, md: 3 }, pt: { xs: 2, md: 3 }, pb: { xs: hasBottomNav ? 'calc(var(--tm-bottom-nav) + 32px)' : 4, md: 5 } }}>
-          <Box sx={{ maxWidth: 1800, mx: 'auto', minWidth: 0, containerType: 'inline-size', containerName: 'portal-content' }}>{children}</Box>
+        <Box
+          component="main"
+          id="main"
+          tabIndex={-1}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            outline: 'none',
+            '--tm-sidebar-offset': { xs: '0px', lg: `${width}px` },
+            px: { xs: 1.5, sm: 2, md: 3 },
+            pt: { xs: 2, md: 3 },
+            pb: { xs: hasBottomNav ? 'calc(var(--tm-bottom-nav) + 32px)' : 4, md: 5 }
+          }}
+        >
+          <Box
+            sx={{
+              maxWidth: 1800,
+              mx: 'auto',
+              minWidth: 0,
+              containerType: 'inline-size',
+              containerName: 'portal-content'
+            }}
+          >
+            {children}
+          </Box>
         </Box>
       </Box>
 
       {/* Phone bottom navigation: BOTTOM_NAV_HEIGHT tall, plus the iPhone home-bar area under the tabs */}
       {hasBottomNav && (
-        <Box component="nav" aria-label="Quick navigation" className="tm-no-print" sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100, height: 'var(--tm-bottom-nav)', display: { xs: 'grid', md: 'none' }, gridTemplateColumns: `repeat(${bottomNav.length}, 1fr)`, backgroundColor: tokens.shellScrim, backdropFilter: 'blur(14px)', borderTop: `1px solid ${tokens.divider}`, pb: 'env(safe-area-inset-bottom)' }}>
+        <Box
+          component="nav"
+          aria-label="Quick navigation"
+          className="tm-no-print"
+          sx={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1100,
+            height: 'var(--tm-bottom-nav)',
+            display: { xs: 'grid', md: 'none' },
+            gridTemplateColumns: `repeat(${bottomNav.length}, 1fr)`,
+            backgroundColor: tokens.shellScrim,
+            backdropFilter: 'blur(14px)',
+            borderTop: `1px solid ${tokens.divider}`,
+            pb: 'env(safe-area-inset-bottom)'
+          }}
+        >
           {bottomNav.map((item) => {
             const active = bottomActive && bottomActive.key === item.key;
             return (
@@ -517,7 +811,15 @@ export default function PortalShell({
                 onClick={() => (item.drawer ? setDrawerOpen(true) : navigate(item.to))}
                 aria-current={active && !item.drawer ? 'page' : undefined}
                 aria-haspopup={item.drawer ? 'dialog' : undefined}
-                sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, fontFamily: 'inherit', fontSize: 11, fontWeight: active ? 700 : 500, color: active ? tokens.goldText : tokens.textOnDarkMuted }}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.25,
+                  fontFamily: 'inherit',
+                  fontSize: 11,
+                  fontWeight: active ? 700 : 500,
+                  color: active ? tokens.goldText : tokens.textOnDarkMuted
+                }}
               >
                 <Badge color="error" badgeContent={item.badge || 0} max={9}>
                   <item.icon sx={{ fontSize: 22 }} />

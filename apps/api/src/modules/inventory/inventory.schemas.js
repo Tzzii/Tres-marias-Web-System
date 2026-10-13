@@ -14,14 +14,20 @@ import { z } from 'zod';
 
 // Text of at most `max` characters; missing -> '' so the service answers with the dialog's own message
 const text = (max) =>
-  z.string({ error: 'This field is required.' }).max(max, { error: `Use ${max} characters or fewer.` }).default('');
+  z
+    .string({ error: 'This field is required.' })
+    .max(max, { error: `Use ${max} characters or fewer.` })
+    .default('');
 
 // Checked by the service. .optional() matters: in zod 4 a z.unknown() object key is still required,
 // and a missing one would be a 400 with zod's own wording instead of the service's message.
 const passThrough = z.unknown().optional();
 
 // A query-string switch such as ?includeArchived=true: only "true" or "1" turn it on (catalog.schemas.js)
-const querySwitch = z.unknown().optional().transform((value) => value === 'true' || value === '1');
+const querySwitch = z
+  .unknown()
+  .optional()
+  .transform((value) => value === 'true' || value === '1');
 
 // An item id or a reservation ref from the URL (Express always gives text); an unknown one is a 404 from the service
 export const idParams = z.object({ id: z.string() });
@@ -58,18 +64,28 @@ export const updateBody = z.object({ ...itemFields, name: text(120), removePhoto
  * POST /api/admin/inventory/:id/movements { action, qty, damagedQty, ref, note }: one stock movement.
  * The note (the reason for damage or a disposal, a note for the others) goes into the history line.
  */
-export const moveBody = z.object({ action: passThrough, qty: passThrough, damagedQty: passThrough, ref: passThrough, note: text(1000) });
+export const moveBody = z.object({
+  action: passThrough,
+  qty: passThrough,
+  damagedQty: passThrough,
+  ref: passThrough,
+  note: text(1000)
+});
 
 // POST /api/admin/inventory/archive { ids, archived }: the ticked items (a page holds 10), archived or restored
 export const archiveBody = z.object({
-  ids: z.array(z.string({ error: 'Each item id must be text.' }), { error: 'Send the items as a list of ids.' }).max(500, { error: 'Archive up to 500 items at a time.' }),
+  ids: z
+    .array(z.string({ error: 'Each item id must be text.' }), { error: 'Send the items as a list of ids.' })
+    .max(500, { error: 'Archive up to 500 items at a time.' }),
   archived: passThrough
 });
 
 // POST /api/admin/inventory/rentals/:ref/return { returns: [{ itemId, good, damaged }] }: checked by the service
 export const returnBody = z.object({
   returns: z
-    .array(z.object({ itemId: passThrough, good: passThrough, damaged: passThrough }), { error: 'Send the returned items as a list.' })
+    .array(z.object({ itemId: passThrough, good: passThrough, damaged: passThrough }), {
+      error: 'Send the returned items as a list.'
+    })
     .max(500, { error: 'Send up to 500 rows at a time.' })
     .default([])
 });

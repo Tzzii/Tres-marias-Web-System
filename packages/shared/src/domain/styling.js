@@ -141,7 +141,11 @@ export function readHex(value) {
 /** "#9CAF88" -> [156, 175, 136] */
 export const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 /** [156, 175, 136] -> "#9CAF88" */
-export const rgbToHex = (rgb) => `#${rgb.map((part) => Math.round(part).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+export const rgbToHex = (rgb) =>
+  `#${rgb
+    .map((part) => Math.round(part).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()}`;
 
 /** Hue 0-360, saturation and value 0-1 (the colour picker's area and bar) -> [r, g, b] 0-255. */
 export function hsvToRgb(h, s, v) {
@@ -200,7 +204,8 @@ export function colorName(hex) {
 }
 
 /** True when a motif already has this colour: the same metallic, or the same code. */
-export const hasColor = (colors, color) => colors.some((c) => (color.metallic ? c.metallic && c.name === color.name : !c.metallic && c.hex === color.hex));
+export const hasColor = (colors, color) =>
+  colors.some((c) => (color.metallic ? c.metallic && c.name === color.name : !c.metallic && c.hex === color.hex));
 
 /**
  * The colours that go well with each main colour, hand-picked the way event stylists pair them (a colour
@@ -270,17 +275,22 @@ function namedColor(name) {
 export function matchingColors(colors) {
   const main = colors && colors[0];
   if (!main) return [];
-  return (COLOR_MATCHES[main.name] || []).map(namedColor).filter((color) => color && !colors.some((c) => c.name === color.name));
+  return (COLOR_MATCHES[main.name] || [])
+    .map(namedColor)
+    .filter((color) => color && !colors.some((c) => c.name === color.name));
 }
 
 /** The way a theme reads on the pages and printouts: the customer's own words for "Other", else the chip's name. */
-export const themeLabel = (styling) => (!styling ? '' : styling.theme === THEME_OTHER ? styling.themeOther : styling.theme);
+export const themeLabel = (styling) =>
+  !styling ? '' : styling.theme === THEME_OTHER ? styling.themeOther : styling.theme;
 
 /** True when the booking has nothing in its styling (no theme, colour or details), e.g. a booking made before 2026-10-08. */
-export const stylingEmpty = (styling) => !styling || (!styling.theme && !(styling.colors || []).length && !styling.notes && !styling.referencePhoto);
+export const stylingEmpty = (styling) =>
+  !styling || (!styling.theme && !(styling.colors || []).length && !styling.notes && !styling.referencePhoto);
 
 /** True when the customer chose "Not decided yet", or gave no theme and no colour: the admin follows it up ("To Discuss"). */
-export const stylingToDiscuss = (styling) => !styling || styling.theme === THEME_UNDECIDED || (!styling.theme && !(styling.colors || []).length);
+export const stylingToDiscuss = (styling) =>
+  !styling || styling.theme === THEME_UNDECIDED || (!styling.theme && !(styling.colors || []).length);
 
 // Text from the page, trimmed; anything that is not text is ''. A lone half of an emoji becomes "�",
 // because MySQL refuses it inside a JSON column (the same rule as the reservations service's clean()).
@@ -307,7 +317,12 @@ export function cleanStyling(value) {
     const next = metal ? { hex, name: metal.name, metallic: true } : { hex, name: colorName(hex) };
     if (!hasColor(colors, next)) colors.push(next);
   });
-  const styling = { theme, themeOther: theme === THEME_OTHER ? text(value.themeOther) : '', colors, notes: text(value.notes) };
+  const styling = {
+    theme,
+    themeOther: theme === THEME_OTHER ? text(value.themeOther) : '',
+    colors,
+    notes: text(value.notes)
+  };
   const referencePhoto = cleanReferencePhoto(value.referencePhoto);
   if (referencePhoto) styling.referencePhoto = referencePhoto;
   return stylingEmpty(styling) ? null : styling;
@@ -321,11 +336,18 @@ export function stylingProblem(styling) {
   if (!styling) return null;
   if (styling.theme === THEME_OTHER) {
     const { min, max } = THEME_OTHER_RANGE;
-    if (styling.themeOther.length < min) return { field: 'styling.themeOther', message: 'Type your theme (at least 2 characters), or pick one above.' };
-    if (styling.themeOther.length > max) return { field: 'styling.themeOther', message: `Keep your theme to ${max} characters.` };
+    if (styling.themeOther.length < min)
+      return { field: 'styling.themeOther', message: 'Type your theme (at least 2 characters), or pick one above.' };
+    if (styling.themeOther.length > max)
+      return { field: 'styling.themeOther', message: `Keep your theme to ${max} characters.` };
   }
-  if (styling.colors.length > MAX_MOTIF_COLORS) return { field: 'styling.colors', message: `Pick up to ${MAX_MOTIF_COLORS} colors.` };
-  if (styling.notes.length > STYLING_NOTES_MAX) return { field: 'styling.notes', message: `Keep the design details to ${STYLING_NOTES_MAX.toLocaleString('en-PH')} characters.` };
+  if (styling.colors.length > MAX_MOTIF_COLORS)
+    return { field: 'styling.colors', message: `Pick up to ${MAX_MOTIF_COLORS} colors.` };
+  if (styling.notes.length > STYLING_NOTES_MAX)
+    return {
+      field: 'styling.notes',
+      message: `Keep the design details to ${STYLING_NOTES_MAX.toLocaleString('en-PH')} characters.`
+    };
   return null;
 }
 
@@ -351,7 +373,11 @@ const DECOR_WORDS = [
  * only, any case ("Balloons" counts, "balloonist" does not).
  */
 export function decorReminders(notes, charges, bookedIds) {
-  const words = new Set(String(notes || '').toLowerCase().match(/[a-z]+/g) || []);
+  const words = new Set(
+    String(notes || '')
+      .toLowerCase()
+      .match(/[a-z]+/g) || []
+  );
   return DECOR_WORDS.flatMap(([addonId, list]) => {
     const charge = charges.find((c) => c.id === addonId);
     const word = list.find((w) => words.has(w));

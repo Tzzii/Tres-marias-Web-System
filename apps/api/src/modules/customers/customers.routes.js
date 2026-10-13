@@ -21,6 +21,10 @@ customerAdminRoutes.get('/:id', validate({ params: schemas.idParams }), async (r
   res.json(await customers.getCustomer(req.valid.params.id));
 });
 // Correct the email and mobile number: { email, mobile } -> the customer's summary
-customerAdminRoutes.patch('/:id/contact', validate({ params: schemas.idParams, body: schemas.contactBody }), async (req, res) => {
-  res.json(await customers.updateCustomerContact(req.valid.params.id, req.valid.body));
-});
+customerAdminRoutes.patch(
+  '/:id/contact',
+  validate({ params: schemas.idParams, body: schemas.contactBody }),
+  async (req, res) => {
+    res.json(await customers.updateCustomerContact(req.valid.params.id, req.valid.body));
+  }
+);

@@ -10,7 +10,10 @@ import { z } from 'zod';
 
 // Text of at most `max` characters; missing -> '' so the service answers with the form's own message
 const text = (max) =>
-  z.string({ error: 'This field is required.' }).max(max, { error: `Use ${max} characters or fewer.` }).default('');
+  z
+    .string({ error: 'This field is required.' })
+    .max(max, { error: `Use ${max} characters or fewer.` })
+    .default('');
 
 // A customer id from the URL (Express always gives text); an unknown one is a 404 from the service
 export const idParams = z.object({ id: z.string() });

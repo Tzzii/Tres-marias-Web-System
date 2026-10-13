@@ -29,7 +29,17 @@ export default function SplashPage() {
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   return (
-    <Box component="main" sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', px: 2, py: 5, backgroundImage: tokens.gradientCentered }}>
+    <Box
+      component="main"
+      sx={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        px: 2,
+        py: 5,
+        backgroundImage: tokens.gradientCentered
+      }}
+    >
       {/* Entrance animation lives on this wrapper so it doesn't block the hover transform on the button */}
       <Box sx={{ animation: `${enter} 600ms ease-out both` }}>
         <Box
@@ -53,7 +63,8 @@ export default function SplashPage() {
               position: 'absolute',
               inset: '-22%',
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(212, 175, 55, 0.55) 0%, rgba(212, 175, 55, 0.22) 38%, rgba(212, 175, 55, 0) 70%)',
+              background:
+                'radial-gradient(circle, rgba(212, 175, 55, 0.55) 0%, rgba(212, 175, 55, 0.22) 38%, rgba(212, 175, 55, 0) 70%)',
               filter: 'blur(12px)',
               opacity: 0,
               transform: 'scale(0.7)',
@@ -64,7 +75,11 @@ export default function SplashPage() {
             '& > *': { position: 'relative', zIndex: 1, transition: 'box-shadow 450ms ease' },
             '&:hover, &:focus-visible': {
               transform: 'translateY(-8px) scale(1.06)',
-              '&::before': { opacity: 1, transform: 'scale(1)', animation: `${breathe} 2.6s ease-in-out 600ms infinite` },
+              '&::before': {
+                opacity: 1,
+                transform: 'scale(1)',
+                animation: `${breathe} 2.6s ease-in-out 600ms infinite`
+              },
               '& > *': { boxShadow: '0 0 40px 6px rgba(212, 175, 55, 0.55), 0 24px 60px rgba(0, 0, 0, 0.5)' }
             },
             '&:active': { transform: 'translateY(-4px) scale(1.02)' },

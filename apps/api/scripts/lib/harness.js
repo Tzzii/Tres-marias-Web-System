@@ -90,7 +90,12 @@ export async function startApi({ env = {}, preload = null, label = 'api' } = {})
   const logFile = path.join(runDir(), `${label}.log`);
   const out = fs.openSync(logFile, 'a');
   const args = [...(preload ? ['--import', pathToFileURL(preload).href] : []), 'src/server.js'];
-  const child = spawn(process.execPath, args, { cwd: API_DIR, env: { ...process.env, ...env, PORT: String(port) }, stdio: ['ignore', out, out], windowsHide: true });
+  const child = spawn(process.execPath, args, {
+    cwd: API_DIR,
+    env: { ...process.env, ...env, PORT: String(port) },
+    stdio: ['ignore', out, out],
+    windowsHide: true
+  });
   let exitCode = null;
   const exited = new Promise((resolve) => child.once('exit', (code) => resolve((exitCode = code ?? -1))));
   const base = `http://127.0.0.1:${port}/api`;
@@ -105,7 +110,9 @@ export async function startApi({ env = {}, preload = null, label = 'api' } = {})
   }
   if (exitCode !== null) {
     fs.closeSync(out);
-    throw new Error(`The test API stopped at start-up (exit ${exitCode}):\n${fs.readFileSync(logFile, 'utf8').slice(-1500)}`);
+    throw new Error(
+      `The test API stopped at start-up (exit ${exitCode}):\n${fs.readFileSync(logFile, 'utf8').slice(-1500)}`
+    );
   }
   return {
     base,
@@ -127,11 +134,19 @@ export async function startApi({ env = {}, preload = null, label = 'api' } = {})
  */
 export async function runApiBriefly(env, ms = 8000) {
   const port = await freePort();
-  const child = spawn(process.execPath, ['src/server.js'], { cwd: API_DIR, env: { ...process.env, ...env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const child = spawn(process.execPath, ['src/server.js'], {
+    cwd: API_DIR,
+    env: { ...process.env, ...env, PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true
+  });
   let output = '';
   child.stdout.on('data', (chunk) => (output += chunk));
   child.stderr.on('data', (chunk) => (output += chunk));
-  const code = await Promise.race([new Promise((resolve) => child.once('exit', (c) => resolve(c ?? -1))), wait(ms).then(() => null)]);
+  const code = await Promise.race([
+    new Promise((resolve) => child.once('exit', (c) => resolve(c ?? -1))),
+    wait(ms).then(() => null)
+  ]);
   if (code !== null) return { started: false, code, output };
   child.kill();
   return { started: true, output };
@@ -183,7 +198,13 @@ export const nextIp = () => {
  */
 export const tokenFor = (account, role, { expiresAt } = {}) =>
   signToken(
-    { id: account.id, role, name: account.name, passwordChangedAt: account.passwordChangedAt, sessionId: account.sessionId },
+    {
+      id: account.id,
+      role,
+      name: account.name,
+      passwordChangedAt: account.passwordChangedAt,
+      sessionId: account.sessionId
+    },
     expiresAt ? { expiresAt } : { ttl: '1h' }
   );
 
@@ -194,14 +215,21 @@ export const tokenFor = (account, role, { expiresAt } = {}) =>
  * given a session id the way a sign-in gives one.
  */
 export async function adminAccount() {
-  const read = async () => (await pool.query('SELECT id, name, email, password_changed_at, session_id FROM admins ORDER BY id LIMIT 1'))[0][0];
+  const read = async () =>
+    (await pool.query('SELECT id, name, email, password_changed_at, session_id FROM admins ORDER BY id LIMIT 1'))[0][0];
   let row = await read();
   if (!row) throw new Error('The database has no admin account. Seed it first (npm run seed:api or seed:starter).');
   if (!row.session_id) {
     await pool.query('UPDATE admins SET session_id = ? WHERE id = ? AND session_id IS NULL', [newId('ses'), row.id]);
     row = await read();
   }
-  return { id: row.id, name: row.name, email: row.email, passwordChangedAt: row.password_changed_at, sessionId: row.session_id };
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    passwordChangedAt: row.password_changed_at,
+    sessionId: row.session_id
+  };
 }
 
 /** A strong random password for a test account (upper and lower case, digits and a hyphen, so every password rule passes). */
@@ -225,7 +253,15 @@ export async function createTestCustomer(label, password = randomPassword()) {
   await pool.query(
     `INSERT INTO customers (id, first_name, middle_name, last_name, name, email, mobile, password_hash, company, created_at, password_changed_at)
      VALUES (?, 'Security', '', ?, ?, ?, ?, ?, '', ?, NULL)`,
-    [customer.id, `Test ${label}`, customer.name, customer.email, customer.mobile, await hashSecret(password), Date.now()]
+    [
+      customer.id,
+      `Test ${label}`,
+      customer.name,
+      customer.email,
+      customer.mobile,
+      await hashSecret(password),
+      Date.now()
+    ]
   );
   return customer;
 }
@@ -263,7 +299,10 @@ export async function removeTestAdmin(admin) {
 
 /** The newest email the log mail driver kept for an address (dev only: an smtp driver keeps none), or null. */
 export async function lastEmailTo(address) {
-  const [rows] = await pool.query("SELECT subject, body, created_at FROM outbox WHERE channel = 'email' AND to_address = ? ORDER BY created_at DESC, id DESC LIMIT 1", [address]);
+  const [rows] = await pool.query(
+    "SELECT subject, body, created_at FROM outbox WHERE channel = 'email' AND to_address = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+    [address]
+  );
   return rows[0] || null;
 }
 
@@ -288,6 +327,9 @@ export function stampNow() {
 }
 
 /** Escape a value for a Markdown table cell. */
-export const cell = (value) => String(value ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+export const cell = (value) =>
+  String(value ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, ' ');
 
 export { closePool, config, pool };

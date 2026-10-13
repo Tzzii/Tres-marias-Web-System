@@ -14,8 +14,28 @@ export default function MobileAuthBar() {
   // Signed-in customers don't need the bar
   if (user) return null;
   return (
-    <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1050, display: { xs: 'grid', sm: 'none' }, gridTemplateColumns: '1fr 1fr', gap: 1, p: 1.25, pb: 'calc(10px + env(safe-area-inset-bottom))', backgroundColor: 'rgba(251, 247, 240, 0.97)', backdropFilter: 'blur(14px)', borderTop: `1px solid ${site.border}`, boxShadow: '0 -10px 30px -22px rgba(60, 42, 20, 0.45)' }}>
-      <Button onClick={() => navigate('/login')} sx={{ py: 1.1, borderRadius: 999, color: site.ink, border: `1px solid ${site.border}` }}>
+    <Box
+      sx={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1050,
+        display: { xs: 'grid', sm: 'none' },
+        gridTemplateColumns: '1fr 1fr',
+        gap: 1,
+        p: 1.25,
+        pb: 'calc(10px + env(safe-area-inset-bottom))',
+        backgroundColor: 'rgba(251, 247, 240, 0.97)',
+        backdropFilter: 'blur(14px)',
+        borderTop: `1px solid ${site.border}`,
+        boxShadow: '0 -10px 30px -22px rgba(60, 42, 20, 0.45)'
+      }}
+    >
+      <Button
+        onClick={() => navigate('/login')}
+        sx={{ py: 1.1, borderRadius: 999, color: site.ink, border: `1px solid ${site.border}` }}
+      >
         Log in
       </Button>
       <Button variant="contained" onClick={() => navigate('/signup')} sx={{ py: 1.1, borderRadius: 999 }}>

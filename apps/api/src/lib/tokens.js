@@ -27,7 +27,13 @@ const ALGORITHM = 'HS256';
  * ends when the old one would have) sets when it expires. `sessionId` (admins) becomes the `sid`.
  */
 export function signToken({ id, role, name, passwordChangedAt, sessionId }, { ttl, expiresAt } = {}) {
-  const payload = { sub: id, role, name, pwv: Number(passwordChangedAt) || 0, ...(sessionId ? { sid: sessionId } : {}) };
+  const payload = {
+    sub: id,
+    role,
+    name,
+    pwv: Number(passwordChangedAt) || 0,
+    ...(sessionId ? { sid: sessionId } : {})
+  };
   if (expiresAt) return jwt.sign({ ...payload, exp: expiresAt }, config.jwtSecret, { algorithm: ALGORITHM });
   return jwt.sign(payload, config.jwtSecret, { algorithm: ALGORITHM, expiresIn: ttl });
 }
@@ -58,9 +64,13 @@ const unlockKey = () => `${config.jwtSecret}:admin-unlock`;
 
 /** Sign an unlock ticket for an admin's sign-in `sessionId`, ending at `expiresAt` (seconds since 1970: the session's exp). */
 export function signUnlockTicket({ id, passwordChangedAt }, sessionId, expiresAt) {
-  return jwt.sign({ sub: id, pwv: Number(passwordChangedAt) || 0, sid: sessionId, kind: 'admin-unlock', exp: expiresAt }, unlockKey(), {
-    algorithm: ALGORITHM
-  });
+  return jwt.sign(
+    { sub: id, pwv: Number(passwordChangedAt) || 0, sid: sessionId, kind: 'admin-unlock', exp: expiresAt },
+    unlockKey(),
+    {
+      algorithm: ALGORITHM
+    }
+  );
 }
 
 /** The payload of an unlock ticket, or null when it is not one (a session token included), was edited, or has expired. */

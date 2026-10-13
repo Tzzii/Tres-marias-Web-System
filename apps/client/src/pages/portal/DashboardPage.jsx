@@ -59,18 +59,27 @@ export default function DashboardPage() {
   // Unfinished reservation form saved on this device, if any
   const draft = readDraft(user.id);
 
-  if (error) return <DashCard><ErrorState error={error} onRetry={reload} /></DashCard>;
+  if (error)
+    return (
+      <DashCard>
+        <ErrorState error={error} onRetry={reload} />
+      </DashCard>
+    );
 
   // Numbers and items for the dashboard cards
   const reservations = data ? data.reservations : [];
   // Active events from today on, soonest first
-  const upcoming = reservations.filter((r) => ACTIVE.includes(r.status) && daysFromToday(r.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = reservations
+    .filter((r) => ACTIVE.includes(r.status) && daysFromToday(r.date) >= 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
   const next = upcoming[0]; // the very next event
   // A quotation waiting for the customer to accept it (that approves the request), and the requests still waiting on us
   const toAccept = reservations.find((r) => pendingStep(r) === 'accept');
   const pending = reservations.filter((r) => r.status === 'pending' && pendingStep(r) !== 'accept').length;
   // Total still owed across approved and confirmed bookings
-  const balanceDue = reservations.filter((r) => ['approved', 'downpayment_paid', 'confirmed'].includes(r.status)).reduce((sum, r) => sum + r.balance, 0);
+  const balanceDue = reservations
+    .filter((r) => ['approved', 'downpayment_paid', 'confirmed'].includes(r.status))
+    .reduce((sum, r) => sum + r.balance, 0);
   // First approved booking with no downpayment and no proof uploaded yet
   const needsDownpayment = reservations.find((r) => r.status === 'approved' && !r.downpaymentPaid && !r.awaitingCount);
   const unread = data ? data.threads.reduce((sum, t) => sum + t.unread, 0) : 0;
@@ -90,12 +99,12 @@ export default function DashboardPage() {
     : toAccept
       ? `Your quotation for ${toAccept.eventName} is ready. Accept it to approve your reservation.`
       : pending
-      ? `You have ${pluralize(pending, 'reservation')} waiting for our quotation.`
-      : needsDownpayment
-        ? `${needsDownpayment.eventName} is approved. Pay the downpayment to secure your date.`
-        : next
-          ? `Your next event is ${daysFromToday(next.date) === 0 ? 'today' : `in ${pluralize(daysFromToday(next.date), 'day')}`}.`
-          : 'Everything is up to date.';
+        ? `You have ${pluralize(pending, 'reservation')} waiting for our quotation.`
+        : needsDownpayment
+          ? `${needsDownpayment.eventName} is approved. Pay the downpayment to secure your date.`
+          : next
+            ? `Your next event is ${daysFromToday(next.date) === 0 ? 'today' : `in ${pluralize(daysFromToday(next.date), 'day')}`}.`
+            : 'Everything is up to date.';
 
   // New customer with no reservations: show a welcome card instead of the stats
   const brandNew = !loading && reservations.length === 0;
@@ -111,7 +120,15 @@ export default function DashboardPage() {
 
       {/* "Continue" banner for an unfinished reservation form */}
       {draft && (
-        <DashCard sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', borderLeft: `4px solid ${tokens.gold}` }}>
+        <DashCard
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            flexWrap: 'wrap',
+            borderLeft: `4px solid ${tokens.gold}`
+          }}
+        >
           <EditNoteRoundedIcon sx={{ fontSize: 30, color: tokens.goldDark }} />
           <Box sx={{ flex: '1 1 200px', minWidth: 0, overflowWrap: 'anywhere' }}>
             <Typography sx={{ fontSize: 14.5, fontWeight: 700 }}>You have an unfinished reservation</Typography>
@@ -141,9 +158,39 @@ export default function DashboardPage() {
       ) : (
         <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2.5 }}>
-            <StatCard icon={EventAvailableOutlinedIcon} tone="gold" label="Upcoming Events" value={upcoming.length} meta={next ? formatDateLong(next.date) : 'Nothing scheduled'} loading={loading} onClick={() => navigate('/portal/calendar')} />
-            <StatCard icon={PaymentsOutlinedIcon} tone={needsDownpayment ? 'amber' : 'green'} label="Balance Due" value={peso(balanceDue)} meta={needsDownpayment ? 'Downpayment not yet paid' : balanceDue ? 'Due on or before event day' : 'All paid up'} loading={loading} onClick={() => navigate('/portal/payments')} />
-            <StatCard icon={MarkUnreadChatAltOutlinedIcon} tone="blue" label="Unread Messages" value={unread} meta={latestUnread ? 'From the admin' : 'No new messages'} loading={loading} onClick={() => navigate('/portal/messages')} />
+            <StatCard
+              icon={EventAvailableOutlinedIcon}
+              tone="gold"
+              label="Upcoming Events"
+              value={upcoming.length}
+              meta={next ? formatDateLong(next.date) : 'Nothing scheduled'}
+              loading={loading}
+              onClick={() => navigate('/portal/calendar')}
+            />
+            <StatCard
+              icon={PaymentsOutlinedIcon}
+              tone={needsDownpayment ? 'amber' : 'green'}
+              label="Balance Due"
+              value={peso(balanceDue)}
+              meta={
+                needsDownpayment
+                  ? 'Downpayment not yet paid'
+                  : balanceDue
+                    ? 'Due on or before event day'
+                    : 'All paid up'
+              }
+              loading={loading}
+              onClick={() => navigate('/portal/payments')}
+            />
+            <StatCard
+              icon={MarkUnreadChatAltOutlinedIcon}
+              tone="blue"
+              label="Unread Messages"
+              value={unread}
+              meta={latestUnread ? 'From the admin' : 'No new messages'}
+              loading={loading}
+              onClick={() => navigate('/portal/messages')}
+            />
           </Box>
 
           {loading ? (
@@ -161,14 +208,26 @@ export default function DashboardPage() {
             )
           )}
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
+          <Box
+            sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}
+          >
             <DashCard>
-              <CardTitle action={<Button size="small" onClick={() => navigate('/portal/reservations')}>View all</Button>}>Upcoming Event Preview</CardTitle>
+              <CardTitle
+                action={
+                  <Button size="small" onClick={() => navigate('/portal/reservations')}>
+                    View all
+                  </Button>
+                }
+              >
+                Upcoming Event Preview
+              </CardTitle>
               {loading ? (
                 <ListSkeleton rows={2} height={70} />
               ) : next ? (
                 <Box>
-                  <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'flex-start', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
+                  <Box
+                    sx={{ display: 'flex', gap: 2.5, alignItems: 'flex-start', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
+                  >
                     <ThemeIcon occasion={next.occasion} size={92} />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -192,20 +251,33 @@ export default function DashboardPage() {
                     <Button variant="contained" onClick={() => navigate(`/portal/reservations/${next.ref}`)}>
                       View details
                     </Button>
-                    <Button variant="outlined" startIcon={<ChatBubbleOutlineRoundedIcon />} onClick={() => navigate(`/portal/messages?ref=${next.ref}`)}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<ChatBubbleOutlineRoundedIcon />}
+                      onClick={() => navigate(`/portal/messages?ref=${next.ref}`)}
+                    >
                       Message us
                     </Button>
                   </Box>
                 </Box>
               ) : (
-                <EmptyState compact title="No upcoming events" description="Past events stay in My Reservations. Ready to plan the next one?" />
+                <EmptyState
+                  compact
+                  title="No upcoming events"
+                  description="Past events stay in My Reservations. Ready to plan the next one?"
+                />
               )}
             </DashCard>
 
             <DashCard>
               <CardTitle>Quick Actions</CardTitle>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/portal/book')} sx={{ justifyContent: 'flex-start', py: 1.2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<AddRoundedIcon />}
+                  onClick={() => navigate('/portal/book')}
+                  sx={{ justifyContent: 'flex-start', py: 1.2 }}
+                >
                   New reservation
                 </Button>
                 {/* Enabled only when a downpayment is due */}
@@ -217,9 +289,16 @@ export default function DashboardPage() {
                   sx={{ justifyContent: 'flex-start', py: 1.2 }}
                 >
                   {/* What is still owed on the downpayment (part may already be paid) */}
-                  {needsDownpayment ? `Pay downpayment · ${peso(needsDownpayment.downpayment - needsDownpayment.paid)}` : 'No downpayment due'}
+                  {needsDownpayment
+                    ? `Pay downpayment · ${peso(needsDownpayment.downpayment - needsDownpayment.paid)}`
+                    : 'No downpayment due'}
                 </Button>
-                <Button variant="outlined" startIcon={<DescriptionOutlinedIcon />} onClick={() => navigate('/portal/documents')} sx={{ justifyContent: 'flex-start', py: 1.2 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<DescriptionOutlinedIcon />}
+                  onClick={() => navigate('/portal/documents')}
+                  sx={{ justifyContent: 'flex-start', py: 1.2 }}
+                >
                   View contract and documents
                 </Button>
               </Box>

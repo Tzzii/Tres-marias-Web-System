@@ -12,7 +12,20 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
-import { PortalShell, authApi, feedbackApi, formatDate, messageApi, messagePreview, outsourceApi, paymentApi, pendingStep, peso, reservationApi, useResource } from '@tm/shared';
+import {
+  PortalShell,
+  authApi,
+  feedbackApi,
+  formatDate,
+  messageApi,
+  messagePreview,
+  outsourceApi,
+  paymentApi,
+  pendingStep,
+  peso,
+  reservationApi,
+  useResource
+} from '@tm/shared';
 import { useAuth } from '../auth.js';
 
 /**
@@ -67,14 +80,32 @@ export default function AdminLayout() {
     pendingList.forEach((r) =>
       list.push(
         pendingStep(r) === 'revise'
-          ? { id: `req:${r.ref}:revise`, title: 'Quotation to Re-send', body: `${r.customerName} · ${r.eventName}: the booking changed after the quotation was sent.`, at: r.activity.length ? r.activity[r.activity.length - 1].at : r.createdAt, to: `/reservations/${r.ref}` }
-          : { id: `req:${r.ref}`, title: 'New Reservation Request', body: `${r.customerName} · ${r.eventName} · ${formatDate(r.date)} · ${r.guests} pax`, at: r.createdAt, to: `/reservations/${r.ref}` }
+          ? {
+              id: `req:${r.ref}:revise`,
+              title: 'Quotation to Re-send',
+              body: `${r.customerName} · ${r.eventName}: the booking changed after the quotation was sent.`,
+              at: r.activity.length ? r.activity[r.activity.length - 1].at : r.createdAt,
+              to: `/reservations/${r.ref}`
+            }
+          : {
+              id: `req:${r.ref}`,
+              title: 'New Reservation Request',
+              body: `${r.customerName} · ${r.eventName} · ${formatDate(r.date)} · ${r.guests} pax`,
+              at: r.createdAt,
+              to: `/reservations/${r.ref}`
+            }
       )
     );
     // One notification per payment proof that the admin still needs to verify
     const awaitingList = data.payments.filter((p) => p.status === 'awaiting');
     awaitingList.forEach((p) =>
-      list.push({ id: `pay:${p.id}`, title: 'Payment to Verify', body: `${p.customerName} sent ${peso(p.amount)} via ${p.methodLabel} for ${p.eventName}.`, at: p.submittedAt, to: `/reports?tab=payments&verify=${p.id}` })
+      list.push({
+        id: `pay:${p.id}`,
+        title: 'Payment to Verify',
+        body: `${p.customerName} sent ${peso(p.amount)} via ${p.methodLabel} for ${p.eventName}.`,
+        at: p.submittedAt,
+        to: `/reports?tab=payments&verify=${p.id}`
+      })
     );
     // One notification per QR Ph payment, which PayMongo verifies by itself (2026-10-09): no admin saw it, so
     // this is how the admin hears that a downpayment came in or that a reservation is now fully paid. A
@@ -93,25 +124,53 @@ export default function AdminLayout() {
       .filter((p) => p.status === 'verified' && p.method === 'qrph')
       .forEach((p) => {
         const r = reservationOf.get(p.ref);
-        const fullyPaid = p.kind === 'full' || (p.kind === 'balance' && newestVerified.get(p.ref) === p && Boolean(r) && ['confirmed', 'completed'].includes(r.status) && r.balance === 0);
+        const fullyPaid =
+          p.kind === 'full' ||
+          (p.kind === 'balance' &&
+            newestVerified.get(p.ref) === p &&
+            Boolean(r) &&
+            ['confirmed', 'completed'].includes(r.status) &&
+            r.balance === 0);
         const receipt = p.receiptNo ? ` (${p.receiptNo})` : '';
         const [title, body] = fullyPaid
-          ? ['Fully Paid', `${p.customerName} paid ${peso(p.amount)} via QR Ph for ${p.eventName}. The reservation is now fully paid${receipt}.`]
+          ? [
+              'Fully Paid',
+              `${p.customerName} paid ${peso(p.amount)} via QR Ph for ${p.eventName}. The reservation is now fully paid${receipt}.`
+            ]
           : p.kind === 'downpayment'
-            ? ['Downpayment Received', `${p.customerName} paid a ${peso(p.amount)} downpayment via QR Ph for ${p.eventName}${receipt}.`]
-            : ['Balance Payment Received', `${p.customerName} paid ${peso(p.amount)} toward the balance via QR Ph for ${p.eventName}${receipt}.`];
+            ? [
+                'Downpayment Received',
+                `${p.customerName} paid a ${peso(p.amount)} downpayment via QR Ph for ${p.eventName}${receipt}.`
+              ]
+            : [
+                'Balance Payment Received',
+                `${p.customerName} paid ${peso(p.amount)} toward the balance via QR Ph for ${p.eventName}${receipt}.`
+              ];
         list.push({ id: `paid:${p.id}`, title, body, at: p.verifiedAt || p.submittedAt, to: `/reservations/${p.ref}` });
       });
     // One notification per review the admin has not read yet
     const unreadFeedback = data.feedbacks.filter((f) => !f.readByAdmin);
     unreadFeedback.forEach((f) =>
-      list.push({ id: `fbk:${f.id}`, title: 'New Customer Feedback', body: `${f.customerName} rated ${f.eventName} ${f.rating} of 5 stars.`, at: f.createdAt, to: '/feedbacks?tab=unread' })
+      list.push({
+        id: `fbk:${f.id}`,
+        title: 'New Customer Feedback',
+        body: `${f.customerName} rated ${f.eventName} ${f.rating} of 5 stars.`,
+        at: f.createdAt,
+        to: '/feedbacks?tab=unread'
+      })
     );
     // Count unread messages and add a notification for each thread with new messages (clicking opens it on the Messages page)
     let unreadCount = 0;
     data.threads.forEach((t) => {
       unreadCount += t.unread;
-      if (t.unread && t.lastMessage) list.push({ id: `msg:${t.lastMessage.id}`, title: `Message from ${t.customerName}`, body: messagePreview(t.lastMessage), at: t.lastMessage.at, to: `/messages?thread=${encodeURIComponent(t.id)}` });
+      if (t.unread && t.lastMessage)
+        list.push({
+          id: `msg:${t.lastMessage.id}`,
+          title: `Message from ${t.customerName}`,
+          body: messagePreview(t.lastMessage),
+          at: t.lastMessage.at,
+          to: `/messages?thread=${encodeURIComponent(t.id)}`
+        });
     });
     // Newest first, and keep only the latest 25
     list.sort((a, b) => b.at - a.at);
@@ -134,7 +193,13 @@ export default function AdminLayout() {
   // Feedbacks holds the reviews customers wrote (badge = reviews the admin has not read).
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
-    { key: 'reservations', label: 'Reservation & Calendar', icon: EventNoteOutlinedIcon, to: '/reservations', badge: pending },
+    {
+      key: 'reservations',
+      label: 'Reservation & Calendar',
+      icon: EventNoteOutlinedIcon,
+      to: '/reservations',
+      badge: pending
+    },
     { key: 'packages', label: 'Packages', icon: RestaurantMenuOutlinedIcon, to: '/packages' },
     { key: 'inventory', label: 'Inventory', icon: Inventory2OutlinedIcon, to: '/inventory' },
     { key: 'outsource', label: 'Outsource', icon: HandshakeOutlinedIcon, to: '/outsource', badge: awaitingReply },
@@ -150,7 +215,14 @@ export default function AdminLayout() {
   const bottomNav = [
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
     { key: 'reservations', label: 'Reservations', icon: EventNoteOutlinedIcon, to: '/reservations', badge: pending },
-    { key: 'payments', label: 'Payments', icon: PaymentsOutlinedIcon, to: '/reports?tab=payments', match: ['/reports'], badge: awaiting },
+    {
+      key: 'payments',
+      label: 'Payments',
+      icon: PaymentsOutlinedIcon,
+      to: '/reports?tab=payments',
+      match: ['/reports'],
+      badge: awaiting
+    },
     { key: 'messages', label: 'Messages', icon: ChatBubbleOutlineRoundedIcon, to: '/messages', badge: unread },
     { key: 'more', label: 'More', icon: MoreHorizRoundedIcon, drawer: true, badge: awaitingReply + newFeedback }
   ];
@@ -164,7 +236,10 @@ export default function AdminLayout() {
       user={user}
       profileItems={[{ key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
       // The top search bar sends the admin to the All reservations tab filtered by what they typed
-      search={{ placeholder: 'Search reservations or customers', onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`) }}
+      search={{
+        placeholder: 'Search reservations or customers',
+        onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`)
+      }}
       notifications={notifications}
       // Go to the login page first, then clear the session
       onLogout={() => {

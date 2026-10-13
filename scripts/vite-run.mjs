@@ -68,7 +68,8 @@ const cwd = command === 'build' ? appDir : os.tmpdir();
 const env = { ...process.env, TM_APP_DIR: appDir };
 // Opened to other devices: reach the API through the dev server's proxy (a variable already in the
 // environment wins over the app's .env.local in Vite, so this overrides it for this run only)
-const forOtherDevices = command !== 'build' && viteOptions.some((option) => option === '--host' || option.startsWith('--host='));
+const forOtherDevices =
+  command !== 'build' && viteOptions.some((option) => option === '--host' || option.startsWith('--host='));
 if (forOtherDevices && !process.env.VITE_API_URL) env.VITE_API_URL = '/api';
 const child = spawn(process.execPath, args, { cwd, stdio: 'inherit', env });
 child.on('exit', (code) => process.exit(code === null ? 1 : code));

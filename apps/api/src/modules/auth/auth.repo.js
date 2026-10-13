@@ -51,10 +51,12 @@ const toAdmin = (row) =>
 const first = ([rows]) => rows[0] || null;
 
 /** The customer with this email (stored lower-case; the collation ignores case anyway), or null. */
-export const findCustomerByEmail = async (email) => toCustomer(first(await pool.query('SELECT * FROM customers WHERE email = ?', [email])));
+export const findCustomerByEmail = async (email) =>
+  toCustomer(first(await pool.query('SELECT * FROM customers WHERE email = ?', [email])));
 
 /** The customer with this id, or null. */
-export const findCustomerById = async (id) => toCustomer(first(await pool.query('SELECT * FROM customers WHERE id = ?', [id])));
+export const findCustomerById = async (id) =>
+  toCustomer(first(await pool.query('SELECT * FROM customers WHERE id = ?', [id])));
 
 /**
  * Save a new customer (from a sign-up whose emailed code was right, so it runs inside that transaction:
@@ -65,7 +67,20 @@ export async function insertCustomer(c, conn = pool) {
     `INSERT INTO customers (id, first_name, middle_name, last_name, name, email, mobile, password_hash, company, created_at, password_changed_at,
                             terms_version, terms_accepted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-    [c.id, c.firstName, c.middleName, c.lastName, c.name, c.email, c.mobile, c.passwordHash, c.company, c.createdAt, c.termsVersion || '', c.termsAcceptedAt ?? null]
+    [
+      c.id,
+      c.firstName,
+      c.middleName,
+      c.lastName,
+      c.name,
+      c.email,
+      c.mobile,
+      c.passwordHash,
+      c.company,
+      c.createdAt,
+      c.termsVersion || '',
+      c.termsAcceptedAt ?? null
+    ]
   );
 }
 
@@ -98,11 +113,16 @@ export async function updateCustomerEmail(conn, id, email) {
  * to make it part of a transaction (a finished password reset); by default it uses the pool.
  */
 export async function updateCustomerPassword(id, passwordHash, at, conn = pool) {
-  await conn.query('UPDATE customers SET password_hash = ?, password_changed_at = ? WHERE id = ?', [passwordHash, at, id]);
+  await conn.query('UPDATE customers SET password_hash = ?, password_changed_at = ? WHERE id = ?', [
+    passwordHash,
+    at,
+    id
+  ]);
 }
 
 /** The admin with this email, or null. */
-export const findAdminByEmail = async (email) => toAdmin(first(await pool.query('SELECT * FROM admins WHERE email = ?', [email])));
+export const findAdminByEmail = async (email) =>
+  toAdmin(first(await pool.query('SELECT * FROM admins WHERE email = ?', [email])));
 
 /** The admin with this id, or null. */
 export const findAdminById = async (id) => toAdmin(first(await pool.query('SELECT * FROM admins WHERE id = ?', [id])));
@@ -189,7 +209,8 @@ const toChallenge = (row) =>
   };
 
 /** The code request with this id (any purpose, used or not), or null. */
-export const findChallenge = async (id) => toChallenge(first(await pool.query('SELECT * FROM auth_challenges WHERE id = ?', [id])));
+export const findChallenge = async (id) =>
+  toChallenge(first(await pool.query('SELECT * FROM auth_challenges WHERE id = ?', [id])));
 
 /** Save a new code request ('sign_in', or 'contact_change' with the field and new value). */
 export async function insertChallenge(c) {
@@ -212,7 +233,12 @@ export async function deleteChallenge(id) {
 
 /** A resend: the new code's hash and fresh expiry / resend times. The old code stops working. */
 export async function replaceChallengeCode(id, { codeHash, expiresAt, resendAt }) {
-  await pool.query('UPDATE auth_challenges SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+  await pool.query('UPDATE auth_challenges SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [
+    codeHash,
+    expiresAt,
+    resendAt,
+    id
+  ]);
 }
 
 /** Move the resend time (back to now after a failed send, so the admin can ask again at once). */
@@ -230,7 +256,10 @@ export async function addChallengeAttempt(id) {
  * (two correct answers sent at the same moment), so a code can be spent only once.
  */
 export async function markChallengeUsed(conn, id, at) {
-  const [result] = await conn.query('UPDATE auth_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  const [result] = await conn.query('UPDATE auth_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL', [
+    at,
+    id
+  ]);
   return result.affectedRows === 1;
 }
 
@@ -251,7 +280,8 @@ const toReset = (row) =>
   };
 
 /** The reset request with this id (used or not), or null. */
-export const findReset = async (id) => toReset(first(await pool.query('SELECT * FROM password_resets WHERE id = ?', [id])));
+export const findReset = async (id) =>
+  toReset(first(await pool.query('SELECT * FROM password_resets WHERE id = ?', [id])));
 
 /** Save a new reset request. */
 export async function insertReset(r) {
@@ -274,7 +304,12 @@ export async function deleteReset(id) {
 
 /** A resend: the new code's hash and fresh expiry / resend times. The old code stops working. */
 export async function replaceResetCode(id, { codeHash, expiresAt, resendAt }) {
-  await pool.query('UPDATE password_resets SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+  await pool.query('UPDATE password_resets SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [
+    codeHash,
+    expiresAt,
+    resendAt,
+    id
+  ]);
 }
 
 /** Move the resend time (back to now after a failed send). */
@@ -294,7 +329,10 @@ export async function markResetVerified(id, { at, expiresAt }) {
 
 /** Spend the request, only if it was not spent yet: false when another request got there first. */
 export async function markResetUsed(conn, id, at) {
-  const [result] = await conn.query('UPDATE password_resets SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  const [result] = await conn.query('UPDATE password_resets SET used_at = ? WHERE id = ? AND used_at IS NULL', [
+    at,
+    id
+  ]);
   return result.affectedRows === 1;
 }
 
@@ -319,14 +357,27 @@ const toSignup = (row) =>
   };
 
 /** The sign-up request with this id (used or not), or null. */
-export const findSignup = async (id) => toSignup(first(await pool.query('SELECT * FROM signup_requests WHERE id = ?', [id])));
+export const findSignup = async (id) =>
+  toSignup(first(await pool.query('SELECT * FROM signup_requests WHERE id = ?', [id])));
 
 /** Save a new sign-up request. */
 export async function insertSignup(r) {
   await pool.query(
     `INSERT INTO signup_requests (id, email, first_name, middle_name, last_name, mobile, password_hash, code_hash, expires_at, resend_at, attempts, used_at, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
-    [r.id, r.email, r.firstName, r.middleName, r.lastName, r.mobile, r.passwordHash, r.codeHash, r.expiresAt, r.resendAt, r.createdAt]
+    [
+      r.id,
+      r.email,
+      r.firstName,
+      r.middleName,
+      r.lastName,
+      r.mobile,
+      r.passwordHash,
+      r.codeHash,
+      r.expiresAt,
+      r.resendAt,
+      r.createdAt
+    ]
   );
 }
 
@@ -342,7 +393,12 @@ export async function deleteSignup(id) {
 
 /** A resend: the new code's hash and fresh expiry / resend times. The old code stops working. */
 export async function replaceSignupCode(id, { codeHash, expiresAt, resendAt }) {
-  await pool.query('UPDATE signup_requests SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+  await pool.query('UPDATE signup_requests SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [
+    codeHash,
+    expiresAt,
+    resendAt,
+    id
+  ]);
 }
 
 /** Move the resend time (back to now after a failed send). */
@@ -357,7 +413,10 @@ export async function addSignupAttempt(id) {
 
 /** Spend the request when its account is created, only if it was not spent yet: false when another request got there first. */
 export async function markSignupUsed(conn, id, at) {
-  const [result] = await conn.query('UPDATE signup_requests SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  const [result] = await conn.query('UPDATE signup_requests SET used_at = ? WHERE id = ? AND used_at IS NULL', [
+    at,
+    id
+  ]);
   return result.affectedRows === 1;
 }
 
@@ -378,7 +437,8 @@ const toChange = (row) =>
   };
 
 /** The password-change request with this id (used or not), or null. */
-export const findChange = async (id) => toChange(first(await pool.query('SELECT * FROM password_changes WHERE id = ?', [id])));
+export const findChange = async (id) =>
+  toChange(first(await pool.query('SELECT * FROM password_changes WHERE id = ?', [id])));
 
 /** Save a new password-change request. */
 export async function insertChange(r) {
@@ -401,7 +461,12 @@ export async function deleteChange(id) {
 
 /** A resend: the new code's hash and fresh expiry / resend times. The old code stops working. */
 export async function replaceChangeCode(id, { codeHash, expiresAt, resendAt }) {
-  await pool.query('UPDATE password_changes SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+  await pool.query('UPDATE password_changes SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [
+    codeHash,
+    expiresAt,
+    resendAt,
+    id
+  ]);
 }
 
 /** Move the resend time (back to now after a failed send). */
@@ -416,7 +481,10 @@ export async function addChangeAttempt(id) {
 
 /** Spend the request, only if it was not spent yet: false when another request got there first. */
 export async function markChangeUsed(conn, id, at) {
-  const [result] = await conn.query('UPDATE password_changes SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  const [result] = await conn.query('UPDATE password_changes SET used_at = ? WHERE id = ? AND used_at IS NULL', [
+    at,
+    id
+  ]);
   return result.affectedRows === 1;
 }
 
@@ -444,7 +512,15 @@ export async function insertEmailChange(change) {
   await pool.query(
     `INSERT INTO customer_email_changes (id, customer_id, new_email, code_hash, expires_at, resend_at, attempts, used_at, created_at)
      VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
-    [change.id, change.customerId, change.newEmail, change.codeHash, change.expiresAt, change.resendAt, change.createdAt]
+    [
+      change.id,
+      change.customerId,
+      change.newEmail,
+      change.codeHash,
+      change.expiresAt,
+      change.resendAt,
+      change.createdAt
+    ]
   );
 }
 
@@ -460,7 +536,12 @@ export async function deleteEmailChange(id) {
 
 /** Replace the code and timers after a resend. */
 export async function replaceEmailChangeCode(id, { codeHash, expiresAt, resendAt }) {
-  await pool.query('UPDATE customer_email_changes SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [codeHash, expiresAt, resendAt, id]);
+  await pool.query('UPDATE customer_email_changes SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [
+    codeHash,
+    expiresAt,
+    resendAt,
+    id
+  ]);
 }
 
 /** Let the customer request another code immediately after delivery failed. */
@@ -475,7 +556,10 @@ export async function addEmailChangeAttempt(id) {
 
 /** Spend the request once, in the same transaction that changes the customer's email. */
 export async function markEmailChangeUsed(conn, id, at) {
-  const [result] = await conn.query('UPDATE customer_email_changes SET used_at = ? WHERE id = ? AND used_at IS NULL', [at, id]);
+  const [result] = await conn.query('UPDATE customer_email_changes SET used_at = ? WHERE id = ? AND used_at IS NULL', [
+    at,
+    id
+  ]);
   return result.affectedRows === 1;
 }
 
@@ -496,7 +580,14 @@ const toAttempt = (row) => row && { count: row.count, lockedUntil: row.locked_un
 
 /** The counter for one scope and account, or null when there is none (no failures). */
 export const findAttempts = async (scope, identifier) =>
-  toAttempt(first(await pool.query('SELECT count, locked_until, updated_at FROM login_attempts WHERE scope = ? AND identifier = ?', [scope, identifier])));
+  toAttempt(
+    first(
+      await pool.query(
+        'SELECT count, locked_until, updated_at FROM login_attempts WHERE scope = ? AND identifier = ?',
+        [scope, identifier]
+      )
+    )
+  );
 
 /**
  * Make sure the counter row exists (count 0), so lockAttempts can lock it. Runs on its own, outside
@@ -512,7 +603,14 @@ export async function ensureAttempts(scope, identifier, at) {
 
 /** Read the counter and lock its row until the transaction ends (SELECT … FOR UPDATE). */
 export const lockAttempts = async (conn, scope, identifier) =>
-  toAttempt(first(await conn.query('SELECT count, locked_until, updated_at FROM login_attempts WHERE scope = ? AND identifier = ? FOR UPDATE', [scope, identifier])));
+  toAttempt(
+    first(
+      await conn.query(
+        'SELECT count, locked_until, updated_at FROM login_attempts WHERE scope = ? AND identifier = ? FOR UPDATE',
+        [scope, identifier]
+      )
+    )
+  );
 
 /**
  * Save the counter. An upsert, so the count is kept even if a right answer on another request

@@ -27,7 +27,13 @@ import { http } from '../http.js';
 
 // Until the first map: nothing can be picked yet (DateField shows "Loading available dates…").
 // Not an empty map with capacity 0 alone, which would grey out every date as "Fully booked".
-const LOADING = Object.freeze({ capacity: 0, blocked: Object.freeze([]), booked: Object.freeze({}), events: Object.freeze([]), loading: true });
+const LOADING = Object.freeze({
+  capacity: 0,
+  blocked: Object.freeze([]),
+  booked: Object.freeze({}),
+  events: Object.freeze([]),
+  loading: true
+});
 
 const MAX_AGE_MS = 60 * 1000; // a read reloads the kept map in the background once the last load is this old
 const FIRST_RETRY_MS = 5 * 1000; // wait before trying a failed first load again; doubles after each failure…
@@ -134,13 +140,21 @@ async function save(send) {
  * Admin: block every date from `from` to `to` (max 60 days) with a reason and an optional note for customers.
  * Already-blocked dates get the new reason and note. Returns { added, total }.
  */
-export const blockDates = ({ from, to, reason, note = '' } = {}) => save(() => http.post('/admin/calendar/blocks', { from, to, reason, note }, { quiet: true }));
+export const blockDates = ({ from, to, reason, note = '' } = {}) =>
+  save(() => http.post('/admin/calendar/blocks', { from, to, reason, note }, { quiet: true }));
 
 /** Admin: open a blocked date again. Returns { ok: true }. */
-export const unblockDate = (date) => save(() => http.delete(`/admin/calendar/blocks/${encodeURIComponent(String(date || ''))}`, { quiet: true }));
+export const unblockDate = (date) =>
+  save(() => http.delete(`/admin/calendar/blocks/${encodeURIComponent(String(date || ''))}`, { quiet: true }));
 
 /** Admin: set how many events can be booked on one day (1–10). Returns { capacity }. */
 export const setDailyCapacity = (value) => save(() => http.put('/admin/calendar/capacity', { value }, { quiet: true }));
 
 // Pure rules that take the map as an argument: the same code the server checks bookings with (domain/availability.js)
-export { blockNote, dateUnavailableReason, timeUnavailableReason, daySchedule, earliestBookableDate } from '../../domain/availability.js';
+export {
+  blockNote,
+  dateUnavailableReason,
+  timeUnavailableReason,
+  daySchedule,
+  earliestBookableDate
+} from '../../domain/availability.js';
