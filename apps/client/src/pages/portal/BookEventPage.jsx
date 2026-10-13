@@ -242,6 +242,8 @@ export default function BookEventPage() {
   const [savedAt, setSavedAt] = useState(null); // time of the last draft autosave
   const [draftSaveFailed, setDraftSaveFailed] = useState(false);
   const [active, setActive] = useState('details'); // section currently on screen
+  const [chipBarStuck, setChipBarStuck] = useState(false); // section chips have reached the fixed header
+  const chipBarAnchor = useRef(null); // marker used to tell when the sticky chip row has engaged
   const chipBar = useRef(null); // phone / tablet row of section chips
   const touched = useRef(false); // true once the customer changes something (don't autosave before that)
   const initialised = useRef(false); // true once the form has been pre-filled
@@ -329,6 +331,19 @@ export default function BookEventPage() {
     // Re-run when the booking type changes (the menu, package, items and additional charges sections
     // appear or disappear), so the new set of sections is watched
   }, [catalog.data, form.serviceType]);
+
+  // The chip row starts where it naturally follows the page heading. Once scrolling carries that point
+  // under the fixed header, the row is sticky and its full set of chips can be centred when it fits.
+  useEffect(() => {
+    const anchor = chipBarAnchor.current;
+    if (!anchor) return undefined;
+    const observer = new IntersectionObserver(([entry]) => setChipBarStuck(!entry.isIntersecting), {
+      rootMargin: `-${tokens.headerHeight}px 0px 0px 0px`,
+      threshold: 0
+    });
+    observer.observe(anchor);
+    return () => observer.disconnect();
+  }, []);
 
   // Phones / tablets: slide the chip row sideways so the chip of the section in view sits in the middle,
   // instead of staying hidden off the edge of the screen
@@ -845,16 +860,16 @@ export default function BookEventPage() {
 
       {/* Phone / tablet: section chips (1o), labelled with each section's short name.
           A finished section shows a tick instead of its number, like the desktop list. */}
+      <Box ref={chipBarAnchor} aria-hidden sx={{ height: '1px', mb: '-1px' }} />
       <Box
         ref={chipBar}
         className="tm-scroll"
         sx={{
-          display: 'flex',
+          display: 'block',
           [WIDE_LAYOUT]: { display: 'none' },
           position: 'sticky',
           top: tokens.headerHeight,
           zIndex: 5,
-          gap: 0.75,
           overflowX: 'auto',
           py: 1,
           mb: 2,
@@ -862,38 +877,48 @@ export default function BookEventPage() {
           backdropFilter: 'blur(10px)'
         }}
       >
-        {sections.map(([key, , short], i) => (
-          <ButtonBase
-            key={key}
-            data-section={key}
-            onClick={() => scrollTo(key)}
-            aria-current={active === key ? 'true' : undefined}
-            sx={{
-              flexShrink: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.6,
-              px: 1.5,
-              py: 0.75,
-              borderRadius: 999,
-              fontFamily: 'inherit',
-              fontSize: 12.5,
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              color: active === key ? tokens.onGold : sectionHasError(key) ? tokens.dangerSoft : tokens.textOnDarkSoft,
-              backgroundColor: active === key ? tokens.gold : tokens.shellInset,
-              border: `1px solid ${sectionHasError(key) ? 'rgba(239,68,68,0.5)' : 'transparent'}`,
-              '@media (pointer: coarse)': { py: 1 }
-            }}
-          >
-            {sectionDone[key] ? (
-              <CheckCircleRoundedIcon sx={{ fontSize: 15, color: active === key ? tokens.onGold : tokens.green }} />
-            ) : (
-              <span>{i + 1}</span>
-            )}
-            {short}
-          </ButtonBase>
-        ))}
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 0.75,
+            width: 'max-content',
+            mx: chipBarStuck ? 'auto' : 0
+          }}
+        >
+          {sections.map(([key, , short], i) => (
+            <ButtonBase
+              key={key}
+              data-section={key}
+              onClick={() => scrollTo(key)}
+              aria-current={active === key ? 'true' : undefined}
+              sx={{
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.6,
+                px: 1.5,
+                py: 0.75,
+                borderRadius: 999,
+                fontFamily: 'inherit',
+                fontSize: 12.5,
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                color:
+                  active === key ? tokens.onGold : sectionHasError(key) ? tokens.dangerSoft : tokens.textOnDarkSoft,
+                backgroundColor: active === key ? tokens.gold : tokens.shellInset,
+                border: `1px solid ${sectionHasError(key) ? 'rgba(239,68,68,0.5)' : 'transparent'}`,
+                '@media (pointer: coarse)': { py: 1 }
+              }}
+            >
+              {sectionDone[key] ? (
+                <CheckCircleRoundedIcon sx={{ fontSize: 15, color: active === key ? tokens.onGold : tokens.green }} />
+              ) : (
+                <span>{i + 1}</span>
+              )}
+              {short}
+            </ButtonBase>
+          ))}
+        </Box>
       </Box>
 
       {!data ? (
