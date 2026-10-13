@@ -23,8 +23,8 @@ import { cancelWindowText } from '../domain/cancellation.js';
  */
 export const TERMS_VERSION = '2026-10-10';
 
-/** The same date in words, for "Last updated" at the top of both pages. */
-export const TERMS_UPDATED = '10 October 2026';
+/** Latest wording update for both pages; clarifications do not change the version customers accept. */
+export const TERMS_UPDATED = '13 October 2026';
 
 // "₱3,000"
 const pesos = (amount) => `₱${Number(amount).toLocaleString('en-PH')}`;
@@ -135,7 +135,17 @@ export function privacyPolicy() {
       'Payment details: amounts, payment methods, bank reference numbers and the receipt photos you upload, and the receipts we issue. QR Ph payments are processed by PayMongo; we never see your GCash, Maya or bank login or card details.',
       'Messages and reviews: what you write in the chat with our team (including the earlier text of a message you edit or delete), change requests, and the reviews you send us.',
       'Security records: when you sign in, failed sign-in attempts, and the kind of device and browser used (for example, "Chrome on Windows"), to protect your account.',
-      'Browser storage: your browser keeps your sign-in so you stay signed in. We do not use advertising or tracking cookies.'
+      'Browser storage: sign-in details, a remembered email address, unfinished booking details and preferences, as explained under "Cookies and Browser Storage" below.'
+    ]),
+    section('browser-storage', 'Cookies and Browser Storage', [
+      'Cookies are small pieces of information a website can save in your browser. Our website uses other browser storage to keep you signed in, help you continue a booking and remember your choices. We do not use advertising or tracking cookies, or use this storage to track you across other websites.'
+    ], [
+      `Sign-in: we save your sign-in token and basic account details in your browser. Without "Remember me", this storage normally ends when you close the tab. With "Remember me", it can remain between visits. Your session still ends after ${RULES.idleMinutes} minutes of inactivity or when the sign-in token expires. Signing out removes the saved sign-in; an expired saved sign-in is removed when the website detects it.`,
+      'Remembered email: choosing "Remember me" also saves your email address to fill in the login form on a later visit. Signing out does not remove that email. To remove it, sign in successfully with "Remember me" unticked, or clear this website\'s site data in your browser.',
+      'Bookings: details you choose before signing in are saved temporarily in the tab so you can continue after signing up or logging in; we stop using them once they are more than a day old. An unfinished reservation form is saved for your account in this browser and can remain between visits. The saved booking details are removed when you submit the reservation or discard the draft.',
+      'Preferences: we remember your chosen light or dark appearance, whether the portal sidebar is collapsed, and which notifications you have marked as read. Staff dashboard preferences, such as table columns, are also saved in the browser. Temporary sign-in lockout information is kept in the tab to help protect accounts.',
+      'How long it stays: storage kept in a tab normally clears when the tab closes. Storage kept between visits has no automatic expiry unless the website removes it as described above, you clear it, or your browser removes it. Signing out does not clear saved booking drafts or preferences.',
+      'Your controls: you can clear this website\'s site data through your browser settings. This removes the saved sign-in, remembered email, drafts and preferences in that browser, so you may need to sign in again and re-enter unfinished booking details. Blocking browser storage may prevent sign-in and saved features from working. Clearing browser data does not delete your account or reservations already sent to us.'
     ]),
     section('use', 'Why We Use It', [], [
       'To create your account, take your reservation requests, prepare quotations and contracts, and deliver your event or rental (this is needed for our contract with you).',
