@@ -21,6 +21,7 @@ import {
   INVENTORY_CATEGORIES,
   NotFoundPage,
   OCCASIONS,
+  PackagePhoto,
   RENTAL,
   RULES,
   SelectField,
@@ -29,17 +30,15 @@ import {
   isRentalPackage,
   peso,
   titleCase,
-  tokens,
   useDocumentTitle,
   useResource
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import AuthGate from '../../components/AuthGate.jsx';
-import { MoodPanel } from '../../components/Marketing.jsx';
 import SiteFooter from '../../components/SiteFooter.jsx';
 import SiteNav from '../../components/SiteNav.jsx';
 import { readIntent, saveIntent } from '../../lib/booking.js';
-import { site } from '../../theme/siteTheme.js';
+import { site, siteContainerSx } from '../../theme/siteTheme.js';
 
 /**
  * 1b · Package detail, where the Reserve CTA lives. 1c gate opens from here.
@@ -140,7 +139,7 @@ export default function PackageDetailPage() {
   return (
     <Box sx={{ backgroundColor: site.ivory, color: site.ink, minHeight: '100vh' }}>
       <SiteNav />
-      <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax, py: { xs: 3, md: 5 }, pb: { xs: 14, md: 8 } }}>
+      <Container maxWidth={false} sx={{ ...siteContainerSx, py: { xs: 3, md: 5 }, pb: { xs: 14, md: 8 } }}>
         <Breadcrumbs separator={<NavigateNextRoundedIcon sx={{ fontSize: 16 }} />} sx={{ mb: 3, color: site.inkMuted }}>
           <Link component={RouterLink} to="/#packages" underline="hover" sx={{ fontSize: 13, color: site.inkSoft }}>
             Packages
@@ -149,15 +148,15 @@ export default function PackageDetailPage() {
         </Breadcrumbs>
 
         {loading || !pkg ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.6fr 1fr' }, gap: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.25fr) minmax(0, 1fr)' }, gap: 4 }}>
             <Skeleton variant="rounded" height={520} sx={{ bgcolor: site.sand, borderRadius: 3 }} />
             <Skeleton variant="rounded" height={420} sx={{ bgcolor: site.sand, borderRadius: 3 }} />
           </Box>
         ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.6fr 1fr' }, gap: { xs: 3, md: 4 }, alignItems: 'start' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.25fr) minmax(0, 1fr)' }, gap: { xs: 3, md: 4 }, alignItems: 'start' }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
               <Paper elevation={0} sx={{ overflow: 'hidden', borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>
-                <MoodPanel pkg={pkg} light height={240} iconSize={96} />
+                <PackagePhoto pkg={pkg} height={{ xs: 250, sm: 330, md: 360 }} />
                 <Box sx={{ p: { xs: 2.5, md: 3.5 } }}>
                   <Typography component="h1" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 34, md: 46 }, fontWeight: 600, color: site.ink }}>
                     {pkg.name}

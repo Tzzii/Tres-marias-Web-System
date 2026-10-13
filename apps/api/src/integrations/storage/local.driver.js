@@ -4,7 +4,8 @@ import path from 'node:path';
 import { config } from '../../config.js';
 
 // Absolute upload folder (apps/api/uploads by default, worked out by config.js). It is outside every public
-// folder: files are only ever streamed back through an authenticated route.
+// folder: files are streamed through guarded routes (receipts require authentication;
+// package photos additionally have a public route that checks package visibility).
 const ROOT = config.storage.uploadDir;
 const ROOT_PREFIX = ROOT.endsWith(path.sep) ? ROOT : ROOT + path.sep;
 

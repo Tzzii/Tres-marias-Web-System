@@ -44,7 +44,7 @@ capstone website #2/
 │   │       ├── auth.js              # Admin session (own storage key)
 │   │       ├── layouts/AdminLayout.jsx
 │   │       ├── components/          # SectionTabs (tabs inside one page), RefundDialog
-│   │       ├── lib/txt.js           # Plain-text (.txt) exports
+│   │       ├── components/PdfDocument.jsx # Saved reports and outsourcing PDFs
 │   │       └── pages/               # 1q Login, 1r Dashboard, Reservation & Calendar, 1t Reservation detail,
 │   │           │                    # 1u Packages, Inventory, 1x Customers, Messages, 1y Reports,
 │   │           │                    # Outsourcing, Feedbacks, My account
@@ -101,12 +101,36 @@ itself when its files change (`node --watch`, built into Node; nodemon is no lon
 
 **The API is needed for every page.** Sign-in, sign-up, the catalogue, the calendar, reservations,
 chat, payments, customers, reviews, inventory, outsourcing, the Dashboard and Reports all come from the
-API (the TXT exports are made in the browser from what it sends). While signed in, each portal asks the
+API (the PDFs are made in the browser from what it sends). While signed in, each portal asks the
 API every 15 seconds (only while the tab is visible) whether anything changed, and reloads what it
 shows, so one portal's changes show in the other without a refresh. Sending an outsourcing request (it
 only asks a partner if they can supply the items for an event; it is not a contract) goes through the
 mail and SMS ports: with `MAIL_DRIVER=log` and `SMS_DRIVER=log` nothing leaves the server, and the
-Outsourcing page says so, so the admin downloads the request (.txt) and sends it themselves.
+Outsourcing page says so, so the admin saves the request as PDF and sends it themselves.
+
+**Photo uploads.** Every uploaded photo has a 20 MB per-file limit, defined by
+`RULES.photoMaxMb` in the shared configuration. Upload forms use this rule, and API
+photo routes use `photoUpload(field)` to enforce it, accepting exactly 20 MB and
+rejecting anything larger. If set, `MAX_UPLOAD_MB` must be 20 so deployment settings
+cannot give the server a different limit. New photo upload features, including
+package setup photos, must use the same rule and middleware.
+
+**Package setup photos.** Admin → Packages → select a package → **Upload photo**
+or **Replace photo** → **Save changes**. One JPG, PNG or WebP photo, up to 20 MB,
+can be saved per package, including Equipment Rental. **Remove photo** takes
+effect on save; **Discard** abandons pending photo changes. The customer's
+**View package** / **See details** page shows the saved setup photo, with a
+**View photo** dialog to enlarge it. Landing cards retain their illustrations.
+Without an upload, bundled generated sample photos are labelled **Sample setup**;
+Full Service packages use the corresponding base setup sample. Uploaded files live
+in `apps/api/uploads/packages`, with metadata in `packages.photo_key/photo_mime`.
+Hidden and archived packages' photos are only accessible through the protected
+admin route. Run `npm run db:migrate` before starting an existing deployment.
+
+Package photo checks: `node --test apps/api/scripts/package-photo-tests.js`;
+the database integration check is
+`node apps/api/scripts/package-photo-db-tests.js --writes-test-data`
+(creates its own temporary packages and cleans them and their photos afterward).
 
 **Payments.** Customers pay three ways: **QR Ph** (a PayMongo QR Ph code that GCash, Maya or a bank app
 scans, confirmed automatically), **bank transfer** (the reference number and a photo of the receipt,
@@ -184,7 +208,7 @@ These accounts are in the sample data (in the database after `npm run seed:api`)
 
 | App | Username | Password | Second step |
 | --- | --- | --- | --- |
-| Customer Portal | `maria.santos@gmail.com` (or any seeded customer) | `SEED_CUSTOMER_PASSWORD` | — |
+| Customer Portal | The single demo customer's email in your local `apps/api/src/seedData/sample/` | `SEED_CUSTOMER_PASSWORD` | — |
 | Admin Dashboard | `emmamariaobet@gmail.com` (or `SEED_ADMIN_EMAIL`, if set) | `SEED_ADMIN_PASSWORD` | 6-digit code sent by email |
 
 New customer accounts are created from **Sign up**: the form, then the 6-digit code emailed to the
@@ -221,6 +245,17 @@ by hand; without it, `npm run seed:api` and `npm run db:roundtrip` stop with a m
 `sort_order` column), run `npm run db:reset` first, then `npm run seed:api`. Sample event dates are
 placed relative to the day the data is created, so after a few days "events today" drifts: run
 `npm run seed:api` again.
+
+**Replacing only customer demo data:** `npm run seed:customers` replaces the customers and their
+bookings, payments, refunds, chat, reviews and rental movements with the single account in the local
+sample folder. It builds quotations from the database's current catalog prices and booking rules.
+Admin accounts, catalog entries, settings, inventory definitions and suppliers are preserved; old
+customer-linked outsourcing contracts and notifications are removed. Before deleting anything, the
+command saves a database snapshot and `restore.sql` under the ignored `apps/api/tmp/` folder. The
+replacement runs in one transaction and refuses production or a remote database. Dates are relative
+to Manila's current date; use this command again to refresh the scenarios while keeping admin changes.
+`npm run test:seed` checks the local sample's identity, menus, quotations, payments, cancellations,
+refunds, rental tracking, feedback and document links. The sample folder remains outside Git.
 
 **Fresh start (go-live):** `npm run seed:starter` loads only the real business data: the admin
 account, the packages, additional charges, dishes and settings, and the 48 inventory items with

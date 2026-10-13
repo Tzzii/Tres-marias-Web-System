@@ -358,7 +358,7 @@ export function DateField({ id, label, value, onChange, error, hint, required, m
                       close(true);
                     }
                   }}
-                  sx={{ width: 320, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', overscrollBehavior: 'contain', borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, outline: 'none' }}
+                  sx={{ width: 384, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', overscrollBehavior: 'contain', borderRadius: 2, border: `1px solid ${tokens.cardLightBorder}`, outline: 'none' }}
                 >
                   {/* A tap anywhere outside the popup closes it, except on the input (its own click toggles the popup) */}
                   <ClickAwayListener onClickAway={(event) => { if (!buttonRef.current || !buttonRef.current.contains(event.target)) close(); }}>

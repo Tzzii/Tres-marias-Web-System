@@ -24,6 +24,7 @@ import { tokens } from '../theme/tokens.js';
 import { AlertBanner } from './Feedback.jsx';
 import { FormField } from './FormField.jsx';
 import { Pill } from './Pill.jsx';
+import { ReferencePhotoPicker, ReferencePhotoPreview } from './ReferencePhoto.jsx';
 
 /**
  * The "Theme and Colors" parts (domain/styling.js has the lists and the rules):
@@ -107,7 +108,7 @@ const Heading = ({ children, hint, sx }) => (
  * on how colours are matched and what is charged; the admin's dialog leaves them out. `children` go under
  * the design details (the booking form's reminder about decorations that are additional charges).
  */
-export function StylingFields({ idPrefix, value, onChange, occasion, errors = {}, forCustomer = false, children }) {
+export function StylingFields({ idPrefix, value, onChange, occasion, errors = {}, forCustomer = false, referencePhoto, onReferencePhotoChange, onPhotoBusyChange, children }) {
   const { popular, others } = themesFor(occasion);
   const otherBox = useRef(null);
   const justPickedOther = useRef(false); // focus the "Other" box only when the chip was just pressed, never on load
@@ -178,6 +179,8 @@ export function StylingFields({ idPrefix, value, onChange, occasion, errors = {}
         )}
       </Box>
 
+      {forCustomer && onReferencePhotoChange && <ReferencePhotoPicker id={`${idPrefix}-referencePhoto`} value={referencePhoto} onChange={onReferencePhotoChange} onBusyChange={onPhotoBusyChange} error={errors['styling.referencePhoto']} />}
+
       <Box>
         <FormField
           id={`${idPrefix}-notes`}
@@ -208,12 +211,12 @@ export function StylingFields({ idPrefix, value, onChange, occasion, errors = {}
  * decided (stylingToDiscuss); the customer's page hides the whole card instead when there is nothing.
  * `compact` is the one-paragraph form the printouts use.
  */
-export function StylingSummary({ styling, forAdmin = false, compact = false }) {
-  if (stylingEmpty(styling)) {
+export function StylingSummary({ styling, forAdmin = false, compact = false, referencePhoto = styling?.referencePhoto, reservationRef }) {
+  if (stylingEmpty(styling) && !referencePhoto) {
     return <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>{forAdmin ? 'Not given. The customer booked before this section existed, or left it blank.' : 'Not given.'}</Typography>;
   }
   const theme = themeLabel(styling);
-  const colors = styling.colors || [];
+  const colors = styling?.colors || [];
   const toDiscuss = forAdmin && stylingToDiscuss(styling);
 
   if (compact) {
@@ -233,7 +236,8 @@ export function StylingSummary({ styling, forAdmin = false, compact = false }) {
             ))}
           </Box>
         )}
-        {styling.notes && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary, whiteSpace: 'pre-line' }}>Design: {styling.notes}</Typography>}
+        {styling?.notes && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary, whiteSpace: 'pre-line' }}>Design: {styling.notes}</Typography>}
+        <ReferencePhotoPreview photo={referencePhoto} compact />
       </Box>
     );
   }
@@ -268,7 +272,8 @@ export function StylingSummary({ styling, forAdmin = false, compact = false }) {
           <Typography sx={{ mt: 0.25, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>Not given</Typography>
         )}
       </Box>
-      {styling.notes && (
+      <ReferencePhotoPreview photo={referencePhoto} reservationRef={reservationRef} forAdmin={forAdmin} />
+      {styling?.notes && (
         <Box>
           <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted }}>Design Details</Typography>
           <Typography sx={{ mt: 0.25, fontSize: 13.5, color: tokens.textPrimary, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{styling.notes}</Typography>

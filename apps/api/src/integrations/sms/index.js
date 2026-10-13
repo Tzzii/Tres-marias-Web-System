@@ -15,7 +15,7 @@ import logDriver from './log.driver.js';
  * `drivers` and to the SMS_DRIVER check in config.js. Mobile numbers are stored as 09XXXXXXXXX or
  * +639XXXXXXXXX; a provider that wants the international form gets "+63" + the number without its 0.
  * Until then, a contract sent to a partner by SMS is only logged, and the admin is told to send it
- * themselves (the contract's Download .txt).
+ * themselves (the contract's Save PDF).
  */
 const drivers = { log: logDriver };
 

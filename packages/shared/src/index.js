@@ -61,7 +61,7 @@ export * from './utils/status.js';
 export * from './utils/validation.js';
 // The Save PDF buttons: draws an element onto A4 pages and saves the file (loads its libraries on first use)
 export { saveElementAsPdf } from './utils/savePdf.js';
-// Saving a file with the computer's "Save as" window where the browser allows it (TXT exports, Save PDF)
+// Saving a file with the computer's "Save as" window where the browser allows it (Save PDF)
 export { askWhereToSave, canAskWhereToSave, saveFile, writeTo } from './utils/saveFile.js';
 
 export { BUSINESS, RULES, OCCASIONS, OCCASION_OTHER, OCCASION_OTHER_RANGE, bookingOccasion, SERVICE_TYPES, includesFood, RENTAL_SERVICE, isRental, RENTAL, RENTAL_FULFILMENT, DISH_CATEGORIES, BUFFET_DRINKS, MENU_LINE_MAX, DEFAULT_PRICE_PER_PLATE, PRICE_PER_PLATE_RANGE, DEFAULT_MIN_DOWNPAYMENT, MIN_DOWNPAYMENT_RANGE, ADDON_PRICE_RANGE, BLOCK_REASONS, BLOCK_NOTE_MAX, INVENTORY_CATEGORIES, OUTSOURCE_SERVICES, OUTSOURCE_OTHER, OUTSOURCE_OTHER_RANGE, FEEDBACK_CATEGORIES } from './services/config.js';
@@ -80,6 +80,9 @@ export { downpaymentDueFor } from './domain/money.js';
 export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
 // The reference-number rule of the payment and refund forms, the same one the services check, and where a QR Ph code stands (waiting, checking, paid …)
 export { qrState, referenceProblem } from './domain/payment.js';
+export { PHOTO_ACCEPT, PHOTO_TYPES, photoProblem } from './domain/photos.js';
+export { samplePackagePhoto } from './domain/packagePhotos.js';
+export { PackagePhoto } from './components/PackagePhoto.jsx';
 // An additional charge's own price, its sizes and its packages (the admin's form and the booking form use the same rules as the services)
 export { MAX_ADDON_SIZES, PACKAGE_INCLUDES_MAX, addonPriceMap, flattenAddons, readAddonPrice, readAddonSizes } from './domain/catalog.js';
 // Editing and deleting chat messages: who may and until when, the admin's "View history" versions, previews

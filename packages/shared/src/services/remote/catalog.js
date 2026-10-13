@@ -1,6 +1,6 @@
 import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE } from '../config.js';
 import { emitChange } from '../events.js';
-import { http } from '../http.js';
+import { apiUrl, fetchFileUrl, http } from '../http.js';
 
 /**
  * The catalogue (catalogApi in @tm/shared; apps/api/src/modules/catalog, endpoint map in
@@ -129,11 +129,22 @@ export async function getCatalog() {
  * Update a package if it has an id, otherwise create a new one (hidden unless `visible` is on).
  * Only the form's fields are sent; the server keeps the kind, slug, colour and icon itself.
  */
-export function savePackage(pkg) {
+export function savePackage(pkg, { photo, removePhoto = false } = {}) {
   const { id, name, price, guests, description, items, visible } = pkg;
-  const body = { name, price, guests, description, items, visible };
+  let body = { name, price, guests, description, items, visible, removePhoto };
+  if (photo) {
+    const form = new FormData();
+    form.append('package', JSON.stringify(body));
+    form.append('photo', photo);
+    body = form;
+  }
   return id ? http.put(`/admin/packages/${segment(id)}`, body) : http.post('/admin/packages', body);
 }
+
+/** Versioned public image URL; admin previews fetch protected hidden-package photos with their token. */
+export const packagePhotoUrl = (pkg) => pkg?.photoVersion
+  ? apiUrl(`/packages/${segment(pkg.id)}/photo?v=${segment(pkg.photoVersion)}`) : null;
+export const adminPackagePhotoUrl = (pkg) => fetchFileUrl(`/admin/packages/${segment(pkg.id)}/photo?v=${segment(pkg.photoVersion)}`);
 
 /** Show or hide a package on the website. */
 export const setPackageVisibility = (id, visible) => http.patch(`/admin/packages/${segment(id)}/visibility`, { visible });

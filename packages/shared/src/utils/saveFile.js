@@ -1,5 +1,5 @@
 /**
- * Saving a file the user asked for (the TXT exports and the Save PDF buttons), with the computer's own
+ * Saving a file the user asked for (the Save PDF buttons), with the computer's own
  * "Save as" window where the browser allows it, so the user picks the folder and the file name
  * (the owner's request, 2026-10-03).
  *
@@ -17,7 +17,6 @@
 
 // The file types the window offers, by extension; the window remembers the last folder per `id`
 const TYPES = {
-  txt: { description: 'Text file', accept: { 'text/plain': ['.txt'] } },
   pdf: { description: 'PDF document', accept: { 'application/pdf': ['.pdf'] } }
 };
 const PICKER_ID = 'tres-marias-files';
@@ -63,7 +62,7 @@ export async function writeTo(target, blob) {
 }
 
 /**
- * Save a file that is ready now (e.g. a TXT export): ask where, then write it. Resolves to true when it was
+ * Save a file that is ready now: ask where, then write it. Resolves to true when it was
  * saved or downloaded, false when the user pressed Cancel (say nothing then).
  */
 export async function saveFile(fileName, blob) {

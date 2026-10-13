@@ -6,19 +6,18 @@ dist/
 *.log
 *.timestamp-*.mjs
 apps/api/uploads/
-# Generated files, e.g. the customer email previews (npm run email:preview)
+
 apps/api/tmp/
-# The sample customers, bookings and reviews (npm run seed:api) stay on this computer only
+
 apps/api/src/seedData/sample/
 .DS_Store
 .claude/
 design-backup/
 docs/
 
-# Python cache
+
 __pycache__/
 *.pyc
 
-# Local helper scripts
 scripts/capability-guide/
 scripts/ui-responsive-check.mjs

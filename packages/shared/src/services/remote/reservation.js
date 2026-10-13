@@ -1,6 +1,7 @@
 import { ApiError } from '../errors.js';
 import { emitChange } from '../events.js';
-import { http } from '../http.js';
+import { fetchFileUrl, http } from '../http.js';
+import { cleanDraftReferencePhoto, REFERENCE_PHOTO_MAX_MB } from '../../domain/referencePhoto.js';
 import { getCalendar } from './calendar.js';
 
 /**
@@ -72,10 +73,22 @@ export async function getRentalAvailability(date, { excludeRef } = {}) {
 /* ---------------- Customer actions ---------------- */
 
 /** Submit the booking form (an event, or an equipment rental). Returns the new reservation's summary. */
-export function createReservation(customerId, form = {}) {
+export async function createReservation(customerId, form = {}) {
   const body = Object.fromEntries(BOOKING_FIELDS.filter((field) => form[field] !== undefined).map((field) => [field, form[field]]));
+  if (form.referencePhoto) {
+    const photo = cleanDraftReferencePhoto(form.referencePhoto);
+    if (!photo) throw new ApiError('INVALID', `Choose a JPG, PNG or WebP reference photo up to ${REFERENCE_PHOTO_MAX_MB} MB.`, { field: 'styling.referencePhoto' });
+    const [header, encoded] = photo.dataUrl.split(',');
+    const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+    const upload = new FormData();
+    upload.append('booking', JSON.stringify(body));
+    upload.append('referencePhoto', new Blob([bytes], { type: header.slice(5, -7) }), photo.name || 'Reference photo');
+    return http.post('/reservations', upload);
+  }
   return http.post('/reservations', body);
 }
+
+export const referencePhotoUrl = (ref, { forAdmin = false } = {}) => fetchFileUrl(`${forAdmin ? '/admin' : ''}/reservations/${segment(ref)}/reference-photo`);
 
 /**
  * Cancel the customer's own reservation online, with a reason, when the rules allow it (the summary's

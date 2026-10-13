@@ -15,6 +15,7 @@ import WorkOutlineRoundedIcon from '@mui/icons-material/WorkOutlineRounded';
 import { isRentalPackage, peso, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 import { reducedMotionSx, useInView } from './Reveal.jsx';
+import PackageTilt from './PackageTilt.jsx';
 
 // Maps the icon name stored on a package to the icon component that draws it
 export const PACKAGE_ICONS = {
@@ -121,7 +122,8 @@ const shineSweep = keyframes`
  * One package in the public catalog (1a): a white card with a light mood panel, serif name and price.
  * The Equipment Rental package has no single price, so its card says "Per piece" and links to its price list.
  * Animations: the card rises and fades in every time it is scrolled into view (cards in the same row follow
- * one another, using `index`); on hover it lifts with a gold glow, a light sweeps across the top
+ * one another, using `index`); after revealing, a separate layer tilts gently toward the mouse.
+ * On hover it gains a gold glow, a light sweeps across the top
  * panel, the icon grows and tilts (or the package illustration zooms in slowly), the price turns gold,
  * the button fills gold-brown and its arrow slides right.
  * The icon floats gently at all times. Everything is switched off for visitors whose device asks for reduced motion.
@@ -144,6 +146,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
   const duration = settled ? 0.45 : 0.7;
 
   return (
+    <PackageTilt enabled={shown && settled}>
     <Paper
       ref={ref}
       // The card's own rise-in finished (ignore animations coming from the button or icon inside it)
@@ -205,10 +208,10 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
         '& .tm-card-price': { transition: 'color 0.3s ease' },
         '& .tm-card-arrow': { transition: 'transform 0.3s ease' },
 
-        // Hover (after the card has revealed): lift, gold border and glow, sweep, darker icon, gold price, arrow nudges right
+        // Fine-pointer hover: tilt lives on the outer layer so it cannot override the scroll reveal.
         ...(shown && {
+          '@media (hover: hover) and (pointer: fine)': {
           '&:hover': {
-            transform: 'translateY(-10px) scale(1.015)',
             borderColor: site.gold,
             boxShadow: `${site.shadowCardHover}, 0 22px 50px -24px rgba(197, 160, 89, 0.45)`
           },
@@ -217,6 +220,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           '&:hover .tm-mood-art': { transform: 'scale(1.06)' },
           '&:hover .tm-card-price': { color: site.gold },
           '&:hover .tm-card-arrow': { transform: 'translateX(5px)' }
+          }
         }),
 
         // Visitors who asked their device for less motion get the plain, static card
@@ -275,6 +279,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
         </Button>
       </Box>
     </Paper>
+    </PackageTilt>
   );
 }
 

@@ -107,8 +107,8 @@ export const config = {
     driver: text('STORAGE_DRIVER', 'local'),
     // Relative paths are taken from apps/api, wherever the process was started
     uploadDir: path.resolve(API_ROOT, text('UPLOAD_DIR', 'uploads')),
-    // The receipt-photo limit; the Payments page tells customers RULES.proofMaxMb, so keep the two equal
-    maxUploadMb: int('MAX_UPLOAD_MB', RULES.proofMaxMb)
+    // All photos use the shared rule; a server setting cannot change the frontend's limit.
+    maxUploadMb: RULES.photoMaxMb
   },
 
   // GCash / e-wallet QR payments (Phase 8B). Both secrets are needed before the Payments page offers the
@@ -141,6 +141,10 @@ if (config.mail.driver === 'smtp' && (!config.mail.smtp.host || !config.mail.smt
 }
 if (!['log'].includes(config.sms.driver)) problems.push(`SMS_DRIVER must be "log" (got "${config.sms.driver}").`);
 if (!['local'].includes(config.storage.driver)) problems.push(`STORAGE_DRIVER must be "local" (got "${config.storage.driver}").`);
+// Keep existing deployment settings compatible, but reject a conflicting upload limit.
+if (text('MAX_UPLOAD_MB') && int('MAX_UPLOAD_MB', RULES.photoMaxMb) !== RULES.photoMaxMb) {
+  problems.push(`MAX_UPLOAD_MB must be ${RULES.photoMaxMb} to match the system-wide photo limit.`);
+}
 // A key pasted with a typo or the public key (pk_) would only fail at the first QR; catch it here. Values are never printed.
 if (config.paymongo.secretKey && !/^sk_(test|live)_[A-Za-z0-9]+$/.test(config.paymongo.secretKey)) {
   problems.push('PAYMONGO_SECRET_KEY must be a PayMongo secret key (sk_test_… or sk_live_…).');

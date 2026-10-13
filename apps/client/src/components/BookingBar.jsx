@@ -16,7 +16,7 @@ import { site } from '../theme/siteTheme.js';
 import { siteFieldSx, siteLabelSx } from './Marketing.jsx';
 
 /**
- * Floating white availability card under the hero (1a). Checks the date against blocked
+ * Availability card with an always-visible calendar beside the event details. Checks the date against blocked
  * days and capacity, and the start and end time against other events that day (an event runs 2 to 6
  * hours), then saves the picks so they carry into the reservation. A blocked date shows the reason,
  * with our note when there is one.
@@ -73,102 +73,112 @@ export default function BookingBar({ onAvailable }) {
   };
 
   return (
-    <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, minWidth: 0, containerType: 'inline-size', containerName: 'availability-form', borderRadius: 3, backgroundColor: site.card, boxShadow: site.shadowPanel }}>
-      {/* Wide screens (lg): two rows of three (date, start, end / occasion, guests, button); the start time
-          holds three dropdowns, so its column is a little wider. Below lg the fields sit two per row. */}
-      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container availability-form (min-width: 520px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }, '@container availability-form (min-width: 840px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }, '& > *': { minWidth: 0 }, gap: 2, alignItems: 'start' }}>
-        {/* Own label (same style as the other three fields) above the shared date picker */}
+    <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5, md: 3.5 }, maxWidth: 1120, mx: 'auto', minWidth: 0, containerType: 'inline-size', containerName: 'availability-form', borderRadius: 3, backgroundColor: site.card, boxShadow: site.shadowPanel }}>
+      {/* Calendar and event details sit side by side when there is room, and stack on phones. */}
+      <Box component="form" noValidate onSubmit={submit} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container availability-form (min-width: 720px)': { gridTemplateColumns: 'minmax(0, 0.9fr) minmax(0, 1.1fr)' }, '& > *': { minWidth: 0 }, gap: { xs: 4, md: 5 }, alignItems: 'start' }}>
         <Box>
-          <Typography component="label" htmlFor="bar-date" sx={siteLabelSx}>
+          <Typography id="bar-date-label" sx={siteLabelSx}>
             Event date
           </Typography>
-          <DateField id="bar-date" value={date} onChange={(v) => { setDate(v); setErrors((e) => ({ ...e, date: '' })); setResult(null); }} error={errors.date} />
+          <Box role="group" aria-labelledby="bar-date-label">
+            <DateField inline id="bar-date" value={date} onChange={(v) => { setDate(v); setErrors((e) => ({ ...e, date: '' })); setResult(null); }} error={errors.date} />
+          </Box>
         </Box>
 
-        {/* Start time: the same hour : minute : AM/PM picker as the reservation form (30-minute steps only);
-            checked against other events booked that day */}
-        <Box>
-          <Typography component="label" htmlFor="bar-time-hour" sx={siteLabelSx}>
-            Start time
+        <Box sx={{ containerType: 'inline-size', containerName: 'booking-details' }}>
+          <Typography component="h2" sx={{ mb: 0.75, fontFamily: site.fontSerif, fontSize: { xs: 24, sm: 28 }, fontWeight: 600, color: site.ink }}>
+            Plan your event
           </Typography>
-          <TimeField
-            id="bar-time"
-            value={startTime}
-            onChange={(v) => { setStartTime(v); if (endTime) setEndTime(shiftEndTime(startTime, endTime, v)); setErrors((er) => ({ ...er, startTime: '' })); setResult(null); }}
-            min={RULES.earliestStart}
-            max={RULES.latestStart}
-            step={30}
-            error={errors.startTime}
-            sx={siteFieldSx}
-          />
-        </Box>
-
-        {/* End time: the same hour : minute : AM/PM picker, offering only 2 to 6 hours after the start;
-            the line under it says how long the event runs, and "next day" past midnight */}
-        <Box>
-          <Typography component="label" htmlFor="bar-end-hour" sx={siteLabelSx}>
-            End time
+          <Typography sx={{ mb: 3, fontSize: 13, lineHeight: 1.7, color: site.inkSoft }}>
+            Pick a date on the calendar, then add your event details to check availability.
           </Typography>
-          <EndTimeField
-            id="bar-end"
-            label=""
-            startTime={startTime}
-            value={endTime}
-            onChange={(v) => { setEndTime(v); setErrors((er) => ({ ...er, endTime: '' })); setResult(null); }}
-            error={errors.endTime}
-            sx={siteFieldSx}
-          />
-        </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', '@container booking-details (min-width: 440px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }, '& > *': { minWidth: 0 }, gap: 3 }}>
+            {/* Start time: the same hour : minute : AM/PM picker as the reservation form (30-minute steps only);
+                checked against other events booked that day */}
+            <Box>
+              <Typography component="label" htmlFor="bar-time-hour" sx={siteLabelSx}>
+                Start time
+              </Typography>
+              <TimeField
+                id="bar-time"
+                value={startTime}
+                onChange={(v) => { setStartTime(v); if (endTime) setEndTime(shiftEndTime(startTime, endTime, v)); setErrors((er) => ({ ...er, startTime: '' })); setResult(null); }}
+                min={RULES.earliestStart}
+                max={RULES.latestStart}
+                step={30}
+                error={errors.startTime}
+                sx={siteFieldSx}
+              />
+            </Box>
 
-        <Box>
-          <Typography component="label" htmlFor="bar-occasion" sx={siteLabelSx}>
-            Occasion
-          </Typography>
-          <TextField
-            id="bar-occasion"
-            select
-            fullWidth
-            size="small"
-            value={occasion}
-            onChange={(e) => { setOccasion(e.target.value); setErrors((er) => ({ ...er, occasion: '' })); }}
-            SelectProps={{ displayEmpty: true }}
-            error={Boolean(errors.occasion)}
-            helperText={errors.occasion}
-            sx={siteFieldSx}
-          >
-            <MenuItem value="" disabled>
-              Select an occasion
-            </MenuItem>
-            {OCCASIONS.map((o) => (
-              <MenuItem key={o} value={o}>
-                {o}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Box>
+            {/* End time: the same hour : minute : AM/PM picker, offering only 2 to 6 hours after the start;
+                the line under it says how long the event runs, and "next day" past midnight */}
+            <Box>
+              <Typography component="label" htmlFor="bar-end-hour" sx={siteLabelSx}>
+                End time
+              </Typography>
+              <EndTimeField
+                id="bar-end"
+                label=""
+                startTime={startTime}
+                value={endTime}
+                onChange={(v) => { setEndTime(v); setErrors((er) => ({ ...er, endTime: '' })); setResult(null); }}
+                error={errors.endTime}
+                sx={siteFieldSx}
+              />
+            </Box>
 
-        <Box>
-          <Typography component="label" htmlFor="bar-guests" sx={siteLabelSx}>
-            Guest count
-          </Typography>
-          <TextField
-            id="bar-guests"
-            fullWidth
-            size="small"
-            placeholder="e.g. 150"
-            value={guests}
-            onChange={(e) => updateGuests(e.target.value)}
-            inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }}
-            error={Boolean(errors.guests)}
-            helperText={errors.guests}
-            sx={siteFieldSx}
-          />
-        </Box>
+            <Box>
+              <Typography component="label" htmlFor="bar-occasion" sx={siteLabelSx}>
+                Occasion
+              </Typography>
+              <TextField
+                id="bar-occasion"
+                select
+                fullWidth
+                size="small"
+                value={occasion}
+                onChange={(e) => { setOccasion(e.target.value); setErrors((er) => ({ ...er, occasion: '' })); }}
+                SelectProps={{ displayEmpty: true }}
+                error={Boolean(errors.occasion)}
+                helperText={errors.occasion}
+                sx={siteFieldSx}
+              >
+                <MenuItem value="" disabled>
+                  Select an occasion
+                </MenuItem>
+                {OCCASIONS.map((o) => (
+                  <MenuItem key={o} value={o}>
+                    {o}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
 
-        <Box sx={{ gridColumn: '1 / -1', '@container availability-form (min-width: 840px)': { pt: 2.9, gridColumn: 'auto' } }}>
-          <Button type="submit" variant="contained" disabled={checking} fullWidth sx={{ height: 40, px: 3, borderRadius: 999, whiteSpace: 'nowrap' }}>
-            {checking ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Check availability'}
-          </Button>
+            <Box>
+              <Typography component="label" htmlFor="bar-guests" sx={siteLabelSx}>
+                Guest count
+              </Typography>
+              <TextField
+                id="bar-guests"
+                fullWidth
+                size="small"
+                placeholder="e.g. 150"
+                value={guests}
+                onChange={(e) => updateGuests(e.target.value)}
+                inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }}
+                error={Boolean(errors.guests)}
+                helperText={errors.guests}
+                sx={siteFieldSx}
+              />
+            </Box>
+
+            <Box sx={{ gridColumn: '1 / -1', pt: 0.5 }}>
+              <Button type="submit" variant="contained" disabled={checking} fullWidth sx={{ height: 46, px: 3, borderRadius: 999, whiteSpace: 'nowrap' }}>
+                {checking ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Check availability'}
+              </Button>
+            </Box>
+          </Box>
         </Box>
       </Box>
 

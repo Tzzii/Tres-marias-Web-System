@@ -7,8 +7,8 @@ import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LocalPhoneOutlinedIcon from '@mui/icons-material/LocalPhoneOutlined';
 import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
-import { BUSINESS, BrandMark, tokens } from '@tm/shared';
-import { site } from '../theme/siteTheme.js';
+import { BUSINESS, BrandMark } from '@tm/shared';
+import { site, siteContainerSx } from '../theme/siteTheme.js';
 
 // Shared styles for the column headings, the page links and the contact rows
 const headingSx = { fontSize: 12.5, fontWeight: 700, color: site.gold, mb: 2 };
@@ -28,7 +28,7 @@ export default function SiteFooter({ bottomSpace = false }) {
   return (
     // bottomSpace adds extra padding on phones so the fixed Log in / Sign up bar doesn't cover the footer
     <Box component="footer" id="contact" sx={{ backgroundColor: site.espresso, borderTop: `3px solid ${site.gold}`, pt: 8, pb: { xs: bottomSpace ? 12 : 4, md: 4 }, scrollMarginTop: '90px' }}>
-      <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
+      <Container maxWidth={false} sx={siteContainerSx}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1.4fr 1fr 1fr 1fr' }, gap: 5 }}>
           <Box>
             <BrandMark />

@@ -1,6 +1,9 @@
 import { createTheme } from '@mui/material/styles';
 import { lightPalette, lightTheme } from '@tm/shared';
 
+// Public pages use the available screen width with a small, consistent edge gutter.
+export const siteContainerSx = { maxWidth: 'none', px: { xs: 2, sm: 3, lg: 4 } };
+
 /**
  * "Warm Ivory & Gold" look for the public website (home, package pages, log in, sign up).
  * The customer portal and the admin dashboard keep the shared navy themes.

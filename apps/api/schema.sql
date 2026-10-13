@@ -140,6 +140,8 @@ CREATE TABLE packages (
   guests      INT          NOT NULL,
   description TEXT         NOT NULL,
   items       JSON         NOT NULL,                     -- [{ "qty": 100 | null, "name": "Porcelain Plates" }] in display order
+  photo_key   VARCHAR(255) NULL,                         -- admin-uploaded package setup photo, private storage key
+  photo_mime  VARCHAR(40)  NULL,                         -- validated JPG, PNG or WebP content type
   mood        TINYINT      NOT NULL DEFAULT 0,           -- which of the four card images/colours the UI uses (0-3)
   icon        VARCHAR(40)  NOT NULL DEFAULT 'restaurant', -- Material icon name
   featured    BOOLEAN      NOT NULL DEFAULT 0,

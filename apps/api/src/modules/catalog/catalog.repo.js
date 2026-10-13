@@ -24,7 +24,7 @@ const where = (conditions) => (conditions.length ? `WHERE ${conditions.join(' AN
 
 /* ============================ Packages ============================ */
 
-const PACKAGE_COLUMNS = 'id, slug, name, kind, price, guests, description, items, mood, icon, featured, visible, archived';
+const PACKAGE_COLUMNS = 'id, slug, name, kind, price, guests, description, items, photo_key, photo_mime, mood, icon, featured, visible, archived';
 
 // packages row -> package record (null stays null)
 const toPackage = (row) =>
@@ -35,6 +35,7 @@ const toPackage = (row) =>
     kind: row.kind,
     price: row.price,
     guests: row.guests,
+    photoVersion: row.photo_key ? row.photo_key.split('/').pop() : null,
     description: helperLabel(row.description),
     items: parseJson(row.items, []).map((item) => ({ ...item, name: helperLabel(item.name) })),
     mood: row.mood,
@@ -54,28 +55,32 @@ export async function listPackages({ includeHidden = false, includeArchived = fa
 }
 
 /** The package with this id (hidden and archived included), or null. */
-export const findPackageById = async (id, db = pool) =>
-  toPackage(first(await db.query(`SELECT ${PACKAGE_COLUMNS} FROM packages WHERE id = ?`, [id])));
+export const findPackageById = async (id, db = pool, lock = false) =>
+  toPackage(first(await db.query(`SELECT ${PACKAGE_COLUMNS} FROM packages WHERE id = ?${lock ? ' FOR UPDATE' : ''}`, [id])));
+
+/** Storage metadata stays on the server, never in package JSON. */
+export const findPackagePhoto = async (id, db = pool) =>
+  first(await db.query('SELECT photo_key AS `key`, photo_mime AS mime, visible, archived FROM packages WHERE id = ?', [id]));
 
 /** The visible, non-archived package with this slug, or null. */
 export const findPublicPackageBySlug = async (slug) =>
   toPackage(first(await pool.query(`SELECT ${PACKAGE_COLUMNS} FROM packages WHERE slug = ? AND visible = 1 AND archived = 0`, [slug])));
 
 /** True when a package other than `exceptId` (archived ones included) already has this slug. */
-export async function packageSlugTaken(slug, exceptId) {
-  const [rows] = await pool.query('SELECT 1 FROM packages WHERE slug = ? AND id <> ? LIMIT 1', [slug, exceptId]);
+export async function packageSlugTaken(slug, exceptId, db = pool) {
+  const [rows] = await db.query('SELECT 1 FROM packages WHERE slug = ? AND id <> ? LIMIT 1', [slug, exceptId]);
   return rows.length > 0;
 }
 
 /** How many packages exist (archived included) and the sort_order a new one takes (after the last). */
-export async function packageCounts() {
-  const row = first(await pool.query('SELECT COUNT(*) AS total, COALESCE(MAX(sort_order) + 1, 0) AS nextOrder FROM packages'));
+export async function packageCounts(db = pool) {
+  const row = first(await db.query('SELECT COUNT(*) AS total, COALESCE(MAX(sort_order) + 1, 0) AS nextOrder FROM packages'));
   return { total: Number(row.total), nextOrder: Number(row.nextOrder) };
 }
 
 /** Save a new package. A slug or name already in use fails with ER_DUP_ENTRY (the UNIQUE indexes). */
-export async function insertPackage(p) {
-  await pool.query(
+export async function insertPackage(p, db = pool) {
+  await db.query(
     `INSERT INTO packages (id, slug, name, kind, price, guests, description, items, mood, icon, featured, visible, archived, sort_order)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [p.id, p.slug, p.name, p.kind, p.price, p.guests, p.description, toJson(p.items), p.mood, p.icon, p.featured, p.visible, p.archived, p.sortOrder]
@@ -83,11 +88,15 @@ export async function insertPackage(p) {
 }
 
 /** Save the package form: name (and its slug), price, guests, description, items and visibility. */
-export async function updatePackage(id, p) {
-  await pool.query(
+export async function updatePackage(id, p, db = pool) {
+  await db.query(
     'UPDATE packages SET slug = ?, name = ?, price = ?, guests = ?, description = ?, items = ?, visible = ? WHERE id = ?',
     [p.slug, p.name, p.price, p.guests, p.description, toJson(p.items), p.visible, id]
   );
+}
+
+export async function setPackagePhoto(id, photo, db = pool) {
+  await db.query('UPDATE packages SET photo_key = ?, photo_mime = ? WHERE id = ?', [photo?.key || null, photo?.mime || null, id]);
 }
 
 /** Show or hide a package on the website. */

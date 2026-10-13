@@ -19,6 +19,9 @@ export const BUSINESS = {
   bankAccountNumber: '4471 0839 26'
 };
 
+// One limit for every photo upload, including receipts and package setup photos.
+const PHOTO_MAX_MB = 20;
+
 // Booking, payment and sign-in rules used by forms and services
 export const RULES = {
   /** Days of notice needed before an event date can be reserved. */
@@ -40,8 +43,10 @@ export const RULES = {
   /** Guest counts the business accepts (the owner's rule, 2026-10-03); forms keep the number inside this range. */
   minGuests: 50,
   maxGuests: 700,
-  /** The largest bank-receipt photo a customer can upload, in MB (the API's MAX_UPLOAD_MB defaults to it). */
-  proofMaxMb: 20,
+  /** Maximum size of each uploaded photo, in MB; shared by both portals and the API. */
+  photoMaxMb: PHOTO_MAX_MB,
+  /** Compatibility alias for callers using the old receipt-specific rule. */
+  proofMaxMb: PHOTO_MAX_MB,
   /** Days after approval the downpayment (at least the booking's minimum, see DEFAULT_MIN_DOWNPAYMENT) falls due. */
   downpaymentDueDays: 7,
   /**

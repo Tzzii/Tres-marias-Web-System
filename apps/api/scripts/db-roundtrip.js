@@ -1,9 +1,11 @@
 // config.js first: it fixes the time zone (Asia/Manila) before the seed works out its dates
 import { config } from '../src/config.js';
 import bcrypt from 'bcrypt';
+import { stat } from 'node:fs/promises';
+import path from 'node:path';
 import { closePool, dbErrorHint, pool } from '../src/db.js';
 import { parseJson } from '../src/lib/json.js';
-import { seedPasswords } from '../src/seedData/passwords.js';
+import { seedPasswords, seedAdminEmail } from '../src/seedData/passwords.js';
 import { NO_SAMPLE_DATA, loadSampleSeed } from '../src/seedData/sampleLoader.js';
 import { buildBusinessSeed } from '../src/seedData/seed.js';
 
@@ -94,7 +96,11 @@ async function check() {
     console.error(NO_SAMPLE_DATA);
     return 1;
   }
-  const seed = buildSample(buildBusinessSeed());
+  const business = buildBusinessSeed();
+  const adminEmail = seedAdminEmail();
+  if (adminEmail.problem) fail(adminEmail.problem);
+  if (adminEmail.email) business.admins[0].email = adminEmail.email;
+  const seed = buildSample(business);
   console.log(`DB ${config.db.database} on ${config.db.host}:${config.db.port}; fresh sample data dated ${seed.seededOn}, TZ ${process.env.TZ}`);
 
   // ---- accounts (each password hash checked with bcrypt against the seed passwords in .env) ----
@@ -160,6 +166,7 @@ async function check() {
   const rentalLines = group(await q('SELECT * FROM reservation_rental_items ORDER BY reservation_ref, sort_order'), 'reservation_ref');
   // No sort_order on damage lines: they come back by item id (one line per item and booking)
   const damageLines = group(await q('SELECT * FROM reservation_damage_charges ORDER BY reservation_ref, item_id'), 'reservation_ref');
+  const dispatches = group(await q('SELECT * FROM rental_dispatches ORDER BY reservation_ref, item_id'), 'reservation_ref');
   const reservations = (await q('SELECT * FROM reservations')).map((r) => {
     const links = addonLinks.get(r.ref) || [];
     links.forEach((l, i) => l.sort_order !== i && fail(`reservation_addons ${r.ref}: sort_order gap`));
@@ -190,6 +197,12 @@ async function check() {
       out.rentalItems = (rentalLines.get(r.ref) || []).map((l) => ({ itemId: l.item_id, name: l.name, qty: l.qty, price: l.price, damageFee: l.damage_fee }));
       out.fulfilment = r.fulfilment;
       out.damageCharges = (damageLines.get(r.ref) || []).map((l) => ({ itemId: l.item_id, name: l.name, qty: l.qty, fee: l.fee }));
+      const sent = dispatches.get(r.ref) || [];
+      if (sent.length) {
+        out.rentalDispatches = Object.fromEntries(sent.map(line => [line.item_id, line.qty]));
+        out.dispatchedAt = sent[0].dispatched_at;
+        if (sent.some(line => line.dispatched_at !== out.dispatchedAt)) fail(`${r.ref}: sample dispatch timestamps differ`);
+      }
     } else if (r.fulfilment !== null || rentalLines.has(r.ref) || damageLines.has(r.ref)) {
       fail(`${r.ref}: rental data on a non-rental`);
     }
@@ -198,10 +211,18 @@ async function check() {
   compareKeyed('reservations', reservations, seed.reservations, 'ref');
 
   // ---- payments ----
-  const payments = (await q('SELECT * FROM payments')).map((p) => {
-    if (p.proof_key !== null || p.proof_mime !== null || p.proof_size !== null) fail(`payments[${p.id}]: proof file columns should be NULL`);
+  const paymentRows = await q('SELECT * FROM payments');
+  for (const p of paymentRows) {
+    if (p.proof_key) {
+      try {
+        const file = await stat(path.join(config.storage.uploadDir, p.proof_key));
+        if (p.method !== 'bank' || p.proof_mime !== 'image/png' || p.proof_size !== file.size) fail(`payments[${p.id}]: sample proof metadata differs from its file`);
+      } catch { fail(`payments[${p.id}]: sample proof file is missing`); }
+    } else if (p.proof_mime !== null || p.proof_size !== null) fail(`payments[${p.id}]: proof metadata without a file key`);
+  }
+  const payments = paymentRows.map((p) => {
     // PayMongo confirms a GCash QR payment ('qrph'), so it has no admin; the admin verified every other verified one
-    const verifier = p.status === 'verified' && p.method !== 'qrph' ? 'adm-001' : null;
+    const verifier = p.status === 'verified' && p.method !== 'qrph' ? seed.admins[0].id : null;
     if (p.verified_by !== verifier) fail(`payments[${p.id}]: verified_by ${p.verified_by} for ${p.method} ${p.status}`);
     if (p.receipt_no === '') fail(`payments[${p.id}]: receipt_no stored as ''`);
     return {
@@ -225,7 +246,8 @@ async function check() {
     id: t.id, customerId: t.customer_id,
     messages: (msgRows.get(t.id) || []).map((m) => ({
       from: m.from_side, senderName: m.sender_name, body: m.body, ref: m.ref, at: m.at,
-      readByCustomer: bool(m.read_by_customer), readByAdmin: bool(m.read_by_admin), attachment: parseJson(m.attachment)
+      readByCustomer: bool(m.read_by_customer), readByAdmin: bool(m.read_by_admin), attachment: parseJson(m.attachment),
+      typed: bool(m.typed), editedAt: m.edited_at, deletedAt: m.deleted_at, history: parseJson(m.history) || []
     }))
   }));
   // The seed's arrays sorted by `at` (stable), the way the database returns them
@@ -321,16 +343,16 @@ async function check() {
     (SELECT COUNT(*) FROM reservations WHERE city LIKE '%ñ%') AS enyeCities,
     (SELECT COUNT(*) FROM reservation_activity WHERE text LIKE '%₱%') AS pesoActivity,
     (SELECT COUNT(*) FROM reservations WHERE food_notes LIKE '%’%') AS curlyApostrophe,
-    (SELECT COUNT(*) FROM testimonials WHERE reply_body LIKE '%—%') AS emDash,
-    (SELECT HEX(event_name) FROM reservations WHERE event_name LIKE 'Santos%Wedding%') AS santosHex`);
-  if (!chars.santosHex || !chars.santosHex.includes('E28093')) fail('en dash not stored as UTF-8 E2 80 93');
+    (SELECT COUNT(*) FROM testimonials WHERE reply_body LIKE '%—%') AS emDash`);
+  const [dash] = await q('SELECT HEX(?) AS hex', ['–']);
+  if (dash.hex !== 'E28093') fail('en dash not stored as UTF-8 E2 80 93');
   // Emoji: the seed has none, so write one in a transaction, read it back, and roll back
   const conn = await pool.getConnection();
   let emojiOk = false;
   try {
     await conn.beginTransaction();
     const text = 'Salamat po! 🎉🙏 ₱1,500 – Parañaque · sago’t gulaman';
-    await conn.query("INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment) VALUES ('m-emoji-test', 'th-0001', 'customer', 'Test', ?, NULL, 1, 1, 0, ?)", [text, JSON.stringify({ name: '🎉.pdf' })]);
+    await conn.query("INSERT INTO messages (id, thread_id, from_side, sender_name, body, ref, at, read_by_customer, read_by_admin, attachment) VALUES ('m-emoji-test', ?, 'customer', 'Test', ?, NULL, 1, 1, 0, ?)", [seed.threads[0].id, text, JSON.stringify({ name: '🎉.pdf' })]);
     const [[row]] = await conn.query("SELECT body, attachment, HEX(body) AS h FROM messages WHERE id = 'm-emoji-test'");
     emojiOk = row.body === text && parseJson(row.attachment).name === '🎉.pdf' && row.h.includes('F09F8E89');
   } catch (err) {
@@ -343,8 +365,6 @@ async function check() {
   const [{ leftover }] = await q("SELECT COUNT(*) AS leftover FROM messages WHERE id = 'm-emoji-test'");
 
   // ---- the numbers the plan lists ----
-  const [lolaRow] = await q("SELECT ref FROM reservations WHERE event_name = 'Lola Carmen''s 80th Birthday'");
-  const lolaSeed = seed.reservations.find((r) => r.eventName === "Lola Carmen's 80th Birthday");
   const count = async (t) => (await q(`SELECT COUNT(*) AS n FROM ${t}`))[0].n;
   const summary = {
     admins: await count('admins'), customers: await count('customers'), packages: await count('packages'), addons: await count('addons'), dishes: await count('dishes'),
@@ -355,8 +375,7 @@ async function check() {
   console.log('counts:', JSON.stringify(summary));
   console.log(`receipt_no: ${receiptStats.withReceipt} set (${receiptStats.first}..${receiptStats.last}), ${receiptStats.nullReceipt} NULL, duplicates ${dupReceipts.length}, UNIQUE index present ${receiptStats.uniqueIndex === 1}`);
   console.log(`foreign keys checked for orphans: ${fkChecked} (0 orphans unless listed below)`);
-  console.log(`characters: ${JSON.stringify({ ...chars, santosHex: undefined })}; emoji round trip ${emojiOk}, test row left behind ${leftover}`);
-  console.log(`Lola Carmen's 80th Birthday: db ${lolaRow ? lolaRow.ref : '(missing)'}, fresh sample data ${lolaSeed ? lolaSeed.ref : '(missing)'}`);
+  console.log(`characters: ${JSON.stringify(chars)}; emoji round trip ${emojiOk}, test row left behind ${leftover}`);
   // A seed from another day moves every relative date, so say how old the seed is
   console.log(`settings updated_at: catalog ${ageMin(catSettings.updated_at)} min ago, calendar ${ageMin(calSettings.updated_at)} min ago (both set by seed:api)`);
   notes.forEach((n) => console.log('NOTE:', n));

@@ -9,6 +9,7 @@
     "start": "node src/server.js",
     "seed": "node src/seed.js",
     "seed:starter": "node src/seed.js --starter",
+    "seed:customers": "node scripts/seed-customers.js",
     "db:reset": "node scripts/db-reset.js",
     "db:migrate": "node scripts/db-migrate.js",
     "db:ping": "node scripts/db-ping.js",
@@ -24,6 +25,7 @@
     "email:preview": "node scripts/email-preview.js",
     "test:email": "node scripts/email-test.js",
     "test:booking": "node --test scripts/booking-options-tests.js",
+    "test:seed": "node --test scripts/customer-seed-tests.js",
     "catalog:update": "node scripts/catalog-booking-update.js",
     "test:booking:db": "node --test scripts/booking-options-db-tests.js"
   },

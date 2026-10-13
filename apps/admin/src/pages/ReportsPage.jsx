@@ -9,7 +9,6 @@ import Typography from '@mui/material/Typography';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import CurrencyExchangeOutlinedIcon from '@mui/icons-material/CurrencyExchangeOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
-import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import PercentRoundedIcon from '@mui/icons-material/PercentRounded';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
@@ -27,7 +26,6 @@ import {
   PageHeader,
   RankBars,
   StatCard,
-  formatDate,
   peso,
   reportApi,
   saveElementAsPdf,
@@ -38,7 +36,7 @@ import {
   useResource
 } from '@tm/shared';
 import { SectionTabs } from '../components/SectionTabs.jsx';
-import { downloadTxt, textTable } from '../lib/txt.js';
+import { usePdfDocument } from '../components/PdfDocument.jsx';
 import PaymentsSection from './reports/PaymentsSection.jsx';
 import ReportSheet from './reports/ReportSheet.jsx';
 
@@ -79,6 +77,7 @@ export default function ReportsPage() {
   const requested = params.get('tab');
   const tab = TABS.some(([key]) => key === requested) ? requested : params.get('verify') || params.get('filter') ? 'payments' : 'overview';
   const notify = useNotify();
+  const { savePdfDocument, savingPdfDocument, pdfDocument } = usePdfDocument();
   const [range, setRange] = useState('this_year'); // selected date range
   // Load the report; it reloads automatically whenever the range changes
   const { data, loading, error, reload } = useResource(() => reportApi.getReport(range), [range]);
@@ -129,45 +128,23 @@ export default function ReportsPage() {
   // Revenue is charted per month, or per year for "All time"
   const byYear = Boolean(data && data.revenueBy === 'year');
 
-  // Export the summary numbers, revenue per month (or year) and package counts as one TXT file,
-  // with a heading and a lined-up table for each section. Revenue is net of refunds; the refunds are listed too.
-  // Months are written in full with their year ("October 2025"), as the "Last 12 months" range spans two years.
-  const exportSummary = async () => {
-    if (!data) return;
-    const text = [
-      'Tres Marias - Report',
-      `Range: ${rangeLabel}`,
-      `Generated: ${formatDate(todayISO())}`,
-      '',
-      'Summary',
-      textTable([
-        { Figure: 'Events served', Value: String(data.eventsServed) },
-        { Figure: 'Revenue (payments less refunds)', Value: peso(data.revenue) },
-        { Figure: 'Refunds', Value: peso(data.refunds) },
-        { Figure: 'Average per event', Value: peso(data.averagePerEvent) },
-        { Figure: 'Decline rate', Value: `${data.declineRate}%` }
-      ]),
-      '',
-      byYear ? 'Revenue by Year (Payments Less Refunds)' : 'Revenue by Month (Payments Less Refunds)',
-      textTable(data.revenueChart.map((m) => ({ [byYear ? 'Year' : 'Month']: m.title || m.label, Revenue: m.value })), ['Revenue']),
-      '',
-      'Bookings by Package',
-      textTable(data.packageCounts.map((p) => ({ Package: p.name, Bookings: p.count })))
-    ].join('\n');
-    if (await downloadTxt(`tres-marias-report-${range}-${todayISO()}.txt`, text)) notify('Report exported.');
-  };
-
-  // Export the open saved report (title, range and its table) as a TXT file
-  const exportSaved = async () => {
-    const text = [saved.title, `Range: ${rangeLabel}`, `Generated: ${formatDate(todayISO())}`, '', textTable(saved.rows, saved.money)].join('\n');
-    if (await downloadTxt(`${saved.title.toLowerCase().replace(/\s+/g, '-')}-${todayISO()}.txt`, text)) notify('Report exported.');
+  const saveSavedPdf = () => {
+    if (!saved?.rows.length) return;
+    return savePdfDocument({
+      title: saved.title,
+      subtitle: `Range: ${rangeLabel}`,
+      fileName: `${saved.title.toLowerCase().replace(/\s+/g, '-')}-${todayISO()}.pdf`,
+      rows: saved.rows,
+      money: saved.money,
+      orientation: 'landscape'
+    });
   };
 
   return (
     <>
       <PageHeader
         title="Reports"
-        // The range, export, print and PDF controls belong to the Overview tab only; Print and Save PDF wait for the figures
+        // The range, print and PDF controls belong to the Overview tab only; Print and Save PDF wait for the figures
         subtitle={tab === 'overview' ? `${rangeLabel} · updates automatically as bookings are completed and payments verified` : undefined}
         actions={
           tab === 'overview' && (
@@ -175,7 +152,6 @@ export default function ReportsPage() {
               <TextField select size="small" value={range} onChange={(e) => setRange(e.target.value)} inputProps={{ 'aria-label': 'Report range' }} sx={{ minWidth: 160, '& .MuiOutlinedInput-root': { backgroundColor: '#fff', color: tokens.textPrimary }, '& .MuiSvgIcon-root': { color: tokens.textMuted } }}>
                 {RANGES.map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
               </TextField>
-              <Button variant="outlined" startIcon={<FileDownloadOutlinedIcon />} onClick={exportSummary} disabled={!data} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>Export TXT</Button>
               <Button variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()} disabled={!data || loading} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>Print</Button>
               <Button variant="outlined" startIcon={<PictureAsPdfOutlinedIcon />} onClick={savePdf} disabled={!data || loading || savingPdf} sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}>
                 {savingPdf ? 'Saving…' : 'Save PDF'}
@@ -257,8 +233,8 @@ export default function ReportsPage() {
         actions={
           <>
             <Button onClick={() => setSaved(null)}>Close</Button>
-            <Button variant="contained" startIcon={<FileDownloadOutlinedIcon />} disabled={!saved || !saved.rows.length} onClick={exportSaved}>
-              Export TXT
+            <Button variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} disabled={!saved || !saved.rows.length || savingPdfDocument} onClick={saveSavedPdf}>
+              {savingPdfDocument ? 'Saving…' : 'Save PDF'}
             </Button>
           </>
         }
@@ -274,6 +250,7 @@ export default function ReportsPage() {
           />
         )}
       </AppDialog>
+      {pdfDocument}
     </>
   );
 }

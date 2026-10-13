@@ -95,13 +95,13 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, rowGap: 1.5, mb: small ? 1 : 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: { xs: '1 1 100%', sm: '0 1 auto' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: small ? '1 1 100%' : { xs: '1 1 100%', sm: '0 1 auto' }, justifyContent: small ? 'space-between' : { xs: 'space-between', sm: 'flex-start' } }}>
           <IconButton size="small" onClick={() => shift(-1)} aria-label="Previous month">
             <ChevronLeftRoundedIcon />
           </IconButton>
-          <Typography aria-live="polite" sx={{ minWidth: small ? 128 : 150, textAlign: 'center', fontSize: small ? 14 : 16, fontWeight: 700, color: tokens.textPrimary }}>
+          <Typography aria-live="polite" sx={{ minWidth: small ? 0 : 150, flex: small ? 1 : undefined, textAlign: 'center', fontSize: 16, fontWeight: 700, color: tokens.textPrimary }}>
             {MONTH_NAMES[month]} {year}
           </Typography>
           <IconButton size="small" onClick={() => shift(1)} aria-label="Next month">
@@ -115,7 +115,7 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
       <Box role="grid" aria-label={`${MONTH_NAMES[month]} ${year}`}>
         <Box role="row" sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: small ? 0.5 : { xs: 0.5, sm: 0.75 } }}>
           {WEEKDAYS.map((d) => (
-            <Typography key={d} role="columnheader" sx={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, pb: 0.5 }}>
+            <Typography key={d} role="columnheader" sx={{ textAlign: 'center', fontSize: small ? 12.5 : 11.5, fontWeight: 700, color: tokens.textMuted, pb: 0.5 }}>
               {small ? d.slice(0, 2) : d}
             </Typography>
           ))}
@@ -159,7 +159,9 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
                 alignItems: small ? 'center' : 'flex-start',
                 justifyContent: small ? 'center' : 'flex-start',
                 gap: 0.25,
-                minHeight: small ? 38 : { xs: 52, sm: 76, md: 88 },
+                // Scale date-picker cells with their container, including wider inline calendars.
+                aspectRatio: small ? '1 / 1' : undefined,
+                minHeight: small ? { xs: 36, sm: 44 } : { xs: 52, sm: 76, md: 88 },
                 p: small ? 0 : { xs: 0.5, sm: 0.9 },
                 borderRadius: 1.25,
                 fontFamily: 'inherit',
@@ -177,7 +179,7 @@ export function MonthCalendar({ year, month, onMonthChange, getDay, onSelect, se
                 ...noMotion
               }}
             >
-              <Typography component="span" sx={{ fontSize: small ? 13 : 13.5, fontWeight: isToday || isSelected ? 800 : 600, lineHeight: 1.2, textDecoration: info.tone === 'disabled' && small ? 'line-through' : 'none' }}>
+              <Typography component="span" sx={{ fontSize: small ? 15 : 13.5, fontWeight: isToday || isSelected ? 800 : 600, lineHeight: 1.2, textDecoration: info.tone === 'disabled' && small ? 'line-through' : 'none' }}>
                 {cell.day}
               </Typography>
               {/* Small calendar: one gold dot under the number when the day already has an event */}

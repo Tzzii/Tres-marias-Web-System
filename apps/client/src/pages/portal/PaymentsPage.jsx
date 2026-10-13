@@ -52,8 +52,8 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-// Largest receipt photo allowed, in MB (the server's MAX_UPLOAD_MB defaults to the same rule)
-const MAX_FILE_MB = RULES.proofMaxMb;
+// Every photo upload uses the same size rule as the server.
+const MAX_FILE_MB = RULES.photoMaxMb;
 // Receipt photos the upload box takes: photos only, so a document can't be sent by mistake (owner, 2026-10-03)
 const PROOF_ACCEPT = 'image/jpeg,image/png,image/webp';
 // Payment method buttons. The QR option ('gcash' inside the system) is a PayMongo QR Ph code (Phase 8B),

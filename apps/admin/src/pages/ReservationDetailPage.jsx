@@ -287,7 +287,7 @@ export default function ReservationDetailPage() {
                 <CardTitle subtitle="Never changes the price. Edits show in the Activity, which the customer sees." action={!closed && <Button size="small" variant="outlined" onClick={() => setDialog('styling')}>Edit</Button>}>
                   Theme and Colors
                 </CardTitle>
-                <StylingSummary styling={r.styling} forAdmin />
+                <StylingSummary styling={r.styling} reservationRef={r.ref} forAdmin />
               </DashCard>
             )}
 

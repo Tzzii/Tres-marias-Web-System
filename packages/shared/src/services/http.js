@@ -9,6 +9,7 @@ import { emitChange, emitSignedOut } from './events.js';
 
 // Where the API lives, from each app's .env.local; without a trailing slash so paths join cleanly
 const BASE = String(import.meta.env?.VITE_API_URL || 'http://localhost:4000/api').replace(/\/+$/, '');
+export const apiUrl = (path) => `${BASE}${path}`;
 // Session keys written by apps/admin/src/auth.js and apps/client/src/auth.js, with the side each one signs in
 const SESSION_KEYS = [
   ['tm.admin.session', 'admin'],

@@ -8,6 +8,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import { DashCard, ErrorState, ListSkeleton, PageHeader, RENTAL, catalogApi, formatPackageItem, isRentalPackage, peso, tokens, useDocumentTitle, useResource } from '@tm/shared';
 import { MoodPanel } from '../../components/Marketing.jsx';
+import PackageTilt from '../../components/PackageTilt.jsx';
 import { saveIntent } from '../../lib/booking.js';
 
 /**
@@ -41,7 +42,8 @@ export default function PackagesPage() {
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5 }}>
           {data.map((pkg) => (
-            <DashCard key={pkg.id} sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <PackageTilt key={pkg.id} borderRadius={2}>
+            <DashCard sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <MoodPanel pkg={pkg} height={120} iconSize={46}>
                 {pkg.featured && (
                   <Typography component="span" sx={{ position: 'absolute', top: 12, right: 12, px: 1.25, py: 0.5, fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', borderRadius: 999, color: tokens.onGold, backgroundColor: tokens.gold }}>
@@ -76,6 +78,7 @@ export default function PackagesPage() {
                 </Box>
               </Box>
             </DashCard>
+            </PackageTilt>
           ))}
         </Box>
       )}

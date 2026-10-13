@@ -7,7 +7,7 @@ import { http } from '../http.js';
  * docs/backend-development-phases.md §9.11): the server works the figures out from the database with
  * domain/reports.js. Admin only: the three addresses are under /api/admin. All three are reads, so they send no
  * change event; the pages reload them on every change the poller reports (services/poller.js).
- * The TXT exports stay in the admin page (apps/admin/src/lib/txt.js).
+ * PDF saving stays in the admin page using the shared PDF saver.
  */
 
 // A refusal from domain/reports.js as the error the pages already handle

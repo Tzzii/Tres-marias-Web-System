@@ -74,6 +74,7 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import { clearDraft, clearIntent, readDraft, readIntent, saveDraft } from '../../lib/booking.js';
+import { cleanDraftReferencePhoto } from '@tm/shared/domain/referencePhoto.js';
 
 // Form sections as [key, title, short name], in page order. The short name labels the section chips
 // on phones and tablets. The menu section is skipped for Catering only.
@@ -125,7 +126,7 @@ const lowestPackagePrice = (addon) => {
 // `styling` is an event's theme, colour motif and design details (section 4, optional; domain/styling.js).
 // `occasionOther` is the "Your occasion" box shown for the occasion "Other" (saved as the occasion itself).
 const EMPTY_STYLING = { theme: '', themeOther: '', colors: [], notes: '' };
-const EMPTY = { eventName: '', occasion: '', occasionOther: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', styling: EMPTY_STYLING, venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
+const EMPTY = { eventName: '', occasion: '', occasionOther: '', date: '', startTime: '18:00', endTime: '', guests: '', serviceType: '', packageId: '', menu: {}, foodNotes: '', styling: EMPTY_STYLING, referencePhoto: null, venueName: '', venueAddress: '', city: '', accessNotes: '', addonIds: [], addonQty: {}, fulfilment: 'pickup', rentalQty: {} };
 
 // The form can be narrow even on a laptop with the sidebar and summary open.
 // Add columns only when the form itself has room for readable controls.
@@ -195,8 +196,10 @@ export default function BookEventPage() {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [agreed, setAgreed] = useState(false); // "I agree to the Terms of Service" (never saved in the draft)
   const [savedAt, setSavedAt] = useState(null); // time of the last draft autosave
+  const [draftSaveFailed, setDraftSaveFailed] = useState(false);
   const [active, setActive] = useState('details'); // section currently on screen
   const chipBar = useRef(null); // phone / tablet row of section chips
   const touched = useRef(false); // true once the customer changes something (don't autosave before that)
@@ -219,6 +222,7 @@ export default function BookEventPage() {
     // Only known fields are kept, so a draft saved before the form changed still loads
     const base = hasDraft ? { ...EMPTY, ...Object.fromEntries(Object.entries(draft.form).filter(([key]) => key in EMPTY)) } : { ...EMPTY };
     base.styling = draftStyling(base.styling);
+    base.referencePhoto = cleanDraftReferencePhoto(base.referencePhoto);
     const picks = intentIsNewer ? intent : {};
     const pkg = catalog.data.packages.find((p) => p.slug === (params.get('package') || picks.packageSlug));
     // Picking the Equipment Rental package makes the booking a rental; any other package leaves a rental
@@ -247,7 +251,9 @@ export default function BookEventPage() {
   useEffect(() => {
     if (!touched.current) return undefined;
     const timer = setTimeout(() => {
-      if (saveDraft(user.id, form)) setSavedAt(Date.now());
+      const saved = saveDraft(user.id, form);
+      setDraftSaveFailed(!saved);
+      if (saved) setSavedAt(Date.now());
     }, 700);
     return () => clearTimeout(timer);
   }, [form, user.id]);
@@ -397,6 +403,11 @@ export default function BookEventPage() {
       if ('theme' in patch) delete next['styling.themeOther'];
       return next;
     });
+  };
+
+  const updateReferencePhoto = (photo) => {
+    update({ referencePhoto: photo });
+    setErrors((current) => { const next = { ...current }; delete next['styling.referencePhoto']; return next; });
   };
 
   // Buffet, Catering only or Equipment rental. A rental books the Equipment Rental package; leaving
@@ -587,6 +598,7 @@ export default function BookEventPage() {
   // Validate; if there are errors, scroll to the first one. Otherwise create the reservation,
   // clear the draft and saved picks, and go back to the dashboard.
   const submit = async () => {
+    if (busy || photoBusy) return;
     const found = validate();
     setErrors(found);
     setFormError('');
@@ -605,7 +617,7 @@ export default function BookEventPage() {
       const created = await reservationApi.createReservation(
         user.id,
         rental
-          ? { ...form, endTime: undefined, styling: undefined, agreeTerms: agreed, rentalItems: rentalChosen.map(({ itemId, qty }) => ({ itemId, qty })) }
+          ? { ...form, endTime: undefined, styling: undefined, referencePhoto: null, agreeTerms: agreed, rentalItems: rentalChosen.map(({ itemId, qty }) => ({ itemId, qty })) }
           : {
               ...form,
               agreeTerms: agreed,
@@ -632,7 +644,10 @@ export default function BookEventPage() {
 
   // Save the draft now and leave the form
   const saveAndExit = () => {
-    saveDraft(user.id, form);
+    if (!saveDraft(user.id, form)) {
+      notify('Your draft could not be saved. Free some browser storage or remove the reference photo and try again.', 'error');
+      return;
+    }
     notify('Draft saved. You can finish it any time from your dashboard.', 'info');
     navigate('/portal');
   };
@@ -644,6 +659,7 @@ export default function BookEventPage() {
     initialised.current = false;
     touched.current = false;
     setSavedAt(null);
+    setDraftSaveFailed(false);
     setErrors({});
     setForm(EMPTY);
     setAgreed(false);
@@ -663,7 +679,7 @@ export default function BookEventPage() {
     details: form.eventName && !bookingOccasion(form.occasion, form.occasionOther).problem && form.date && form.startTime && (rental || (form.endTime && form.guests)),
     service: Boolean(form.serviceType),
     package: Boolean(pkg),
-    styling: !stylingEmpty(styling) && !stylingProblem(styling),
+    styling: (!stylingEmpty(styling) || Boolean(form.referencePhoto)) && !stylingProblem(styling),
     items: rentalChosen.length > 0,
     food: menuComplete,
     venue: rental && !delivered ? true : form.venueName && form.venueAddress && form.city,
@@ -686,7 +702,7 @@ export default function BookEventPage() {
         crumbs={[{ label: 'My Reservations', to: '/portal/reservations' }, { label: 'Book an Event' }]}
         title="Book an Event"
         chip={
-          savedAt && (
+          !draftSaveFailed && savedAt && (
             <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: 12.5, color: tokens.textOnDarkSoft }}>
               <CloudDoneOutlinedIcon sx={{ fontSize: 17, color: tokens.green }} />
               Draft saved {formatClock(savedAt)}
@@ -701,6 +717,8 @@ export default function BookEventPage() {
           )
         }
       />
+
+      {draftSaveFailed && <AlertBanner tone="warning" sx={{ mb: 2 }}>Your latest changes could not be saved as a draft. Free some browser storage or remove the reference photo and try again before leaving this page.</AlertBanner>}
 
       {/* Phone / tablet: section chips (1o), labelled with each section's short name.
           A finished section shows a tick instead of its number, like the desktop list. */}
@@ -867,7 +885,7 @@ export default function BookEventPage() {
                 that are additional charges get a gentle reminder. A rental has none. */}
             {!rental && (
               <Section id="styling" index={sectionNo('styling')} title="Theme and Colors" subtitle="Optional. Tell us the look you want so our team sets up your tables, linens and backdrop to match.">
-                <StylingFields idPrefix="f-styling" value={form.styling} onChange={updateStyling} occasion={form.occasion} errors={errors} forCustomer>
+                <StylingFields idPrefix="f-styling" value={form.styling} onChange={updateStyling} occasion={form.occasion} errors={errors} forCustomer referencePhoto={form.referencePhoto} onPhotoBusyChange={setPhotoBusy} onReferencePhotoChange={updateReferencePhoto}>
                   {reminders.length > 0 && (
                     <AlertBanner tone="info" sx={{ mt: 1.5 }}>
                       You mentioned {wordList(reminders.map((r) => r.word))}. {wordList(reminders.map((r) => r.name))} {reminders.length === 1 ? 'is an additional charge' : 'are additional charges'}: tick {reminders.length === 1 ? 'it' : 'them'} under Additional Charges if you want us to provide {reminders.length === 1 ? 'it' : 'them'}.
@@ -1141,10 +1159,10 @@ export default function BookEventPage() {
               {!rental && bookedAddonIds.includes(DESSERT_ADDON_ID) && <Typography sx={{ mb: 1, fontSize: 13 }}>Dessert: {dessertSummary(form.menu) || 'Choose a dessert in Additional Charges'} · additional charge</Typography>}
               {rental ? <RentalQuoteLines quote={quote} delivered={delivered} /> : <QuoteLines quote={quote} pkg={pkg} serviceType={form.serviceType} addons={chosenAddons} addonQty={form.addonQty} />}
               {/* The look chosen in section 4, as the quotation and contract will print it */}
-              {!stylingEmpty(styling) && (
+              {!rental && (!stylingEmpty(styling) || form.referencePhoto) && (
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
                   <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Theme and Colors</Typography>
-                  <StylingSummary styling={styling} compact />
+                  <StylingSummary styling={styling} referencePhoto={form.referencePhoto} compact />
                 </Box>
               )}
               <AlertBanner tone="info" sx={{ mt: 2 }}>
@@ -1225,10 +1243,10 @@ export default function BookEventPage() {
                       : `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
               </Typography>
               {/* The form's two buttons, next to the price (2026-10-10; before, they were also under Review and Submit) */}
-              <BusyButton fullWidth size="large" busy={busy} onClick={submit} sx={{ mt: 2, display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}>
+              <BusyButton fullWidth size="large" busy={busy} disabled={photoBusy} onClick={submit} sx={{ mt: 2, display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}>
                 Submit request
               </BusyButton>
-              <Button fullWidth size="large" variant="outlined" onClick={saveAndExit} disabled={busy} sx={{ mt: 1, display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}>
+              <Button fullWidth size="large" variant="outlined" onClick={saveAndExit} disabled={busy || photoBusy} sx={{ mt: 1, display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}>
                 Save as draft
               </Button>
             </DashCard>
@@ -1246,10 +1264,10 @@ export default function BookEventPage() {
             <Typography sx={{ fontSize: 19, fontWeight: 800, color: tokens.textPrimary, lineHeight: 1.1, overflowWrap: 'anywhere' }}>{rental ? (rentalChosen.length ? peso(knownTotal) : 'Pick your items') : pkg ? `${peso(knownTotal)}${plusQuoted}` : 'Pick a package'}</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, maxWidth: '100%', '@media (max-width: 399px)': { width: '100%', '& > button': { flex: 1, minWidth: 0 } } }}>
-            <Button variant="outlined" onClick={saveAndExit} disabled={busy} sx={{ px: { xs: 1.5, sm: 2.5 }, whiteSpace: 'nowrap' }}>
+            <Button variant="outlined" onClick={saveAndExit} disabled={busy || photoBusy} sx={{ px: { xs: 1.5, sm: 2.5 }, whiteSpace: 'nowrap' }}>
               Save draft
             </Button>
-            <BusyButton busy={busy} onClick={submit} sx={{ px: { xs: 2, sm: 3 }, whiteSpace: 'nowrap', bgcolor: tokens.ink, color: tokens.onInk, '&:hover': { bgcolor: tokens.inkHover } }}>
+            <BusyButton busy={busy} disabled={photoBusy} onClick={submit} sx={{ px: { xs: 2, sm: 3 }, whiteSpace: 'nowrap', bgcolor: tokens.ink, color: tokens.onInk, '&:hover': { bgcolor: tokens.inkHover } }}>
               Submit request
             </BusyButton>
           </Box>

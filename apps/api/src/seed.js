@@ -1,5 +1,6 @@
 // First import on purpose: config.js sets the process time zone (Asia/Manila) before the other modules run
 import { config } from './config.js';
+import { pathToFileURL } from 'node:url';
 import { addedText } from '@tm/shared/src/domain/inventory.js';
 import { NO_EVENT } from '@tm/shared/src/domain/outsource.js';
 import { DEFAULT_MIN_DOWNPAYMENT } from '@tm/shared/src/services/config.js';
@@ -9,6 +10,7 @@ import { hashSecret } from './lib/passwords.js';
 import { seedAdminEmail, seedPasswords } from './seedData/passwords.js';
 import { NO_SAMPLE_DATA, loadSampleSeed } from './seedData/sampleLoader.js';
 import { buildBusinessSeed } from './seedData/seed.js';
+import { prepareSampleProofs } from './seedData/proofs.js';
 
 /**
  * Fill the database from the seed data, flattened into the tables of schema.sql. Two modes:
@@ -41,7 +43,7 @@ import { buildBusinessSeed } from './seedData/seed.js';
 // Every table in schema.sql, in its CREATE TABLE order: each comes after the tables it points to.
 // Rows go in in this order and are deleted in the reverse order. A table missing from this list
 // would keep its old rows, so main() stops when the database and this list do not match.
-const TABLES = [
+export const TABLES = [
   'admins', 'customers', 'packages', 'addons', 'dishes', 'catalog_settings',
   'reservations', 'reservation_addons', 'reservation_activity',
   'payments', 'refunds', 'qr_payments', 'webhook_events',
@@ -102,7 +104,7 @@ function starterData(business, now) {
  * default, e.g. the admin's sign-in history and a delivery's outbox_id.
  * `hashes` maps each account id to its bcrypt hash; `now` stamps the two settings rows.
  */
-function toRows(data, hashes, now) {
+export function toRows(data, hashes, now) {
   const reservations = data.reservations;
   const inventory = data.inventory;
   const { partners, contracts } = data.outsourcing;
@@ -132,7 +134,7 @@ function toRows(data, hashes, now) {
       company: c.company || '',
       created_at: c.createdAt,
       password_changed_at: c.passwordChangedAt ?? null,
-      // Sample accounts "made before the terms": each is asked once to accept them at its next visit
+      // Current demos can carry the accepted Terms version, just as a completed signup does.
       terms_version: c.termsVersion || '',
       terms_accepted_at: c.termsAcceptedAt ?? null
     })),
@@ -214,8 +216,8 @@ function toRows(data, hashes, now) {
       r.activity.map((entry) => ({ reservation_ref: r.ref, at: entry.at, actor: entry.actor, text: entry.text }))
     ),
 
-    // receipt_no is NULL until verified (UNIQUE allows many NULLs, but only one ''). The sample bank
-    // transfers name a proof file but have none, so proof_key, proof_mime and proof_size stay NULL.
+    // receipt_no is NULL until verified (UNIQUE allows many NULLs, but only one ''). Proof storage
+    // metadata is optional and can be filled from an explicitly marked local demo fixture.
     payments: data.payments.map((p) => ({
       id: p.id,
       ref: p.ref,
@@ -225,6 +227,9 @@ function toRows(data, hashes, now) {
       method: p.method,
       reference_no: p.referenceNo || '',
       proof_name: p.proofName || '',
+      proof_key: p.proofKey ?? null,
+      proof_mime: p.proofMime ?? null,
+      proof_size: p.proofSize ?? null,
       status: p.status,
       submitted_at: p.submittedAt,
       verified_at: p.verifiedAt ?? null,
@@ -260,7 +265,11 @@ function toRows(data, hashes, now) {
         at: m.at,
         read_by_customer: m.readByCustomer,
         read_by_admin: m.readByAdmin,
-        attachment: toJson(m.attachment)
+        attachment: toJson(m.attachment),
+        typed: Boolean(m.typed),
+        edited_at: m.editedAt ?? null,
+        deleted_at: m.deletedAt ?? null,
+        history: toJson(m.history || [])
       }))
     ),
     // `categories` and `reply` are flattened; the three reply columns are NULL when there is no reply
@@ -305,7 +314,11 @@ function toRows(data, hashes, now) {
       addon_id: i.addonId ?? null // the Tent size that books it (addons come before inventory_items)
     })),
     // One row per entry of the item's allocations object: { reservation ref or 'none': qty }
-    rental_dispatches: [],
+    rental_dispatches: reservations.flatMap((r) =>
+      Object.entries(r.rentalDispatches || {}).map(([itemId, qty]) => ({
+        reservation_ref: r.ref, item_id: itemId, qty, dispatched_at: r.dispatchedAt
+      }))
+    ),
     inventory_allocations: inventory.flatMap((i) =>
       Object.entries(i.allocations).map(([ref, qty]) => ({ item_id: i.id, reservation_ref: ref, qty }))
     ),
@@ -382,7 +395,7 @@ function toRows(data, hashes, now) {
  * row must have exactly those keys: a key missing from one row would otherwise go in as NULL
  * without a word.
  */
-async function insertRows(conn, table, rows) {
+export async function insertRows(conn, table, rows) {
   if (!rows.length) return;
   const columns = Object.keys(rows[0]);
   const values = rows.map((row, index) => {
@@ -462,6 +475,7 @@ async function main() {
     const accounts = [...data.admins.map((a) => [a.id, passwords.admin]), ...data.customers.map((c) => [c.id, passwords.customer])];
     const hashes = new Map(await Promise.all(accounts.map(async ([id, password]) => [id, await hashSecret(password)])));
     const rows = toRows(data, hashes, now);
+    if (!STARTER) await prepareSampleProofs(rows);
 
     await tx(async (conn) => {
       // A size points at its charge in the same table (addons.parent_id), so sizes are deleted first
@@ -502,4 +516,6 @@ async function main() {
   }
 }
 
-process.exitCode = await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = await main();
+}

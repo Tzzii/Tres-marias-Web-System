@@ -47,7 +47,8 @@ export const packageBody = z.object({
   price: passThrough,
   guests: passThrough,
   items: passThrough,
-  visible: flag('Visible').optional() // a new package without it starts hidden; an edit without it keeps the current setting
+  visible: flag('Visible').optional(), // a new package without it starts hidden; an edit without it keeps the current setting
+  removePhoto: flag('Remove photo').optional()
 });
 export const visibilityBody = z.object({ visible: flag('Visible') });
 export const archivedBody = z.object({ archived: flag('Archived') });

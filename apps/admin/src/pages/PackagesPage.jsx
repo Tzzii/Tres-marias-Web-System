@@ -28,6 +28,8 @@ import {
   DISH_CATEGORIES,
   MAX_ADDON_SIZES,
   PACKAGE_INCLUDES_MAX,
+  PackagePhoto,
+  PHOTO_ACCEPT,
   PRICE_PER_PLATE_RANGE,
   Pill,
   RULES,
@@ -38,6 +40,7 @@ import {
   isRentalPackage,
   itemGrows,
   peso,
+  photoProblem,
   readAddonPrice,
   readAddonSizes,
   tokens,
@@ -97,7 +100,7 @@ export default function PackagesPage() {
   const notify = useNotify();
   // Load packages and additional charges, including hidden and archived ones, and the inventory items
   // an additional charge or size can take from (its Inventory item)
-  const { data, loading, error, reload } = useResource(async () => {
+  const { data, loading, error, reload, setData } = useResource(async () => {
     const [packages, addons, dishes, inventory] = await Promise.all([
       catalogApi.listPackages({ includeHidden: true, includeArchived: true }),
       catalogApi.listAddons({ includeArchived: true }),
@@ -254,6 +257,7 @@ export default function PackagesPage() {
               isNew={editingId === 'new'}
               onCancelNew={() => setEditingId(packages[0] ? packages[0].id : null)}
               onSaved={(saved, isNew) => {
+                setData((current) => ({ ...current, packages: isNew ? [...current.packages, saved] : current.packages.map((item) => item.id === saved.id ? saved : item) }));
                 notify(isNew ? `${saved.name} created. It stays hidden until you show it.` : 'Package saved.');
                 setEditingId(saved.id);
               }}
@@ -419,7 +423,7 @@ export default function PackagesPage() {
 
 // The editor input that shows a save error's meta.field, or null for the banner. The API calls the
 // "What's included" list `items`; the form's input for it is `itemsText`.
-const editorField = (field) => (field === 'items' ? 'itemsText' : ['name', 'price', 'guests', 'description', 'itemsText'].includes(field) ? field : null);
+const editorField = (field) => (field === 'items' ? 'itemsText' : ['name', 'price', 'guests', 'description', 'itemsText', 'photo'].includes(field) ? field : null);
 
 /**
  * Form for creating or editing a package: name, price, default guest count, description, what's included
@@ -434,9 +438,13 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
+  const [photoFile, setPhotoFile] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const photoInput = useRef(null);
+
   // "dirty" = the form differs from the saved package, so Save is enabled
   const original = useMemo(() => (pkg ? JSON.stringify(toForm(pkg)) : null), [pkg]);
-  const dirty = isNew || JSON.stringify(form) !== original;
+  const dirty = isNew || JSON.stringify(form) !== original || Boolean(photoFile) || removePhoto;
 
   // Show/Hide in the package list saves the visibility at once, outside this form. Follow it here, or a
   // later Save would send the old value back and undo it; other edits not saved yet stay as typed.
@@ -497,7 +505,10 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
         price: Number(form.price),
         guests: Number(form.guests),
         items: parseItems(itemsText).map((item) => (item.qty ? { ...item, grows: growsInForm(form, item) } : item))
-      });
+      }, { photo: photoFile, removePhoto });
+      setForm(toForm(saved));
+      setPhotoFile(null);
+      setRemovePhoto(false);
       onSaved(saved, isNew);
     } catch (err) {
       // Under its input, or in the banner above the form when it has none (e.g. a network error)
@@ -512,6 +523,34 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
     <DashCard>
       <CardTitle subtitle={isNew ? 'New packages start hidden until you show them.' : undefined}>{isNew ? 'New Package' : `Editing · ${pkg.name}`}</CardTitle>
       {errors.form && <AlertBanner tone="error" sx={{ mb: 2 }}>{errors.form}</AlertBanner>}
+      <Box sx={{ mb: 2, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.borderInput}` }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 0.75 }}>Package photo</Typography>
+        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary, mb: 1.5 }}>
+          Shown when customers open this package's details. JPG, PNG or WebP · up to {RULES.photoMaxMb} MB per photo. Save changes to publish.
+        </Typography>
+        <Box sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
+          <PackagePhoto pkg={pkg || { name: form.name, kind: rental ? 'rental' : 'package' }} file={photoFile} removePhoto={removePhoto} admin height={220} />
+        </Box>
+        <input ref={photoInput} id="package-photo" type="file" accept={PHOTO_ACCEPT} hidden disabled={busy} onChange={(event) => {
+          const picked = event.target.files?.[0];
+          event.target.value = '';
+          if (!picked) return;
+          const problem = photoProblem(picked);
+          setErrors((current) => ({ ...current, photo: problem }));
+          if (problem) return;
+          setPhotoFile(picked);
+          setRemovePhoto(false);
+        }} />
+        {photoFile && <Typography sx={{ mt: 1, fontSize: 12, overflowWrap: 'anywhere', color: tokens.textSecondary }}>{photoFile.name} · {(photoFile.size / 1024 / 1024).toFixed(2)} MB</Typography>}
+        {errors.photo && <Typography role="alert" sx={{ mt: 1, color: 'error.main', fontSize: 12.5 }}>{errors.photo}</Typography>}
+        {removePhoto && <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textSecondary }}>The uploaded photo will be removed when you save. The sample setup will be shown.</Typography>}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.5 }}>
+          <Button variant="outlined" disabled={busy} onClick={() => photoInput.current?.click()}>{photoFile || (pkg?.photoVersion && !removePhoto) ? 'Replace photo' : 'Upload photo'}</Button>
+          {(photoFile || (pkg?.photoVersion && !removePhoto)) && <Button disabled={busy} color="error" onClick={() => { setPhotoFile(null); setRemovePhoto(Boolean(pkg?.photoVersion)); setErrors((current) => ({ ...current, photo: '' })); }}>Remove photo</Button>}
+          {removePhoto && <Button disabled={busy} onClick={() => setRemovePhoto(false)}>Keep current photo</Button>}
+        </Box>
+      </Box>
+
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <FormField id="p-name" label="Package name" required value={form.name} onChange={set('name')} error={errors.name} sx={{ gridColumn: { sm: '1 / -1' } }} />
         {!rental && (
@@ -562,12 +601,6 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
         </Typography>
       </Box>
 
-      <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: `1px dashed ${tokens.borderInput}` }}>
-        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-          <b>Media</b> · mood wash and theme icon, applied automatically. No photography needed.
-        </Typography>
-      </Box>
-
       <FormControlLabel sx={{ mt: 1.5 }} control={<Switch checked={Boolean(form.visible)} onChange={set('visible')} />} label={<Typography sx={{ fontSize: 13.5 }}>Visible on the website</Typography>} />
 
       <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -578,7 +611,7 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
           <Button onClick={onCancelNew}>Cancel</Button>
         ) : (
           <>
-            {dirty && <Button onClick={() => { setForm(toForm(pkg)); setErrors({}); }}>Discard</Button>}
+            {dirty && <Button disabled={busy} onClick={() => { setForm(toForm(pkg)); setPhotoFile(null); setRemovePhoto(false); setErrors({}); }}>Discard</Button>}
             <Button color="error" sx={{ ml: 'auto' }} onClick={() => onArchive(pkg)}>Archive</Button>
           </>
         )}

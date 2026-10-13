@@ -1,9 +1,8 @@
 import express from 'express';
-import multer from 'multer';
-import { config } from '../../config.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { storage } from '../../integrations/storage/index.js';
 import { validate } from '../../middleware/validate.js';
+import { photoUpload } from '../../middleware/photoUpload.js';
 import * as schemas from './payments.schemas.js';
 import * as payments from './payments.service.js';
 
@@ -26,15 +25,12 @@ import * as payments from './payments.service.js';
  */
 
 /**
- * The proof upload: one file named "proof", kept in memory (up to MAX_UPLOAD_MB, 20 MB) so the service can
+ * The proof upload: one file named "proof", kept in memory (up to the shared 20 MB photo limit) so the service can
  * check its first bytes before anything is written to disk. The routers using it sit behind requireAuth,
  * so a request without a valid token is refused before the file is read. Too large, or a file under
  * another name: MulterError, which middleware/errors.js answers with 400 INVALID under "proof".
  */
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: config.storage.maxUploadMb * 1024 * 1024, files: 1, fields: 10, parts: 12 }
-}).single('proof');
+const upload = photoUpload('proof');
 
 /**
  * Stream a proof file back: its stored type, shown in the browser (inline) under the customer's file

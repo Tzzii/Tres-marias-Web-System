@@ -1,6 +1,9 @@
 import { linkByName, planAddonSizes, readAddonPrice, readAddonSizes, rentalPriceList, slugify, withListedSizes } from '@tm/shared/src/domain/catalog.js';
 import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, DISH_CATEGORIES, MIN_DOWNPAYMENT_RANGE, PRICE_PER_PLATE_RANGE, RULES } from '@tm/shared/src/services/config.js';
 import { tx } from '../../db.js';
+import crypto from 'node:crypto';
+import { storage } from '../../integrations/storage/index.js';
+import { readPhoto } from '../../lib/photos.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { newId } from '../../lib/ids.js';
 import { now } from '../../lib/time.js';
@@ -171,38 +174,60 @@ const packageTaken = () => new ApiError('NAME_TAKEN', 'Another package already u
  * kind 'package', hidden unless `visible` is true (the form's switch), with the next card colour
  * (mood) and the default icon. Editing keeps the current visibility when `visible` is not sent.
  */
-export async function savePackage(id, values) {
-  const existing = id ? await repo.findPackageById(id) : null;
-  if (id && !existing) throw new ApiError('NOT_FOUND', 'Package not found.');
-  const clean = packageValues(values, Boolean(existing && existing.kind === 'rental'));
-  const slug = slugify(clean.name);
-  if (await repo.packageSlugTaken(slug, id || '')) throw packageTaken();
-
+export async function savePackage(id, values, file) {
+  if (file && values.removePhoto) throw invalid('Choose a new photo or remove the current photo, not both.', 'photo');
+  const type = file ? readPhoto(file) : null;
+  let newKey = null;
+  let oldKey = null;
   const savedId = id || newId('pkg');
   try {
-    if (existing) {
-      await repo.updatePackage(id, { ...clean, slug, visible: values.visible ?? existing.visible });
-    } else {
-      const { total, nextOrder } = await repo.packageCounts();
-      await repo.insertPackage({
-        ...clean,
-        id: savedId,
-        slug,
-        kind: 'package',
-        mood: total % 4,
-        icon: 'restaurant',
-        featured: false,
-        visible: values.visible ?? false,
-        archived: false,
-        sortOrder: nextOrder
-      });
-    }
+    await tx(async (conn) => {
+      const existing = id ? await repo.findPackageById(id, conn, true) : null;
+      if (id && !existing) throw new ApiError('NOT_FOUND', 'Package not found.');
+      const clean = packageValues(values, Boolean(existing && existing.kind === 'rental'));
+      const slug = slugify(clean.name);
+      if (await repo.packageSlugTaken(slug, id || '', conn)) throw packageTaken();
+      if (existing) {
+        await repo.updatePackage(id, { ...clean, slug, visible: values.visible ?? existing.visible }, conn);
+      } else {
+        const { total, nextOrder } = await repo.packageCounts(conn);
+        await repo.insertPackage({
+          ...clean,
+          id: savedId,
+          slug,
+          kind: 'package',
+          mood: total % 4,
+          icon: 'restaurant',
+          featured: false,
+          visible: values.visible ?? false,
+          archived: false,
+          sortOrder: nextOrder
+        }, conn);
+      }
+      if (file || values.removePhoto) {
+        oldKey = (await repo.findPackagePhoto(savedId, conn))?.key;
+        if (file) newKey = await storage.put(`packages/${crypto.randomUUID()}.${type.ext}`, file.buffer);
+        await repo.setPackagePhoto(savedId, file ? { key: newKey, mime: type.mime } : null, conn);
+      }
+    });
   } catch (err) {
+    if (newKey) await storage.remove(newKey).catch(() => {});
     // Another save took the name (or its slug) after the check above
     if (isDuplicate(err, 'uq_packages_slug', 'uq_packages_name')) throw packageTaken();
     throw err;
   }
+  // Only remove the replaced file after the database committed successfully.
+  if (oldKey) await storage.remove(oldKey).catch((err) => console.error('[package-photo] Cleanup failed:', err.code));
   return repo.findPackageById(savedId);
+}
+
+/** Public photo reads follow visibility; protected admin reads also allow hidden packages. */
+export async function getPackagePhoto(id, { admin = false, version } = {}) {
+  const photo = await repo.findPackagePhoto(id);
+  if (!photo || (!admin && (!photo.visible || photo.archived))) throw new ApiError('NOT_FOUND', 'Package not found.');
+  if (!photo?.key) throw new ApiError('NOT_FOUND', 'No photo has been uploaded for this package.');
+  if (version && version !== photo.key.split('/').pop()) throw new ApiError('NOT_FOUND', 'Photo not found.');
+  return { key: photo.key, mime: photo.mime };
 }
 
 // The package with this id, or NOT_FOUND

@@ -404,7 +404,7 @@ html_content = """<!DOCTYPE html>
   <li><strong>Outsourced Partner Logistics</strong>: Manage third-party suppliers, build outsourced contracts (<span class="meta-tag">OUT-YYYY-####</span>), dispatch contracts via Email/SMS, and log vendor responses.</li>
   <li><strong>Customer Relationship Management (CRM)</strong>: View customer directory, filter by booking frequency or balances, view customer reservation histories, and initiate direct chats.</li>
   <li><strong>Review Moderation & Marketing Controls</strong>: Moderate customer feedback, publish reviews to the public website, pin top reviews as "Featured" on the homepage, and reply to testimonials.</li>
-  <li><strong>Financial Analytics & Exporting</strong>: Generate net sales summaries, revenue breakdown by payment channel, package conversion analytics, and outstanding balance reports with plain-text (.txt) and print exporting.</li>
+  <li><strong>Financial Analytics & Exporting</strong>: Generate net sales summaries, revenue breakdown by payment channel, package conversion analytics, and outstanding balance reports with PDF saving and printing.</li>
 </ul>
 
 <!-- COMPARATIVE ANALYSIS -->
@@ -746,7 +746,7 @@ html_content = """<!DOCTYPE html>
     The system shall generate financial summaries reporting gross verified payments, total refunds issued, net revenue, payment method breakdowns, conversion rates, and package popularity rankings across customizable date ranges (<em>This year</em>, <em>Last 12 months</em>, <em>Last year</em>, <em>All time</em>).
   </li>
   <li><strong>REQ-FR-037: Report Exporting & Printing</strong><br>
-    The system shall support the export of financial summaries and balance reports into formatted plain-text (.txt) files and print-optimized browser views.
+    The system shall support the export of financial summaries and balance reports into formatted PDF files and print-optimized browser views.
   </li>
   <li><strong>REQ-FR-038: Cross-Portal Real-Time Synchronization</strong><br>
     The system shall monitor an atomic database change stamp via background polling (every 15 seconds during active browser visibility), automatically refreshing data views across open customer and admin tabs without full page reloads.

@@ -20,7 +20,7 @@ import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
-import { BUSINESS, RULES, cancelWindowText, catalogApi, feedbackApi, isRentalPackage, peso, tokens, useDocumentTitle, useResource } from '@tm/shared';
+import { BUSINESS, RULES, cancelWindowText, catalogApi, feedbackApi, isRentalPackage, peso, useDocumentTitle, useResource } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import BookingBar from '../../components/BookingBar.jsx';
 import GalleryDialog from '../../components/GalleryDialog.jsx';
@@ -30,7 +30,7 @@ import SiteNav from '../../components/SiteNav.jsx';
 import MobileAuthBar from '../../components/MobileAuthBar.jsx';
 import { Reveal, reducedMotionSx, useInView } from '../../components/Reveal.jsx';
 import { GALLERY, photoCount } from '../../lib/gallery.js';
-import { site } from '../../theme/siteTheme.js';
+import { site, siteContainerSx } from '../../theme/siteTheme.js';
 
 // Hero line fade-up: hidden and lowered until the hero is on screen, then eased in `delay` ms later.
 // Replays when the visitor scrolls back up to the hero.
@@ -56,7 +56,7 @@ const servicesList = (minimum) => [
   [AutoAwesomeOutlinedIcon, 'Event styling', 'Themed table setups, floral centrepieces, backdrops and mood lighting designed around your motif.'],
   [EventAvailableOutlinedIcon, 'Online reservations', 'Check open dates, reserve online and follow every step, from approval to the final headcount.'],
   [CreditCardOutlinedIcon, 'Flexible payments', `Secure your date with a downpayment${minimum ? ` of at least ${peso(minimum)}` : ''} by QR Ph (GCash, Maya or your bank app) or bank transfer, then pay the rest in parts or in cash on the day.`],
-  [LocalBarOutlinedIcon, 'Food tasting', 'Wedding package bookings include a complimentary tasting for four so you can finalise the menu with confidence.']
+  [LocalBarOutlinedIcon, 'Food tasting', 'Buffet bookings include a complimentary food tasting for four dishes.']
 ];
 
 // FAQ section as [question, answer]. Numbers come from BUSINESS and RULES in config.js and from the
@@ -192,7 +192,7 @@ export default function HomePage() {
           textAlign: 'center',
           px: 3,
           pt: { xs: 8, md: 11 },
-          pb: { xs: 16, md: 19 },
+          pb: { xs: 8, md: 11 },
           background: site.gradientHero,
           // Slowly drifting warm glow and a faint linen texture over the ivory hero.
           // The texture fades out towards the bottom so the hero blends into the page with no visible edge.
@@ -220,27 +220,19 @@ export default function HomePage() {
             <Button variant="contained" onClick={() => scrollToId('packages')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999 }}>
               See our packages
             </Button>
-            <Button onClick={() => scrollToId('faq')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.ink, backgroundColor: 'rgba(255, 255, 255, 0.55)', border: `1px solid ${site.border}`, '&:hover': { color: site.goldText, borderColor: site.gold, backgroundColor: '#fff' } }}>
-              Common questions
+            <Button onClick={() => scrollToId('availability')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.ink, backgroundColor: 'rgba(255, 255, 255, 0.55)', border: `1px solid ${site.border}`, '&:hover': { color: site.goldText, borderColor: site.gold, backgroundColor: '#fff' } }}>
+              Check availability
             </Button>
           </Box>
         </Box>
       </Box>
 
-      {/* ==================== AVAILABILITY BAR ==================== */}
-      <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax, mt: { xs: -10, md: -11 }, position: 'relative', zIndex: 5 }}>
-        {/* Rises in after the hero text. If the date is open, wait a moment so the message can be read, then scroll to the packages */}
-        <Reveal delay={450} y={28}>
-          <BookingBar onAvailable={() => setTimeout(() => scrollToId('packages'), 900)} />
-        </Reveal>
-      </Container>
-
       {/* ==================== PACKAGES ==================== */}
-      <Box component="section" id="packages" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: '80px' }}>
-        <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
+      <Box component="section" id="packages" sx={{ py: { xs: 10, md: 12 }, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
+        <Container maxWidth={false} sx={siteContainerSx}>
           {/* The count leaves out the Equipment Rental package, which is priced per piece rather than flat */}
           <SectionHead eyebrow="Our Packages" title="Pick the Package That Fits Your Guest Count" description={`${packages.data ? packages.data.filter((p) => !isRentalPackage(p)).length : 'Our'} packages, each a flat price for the buffet setup, tableware, tables and chairs. Any package works for any occasion, as a buffet we cook for you or as catering only. Need only a few things? Rent them by the piece.`} />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 4 }}>
             {/* Grey placeholder cards while loading, then one card per package (its position staggers the entrance animation) */}
             {packages.loading
               ? Array.from({ length: 3 }, (_, i) => <Skeleton key={i} variant="rounded" height={420} sx={{ borderRadius: 3, bgcolor: site.sand }} />)
@@ -249,40 +241,27 @@ export default function HomePage() {
         </Container>
       </Box>
 
-      {/* ==================== SERVICES ==================== */}
-      <Box component="section" id="services" sx={{ py: { xs: 8, md: 10 }, backgroundColor: site.sand, scrollMarginTop: '80px' }}>
-        <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
-          <SectionHead eyebrow="What We Handle" title="Everything Under One Roof" description="You plan the guest list. We take care of the rest, from the first tasting to the last cleared plate." />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
-            {/* White cards fade up as they come into view (cards in a row follow one another); on hover the card lifts and the icon tile fills gold */}
-            {services.map(([Icon, name, text], i) => (
-              <Reveal key={name} delay={(i % 3) * 110} sx={{ height: '100%' }}>
-                <Paper elevation={0} sx={{ height: '100%', p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard, transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease', '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover }, '&:hover .tm-service-icon': { color: '#fff', backgroundColor: site.gold, borderColor: site.gold } }}>
-                  <Box className="tm-service-icon" sx={{ width: 52, height: 52, mb: 2.25, borderRadius: '50%', display: 'grid', placeItems: 'center', color: site.goldText, backgroundColor: site.goldTint, border: '1px solid rgba(197, 160, 89, 0.3)', transition: 'color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease' }}>
-                    <Icon sx={{ fontSize: 22 }} />
-                  </Box>
-                  <Typography component="h3" sx={{ fontFamily: site.fontSerif, fontSize: 20, fontWeight: 600, color: site.ink }}>
-                    {name}
-                  </Typography>
-                  <Typography sx={{ mt: 1, fontSize: 13.5, lineHeight: 1.75, color: site.inkSoft }}>{text}</Typography>
-                </Paper>
-              </Reveal>
-            ))}
-          </Box>
+      {/* ==================== PLAN YOUR EVENT ==================== */}
+      <Box component="section" id="availability" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
+        <Container maxWidth={false} sx={siteContainerSx}>
+          {/* If the date is open, leave time to read the result, then return to the packages to choose one. */}
+          <Reveal y={28}>
+            <BookingBar onAvailable={() => setTimeout(() => scrollToId('packages'), 900)} />
+          </Reveal>
         </Container>
       </Box>
 
       {/* ==================== GALLERY ==================== */}
-      <Box component="section" id="gallery" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: '80px' }}>
-        <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
+      <Box component="section" id="gallery" sx={{ py: { xs: 10, md: 12 }, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
+        <Container maxWidth={false} sx={siteContainerSx}>
           <SectionHead eyebrow="Gallery" title="Moments We Have Served" description="A glimpse of the celebrations our team has had the honour of catering." />
           {/* One box per event that has photos (lib/gallery.js): two per row, three on wide screens, and a short
               last row is centred. Each box fades up as it comes into view and shows the event's cover photo (its
               first) over the soft colour; on hover it lifts and the photo zooms in slightly. Clicking it (or
               Enter / Space) opens the event's photos in the pop-up at the end of the page (GalleryDialog). */}
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 3 }}>
             {GALLERY.map((event, i) => (
-              <Reveal key={event.key} delay={(i % 3) * 100} sx={{ width: { xs: 'calc((100% - 16px) / 2)', lg: 'calc((100% - 32px) / 3)' } }}>
+              <Reveal key={event.key} delay={(i % 3) * 100} sx={{ width: { xs: 'calc((100% - 24px) / 2)', lg: 'calc((100% - 48px) / 3)' } }}>
                 <ButtonBase
                   onClick={() => openGallery(event)}
                   aria-haspopup="dialog"
@@ -387,9 +366,32 @@ export default function HomePage() {
         </Container>
       </Box>
 
+      {/* ==================== SERVICES ==================== */}
+      <Box component="section" id="services" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
+        <Container maxWidth={false} sx={siteContainerSx}>
+          <SectionHead eyebrow="What We Handle" title="Everything Under One Roof" description="You plan the guest list. We take care of the rest, from the first tasting to the last cleared plate." />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 4 }}>
+            {/* White cards fade up as they come into view (cards in a row follow one another); on hover the card lifts and the icon tile fills gold */}
+            {services.map(([Icon, name, text], i) => (
+              <Reveal key={name} delay={(i % 3) * 110} sx={{ height: '100%' }}>
+                <Paper elevation={0} sx={{ height: '100%', p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard, transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease', '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover }, '&:hover .tm-service-icon': { color: '#fff', backgroundColor: site.gold, borderColor: site.gold } }}>
+                  <Box className="tm-service-icon" sx={{ width: 52, height: 52, mb: 2.25, borderRadius: '50%', display: 'grid', placeItems: 'center', color: site.goldText, backgroundColor: site.goldTint, border: '1px solid rgba(197, 160, 89, 0.3)', transition: 'color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease' }}>
+                    <Icon sx={{ fontSize: 22 }} />
+                  </Box>
+                  <Typography component="h3" sx={{ fontFamily: site.fontSerif, fontSize: 20, fontWeight: 600, color: site.ink }}>
+                    {name}
+                  </Typography>
+                  <Typography sx={{ mt: 1, fontSize: 13.5, lineHeight: 1.75, color: site.inkSoft }}>{text}</Typography>
+                </Paper>
+              </Reveal>
+            ))}
+          </Box>
+        </Container>
+      </Box>
+
       {/* ==================== CLOSING CTA ==================== */}
-      <Box component="section" sx={{ py: { xs: 8, md: 10 } }}>
-        <Container maxWidth={false} sx={{ maxWidth: tokens.containerMax }}>
+      <Box component="section" sx={{ py: { xs: 10, md: 12 } }}>
+        <Container maxWidth={false} sx={siteContainerSx}>
           {/* Espresso panel (the one dark block before the footer); it fades in and grows very slightly into place */}
           <Reveal y={18} scale={0.98}>
             <Paper elevation={0} sx={{ p: { xs: 4, md: 8 }, textAlign: 'center', borderRadius: 4, backgroundColor: site.espresso, border: `1px solid ${site.espressoBorder}`, backgroundImage: site.gradientCta, boxShadow: site.shadowCardHover }}>
@@ -417,7 +419,7 @@ export default function HomePage() {
 
       {/* ==================== FAQ ==================== */}
       {/* Last section before the footer. Click a question to show or hide its answer; several can be open at once */}
-      <Box component="section" id="faq" sx={{ py: { xs: 8, md: 10 }, backgroundColor: site.sand, scrollMarginTop: '80px' }}>
+      <Box component="section" id="faq" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={{ maxWidth: 820 }}>
           <SectionHead eyebrow="FAQ" title="Questions We Hear Often" description="Everything you might want to know before reserving. Still unsure? Our team is happy to help." />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

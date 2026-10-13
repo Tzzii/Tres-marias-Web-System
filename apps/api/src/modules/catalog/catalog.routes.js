@@ -4,6 +4,43 @@ import { optionalAuth } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as schemas from './catalog.schemas.js';
 import * as catalog from './catalog.service.js';
+import { storage } from '../../integrations/storage/index.js';
+import { photoUpload } from '../../middleware/photoUpload.js';
+
+// Package details and an optional photo commit together through the existing Save action.
+const uploadPhoto = photoUpload('photo');
+function packageForm(req, res, next) {
+  if (!req.is('multipart/form-data')) return next();
+  uploadPhoto(req, res, (err) => {
+    if (err) return next(err);
+    try {
+      req.body = JSON.parse(req.body.package);
+      return next();
+    } catch {
+      return next(new ApiError('INVALID', 'The package form could not be read.'));
+    }
+  });
+}
+
+async function sendPackagePhoto(req, res, admin = false) {
+  const photo = await catalog.getPackagePhoto(req.valid.params.id, { admin, version: req.query.v });
+  const stream = storage.stream(photo.key);
+  await new Promise((resolve, reject) => {
+    stream.once('open', resolve);
+    stream.once('error', reject);
+  }).catch(() => { throw new ApiError('NOT_FOUND', 'This photo is no longer available.'); });
+  res.set({
+    'Content-Type': photo.mime,
+    'Content-Disposition': 'inline',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    // The public customer site and API are served from different origins.
+    'Cross-Origin-Resource-Policy': 'cross-origin'
+  });
+  stream.on('error', () => res.destroy());
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+}
 
 /**
  * The catalogue endpoints (docs/backend-development-phases.md §9.2): URL, guard and request shape
@@ -29,6 +66,10 @@ function viewer(req, wantsAdminView) {
 /* ============================ /api (public reads) ============================ */
 
 export const catalogRoutes = express.Router();
+
+catalogRoutes.get('/packages/:id/photo', validate({ params: schemas.idParams }), async (req, res) => {
+  await sendPackagePhoto(req, res);
+});
 
 // ?includeHidden=true&includeArchived=true: honoured for an admin only
 catalogRoutes.get('/packages', optionalAuth, validate({ query: schemas.packagesQuery }), async (req, res) => {
@@ -68,11 +109,14 @@ catalogRoutes.get('/rental-items', async (req, res) => {
 export const catalogAdminRoutes = express.Router();
 
 // Packages: create (201), edit, show/hide, archive/restore
-catalogAdminRoutes.post('/packages', validate({ body: schemas.packageBody }), async (req, res) => {
-  res.status(201).json(await catalog.savePackage(null, req.valid.body));
+catalogAdminRoutes.post('/packages', packageForm, validate({ body: schemas.packageBody }), async (req, res) => {
+  res.status(201).json(await catalog.savePackage(null, req.valid.body, req.file));
 });
-catalogAdminRoutes.put('/packages/:id', validate({ params: schemas.idParams, body: schemas.packageBody }), async (req, res) => {
-  res.json(await catalog.savePackage(req.valid.params.id, req.valid.body));
+catalogAdminRoutes.put('/packages/:id', packageForm, validate({ params: schemas.idParams, body: schemas.packageBody }), async (req, res) => {
+  res.json(await catalog.savePackage(req.valid.params.id, req.valid.body, req.file));
+});
+catalogAdminRoutes.get('/packages/:id/photo', validate({ params: schemas.idParams }), async (req, res) => {
+  await sendPackagePhoto(req, res, true);
 });
 catalogAdminRoutes.patch('/packages/:id/visibility', validate({ params: schemas.idParams, body: schemas.visibilityBody }), async (req, res) => {
   res.json(await catalog.setPackageVisibility(req.valid.params.id, req.valid.body.visible));

@@ -18,6 +18,7 @@ import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
 import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import SmsOutlinedIcon from '@mui/icons-material/SmsOutlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
@@ -58,7 +59,7 @@ import {
 } from '@tm/shared';
 import { useColumnChoice } from '../lib/columns.js';
 import { SectionTabs } from '../components/SectionTabs.jsx';
-import { downloadTxt, textTable } from '../lib/txt.js';
+import { usePdfDocument } from '../components/PdfDocument.jsx';
 
 const PAGE_SIZE = 10;
 const NO_EVENT = outsourceApi.NO_EVENT;
@@ -146,6 +147,7 @@ function ChannelChips({ channels, size = 'sm' }) {
 export default function OutsourcePage() {
   useDocumentTitle('Outsourcing', 'Tres Marias Admin');
   const notify = useNotify();
+  const { savePdfDocument, savingPdfDocument, pdfDocument } = usePdfDocument();
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const tab = TABS.some(([key]) => key === requested) ? requested : 'contracts';
@@ -254,30 +256,31 @@ export default function OutsourcePage() {
     if (action === 'details') setDetailsId(contract.id);
     else if (action === 'edit') setEditing({ id: contract.id });
     else if (action === 'send') setSendingId(contract.id);
-    else if (action === 'download') downloadContract(contract);
+    else if (action === 'savePdf') saveContractPdf(contract);
     else setAnswer({ id: contract.id, status: action });
   };
 
-  // Save one request as a .txt file: its details, then the exact text the partner was sent
-  const downloadContract = async (contract) => {
-    const lines = [
-      `Request: ${contract.ref}`,
-      `Partner: ${contract.partnerName}${contract.contactPerson ? ` (${contract.contactPerson})` : ''}`,
-      `Supplies: ${contract.service}`,
-      `Event: ${contract.eventName || 'No event linked'}${contract.eventDate ? ` · ${formatDate(contract.eventDate)}` : ''}`,
-      `Needed on: ${formatDate(contract.needBy)}`,
-      `Items: ${contract.itemsSummary}`,
-      `Outsource price: ${peso(contract.amount)}`,
-      `Status: ${STATUS[contract.status].label}`,
-      contract.sentAt ? `Sent: ${formatDateTime(contract.sentAt)} by ${contract.deliveries.map((d) => (d.channel === 'email' ? `email (${d.to})` : `SMS (${d.to})`)).join(' and ')}` : 'Not sent yet',
-      '',
-      contract.body || '(the request text is written when it is sent)'
-    ];
-    if (await downloadTxt(`${contract.ref}.txt`, lines.join('\n'))) notify(`${contract.ref} downloaded.`);
-  };
+  // Save the request details and the exact message sent to its partner as a branded PDF.
+  const saveContractPdf = (contract) => savePdfDocument({
+    title: `Outsourcing Request - ${contract.ref}`,
+    fileName: `${contract.ref}.pdf`,
+    details: [
+      ['Request', contract.ref],
+      ['Partner', `${contract.partnerName}${contract.contactPerson ? ` (${contract.contactPerson})` : ''}`],
+      ['Supplies', contract.service],
+      ['Event', `${contract.eventName || 'No event linked'}${contract.eventDate ? ` · ${formatDate(contract.eventDate)}` : ''}`],
+      ['Needed on', formatDate(contract.needBy)],
+      ['Items', contract.itemsSummary],
+      ['Outsource price', peso(contract.amount)],
+      ['Status', STATUS[contract.status].label],
+      ['Sent', contract.sentAt ? `${formatDateTime(contract.sentAt)} by ${contract.deliveries.map((d) => (d.channel === 'email' ? `email (${d.to})` : `SMS (${d.to})`)).join(' and ')}` : 'Not sent yet']
+    ],
+    message: contract.body || '(the request text is written when it is sent)'
+  });
 
-  // Save the ticked requests as one .txt table
-  const downloadTicked = async () => {
+  // Save the ticked requests as one landscape PDF table.
+  const saveTickedPdf = () => {
+    if (!ticked.length) return;
     const rowsOut = ticked.map((c) => ({
       Request: c.ref,
       Partner: c.partnerName,
@@ -287,7 +290,14 @@ export default function OutsourcePage() {
       'Outsource Price': c.amount,
       Status: STATUS[c.status].label
     }));
-    if (await downloadTxt(`outsourcing-requests-${todayISO()}.txt`, textTable(rowsOut, ['Outsource Price']))) notify(`${ticked.length} request${ticked.length === 1 ? '' : 's'} downloaded.`);
+    return savePdfDocument({
+      title: 'Outsourcing Requests',
+      subtitle: `${ticked.length} selected request${ticked.length === 1 ? '' : 's'}`,
+      fileName: `outsourcing-requests-${todayISO()}.pdf`,
+      rows: rowsOut,
+      money: ['Outsource Price'],
+      orientation: 'landscape'
+    });
   };
 
   // Table columns for the Requests tab; optional ones follow the "Filter columns" choice
@@ -501,7 +511,7 @@ export default function OutsourcePage() {
         {ticked.length > 0 && (
           <Box sx={{ mb: 2, px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderRadius: 1.5, backgroundColor: tokens.ink, color: tokens.onInk }}>
             <Typography sx={{ fontSize: 13.5, fontWeight: 700, mr: 'auto' }}>{ticked.length} selected</Typography>
-            <Button size="small" sx={{ color: tokens.onInk }} onClick={downloadTicked}>Download .txt</Button>
+            <Button size="small" startIcon={<PictureAsPdfOutlinedIcon />} disabled={savingPdfDocument} sx={{ color: tokens.onInk }} onClick={saveTickedPdf}>{savingPdfDocument ? 'Saving…' : 'Save PDF'}</Button>
             <Button size="small" sx={{ color: tokens.onInk }} onClick={() => setSelected([])}>Clear</Button>
           </Box>
         )}
@@ -554,7 +564,7 @@ export default function OutsourcePage() {
               : []),
             ...(menuContract.status === 'accepted' ? [<MenuItem key="completed" onClick={() => openAction('completed', menuContract)}>Mark delivered</MenuItem>] : []),
             <Divider key="d1" />,
-            <MenuItem key="download" onClick={() => openAction('download', menuContract)}>Download as .txt</MenuItem>,
+            <MenuItem key="savePdf" disabled={savingPdfDocument} onClick={() => openAction('savePdf', menuContract)}>Save PDF</MenuItem>,
             ...(['draft', 'sent', 'accepted'].includes(menuContract.status)
               ? [<MenuItem key="cancelled" onClick={() => openAction('cancelled', menuContract)} sx={{ color: tokens.redPress }}>Cancel request</MenuItem>]
               : [])
@@ -609,7 +619,7 @@ export default function OutsourcePage() {
         onClose={() => setSendingId(null)}
         // When a channel did not really go out (no email or SMS service connected yet, or the provider
         // refused it), the API says so in deliveryNote: warn, and open the contract, whose history says
-        // which channel and whose "Download .txt" lets the admin send it themselves
+        // which channel and whose "Save PDF" lets the admin send it themselves
         onSent={(contract) => {
           setSendingId(null);
           if (contract.deliveryNote) {
@@ -622,7 +632,8 @@ export default function OutsourcePage() {
         }}
       />
 
-      <DetailsDialog contract={contractById(detailsId)} onClose={() => setDetailsId(null)} onAction={openAction} />
+      {pdfDocument}
+      <DetailsDialog contract={contractById(detailsId)} onClose={() => setDetailsId(null)} onAction={openAction} savingPdf={savingPdfDocument} />
 
       {/* Record the partner's reply, mark a request delivered, or cancel it */}
       <ConfirmDialog
@@ -1087,7 +1098,7 @@ function SendDialog({ contract, onClose, onSent }) {
 }
 
 /** One request in full: its details, the text that was sent, where it went, and its history. */
-function DetailsDialog({ contract, onClose, onAction }) {
+function DetailsDialog({ contract, onClose, onAction, savingPdf }) {
   if (!contract) return <AppDialog open={false} onClose={onClose} title="" />;
   const chip = STATUS[contract.status];
 
@@ -1101,7 +1112,7 @@ function DetailsDialog({ contract, onClose, onAction }) {
       description={`${contract.partnerName} · ${contract.service}`}
       actions={
         <>
-          <Button onClick={() => onAction('download', contract)}>Download .txt</Button>
+          <Button startIcon={<PictureAsPdfOutlinedIcon />} disabled={savingPdf} onClick={() => onAction('savePdf', contract)}>{savingPdf ? 'Saving…' : 'Save PDF'}</Button>
           {contract.status === 'draft' && <Button variant="outlined" onClick={() => { onClose(); onAction('edit', contract); }}>Edit draft</Button>}
           {['draft', 'sent'].includes(contract.status) && (
             <Button variant="contained" startIcon={<SendRoundedIcon />} onClick={() => { onClose(); onAction('send', contract); }}>

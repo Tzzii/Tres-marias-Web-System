@@ -1,3 +1,5 @@
+import { cleanReferencePhoto } from './referencePhoto.js';
+
 /**
  * The booking form's "Theme and Colors" section (added 2026-10-08): the themes a customer picks from,
  * the colour motif (up to five colours from the colour picker or the metallic buttons) and the design
@@ -275,7 +277,7 @@ export function matchingColors(colors) {
 export const themeLabel = (styling) => (!styling ? '' : styling.theme === THEME_OTHER ? styling.themeOther : styling.theme);
 
 /** True when the booking has nothing in its styling (no theme, colour or details), e.g. a booking made before 2026-10-08. */
-export const stylingEmpty = (styling) => !styling || (!styling.theme && !(styling.colors || []).length && !styling.notes);
+export const stylingEmpty = (styling) => !styling || (!styling.theme && !(styling.colors || []).length && !styling.notes && !styling.referencePhoto);
 
 /** True when the customer chose "Not decided yet", or gave no theme and no colour: the admin follows it up ("To Discuss"). */
 export const stylingToDiscuss = (styling) => !styling || styling.theme === THEME_UNDECIDED || (!styling.theme && !(styling.colors || []).length);
@@ -306,6 +308,8 @@ export function cleanStyling(value) {
     if (!hasColor(colors, next)) colors.push(next);
   });
   const styling = { theme, themeOther: theme === THEME_OTHER ? text(value.themeOther) : '', colors, notes: text(value.notes) };
+  const referencePhoto = cleanReferencePhoto(value.referencePhoto);
+  if (referencePhoto) styling.referencePhoto = referencePhoto;
   return stylingEmpty(styling) ? null : styling;
 }
 

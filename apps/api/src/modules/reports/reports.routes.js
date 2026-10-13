@@ -7,7 +7,7 @@ import * as reports from './reports.service.js';
  * The dashboard and report endpoints of Phase 11 (docs/backend-development-phases.md §9.11): URL, guard
  * and request shape only; the figures are worked out in reports.service.js. One router, mounted by app.js
  * at /api/admin/reports, behind the admin router's guard: no token -> 401, a customer's token -> 403.
- * All three are reads. The TXT exports are made by the admin page itself (apps/admin/src/lib/txt.js).
+ * All three are reads. The PDFs are made by the admin page itself using the shared PDF saver.
  */
 
 export const reportAdminRoutes = express.Router();

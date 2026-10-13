@@ -44,6 +44,9 @@ import { postAdminMessage, postCustomerMessage } from '../messages/messages.repo
 import { queueCustomerEmail } from '../notify/notify.service.js';
 import { openQrError, openQrIn } from '../payments/payments.service.js';
 import * as repo from './reservations.repo.js';
+import { storeReferencePhoto } from './referencePhoto.js';
+import { storage } from '../../integrations/storage/index.js';
+import { cleanReferencePhoto } from '@tm/shared/src/domain/referencePhoto.js';
 
 /**
  * The reservation rules on the server (docs/backend-development-phases.md Phase 6, §9.4): the lists
@@ -427,12 +430,16 @@ const isRefTaken = (err) => Boolean(err) && err.code === 'ER_DUP_ENTRY' && Strin
  * (`agreeTerms: true`); the version they agreed to (TERMS_VERSION) is saved on the booking.
  * Returns the customer's view of its summary.
  */
-async function book(conn, customer, form) {
+async function book(conn, customer, form, referencePhoto) {
   await lockAvailability(conn); // first, before any other row: bookings and calendar writes run one at a time
   if (form.agreeTerms !== true) throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');
   const pkg = typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null;
   if (!pkg || !pkg.visible || pkg.archived) throw invalid('Please choose an available package.', 'packageId');
   const booking = pkg.kind === 'rental' ? await rentalBooking(conn, pkg, form) : await eventBooking(conn, pkg, form);
+  if (referencePhoto) {
+    if (pkg.kind === 'rental') throw invalid('Reference photos are for event styling. Remove the photo for an equipment rental.', 'styling.referencePhoto');
+    booking.fields.styling = { theme: '', themeOther: '', colors: [], notes: '', ...booking.fields.styling, referencePhoto };
+  }
 
   const at = now();
   const { date } = booking.fields;
@@ -470,14 +477,32 @@ async function book(conn, customer, form) {
  * tried again in a new transaction with a fresh read of the refs, up to MAX_REF_ATTEMPTS times (the
  * availability lock already makes this rare). `customer` is req.user: { id, name }.
  */
-export async function createReservation(customer, form, { transact = tx } = {}) {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await transact((conn) => book(conn, customer, form));
-    } catch (err) {
-      if (attempt >= MAX_REF_ATTEMPTS || !isRefTaken(err)) throw err;
+export async function createReservation(customer, form, { transact = tx, referencePhoto: file } = {}) {
+  // Ignore customer-supplied file metadata. Only the file accepted by the upload route can be attached.
+  const safeForm = { ...form, styling: { ...plainObject(form.styling), referencePhoto: null } };
+  const referencePhoto = file ? await storeReferencePhoto(file) : null;
+  try {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await transact((conn) => book(conn, customer, safeForm, referencePhoto));
+      } catch (err) {
+        if (attempt >= MAX_REF_ATTEMPTS || !isRefTaken(err)) throw err;
+      }
     }
+  } catch (err) {
+    if (referencePhoto) await storage.remove(referencePhoto.key).catch((cleanupError) => console.error('[reference-photo] Cleanup failed:', cleanupError.message));
+    throw err;
   }
+}
+
+export async function getReferencePhoto(ref, { customerId, transact = tx } = {}) {
+  return transact(async (conn) => {
+    const [row] = await repo.findReservations(conn, { customerId, ref });
+    if (!row || !sameRef(row.reservation, ref)) throw notFound();
+    const photo = cleanReferencePhoto(row.reservation.styling?.referencePhoto);
+    if (!photo) throw new ApiError('NOT_FOUND', 'No reference photo was attached to this reservation.');
+    return photo;
+  });
 }
 
 /* ============================ Customer actions ============================ */
@@ -648,8 +673,8 @@ async function savedSummary(conn, ref) {
  * the booking as saved (an entry of repo.findReservations(), piecesOut included). A chat message the
  * action posts locks the customer's thread last.
  */
-function adminWrite(ref, action, { availability = false } = {}) {
-  return tx(async (conn) => {
+function adminWrite(ref, action, { availability = false, transact = tx } = {}) {
+  return transact(async (conn) => {
     if (availability) await lockAvailability(conn);
     const owner = await repo.lockOwner(conn, ref);
     if (!owner || !sameRef(owner, ref)) throw notFound();
@@ -1214,16 +1239,16 @@ const stylingWords = (styling) => {
  * the change goes into the activity log, which the customer sees too. Not for an equipment rental (it has
  * none) or a closed booking. Saving what is already there changes nothing and logs nothing. Returns { ok: true }.
  */
-export async function updateStyling(ref, body, admin) {
+export async function updateStyling(ref, body, admin, { transact = tx } = {}) {
   return adminWrite(ref, async (conn, { reservation }) => {
     if (CLOSED.includes(reservation.status)) throw closedError();
     if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no theme or colors.');
-    const styling = stylingOf(plainObject(body));
+    const styling = stylingOf({ ...plainObject(body), referencePhoto: reservation.styling?.referencePhoto });
     if (stylingKey(styling) === stylingKey(reservation.styling)) return { ok: true };
     await repo.updateReservation(conn, ref, { styling });
     await logAdmin(conn, ref, admin, styling ? `Updated the theme and colors (${stylingWords(styling)}).` : 'Cleared the theme and colors.');
     return { ok: true };
-  });
+  }, { transact });
 }
 
 /** Admin: save the private notes on a booking, as typed (never shown to the customer). Returns { ok: true }. */

@@ -49,7 +49,7 @@ import { outsourceRequestEmail, deliverPartnerRequest } from './outsource.emails
  * each message is handed to its port, and its outbox row records what happened ('sent', 'logged' or
  * 'failed'). A channel that did not really go out (the log driver only prints it, or the provider refused
  * it) adds a line to the contract's history, and the answer carries `deliveryNote`, which the page shows,
- * telling the admin to send the request themselves (Download as .txt).
+ * telling the admin to send the request themselves (Save PDF).
  *
  * On purpose:
  * - The admin in the histories and the audit trail is the signed-in one (req.user.name).
@@ -256,12 +256,12 @@ const CHANNEL_WORD = { email: 'email', sms: 'SMS' };
 // The contract's history line for a channel that did not really go out: only logged (no provider yet), or refused
 const undeliveredText = ({ channel, to, status }) =>
   status === 'logged'
-    ? `The ${CHANNEL_WORD[channel]} to ${to} was not sent: no ${CHANNEL_WORD[channel]} service is connected yet, so it was only saved in the outbox. Send the request yourself (Download as .txt).`
-    : `The ${CHANNEL_WORD[channel]} to ${to} could not be sent. Send it again, or send the request yourself (Download as .txt).`;
+    ? `The ${CHANNEL_WORD[channel]} to ${to} was not sent: no ${CHANNEL_WORD[channel]} service is connected yet, so it was only saved in the outbox. Send the request yourself (Save PDF).`
+    : `The ${CHANNEL_WORD[channel]} to ${to} could not be sent. Send it again, or send the request yourself (Save PDF).`;
 
 /**
  * The note the page shows after a send when a channel did not really go out, e.g. "OUT-2026-0008 is
- * marked sent, but no SMS service is connected yet, so the SMS was only saved. Download the .txt and
+ * marked sent, but no SMS service is connected yet, so the SMS was only saved. Save the PDF and
  * send it to Aling Nena Chairs and Tables yourself." '' when every channel went out.
  */
 function deliveryNote(ref, partnerName, results) {
@@ -271,7 +271,7 @@ function deliveryNote(ref, partnerName, results) {
   const parts = [];
   if (logged.length) parts.push(`no ${logged.join(' or ')} service is connected yet, so the ${logged.join(' and ')} ${logged.length > 1 ? 'were' : 'was'} only saved`);
   if (failed.length) parts.push(`the ${failed.join(' and ')} could not be sent`);
-  return `${ref} is marked sent, but ${parts.join(', and ')}. Download the .txt and send it to ${partnerName} yourself.`;
+  return `${ref} is marked sent, but ${parts.join(', and ')}. Save the PDF and send it to ${partnerName} yourself.`;
 }
 
 /**

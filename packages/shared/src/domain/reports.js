@@ -233,7 +233,7 @@ export function report(data, range) {
 
 /**
  * A saved report's rows for a range (runSavedReport; check the range and the kind first), shaped for the
- * on-screen table and the TXT export: { title, money (the columns that are amounts), rows }. Each row's
+ * on-screen table and the PDF document: { title, money (the columns that are amounts), rows }. Each row's
  * keys are its columns, in order.
  *   monthly_sales  one row per month of the range: payments verified, split by method, their total, the
  *                  refunds sent that month and the net ("All time": every month from the first payment

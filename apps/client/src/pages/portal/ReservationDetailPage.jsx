@@ -292,7 +292,7 @@ export default function ReservationDetailPage() {
             {!rental && !stylingEmpty(r.styling) && (
               <DashCard>
                 <CardTitle subtitle={editable ? 'To change it, use Request a change and our team will update it.' : 'The look our team sets up for your event.'}>Theme and Colors</CardTitle>
-                <StylingSummary styling={r.styling} />
+                <StylingSummary styling={r.styling} reservationRef={r.ref} />
               </DashCard>
             )}
 
