@@ -33,6 +33,9 @@ import * as catalogRepo from '../catalog/catalog.repo.js';
 import { postAdminMessage } from '../messages/messages.repo.js';
 import * as reservationsRepo from '../reservations/reservations.repo.js';
 import * as repo from './inventory.repo.js';
+import { readPhoto } from '../../lib/photos.js';
+import { storage } from '../../integrations/storage/index.js';
+import crypto from 'node:crypto';
 
 /**
  * The equipment inventory on the server (docs/backend-development-phases.md Phase 10, §9.9): the item
@@ -223,24 +226,49 @@ export async function addInventoryItems(rows, admin) {
  * only reaches rentals booked from now on (a booking copies both). The history keeps the old and the
  * new values. Returns the item.
  */
-export async function updateInventoryItem(id, values, admin) {
-  return tx(async (conn) => {
-    await lockAvailability(conn);
-    const { item } = await lockedItem(conn, id);
-    const names = (await repo.itemNames(conn)).filter((other) => other.id !== id).map((other) => other.name);
-    const problem = editProblem(item, values, { names });
-    if (problem) throw toError(problem);
-    const text = editText(item, values);
-    const changes = editedItem(item, values);
-    try {
-      await repo.updateItem(conn, item.id, changes);
-    } catch (err) {
-      if (isNameTaken(err)) throw nameTaken(changes.name, { field: 'name' });
-      throw err;
-    }
-    if (text) await repo.insertHistory(conn, item.id, { at: now(), actor: admin.name, text });
-    return itemView(conn, item.id);
-  });
+export async function updateInventoryItem(id, values, admin, file) {
+  if (file && values.removePhoto) throw new ApiError('INVALID', 'Choose a new photo or use the mock photo, not both.', { field: 'photo' });
+  const type = file ? readPhoto(file) : null;
+  let newKey = null;
+  let oldKey = null;
+  let result;
+  try {
+    result = await tx(async (conn) => {
+      await lockAvailability(conn);
+      const { item } = await lockedItem(conn, id);
+      const names = (await repo.itemNames(conn)).filter((other) => other.id !== id).map((other) => other.name);
+      const problem = editProblem(item, values, { names });
+      if (problem) throw toError(problem);
+      const text = editText(item, values);
+      const changes = editedItem(item, values);
+      try {
+        await repo.updateItem(conn, item.id, changes);
+      } catch (err) {
+        if (isNameTaken(err)) throw nameTaken(changes.name, { field: 'name' });
+        throw err;
+      }
+      if (text) await repo.insertHistory(conn, item.id, { at: now(), actor: admin.name, text });
+      if (file || values.removePhoto) {
+        oldKey = (await repo.findItemPhoto(conn, item.id))?.key;
+        if (file) newKey = await storage.put(`equipment/${crypto.randomUUID()}.${type.ext}`, file.buffer);
+        await repo.setItemPhoto(conn, item.id, file ? { key: newKey, mime: type.mime } : null);
+        if (file || oldKey) await repo.insertHistory(conn, item.id, { at: now(), actor: admin.name, text: file ? 'Updated equipment appearance photo.' : 'Removed uploaded equipment photo; using the mock photo.' });
+      }
+      return itemView(conn, item.id);
+    });
+  } catch (err) {
+    if (newKey) await storage.remove(newKey).catch(() => {});
+    throw err;
+  }
+  if (oldKey) await storage.remove(oldKey).catch((err) => console.error('[equipment-photo] Cleanup failed:', err.code));
+  return result;
+}
+
+export async function getInventoryPhoto(id, { admin = false, version } = {}) {
+  const photo = await repo.findItemPhoto(pool, id);
+  if (!photo || photo.id !== id || (!admin && (!photo.rentable || photo.archived || photo.rent_price <= 0))) throw itemNotFound();
+  if (!photo.key || (version && version !== photo.key.split('/').pop())) throw new ApiError('NOT_FOUND', 'Equipment photo not found.');
+  return { key: photo.key, mime: photo.mime };
 }
 
 /**

@@ -1,6 +1,6 @@
 import { NO_EVENT } from '../../domain/inventory.js';
 import { ApiError } from '../errors.js';
-import { http } from '../http.js';
+import { apiUrl, fetchFileUrl, http } from '../http.js';
 
 /**
  * The equipment inventory (inventoryApi in @tm/shared; apps/api/src/modules/inventory, endpoint map in
@@ -28,10 +28,20 @@ export const listCheckoutEvents = () => http.get('/admin/inventory/checkout-even
 export const addInventoryItems = (items) => http.post('/admin/inventory', { items });
 
 /** Edit an item's name, category, total, alert level, rental settings and notes. Returns the item. */
-export async function updateInventoryItem(id, changes) {
+export async function updateInventoryItem(id, changes, { photo } = {}) {
   if (!id) throw itemNotFound();
-  return http.patch(`/admin/inventory/${segment(id)}`, changes);
+  let body = changes;
+  if (photo) {
+    body = new FormData();
+    body.append('item', JSON.stringify(changes));
+    body.append('photo', photo);
+  }
+  return http.patch(`/admin/inventory/${segment(id)}`, body);
 }
+
+export const inventoryPhotoUrl = (item) => item?.photoVersion
+  ? apiUrl(`/rental-items/${segment(item.id)}/photo?v=${segment(item.photoVersion)}`) : null;
+export const adminInventoryPhotoUrl = (item) => fetchFileUrl(`/admin/inventory/${segment(item.id)}/photo?v=${segment(item.photoVersion)}`);
 
 /**
  * Move pieces between Available, In use and Damaged: 'checkout' { qty, ref? } · 'return' { ref, qty,

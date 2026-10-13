@@ -31,11 +31,13 @@ import {
   DashCard,
   DataTable,
   EmptyState,
+  EquipmentPhoto,
   ErrorState,
   Field,
   FormField,
   INVENTORY_CATEGORIES,
   PageHeader,
+  PHOTO_ACCEPT,
   Pager,
   Pill,
   SearchField,
@@ -45,6 +47,7 @@ import {
   formatDateTime,
   inventoryApi,
   peso,
+  photoProblem,
   tokens,
   useDocumentTitle,
   useNotify,
@@ -196,7 +199,7 @@ export default function InventoryPage() {
       ),
       render: (i) => <Checkbox size="small" checked={selected.includes(i.id)} onChange={() => toggle(i.id)} inputProps={{ 'aria-label': `Select ${i.name}` }} />
     },
-    { key: 'name', label: 'Item Name or Code', render: (i) => (<Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{i.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{i.code}</Typography></Box>) },
+    { key: 'name', label: 'Item Name or Code', render: (i) => (<Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}><Box sx={{ width: 64, flexShrink: 0 }}><EquipmentPhoto item={i} admin compact height={64} /></Box><Box><Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{i.name}</Typography><Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{i.code}</Typography></Box></Box>) },
     columns.category && { key: 'category', label: 'Category', render: (i) => i.category },
     columns.total && { key: 'total', label: 'Total', align: 'right', render: (i) => i.total },
     columns.available && {
@@ -456,6 +459,8 @@ function AddItemsDialog({ open, onClose, onSaved }) {
  * A new rent price or damage fee only applies to rentals booked from now on; bookings already made keep theirs.
  */
 function EditItemDialog({ item, onClose, onSaved }) {
+  const [photo, setPhoto] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [values, setValues] = useState({ name: '', category: '', total: '', lowStockAt: '', rentable: false, rentPrice: '', damageFee: '', notes: '' });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
@@ -464,6 +469,8 @@ function EditItemDialog({ item, onClose, onSaved }) {
   // Fill the form when a different item opens
   useEffect(() => {
     if (item) {
+      setPhoto(null);
+      setRemovePhoto(false);
       setValues({ name: item.name, category: item.category, total: String(item.total), lowStockAt: String(item.lowStockAt), rentable: Boolean(item.rentable), rentPrice: item.rentPrice ? String(item.rentPrice) : '', damageFee: item.damageFee ? String(item.damageFee) : '', notes: item.notes });
       setErrors({});
     }
@@ -478,7 +485,7 @@ function EditItemDialog({ item, onClose, onSaved }) {
   const save = async () => {
     setBusy(true);
     try {
-      await inventoryApi.updateInventoryItem(id, { ...values, total: Number(values.total), lowStockAt: Number(values.lowStockAt), rentPrice: Number(values.rentPrice), damageFee: Number(values.damageFee) || 0 });
+      await inventoryApi.updateInventoryItem(id, { ...values, removePhoto, total: Number(values.total), lowStockAt: Number(values.lowStockAt), rentPrice: Number(values.rentPrice), damageFee: Number(values.damageFee) || 0 }, { photo });
       onSaved();
     } catch (e) {
       setErrors({ [(e.meta && e.meta.field) || 'name']: e.message });
@@ -491,6 +498,27 @@ function EditItemDialog({ item, onClose, onSaved }) {
   return (
     <AppDialog open={Boolean(item)} onClose={onClose} busy={busy} maxWidth="sm" title={item ? `Edit ${item.code}` : ''} actions={<><Button onClick={onClose} disabled={busy}>Cancel</Button><BusyButton busy={busy} onClick={save}>Save changes</BusyButton></>}>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+          <EquipmentPhoto item={item} file={photo} removePhoto={removePhoto} admin />
+          <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textSecondary }}>Show one item or one complete rental unit. This same photo appears in Equipment Rental after you save.</Typography>
+          <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+            <Button component="label" variant="outlined" disabled={busy}>Change photo
+              <input hidden type="file" accept={PHOTO_ACCEPT} disabled={busy} onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                const problem = photoProblem(file);
+                if (problem) { setErrors((v) => ({ ...v, photo: problem })); return; }
+                setPhoto(file); setRemovePhoto(false); setErrors({});
+              }} />
+            </Button>
+            {photo && <Button disabled={busy} onClick={() => { setPhoto(null); setErrors({}); }}>Cancel new photo</Button>}
+            {item?.photoVersion && !removePhoto && <Button disabled={busy} onClick={() => { setPhoto(null); setRemovePhoto(true); setErrors({}); }}>Use mock photo</Button>}
+            {removePhoto && <Button disabled={busy} onClick={() => setRemovePhoto(false)}>Keep current photo</Button>}
+          </Box>
+          {errors.photo && <Typography role="alert" sx={{ mt: 0.75, fontSize: 12, color: tokens.redPress }}>{errors.photo}</Typography>}
+          <Typography sx={{ mt: 0.75, fontSize: 11.5, color: tokens.textMuted }}>JPG, PNG or WebP · Up to 20 MB</Typography>
+        </Box>
         <FormField id="edit-name" label="Item name" required value={values.name} onChange={set('name')} error={errors.name} inputProps={{ maxLength: 80 }} sx={{ gridColumn: { sm: '1 / -1' } }} />
         <SelectField id="edit-category" label="Category" required value={values.category} onChange={set('category')} options={INVENTORY_CATEGORIES} error={errors.category} sx={{ gridColumn: { sm: '1 / -1' } }} />
         <FormField id="edit-total" label="Total owned" required type="number" value={values.total} onChange={set('total')} error={errors.total} hint={minimum ? `At least ${minimum} (in use + damaged)` : undefined} inputProps={{ min: Math.max(1, minimum) }} />
@@ -664,6 +692,7 @@ function DetailsDialog({ item, onClose, onAction }) {
         </>
       }
     >
+      <Box sx={{ mb: 2 }}><EquipmentPhoto item={item} admin /></Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' }, gap: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
         <Field label="Total">{String(item.total)}</Field>
         <Field label="Available">{String(item.available)}</Field>

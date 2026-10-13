@@ -321,7 +321,7 @@ export async function setMinDownpayment(amount, at) {
  */
 export async function listRentableItems() {
   const [rows] = await pool.query(
-    'SELECT id, name, category, rentable, archived, rent_price, damage_fee FROM inventory_items WHERE rentable = 1 AND archived = 0 AND rent_price > 0'
+    'SELECT id, code, name, category, rentable, archived, rent_price, damage_fee, photo_key FROM inventory_items WHERE rentable = 1 AND archived = 0 AND rent_price > 0'
   );
   return rows.map((row) => ({
     id: row.id,
@@ -330,6 +330,8 @@ export async function listRentableItems() {
     rentable: Boolean(row.rentable),
     archived: Boolean(row.archived),
     rentPrice: row.rent_price,
-    damageFee: row.damage_fee
+    damageFee: row.damage_fee,
+    code: row.code,
+    photoVersion: row.photo_key ? row.photo_key.split('/').pop() : null
   }));
 }

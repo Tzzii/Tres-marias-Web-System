@@ -52,7 +52,7 @@ export const addBody = z.object({
 });
 
 // PATCH /api/admin/inventory/:id: the Edit dialog's fields. The name fits its column (VARCHAR(120)).
-export const updateBody = z.object({ ...itemFields, name: text(120) });
+export const updateBody = z.object({ ...itemFields, name: text(120), removePhoto: z.boolean().optional() });
 
 /**
  * POST /api/admin/inventory/:id/movements { action, qty, damagedQty, ref, note }: one stock movement.

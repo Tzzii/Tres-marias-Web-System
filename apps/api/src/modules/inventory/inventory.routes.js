@@ -2,6 +2,20 @@ import express from 'express';
 import { validate } from '../../middleware/validate.js';
 import * as schemas from './inventory.schemas.js';
 import * as inventory from './inventory.service.js';
+import { photoUpload } from '../../middleware/photoUpload.js';
+import { ApiError } from '../../lib/ApiError.js';
+import { sendInventoryPhoto } from './inventory.photo.js';
+
+const uploadPhoto = photoUpload('photo');
+function itemForm(req, res, next) {
+  if (!req.is('multipart/form-data')) return next();
+  uploadPhoto(req, res, (err) => {
+    if (err) return next(err);
+    try { req.body = JSON.parse(req.body.item); }
+    catch { return next(new ApiError('INVALID', 'The inventory form could not be read.')); }
+    return next();
+  });
+}
 
 /**
  * The equipment inventory endpoints of Phase 10 (docs/backend-development-phases.md §9.9): URL, guard
@@ -46,8 +60,11 @@ inventoryAdminRoutes.post('/rentals/:ref/return', validate({ params: schemas.ref
 });
 
 // One item: edit it, or move its stock ({ action, qty, damagedQty, ref, note }); each answers with the item
-inventoryAdminRoutes.patch('/:id', validate({ params: schemas.idParams, body: schemas.updateBody }), async (req, res) => {
-  res.json(await inventory.updateInventoryItem(req.valid.params.id, req.valid.body, req.user));
+inventoryAdminRoutes.get('/:id/photo', validate({ params: schemas.idParams }), async (req, res) => {
+  await sendInventoryPhoto(req, res, true);
+});
+inventoryAdminRoutes.patch('/:id', itemForm, validate({ params: schemas.idParams, body: schemas.updateBody }), async (req, res) => {
+  res.json(await inventory.updateInventoryItem(req.valid.params.id, req.valid.body, req.user, req.file));
 });
 inventoryAdminRoutes.post('/:id/movements', validate({ params: schemas.idParams, body: schemas.moveBody }), async (req, res) => {
   const { action, ...input } = req.valid.body;

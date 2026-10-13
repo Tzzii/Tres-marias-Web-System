@@ -182,7 +182,7 @@ export function Pager({ page, pageSize, total, onPage, noun = '' }) {
         {noun && ` ${noun}`}
       </Typography>
       {pages > 1 && (
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
           <Button size="small" variant="outlined" disabled={page === 1} onClick={() => onPage(page - 1)}>
             Prev
           </Button>

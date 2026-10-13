@@ -20,6 +20,7 @@ import {
   DashCard,
   DateField,
   EndTimeField,
+  EquipmentPhoto,
   ErrorState,
   FormField,
   INVENTORY_CATEGORIES,
@@ -923,7 +924,9 @@ export default function BookEventPage() {
                           const left = avail[item.id] ? avail[item.id].left : null;
                           const tooMany = stockError(item.id);
                           return (
-                            <Box key={item.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 104px', gap: 1.25, alignItems: 'start', p: 1.25, borderRadius: 1.5, border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`, backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff' }}>
+                            <Box key={item.id} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr) 80px', sm: 'minmax(0, 1fr) 104px' }, gap: 1.25, alignItems: 'start', p: 1.25, borderRadius: 1.5, border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`, backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff' }}>
+                              <Box sx={{ display: 'flex', gap: 1.25, minWidth: 0, flexDirection: { xs: 'column', sm: 'row' } }}>
+                              <Box sx={{ width: { xs: 88, sm: 96 }, flexShrink: 0 }}><EquipmentPhoto item={item} compact height={88} /></Box>
                               <Box sx={{ minWidth: 0 }}>
                                 <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{item.name}</Typography>
                                 <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
@@ -936,6 +939,7 @@ export default function BookEventPage() {
                                 <Typography sx={{ fontSize: 12, fontWeight: 700, color: free ? free.color : tokens.textMuted }}>
                                   {free ? free.label(left) : form.date ? 'Checking how many are free…' : 'Choose a date to see how many are free'}
                                 </Typography>
+                              </Box>
                               </Box>
                               <FormField
                                 id={`f-rent-${item.id}`}

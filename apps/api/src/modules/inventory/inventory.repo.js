@@ -39,6 +39,7 @@ const toItem = (row, allocations = [], history = []) => ({
   rentable: Boolean(row.rentable),
   rentPrice: row.rent_price,
   damageFee: row.damage_fee,
+  photoVersion: row.photo_key ? row.photo_key.split('/').pop() : null,
   notes: row.notes,
   archived: Boolean(row.archived),
   addonId: row.addon_id ?? null, // the additional charge or size that books it (set on the Packages page)
@@ -157,6 +158,14 @@ const COLUMNS = {
   notes: 'notes',
   archived: 'archived'
 };
+
+export async function findItemPhoto(db, id) {
+  return first(await db.query('SELECT id, photo_key AS `key`, photo_mime AS mime, rentable, archived, rent_price FROM inventory_items WHERE id = ?', [id]));
+}
+
+export async function setItemPhoto(conn, id, photo) {
+  await conn.query('UPDATE inventory_items SET photo_key = ?, photo_mime = ? WHERE id = ?', [photo?.key || null, photo?.mime || null, id]);
+}
 
 /**
  * Change some of an item's fields, given in the record's shape, e.g. { damaged: 3 } or { archived: true }.

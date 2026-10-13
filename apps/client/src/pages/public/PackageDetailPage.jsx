@@ -17,6 +17,7 @@ import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import {
   DateField,
+  EquipmentPhoto,
   FormField,
   INVENTORY_CATEGORIES,
   NotFoundPage,
@@ -285,9 +286,12 @@ function RentalPriceList({ rentals }) {
               .filter((i) => i.category === category)
               .map((item) => (
                 <Box component="li" key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 0.9, borderBottom: `1px solid ${site.border}` }}>
-                  <Box sx={{ minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                    <Box sx={{ width: { xs: 72, sm: 92 }, flexShrink: 0 }}><EquipmentPhoto item={item} compact height={80} /></Box>
+                    <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontSize: 14, color: site.ink }}>{item.name}</Typography>
                     <Typography sx={{ fontSize: 12, color: site.inkMuted }}>Damage fee {peso(item.damageFee)}</Typography>
+                    </Box>
                   </Box>
                   <Typography sx={{ fontSize: 14, fontWeight: 700, color: site.ink, whiteSpace: 'nowrap' }}>{peso(item.price)}</Typography>
                 </Box>

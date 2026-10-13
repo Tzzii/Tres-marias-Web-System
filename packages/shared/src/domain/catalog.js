@@ -31,7 +31,7 @@ export const slugify = (value) =>
 export function rentalPriceList(items) {
   return items
     .filter((item) => item.rentable && !item.archived && item.rentPrice > 0)
-    .map((item) => ({ id: item.id, name: item.name, category: item.category, price: item.rentPrice, damageFee: item.damageFee }))
+    .map((item) => ({ id: item.id, name: item.name, category: item.category, price: item.rentPrice, damageFee: item.damageFee, ...(item.code ? { code: item.code } : {}), photoVersion: item.photoVersion || null }))
     .sort((a, b) => INVENTORY_CATEGORIES.indexOf(a.category) - INVENTORY_CATEGORIES.indexOf(b.category) || a.name.localeCompare(b.name));
 }
 

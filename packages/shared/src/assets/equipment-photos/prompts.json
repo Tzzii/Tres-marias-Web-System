@@ -1,0 +1,204 @@
+{
+  "tool": "Built-in image_gen",
+  "useCase": "product-mockup",
+  "style": "Square photorealistic equipment catalog photo; full subject centered, three-quarter view where appropriate, warm ivory seamless background, soft lighting and gentle ground shadow.",
+  "constraints": "One item or one complete rental unit per image, independent of stock quantity. No duplicates, group arrangements, unrelated props, people, text, logos or watermarks.",
+  "subjects": [
+    {
+      "code": "EQ-0001",
+      "subject": "ONE white plastic monobloc chair"
+    },
+    {
+      "code": "EQ-0002",
+      "subject": "ONE gold Tiffany Chiavari chair with an ivory cushion"
+    },
+    {
+      "code": "EQ-0003",
+      "subject": "ONE round banquet table for ten seats, bare white tabletop and metal legs, WITHOUT chairs"
+    },
+    {
+      "code": "EQ-0004",
+      "subject": "ONE rectangular buffet table, bare tabletop and metal folding legs"
+    },
+    {
+      "code": "EQ-0005",
+      "subject": "ONE tall round cocktail table, no accessories"
+    },
+    {
+      "code": "EQ-0006",
+      "subject": "ONE small round cake display table, no cake or accessories"
+    },
+    {
+      "code": "EQ-0007",
+      "subject": "ONE small rectangular water station table, bare without jugs"
+    },
+    {
+      "code": "EQ-0008",
+      "subject": "ONE long presidential banquet table draped in an ivory tablecloth, no chairs or table settings"
+    },
+    {
+      "code": "EQ-0009",
+      "subject": "ONE round ivory tablecloth draped over a neutral round support table, no settings or chairs"
+    },
+    {
+      "code": "EQ-0010",
+      "subject": "ONE ivory fabric chair cover fitted over one chair, without ribbon or other chairs"
+    },
+    {
+      "code": "EQ-0011",
+      "subject": "ONE ivory pleated table skirting piece fitted along one rectangular support table, bare tabletop"
+    },
+    {
+      "code": "EQ-0012",
+      "subject": "ONE folded ivory cloth table napkin"
+    },
+    {
+      "code": "EQ-0013",
+      "subject": "ONE rectangular stainless steel chafing dish food warmer with its lid closed on its own integral stand"
+    },
+    {
+      "code": "EQ-0014",
+      "subject": "ONE elegant polished silver oval roll-top chafing dish food warmer on its own integral stand"
+    },
+    {
+      "code": "EQ-0015",
+      "subject": "ONE empty polished stainless steel serving tray"
+    },
+    {
+      "code": "EQ-0016",
+      "subject": "ONE clear glass beverage dispenser with a spigot and its lid, empty"
+    },
+    {
+      "code": "EQ-0017",
+      "subject": "ONE white porcelain soup tureen with its lid, without spoons or bowls"
+    },
+    {
+      "code": "EQ-0018",
+      "subject": "ONE stainless steel water pitcher"
+    },
+    {
+      "code": "EQ-0019",
+      "subject": "ONE blue insulated water jug with spigot"
+    },
+    {
+      "code": "EQ-0020",
+      "subject": "ONE plain white ceramic dinner plate, unstacked"
+    },
+    {
+      "code": "EQ-0021",
+      "subject": "ONE small plain white ceramic dessert plate, unstacked"
+    },
+    {
+      "code": "EQ-0022",
+      "subject": "ONE clear cylindrical drinking glass"
+    },
+    {
+      "code": "EQ-0023",
+      "subject": "ONE clear stemmed goblet"
+    },
+    {
+      "code": "EQ-0024",
+      "subject": "ONE stainless steel dinner spoon"
+    },
+    {
+      "code": "EQ-0025",
+      "subject": "ONE stainless steel dinner fork"
+    },
+    {
+      "code": "EQ-0026",
+      "subject": "ONE rental unit consisting of a serving spoon and a pair of serving tongs side by side; exactly these two utensils, no duplicates or other objects"
+    },
+    {
+      "code": "EQ-0027",
+      "subject": "ONE single-ring cast iron catering gas burner, no LPG tank"
+    },
+    {
+      "code": "EQ-0028",
+      "subject": "ONE upright household LPG cylinder, no stove"
+    },
+    {
+      "code": "EQ-0029",
+      "subject": "ONE large stainless steel cooking pot with lid and integral handles"
+    },
+    {
+      "code": "EQ-0030",
+      "subject": "ONE blue insulated ice cooler with lid closed"
+    },
+    {
+      "code": "EQ-0031",
+      "subject": "ONE white freestanding square 20 by 20 foot event canopy tent, entire canopy and legs in view, absolutely no furniture, no other tents"
+    },
+    {
+      "code": "EQ-0032",
+      "subject": "ONE white freestanding rectangular 20 by 40 foot event canopy tent, entire canopy and legs in view, absolutely no furniture, no other tents"
+    },
+    {
+      "code": "EQ-0033",
+      "subject": "ONE low rectangular event stage platform, no stairs or decoration"
+    },
+    {
+      "code": "EQ-0034",
+      "subject": "ONE undecorated white freestanding wedding arch frame"
+    },
+    {
+      "code": "EQ-0035",
+      "subject": "ONE empty clear glass centerpiece vase"
+    },
+    {
+      "code": "EQ-0036",
+      "subject": "ONE plain freestanding rectangular backdrop frame, no fabric or decor"
+    },
+    {
+      "code": "EQ-0037",
+      "subject": "ONE compact artificial flower centerpiece arrangement as a single rental unit in one small vase"
+    },
+    {
+      "code": "EQ-0038",
+      "subject": "ONE tall gold flower stand with one artificial floral arrangement on top, one complete assembled rental unit"
+    },
+    {
+      "code": "EQ-0039",
+      "subject": "ONE rectangular artificial flower wall panel, standalone"
+    },
+    {
+      "code": "EQ-0040",
+      "subject": "ONE length of ivory ceiling drape fabric, softly gathered and suspended in a single sweep, no additional drapes"
+    },
+    {
+      "code": "EQ-0041",
+      "subject": "ONE burgundy satin chair ribbon tied into a single bow, isolated without chair"
+    },
+    {
+      "code": "EQ-0042",
+      "subject": "ONE ivory fabric table runner laid flat lengthwise, without tableware or other objects"
+    },
+    {
+      "code": "EQ-0043",
+      "subject": "ONE red aisle carpet runner, unrolled, no furniture"
+    },
+    {
+      "code": "EQ-0044",
+      "subject": "ONE three-tier white cake stand, entire single assembled stand with three integral tiers, no cakes"
+    },
+    {
+      "code": "EQ-0045",
+      "subject": "ONE ornate gold and ivory celebrant throne chair"
+    },
+    {
+      "code": "EQ-0046",
+      "subject": "ONE wooden welcome sign easel, empty without sign"
+    },
+    {
+      "code": "EQ-0047",
+      "subject": "ONE white freestanding square 10 by 10 foot event canopy tent, entire canopy and legs in view, no furniture or other tents"
+    },
+    {
+      "code": "EQ-0048",
+      "subject": "ONE white freestanding rectangular 10 by 20 foot event canopy tent, entire canopy and legs in view, no furniture or other tents"
+    },
+    {
+      "code": "EQ-0049",
+      "subject": "ONE empty black metal decorative event lantern with clear glass sides and integral hinged carry handle"
+    }
+  ]
+}

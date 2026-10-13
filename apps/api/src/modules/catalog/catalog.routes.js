@@ -6,6 +6,7 @@ import * as schemas from './catalog.schemas.js';
 import * as catalog from './catalog.service.js';
 import { storage } from '../../integrations/storage/index.js';
 import { photoUpload } from '../../middleware/photoUpload.js';
+import { sendInventoryPhoto } from '../inventory/inventory.photo.js';
 
 // Package details and an optional photo commit together through the existing Save action.
 const uploadPhoto = photoUpload('photo');
@@ -66,6 +67,10 @@ function viewer(req, wantsAdminView) {
 /* ============================ /api (public reads) ============================ */
 
 export const catalogRoutes = express.Router();
+
+catalogRoutes.get('/rental-items/:id/photo', validate({ params: schemas.idParams }), async (req, res) => {
+  await sendInventoryPhoto(req, res);
+});
 
 catalogRoutes.get('/packages/:id/photo', validate({ params: schemas.idParams }), async (req, res) => {
   await sendPackagePhoto(req, res);

@@ -22,6 +22,7 @@
     "test:inventory": "node --test scripts/inventory-tests.js",
     "test:labels": "node --test scripts/helper-label-tests.js",
     "test:inventory:db": "node --test scripts/inventory-db-tests.js",
+    "test:equipment-photos:db": "node scripts/equipment-photo-db-tests.js",
     "email:preview": "node scripts/email-preview.js",
     "test:email": "node scripts/email-test.js",
     "test:booking": "node --test scripts/booking-options-tests.js",

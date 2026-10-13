@@ -25,6 +25,7 @@
     "test:inventory": "npm run test:inventory -w apps/api",
     "test:labels": "npm run test:labels -w apps/api",
     "test:inventory:db": "npm run test:inventory:db -w apps/api",
+    "test:equipment-photos:db": "npm run test:equipment-photos:db -w apps/api --",
     "email:preview": "npm run email:preview -w apps/api",
     "test:email": "npm run test:email -w apps/api",
     "dev:client": "node scripts/vite-run.mjs dev client",

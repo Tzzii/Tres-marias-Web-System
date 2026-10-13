@@ -83,6 +83,7 @@ export { qrState, referenceProblem } from './domain/payment.js';
 export { PHOTO_ACCEPT, PHOTO_TYPES, photoProblem } from './domain/photos.js';
 export { samplePackagePhoto } from './domain/packagePhotos.js';
 export { PackagePhoto } from './components/PackagePhoto.jsx';
+export { EquipmentPhoto } from './components/EquipmentPhoto.jsx';
 // An additional charge's own price, its sizes and its packages (the admin's form and the booking form use the same rules as the services)
 export { MAX_ADDON_SIZES, PACKAGE_INCLUDES_MAX, addonPriceMap, flattenAddons, readAddonPrice, readAddonSizes } from './domain/catalog.js';
 // Editing and deleting chat messages: who may and until when, the admin's "View history" versions, previews

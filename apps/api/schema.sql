@@ -563,6 +563,8 @@ CREATE TABLE inventory_items (
   rentable     BOOLEAN      NOT NULL DEFAULT 0,             -- offered through the Equipment Rental package
   rent_price   INT          NOT NULL DEFAULT 0,             -- per piece for one rental; kept when rentable is switched off
   damage_fee   INT          NOT NULL DEFAULT 0,             -- per piece that comes back damaged or missing
+  photo_key    VARCHAR(255) NULL,                         -- admin-uploaded equipment appearance photo
+  photo_mime   VARCHAR(40)  NULL,
   notes        TEXT         NOT NULL,
   archived     BOOLEAN      NOT NULL DEFAULT 0,
   -- The additional charge (or size) that books this item, e.g. Tent 10x10 for the Tent's 10 × 10 size:
