@@ -191,7 +191,7 @@ export default function BookingBar({ onAvailable }) {
             <Typography sx={{ fontSize: 13.5, color: result.available ? '#065f46' : '#991b1b' }}>
               {result.available ? (
                 <>
-                  <b>{formatDateLong(result.date)}</b>, <b>{formatEventTime(result)}</b>, is open. Pick a package below to reserve it.
+                  <b>{formatDateLong(result.date)}</b>, <b>{formatEventTime(result)}</b>, is open. Pick a package above to reserve it.
                 </>
               ) : result.failed ? (
                 result.message

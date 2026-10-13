@@ -1,357 +1,498 @@
-# Tres Marias Catering Services — Customer Portal, Admin Dashboard & API
+# Tres Marias Catering Services Web System
 
-Two React apps that are deployed separately, and the Express + MySQL API they both call. The apps
-share one design system, one component library and one service layer (`@tm/shared`); the API shares
-the same business rules (`packages/shared/src/domain`), so a page and the server always agree.
+<img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
-| App | Who uses it | Dev URL | Source |
-| --- | --- | --- | --- |
-| **Customer Portal** | Guests and customers | http://localhost:5173 | `apps/client` |
-| **Admin Dashboard** | Tres Marias admin | http://localhost:5174 | `apps/admin` |
-| **API** | Both portals (never a person) | http://localhost:4000/api | `apps/api` |
+A web-based catering reservation and management system with a **Customer Portal**, an **Admin Dashboard**, and a shared **Express + MySQL API**. Customers can explore services, request event bookings, review quotations, track payments, and communicate with the business. Administrators manage reservations, schedules, packages, equipment, customer records, outsourcing, and reports.
 
-Stack: React 18 · Vite 6 · MUI 6 (components) · React Router 7 · modular CSS tokens · JavaScript (ES2020+) ·
-Express 5 · MySQL 8 · JWT sessions · bcrypt · zod · Node.js 20 or newer.
+The project keeps the two React applications in one npm workspace repository. Each portal can be built and deployed separately, while both use the same components, service layer, and business rules from `@tm/shared`.
 
----
+## Table of Contents
 
-## Project structure
+- [Project Overview](#project-overview)
+- [Objectives](#objectives)
+- [Features](#features)
+- [Booking Workflow](#booking-workflow)
+- [Technology Stack](#technology-stack)
+- [System Architecture](#system-architecture)
+- [Requirements](#requirements)
+- [Installation and Setup](#installation-and-setup)
+- [How to Use](#how-to-use)
+- [Screenshots and Demo](#screenshots-and-demo)
+- [Project Structure](#project-structure)
+- [Development Commands](#development-commands)
+- [Database Maintenance](#database-maintenance)
+- [Integrations and Uploads](#integrations-and-uploads)
+- [Authentication and Security](#authentication-and-security)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Project Status and Limitations](#project-status-and-limitations)
+- [Team Members](#team-members)
+- [Documentation and Credits](#documentation-and-credits)
+- [License](#license)
+
+## Project Overview
+
+Tres Marias Catering Services uses this system to connect customer booking requests with the business's day-to-day operations. Booking details, quotations, payments, messages, feedback, and equipment records are stored in MySQL and accessed through the API.
+
+| Application | Intended users | Local development address |
+| --- | --- | --- |
+| Customer Portal | Guests and registered customers | http://localhost:5173 |
+| Admin Dashboard | Authorized administrators | http://localhost:5174 |
+| API | Both portals | http://localhost:4000/api |
+
+Guests can browse the public website. Customers sign in to manage their own records. Administrators use a separate dashboard to manage the business. The API must be running for catalogue data, authentication, and portal features to work.
+
+## Objectives
+
+- Provide an online place to browse catering services and submit event or equipment rental requests.
+- Keep reservations, quotations, customer details, payments, and conversations in one system.
+- Help administrators coordinate event schedules, availability, and equipment use.
+- Let customers follow booking progress, review documents, and communicate with the business.
+- Support business monitoring through dashboards, payment records, reports, and customer feedback.
+- Apply consistent validation and access rules across both portals and the API.
+
+## Features
+
+### Public Website and Customer Portal
+
+| Area | Available features |
+| --- | --- |
+| Public website | Service packages, package details and setup photos, event gallery, published testimonials, Terms of Service, and Privacy Policy |
+| Account | Registration with an email code, sign-in, password recovery, profile updates, and password changes |
+| Dashboard | Customer booking summary and reservation updates |
+| Booking | Event details, venue address, guest count, package selection, additional charges, menu preferences, styling, and equipment rental requests |
+| Reservations | Reservation list, booking details, quotations, quotation acceptance, activity history, and cancellation subject to business rules |
+| Calendar | Availability and booking schedule information |
+| Payments | Bank transfer proof submission, configured QR Ph payments, balances, and payment history |
+| Documents | View and save booking-related documents as PDF |
+| Messages | Customer-admin conversations, including message editing, deletion, and history |
+| Feedback | Ratings and reviews for completed events |
+
+### Admin Dashboard
+
+| Area | Available features |
+| --- | --- |
+| Dashboard | Business summaries and event information |
+| Reservations and calendar | Review requests, prepare and revise quotations, manage event details and statuses, monitor schedules, and block dates |
+| Packages | Manage packages, dishes, additional charges, visibility, and package setup photos |
+| Payments and reports | Verify bank transfers, record cash payments, track balances and refunds, and generate reports |
+| Inventory | Manage equipment, appearance photos, physical stock, checkouts, returns, damage, repairs, and movement history |
+| Equipment rentals | Track rented items and automatically check out confirmed rentals when their scheduled pickup or delivery time arrives |
+| Customers | View customer profiles and related booking records |
+| Outsourcing | Manage partners, supply requests, deliveries, request history, and PDF documents |
+| Messages | View and respond to customer conversations |
+| Feedbacks | Publish, feature, flag, archive, and reply to customer reviews |
+| Account | Manage the administrator account, email-code sign-in, and idle screen lock |
+
+Signed-in portals receive change notifications through Socket.IO and refresh records through the HTTP API. A 15-second polling fallback helps recover missed updates.
+
+## Booking Workflow
+
+1. A guest browses packages and creates a customer account.
+2. The customer submits an event or equipment rental request with the required details.
+3. The administrator reviews the request and prepares a quotation.
+4. The customer reviews and accepts the quotation in the portal.
+5. The customer pays the required downpayment or full amount using an available payment method.
+6. The payment is verified manually for bank transfers or automatically for configured QR Ph payments. Cash payments are recorded by the administrator.
+7. The administrator confirms the booking and manages its schedule and equipment needs.
+8. The administrator marks the event completed when the applicable completion conditions are met. The customer can then submit feedback.
+
+The reservation status pipeline is:
 
 ```text
-capstone website #2/
-├── apps/
-│   ├── client/                      # CUSTOMER PORTAL (deploys on its own)
-│   │   ├── index.html
-│   │   ├── vite.config.js
-│   │   └── src/
-│   │       ├── main.jsx, App.jsx    # Routes: /, /packages/:slug, /login, /signup, /portal/*
-│   │       ├── auth.js              # Customer session (own storage key)
-│   │       ├── layouts/             # PortalLayout: sidebar, bottom tabs, notifications
-│   │       ├── assets/              # Package illustrations; gallery/ = event photos (see its README)
-│   │       ├── components/          # SiteNav, SiteFooter, BookingBar, GalleryDialog, AuthGate,
-│   │       │                        # EmailCode (the emailed-code step), PasswordResetDialog, ...
-│   │       ├── lib/booking.js       # Booking picked while browsing + form drafts
-│   │       ├── lib/gallery.js       # Gallery boxes and photos, read from assets/gallery
-│   │       └── pages/
-│   │           ├── public/          # 1a Home, 1b Package detail (1c gate), 1d Sign up, 1e Log in
-│   │           └── portal/          # 1g Dashboard, 1h/1i Reservations, 1f Book, 1j Calendar,
-│   │                                # 1k Payments, Documents, 1l Chat, Packages, Testimonials, Profile
-│   ├── admin/                       # ADMIN DASHBOARD (deploys on its own)
-│   │   ├── index.html
-│   │   ├── vite.config.js
-│   │   └── src/
-│   │       ├── main.jsx, App.jsx    # Routes: /login, /dashboard, /reservations(/:ref), /reports, ...
-│   │       ├── auth.js              # Admin session (own storage key)
-│   │       ├── layouts/AdminLayout.jsx
-│   │       ├── components/          # SectionTabs (tabs inside one page), RefundDialog
-│   │       ├── components/PdfDocument.jsx # Saved reports and outsourcing PDFs
-│   │       └── pages/               # 1q Login, 1r Dashboard, Reservation & Calendar, 1t Reservation detail,
-│   │           │                    # 1u Packages, Inventory, 1x Customers, Messages, 1y Reports,
-│   │           │                    # Outsourcing, Feedbacks, My account
-│   │           ├── reservations/    # Tabs of Reservation & Calendar: 1s Requests, All reservations, 1v Calendar
-│   │           └── reports/         # Tab of Reports: 1w Payments and balances
-│   └── api/                         # API (Express 5 + MySQL 8), port 4000
-│       ├── schema.sql               # Every table (npm run db:reset; npm run db:migrate adds new tables and columns)
-│       ├── http/                    # Saved requests per module (VS Code REST Client)
-│       ├── scripts/                 # db-reset, db-migrate, db-ping, db-roundtrip, and the security
-│       │                            # checks: route-audit.js, security-tests.js (lib/ = their helpers)
-│       └── src/                     # server.js, app.js, config.js, db.js, seed.js, lib/, middleware/,
-│                                    # integrations/ (mail, SMS, storage, PayMongo), modules/ (one per service),
-│                                    # seedData/ (the business data the seeder loads; its sample/
-│                                    # folder of made-up customers stays on your computer, not on GitHub)
-├── packages/
-│   └── shared/                      # SHARED BY BOTH APPS (imported as @tm/shared)
-│       ├── public/images/           # Logo and event theme icons (served by both apps)
-│       └── src/
-│           ├── theme/               # Design tokens (JS + CSS variables), dark + light MUI themes
-│           ├── components/          # PortalShell, DashCard, StatCard, FormField, OtpInput, AppDialog,
-│           │                        # ConfirmDialog, MonthCalendar, DateField, DataTable, BarChart,
-│           │                        # StatusPipeline, ChatPanel, DocumentDialog, ...
-│           ├── hooks/               # useResource, useCountdown, useNotify, useDocumentTitle
-│           ├── auth/createAuth.jsx  # Session provider, idle timeout (admin: screen lock), route guard, change polling
-│           ├── domain/              # Pure rules the API imports too (money, reservation, inventory, outsource, …)
-│           ├── services/            # The data layer: remote/* (one function per API call), http.js,
-│           │                        # poller.js, events.js, config.js (business rules and settings)
-│           └── utils/               # Formatting, status pipeline, validation
-├── scripts/vite-run.mjs             # Runs Vite (handles the "#" in the folder name)
-└── package.json                     # npm workspaces + scripts
+Pending -> Approved -> Downpayment paid -> Confirmed -> Completed
+
+Other outcomes: Declined or Cancelled
 ```
 
-Why a monorepo instead of one app with `/admin` routes: the two sites deploy to different
-hosts, so the customer site never ships the admin screens and each app can be released on
-its own schedule, while both still import the same `@tm/shared` package. The website bundles hold
-no data of their own: every page asks the API, and the sample data lives only in the API's seeder
-(`apps/api/src/seedData`), so no password or sample customer is ever shipped to a browser. The sample
-customers are not on GitHub either: `apps/api/src/seedData/sample/` is in `.gitignore` (see
-"Resetting the data").
+**Quotation acceptance is performed by the customer.** Administrators prepare and send quotations; the customer accepts the offer before the booking proceeds. Cancellation, refunds, payment amounts, availability, and rental returns are checked against the system's business rules.
 
----
+## Technology Stack
 
-## Getting started
+| Layer | Technologies |
+| --- | --- |
+| Frontend | React 18, Vite 6, React Router 7, JavaScript, CSS |
+| Interface | Material UI 6, Emotion, shared theme tokens, light and dark portal themes |
+| Backend | Node.js 20+, Express 5 |
+| Database | MySQL 8, mysql2 |
+| Authentication and validation | JWT, bcrypt, Zod, request rate limits |
+| Real-time updates | Socket.IO and Socket.IO Client |
+| Email | Nodemailer with SMTP or development logging |
+| QR payments | PayMongo QR Ph integration |
+| File uploads | Multer and local server storage |
+| PDF generation | jsPDF and html2canvas-pro |
+| Repository setup | npm workspaces and concurrently |
+
+Exact dependency ranges are recorded in the workspace `package.json` files. `package-lock.json` records the resolved installation.
+
+## System Architecture
+
+```mermaid
+flowchart LR
+    Customer[Customer Portal - React] -->|HTTP API requests| API[Express REST API]
+    Admin[Admin Dashboard - React] -->|HTTP API requests| API
+    API --> DB[(MySQL Database)]
+    API --> Files[Local Upload Storage]
+    API --> Mail[Email - SMTP or Log]
+    API --> Payments[PayMongo QR Ph]
+    API -. Change notifications .-> Customer
+    API -. Change notifications .-> Admin
+    Shared[Shared Components and Business Rules] -.-> Customer
+    Shared -.-> Admin
+    Shared -.-> API
+```
+
+- **Two separate portals:** the customer bundle and the admin bundle are built independently.
+- **One API and database:** records are read and updated through the API; the browser keeps session data, drafts, and interface preferences.
+- **Shared rules:** pure business rules in `packages/shared/src/domain` are reused by the interface and server. The API validates operations before saving them.
+- **Real-time refresh:** socket events signal that data changed. Reservation, payment, and message records are retrieved through authenticated HTTP requests.
+- **Business time zone:** the API uses `Asia/Manila` for scheduling and date-dependent rules.
+
+## Requirements
+
+- **Node.js 20 or newer**, with npm.
+- **MySQL 8**, running locally or on a configured database server.
+- **Git** to clone the repository, or a downloaded copy of the source.
+- A modern web browser.
+- An editor such as Visual Studio Code for configuration and development.
+- Optional: SMTP credentials for actual email delivery, and PayMongo test credentials for QR payment testing.
+
+## Installation and Setup
+
+Run npm commands from the project root unless a step says otherwise. The database initialization below is for a **new, empty local database**. For an existing installation, use [Database Maintenance](#database-maintenance).
+
+### 1. Get the Project and Install Dependencies
 
 ```bash
-npm install          # once, from the project root
-npm run dev          # API + Customer Portal + Admin Dashboard together
+git clone https://github.com/Tzzii/Tres-marias-Web-System.git
+cd Tres-marias-Web-System
+npm ci
 ```
 
-`npm run dev` starts the API on http://localhost:4000 (check http://localhost:4000/api/health),
-the Customer Portal on http://localhost:5173 and the Admin Dashboard on http://localhost:5174.
-Each can also run alone: `npm run dev:api`, `npm run dev:client`, `npm run dev:admin`. The API restarts by
-itself when its files change (`node --watch`, built into Node; nodemon is no longer used).
+If the project is already on your computer, open a terminal in its root folder and run `npm ci`. Use `npm install` when intentionally changing dependencies.
 
-**The API is needed for every page.** Sign-in, sign-up, the catalogue, the calendar, reservations,
-chat, payments, customers, reviews, inventory, outsourcing, the Dashboard and Reports all come from the
-API (the PDFs are made in the browser from what it sends). While signed in, each portal asks the
-API every 15 seconds (only while the tab is visible) whether anything changed, and reloads what it
-shows, so one portal's changes show in the other without a refresh. Sending an outsourcing request (it
-only asks a partner if they can supply the items for an event; it is not a contract) goes through the
-mail and SMS ports: with `MAIL_DRIVER=log` and `SMS_DRIVER=log` nothing leaves the server, and the
-Outsourcing page says so, so the admin saves the request as PDF and sends it themselves.
+### 2. Create the Environment Files
 
-**Photo uploads.** Every uploaded photo has a 20 MB per-file limit, defined by
-`RULES.photoMaxMb` in the shared configuration. Upload forms use this rule, and API
-photo routes use `photoUpload(field)` to enforce it, accepting exactly 20 MB and
-rejecting anything larger. If set, `MAX_UPLOAD_MB` must be 20 so deployment settings
-cannot give the server a different limit. New photo upload features, including
-package setup photos, must use the same rule and middleware.
+Copy the example files to these locations:
 
-**Package setup photos.** Admin → Packages → select a package → **Upload photo**
-or **Replace photo** → **Save changes**. One JPG, PNG or WebP photo, up to 20 MB,
-can be saved per package, including Equipment Rental. **Remove photo** takes
-effect on save; **Discard** abandons pending photo changes. The customer's
-**View package** / **See details** page shows the saved setup photo, with a
-**View photo** dialog to enlarge it. Landing cards retain their illustrations.
-Without an upload, bundled generated sample photos are labelled **Sample setup**;
-Full Service packages use the corresponding base setup sample. Uploaded files live
-in `apps/api/uploads/packages`, with metadata in `packages.photo_key/photo_mime`.
-Hidden and archived packages' photos are only accessible through the protected
-admin route. Run `npm run db:migrate` before starting an existing deployment.
+| Example file | Your local configuration file |
+| --- | --- |
+| `apps/api/.env.example` | `apps/api/.env` |
+| `apps/client/.env.example` | `apps/client/.env.local` |
+| `apps/admin/.env.example` | `apps/admin/.env.local` |
 
-Package photo checks: `node --test apps/api/scripts/package-photo-tests.js`;
-the database integration check is
-`node apps/api/scripts/package-photo-db-tests.js --writes-test-data`
-(creates its own temporary packages and cleans them and their photos afterward).
+For Windows PowerShell, these commands create the files only when they do not already exist:
 
-**Payments.** Customers pay three ways: **QR Ph** (a PayMongo QR Ph code that GCash, Maya or a bank app
-scans, confirmed automatically), **bank transfer** (the reference number and a photo of the receipt,
-JPG, PNG or WebP up to 20 MB (`MAX_UPLOAD_MB`), which the admin verifies under Reports → Payments) or
-**cash on site** (recorded by the admin). Uploaded receipts are
-kept in `apps/api/uploads/proofs` (git-ignored), never in a public folder. The QR Ph option stays
-greyed out until `apps/api/.env` has both `PAYMONGO_SECRET_KEY` (a `sk_test_…` key while developing;
-the `sk_live_…` key goes on the live server only) and `PAYMONGO_WEBHOOK_SECRET` (the `whsk_…`
-secret of the webhook created in the PayMongo dashboard, pointing at `/api/webhooks/paymongo`
-through a tunnel such as `cloudflared tunnel --url http://localhost:4000` while developing, with the
-events `payment.paid`, `payment.failed` and `qr.expired`). In test mode the API prints each QR's test
-link (`[PAYMONGO TEST] …`) for simulating the payment; never scan and pay a test QR. A QR Ph payment is
-verified by PayMongo, so the admin hears of it from the bell (Downpayment Received, Balance Payment
-Received or Fully Paid) instead of a "Payment to Verify".
+```powershell
+if (!(Test-Path apps/api/.env)) { Copy-Item apps/api/.env.example apps/api/.env }
+if (!(Test-Path apps/client/.env.local)) { Copy-Item apps/client/.env.example apps/client/.env.local }
+if (!(Test-Path apps/admin/.env.local)) { Copy-Item apps/admin/.env.example apps/admin/.env.local }
+```
 
-The API needs MySQL 8. First time only:
+Edit `apps/api/.env` using the comments in `.env.example`:
 
-1. Copy `apps/api/.env.example` to `apps/api/.env` and set `DB_PASSWORD`, a long random `JWT_SECRET`,
-   and the passwords the seeder gives the accounts it creates: `SEED_ADMIN_PASSWORD` (the admin) and
-   `SEED_CUSTOMER_PASSWORD` (every sample customer). They are never written in the code or here.
-2. As the MySQL root user, run `apps/api/db-setup.sql` once (creates the `tres_marias` database and user).
-3. `npm run db:reset` (creates the tables), then `npm run seed:api` (loads the sample data below;
-   needs `apps/api/src/seedData/sample/`, which a fresh clone does not have) or `npm run seed:starter`
-   (the fresh start with no customers, see "Resetting the data").
+| Setting | Purpose |
+| --- | --- |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL connection; defaults use the `tres_marias` database and user |
+| `JWT_SECRET` | Replace the example value with a long, random secret; production requires at least 32 characters |
+| `SEED_ADMIN_PASSWORD` | Initial password for the seeded admin account |
+| `SEED_ADMIN_EMAIL` | Optional email override for the seeded admin; useful for an inbox you can access |
+| `SEED_CUSTOMER_PASSWORD` | Required only when loading the local sample customers |
+| `MAIL_DRIVER` | Use `log` locally or `smtp` for actual delivery |
+| `SMS_DRIVER` | Currently `log`; outsourcing SMS messages are logged |
+| `CORS_ORIGINS` | Allowed portal origins; locally, `http://localhost:5173,http://localhost:5174` |
+| `CLIENT_URL` | Customer website address used in email links; locally, `http://localhost:5173` |
 
-When an update adds a table (Phase 12 added `signup_requests` and `password_changes`) or a column (the
-3 October 2026 revisions added `reservations.end_time`, `calendar_blocks.note` and the `terms_version`
-columns; 8 October `reservations.styling`; 9 October `admins.session_id` and `qr_payments.code_id`;
-10 October `messages.typed`, `edited_at`, `deleted_at` and `history` for editing and deleting chat messages), a
-database that already holds data gets it with `npm run db:migrate`: it creates the tables and adds the
-columns `schema.sql` has and the database lacks, lengthens a text (`VARCHAR`) column that `schema.sql`
-made longer (9 October: `webhook_events.id` to 255; it never shortens one), and changes nothing else.
+Seed passwords must contain at least **8 characters**, an uppercase letter, a lowercase letter, a number, and a special character. Keep actual passwords, tokens, and API keys in your own environment files.
 
-Each portal reads `VITE_API_URL` (where the API is) from its own `.env.local` (copy its `.env.example`).
-The full backend plan is in `docs/backend-development-phases.md`.
+Both portal configuration files should contain this local API address:
 
-Build and preview production bundles:
+```dotenv
+VITE_API_URL=http://localhost:4000/api
+```
+
+### 3. Create the MySQL Database and User
+
+Open [apps/api/db-setup.sql](apps/api/db-setup.sql) in MySQL Workbench or another MySQL client. Replace its `CHANGE_ME_...` password placeholders in a **private working copy**, then execute it as a MySQL administrator.
+
+The script creates the `tres_marias` database, the API database user, and an optional read-only user. Put the API user's chosen password in `DB_PASSWORD`. Keep real passwords out of the tracked SQL file.
+
+Check the connection:
 
 ```bash
-npm run build            # builds apps/client/dist and apps/admin/dist
-npm run preview:client   # http://localhost:4173
-npm run preview:admin    # http://localhost:4174
+npm run db:ping
 ```
 
-### Trying the site on a phone
+### 4. Initialize a New Local Database
 
-The phone and the computer must be on the same Wi-Fi. Stop `npm run dev:client` first (both use port 5173), then:
+**These commands replace database data. Use them only for the new database created above.**
 
 ```bash
-npm run dev:client:phone   # same as dev:client, but other devices on the Wi-Fi can open it
+npm run db:reset
+npm run seed:starter
 ```
 
-Vite prints a `Network:` address such as `http://192.168.x.x:5173/`; open that on the phone.
-If the phone cannot connect, allow Node.js through Windows Firewall for the network type the
-Wi-Fi uses (Private or Public). The admin site works the same way: `npm run dev:admin -- --host`.
+`seed:starter` loads the admin account, business catalogue, settings, and equipment inventory. It creates **no customer accounts or bookings**. Register a customer through the website to begin trying the system.
 
-Keep the API running too (`npm run dev:api`). On these `--host` runs the portal sends its API
-calls to the dev server's `/api` path, which passes them on to the API on the computer
-(`scripts/vite-run.mjs`, `vite.config.js`), because `localhost` on the phone would be the phone.
+A fresh GitHub clone does not contain `apps/api/src/seedData/sample/`. That folder is intentionally ignored by Git. `npm run seed:api` loads sample customers and transactions only on computers that have the local sample folder; it refuses to continue when the folder is absent.
 
-### A note on the folder name
-
-Rollup (inside Vite) treats everything after `#` in a path as a URL fragment, so Vite fails
-in a folder named `capstone website #2`. `scripts/vite-run.mjs` runs Vite through a
-directory junction without `#`. **Renaming the folder (for example to `capstone-website-2`)
-is the clean fix**; the script detects a clean path and runs Vite directly, no other change needed.
-
----
-
-## Development accounts
-
-These accounts are in the sample data (in the database after `npm run seed:api`). After
-`npm run seed:starter` only the admin account is there. Their passwords are the ones in your own
-`apps/api/.env` (this repository is public, so they are not written here):
-
-| App | Username | Password | Second step |
-| --- | --- | --- | --- |
-| Customer Portal | The single demo customer's email in your local `apps/api/src/seedData/sample/` | `SEED_CUSTOMER_PASSWORD` | — |
-| Admin Dashboard | `emmamariaobet@gmail.com` (or `SEED_ADMIN_EMAIL`, if set) | `SEED_ADMIN_PASSWORD` | 6-digit code sent by email |
-
-New customer accounts are created from **Sign up**: the form, then the 6-digit code emailed to the
-address typed (the account is made only when that code is entered).
-
-**One-time codes.** Every code goes by **email, never by SMS**: the admin's sign-in code and the code
-that confirms a new email or mobile number, and the customer's codes for signing up, for a forgotten
-password (Forgot password on the Log in page, or "Forgot your current password?" in My profile) and for
-a password change in My profile (the current password and the emailed code). There is no fixed code:
-every request gets a new random one. In development `apps/api/.env` has `MAIL_DRIVER=log`, so nothing is
-really sent: each message is printed in the API's terminal and saved in the `outbox` table. For real
-email, set `MAIL_DRIVER=smtp` and the `SMTP_*` settings (for example a Gmail App Password, or Mailtrap
-for a test inbox). SMS is only for outsourcing requests to partners.
-
-**Lockouts.** 5 wrong passwords lock an account for 5 minutes, and 5 wrong codes pause code entry
-for 2 minutes. At most 5 code emails an hour go to one customer address. The API keeps these in the
-database, so clearing the browser's data does not lift them; `npm run seed:api` does (it reloads the
-sample data), and so does a finished password reset for that account.
-
-**One admin session at a time.** Signing in to the admin account (password and code) on another device or
-tab signs the older session out: the server keeps the current one in `admins.session_id` and answers an
-older token with `401 SESSION_REPLACED`, and the sign-in page says "You were signed out because your
-account was signed in on another device." Customer accounts can stay signed in on several devices.
-
-**Where the seed data is:** `apps/api/src/seedData/seed.js` holds the business data (packages,
-additional charges, dishes, settings, the admin account and the inventory) and is on GitHub. The sample
-customers with their reservations, payments, chat, reviews and outsourcing partners are in
-`apps/api/src/seedData/sample/`, which `.gitignore` keeps on the developer's computer, so neither GitHub
-nor the live server has any of them. To use the sample data on another computer, copy that folder there
-by hand; without it, `npm run seed:api` and `npm run db:roundtrip` stop with a message and change nothing.
-
-**Resetting the data:** `npm run seed:api` puts the database back to the sample data. When
-`apps/api/schema.sql` has changed (e.g. Phase 4 gave packages, additional charges and dishes a
-`sort_order` column), run `npm run db:reset` first, then `npm run seed:api`. Sample event dates are
-placed relative to the day the data is created, so after a few days "events today" drifts: run
-`npm run seed:api` again.
-
-**Replacing only customer demo data:** `npm run seed:customers` replaces the customers and their
-bookings, payments, refunds, chat, reviews and rental movements with the single account in the local
-sample folder. It builds quotations from the database's current catalog prices and booking rules.
-Admin accounts, catalog entries, settings, inventory definitions and suppliers are preserved; old
-customer-linked outsourcing contracts and notifications are removed. Before deleting anything, the
-command saves a database snapshot and `restore.sql` under the ignored `apps/api/tmp/` folder. The
-replacement runs in one transaction and refuses production or a remote database. Dates are relative
-to Manila's current date; use this command again to refresh the scenarios while keeping admin changes.
-`npm run test:seed` checks the local sample's identity, menus, quotations, payments, cancellations,
-refunds, rental tracking, feedback and document links. The sample folder remains outside Git.
-
-**Fresh start (go-live):** `npm run seed:starter` loads only the real business data: the admin
-account, the packages, additional charges, dishes and settings, and the 48 inventory items with
-every piece available (none in use, none damaged). There are no customers, reservations, payments,
-chat, reviews, blocked dates or outsourcing partners, so the website starts like a new one and the
-first customer to sign up starts the records. The first receipt is OR-1001. On the live server
-(`NODE_ENV=production`) run it once from `apps/api` as `npm run seed:starter -- --force`; running it
-again later would erase every real customer. The admin's first password is `SEED_ADMIN_PASSWORD` from
-the server's own `.env`: choose a new, strong one there.
-
----
-
-## How the system works
-
-- **Service layer.** Every page calls the functions of `@tm/shared` (`reservationApi.acceptQuotation(ref, sentAt)`,
-  `paymentApi.verifyPayment(id)`, …), which are `packages/shared/src/services/remote/*`: one API call
-  each through `services/http.js`, with the session token. They return plain JSON and throw
-  `ApiError { code, message, meta }`, so every page handles an error the same way.
-- **Data.** Everything is in MySQL, behind the API. A browser keeps only the session (sessionStorage, or
-  localStorage with "Remember me") and UI preferences: booking drafts, table columns, read
-  notifications, the collapsed sidebar, the colour mode.
-- **Real-time updates.** Signed-in portals connect to Socket.IO at `/api/realtime/`. A saved write
-  sends a payload-free `change` event; the portal refreshes the calendar and its live resources
-  through the existing HTTP API. Events are batched for 500 ms and browser refreshes for 250 ms.
-  Reservations, messages, payments and customer details never travel over the socket. The JWT is
-  sent in handshake auth, not a URL. The server checks the same signature, expiry, password version
-  and current admin sign-in as HTTP, before every notification and every 15 seconds when idle.
-  Connections also close at JWT expiry. Both transports enforce `CORS_ORIGINS`, and client-sent
-  application events are refused. Refresh on reconnect / tab return catches missed updates;
-  the existing 15-second stamp polling remains a recovery path. Public visitors do not subscribe.
-- **Rules.** The server is the authority: every rule a page checks is checked again by the API, with
-  the same code where it is pure (`packages/shared/src/domain`) and the same messages.
-- **Status pipeline.** Pending → Approved → Downpayment paid → Confirmed → Completed, plus
-  Declined (admin) and Cancelled (by the customer online, or by the admin with a reason). The admin
-  sets the price in the quotation and the customer approves the request by accepting it in the
-  portal (there is no admin Approve). The
-  customer pays at least the minimum downpayment first (a setting on the admin Payments tab), and
-  money owed back after a cancellation or a lower revised quotation is recorded as a refund.
-- **Feedback.** Once an event is completed the customer rates it in the portal (overall stars,
-  a rating for each part of the service and a short review). The same record is what the admin
-  opens under **Feedbacks**: they publish it on the website, feature it on the homepage, flag it
-  with a reason, archive it, or reply — and the reply is saved under the review *and* sent to the
-  customer as a message. Nothing reaches the public site until the admin publishes it.
-
-## Security checks
-
-`npm run test:realtime` exercises real local HTTP and Socket.IO connections with controlled account
-and SQL fixtures, including forged / expired tokens, revoked sessions, origin checks, account
-isolation, connection limits, burst handling and portal recovery. It does not query or modify the
-configured database. Production dependency advisories can be checked with `npm audit --omit=dev`.
-
-Two scripts check the API the way the panel would (Phase 12). Each starts its own API process on
-the database in `apps/api/.env`, so nothing else needs to be running:
+### 5. Start the System
 
 ```bash
-npm run audit:routes -- --writes-test-data    # every route with no token, a customer's and the admin's -> docs/route-audit.md
-npm run test:security -- --writes-test-data   # the 20 security tests (+ 3 extra checks) -> docs/security-tests.md
+npm run dev
 ```
 
-They add test customers, bookings and payments (addresses `@example.test`), which is why they ask for
-`--writes-test-data`: run them on a database you will reset afterwards (locally, back up first or run
-`npm run seed:api` after; on the live server, before `npm run seed:starter`). `npm run audit:routes`
-can also check a running API: `-- --base https://api.example.ph/api --writes-test-data`, run on the
-server itself (its tokens are signed with that server's `JWT_SECRET`).
+Open:
 
-With `NODE_ENV=production` the API refuses to start with development settings: `MAIL_DRIVER` must be
-`smtp` with the business's own `MAIL_FROM`, `SMS_DRIVER` must be a real provider (or `ALLOW_SMS_LOG=true`
-while none is connected), `CORS_ORIGINS` must list the live portals (no localhost), `JWT_SECRET` must be
-32+ random characters and `DB_PASSWORD` must be set.
+- Customer Portal: http://localhost:5173
+- Admin Dashboard: http://localhost:5174
+- API health check: http://localhost:4000/api/health
 
-## Deploying the two sites
+The API restarts automatically when its files change through Node's `--watch` mode. Keep the API and MySQL running while using the portals.
 
-Each app builds to static files (`apps/client/dist`, `apps/admin/dist`), with `VITE_API_URL` set to
-the live API at build time. Host them on separate domains (for example `tresmarias.ph` and
-`admin.tresmarias.ph`) with an SPA fallback so deep links load `index.html`:
+### Try the Customer Portal on a Phone
 
-```nginx
-server {
-    server_name tresmarias.ph;
-    root /var/www/client/dist;
-    location / { try_files $uri /index.html; }
-}
-server {
-    server_name admin.tresmarias.ph;
-    root /var/www/admin/dist;
-    location / { try_files $uri /index.html; }
-}
+Connect the phone and computer to the same Wi-Fi. Stop an existing customer dev server on port 5173, keep the API running, then run:
+
+```bash
+npm run dev:client:phone
 ```
 
-Both call the same API (for example `api.tresmarias.ph`, proxied to port 4000). The full deployment
-checklist (HTTPS, firewall, the production `.env`, the fresh start, backups) is Phase 13 of
-`docs/backend-development-phases.md`.
+Open the `Network:` address printed by Vite on the phone. For the admin portal, use `npm run dev:admin -- --host`. The wrapper routes API requests through Vite's `/api` proxy, so the phone can reach the computer's API.
 
-For real-time updates, add this location inside the **API** Nginx server block, beside its existing
-`location /`. Keep the API bound behind the proxy / firewall, HTTPS enabled, and `CORS_ORIGINS`
-limited to the exact customer and admin origins:
+Add the exact browser origin, including its port, to `CORS_ORIGINS` for LAN or preview testing. If the phone cannot connect, check Windows Firewall access for Node.js on the current network.
+
+### Project Folders Containing `#`
+
+The root npm scripts use `scripts/vite-run.mjs` to handle paths such as `capstone website #2`. The wrapper runs Vite through a temporary directory junction when needed. Use the root scripts for development and builds; a clone into a folder without `#` runs directly.
+
+## How to Use
+
+### Customer
+
+1. Open the Customer Portal and browse the available packages.
+2. Select **Sign up**, complete the form, and enter the emailed verification code.
+3. Sign in and open the booking page to submit an event or rental request.
+4. Follow the reservation details page for the quotation and status updates.
+5. Review and accept the quotation, then submit an available payment method.
+6. Use **Payments**, **Documents**, and **Messages** to follow the booking and contact the business.
+7. After completion, submit a rating and review through the portal.
+
+### Administrator
+
+1. Open the Admin Dashboard and sign in with the seeded admin email and `SEED_ADMIN_PASSWORD` from your environment file.
+2. Enter the six-digit email code to finish signing in.
+3. Review incoming requests under **Reservations and Calendar**, then prepare quotations.
+4. Use **Reports > Payments** to verify bank transfers, record cash payments, and follow balances and refunds.
+5. Confirm bookings and manage calendar availability, equipment movements, and outsourced supplies.
+6. Maintain packages, customer records, conversations, feedback, and reports through their dashboard pages.
+
+With `MAIL_DRIVER=log`, emails and one-time codes appear in the **API terminal** and are saved in the database `outbox` table. They do not arrive in an inbox. Set `MAIL_DRIVER=smtp` and the `SMTP_*` values for actual delivery.
+
+## Screenshots and Demo
+
+The local deployment guide records these hosted addresses:
+
+- [Customer website](https://tresmariascater.com)
+- [Admin dashboard](https://admin.tresmariascater.com)
+
+The deployed version may differ from the code in this repository. Follow the local setup above to run the checked-out version. Admin access requires an authorized account; credentials are not published here.
+
+**Screenshot gallery: to be added.** Suggested images are the public homepage, customer dashboard, booking form, reservation details, admin dashboard, calendar, inventory, and payments page. Capture screens with demonstration data and omit private customer information.
+
+Keep future screenshots in a tracked folder such as `assets/readme/`. The current `docs/` folder is ignored by Git, so files placed there are not included in a fresh clone. Once a screenshot exists, embed it like this:
+
+```markdown
+![Customer dashboard](assets/readme/customer-dashboard.png)
+```
+
+The example above is a template, not a link to an existing screenshot.
+
+## Project Structure
+
+```text
+Tres-marias-Web-System/
+|-- apps/
+|   |-- client/                 # Public website and Customer Portal
+|   |   |-- src/pages/public/   # Home, package details, sign-in, sign-up, legal pages
+|   |   |-- src/pages/portal/   # Customer dashboard and account features
+|   |   `-- src/assets/         # Package visuals and event gallery photos
+|   |-- admin/                  # Separate Admin Dashboard
+|   |   |-- src/pages/          # Reservations, packages, inventory, reports, etc.
+|   |   `-- src/components/     # Admin-specific components and PDF views
+|   `-- api/                    # Express API
+|       |-- schema.sql          # Table definitions
+|       |-- db-setup.sql        # Database and MySQL account setup
+|       |-- http/               # Saved API requests for VS Code REST Client
+|       |-- scripts/            # Database maintenance and verification scripts
+|       `-- src/
+|           |-- modules/        # Authentication and business service modules
+|           |-- integrations/   # Mail, SMS, storage, and PayMongo
+|           |-- middleware/     # Authentication, validation, uploads, rate limits
+|           `-- seedData/       # Business data; local sample/ folder is ignored
+|-- packages/shared/
+|   |-- public/images/          # Shared logo and event icons
+|   `-- src/
+|       |-- components/         # Reusable UI, calendar, chat, document components
+|       |-- domain/             # Shared business rules
+|       |-- services/           # HTTP API calls and refresh logic
+|       |-- auth/               # Session provider and route guards
+|       `-- theme/              # Shared styles and theme tokens
+|-- scripts/vite-run.mjs        # Root Vite runner and path workaround
+|-- package.json                # Workspace configuration and root commands
+|-- package-lock.json           # Resolved dependency versions
+`-- README.md                   # Project introduction and setup guide
+```
+
+Ignored local material includes `docs/`, `design-backup/`, `apps/api/tmp/`, environment files, and sample customers. See [.gitignore](.gitignore) for the full list. Uploads are stored separately in the API's upload directory; keep private customer files out of the repository.
+
+## Development Commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm ci` | Install dependencies from the lockfile |
+| `npm run dev` | Start the API and both portals together |
+| `npm run dev:api` | Start only the API |
+| `npm run dev:client` | Start only the Customer Portal |
+| `npm run dev:admin` | Start only the Admin Dashboard |
+| `npm run dev:client:phone` | Expose the Customer Portal on the local network |
+| `npm run build` | Build both portal bundles |
+| `npm run build:client` | Build `apps/client/dist` |
+| `npm run build:admin` | Build `apps/admin/dist` |
+| `npm run preview:client` | Preview the customer build at http://localhost:4173 |
+| `npm run preview:admin` | Preview the admin build at http://localhost:4174 |
+| `npm run db:ping` | Check the configured database connection |
+| `npm run db:migrate` | Add missing schema tables/columns and widen supported text columns |
+| `npm run catalog:update` | Apply the menu/dessert catalogue update without resetting records |
+
+Production previews still need the API, database, and allowed browser origins.
+
+## Database Maintenance
+
+### Existing Installations
+
+Back up the database before applying schema updates, then run:
+
+```bash
+npm run db:migrate
+```
+
+The migration preserves existing rows. It adds missing tables and columns and widens supported `VARCHAR` columns; it does not perform arbitrary renames, removals, or every possible schema alteration. Current schema additions include package photos, booking styling, message history, and the rental dispatch ledger.
+
+For the menu and separately quoted dessert catalogue change, use `npm run catalog:update`. Fresh seed data already contains this change. Details are in [Booking Options](apps/api/BOOKING_OPTIONS.md).
+
+### Reset and Seed Commands
+
+| Command | Effect |
+| --- | --- |
+| `npm run db:reset` | Drops and recreates all schema tables |
+| `npm run seed:starter` | Replaces records with business starter data and an admin account; no customers or transactions |
+| `npm run seed:api` | Replaces records with business data plus local sample customers and transactions |
+| `npm run seed:customers` | Replaces customer demo records while preserving admin accounts, catalogue, settings, equipment definitions, and partners |
+| `npm run db:roundtrip` | Compares the freshly seeded local database with sample data; its temporary write is rolled back |
+
+**Reset and seed commands are destructive maintenance operations.** They are intended for initial setup or deliberate demo resets. Do not use them to update an active database with customer records.
+
+`seed:customers` saves a snapshot and `restore.sql` under the ignored `apps/api/tmp/` folder before replacing demo data. It requires local, non-production MySQL. Sample dates are relative to Manila's date when the data is generated.
+
+For an explicitly planned first production initialization, the API workspace's starter command accepts `--force`; running it again would erase existing records. Keep routine live updates on the migration path.
+
+## Integrations and Uploads
+
+### Email and SMS
+
+- **Email:** `MAIL_DRIVER=log` records messages locally. `MAIL_DRIVER=smtp` uses the configured SMTP provider. Sign-in, registration, verification, and password recovery codes are sent by email.
+- **Customer notices:** implemented booking and payment events can send customer emails when SMTP is configured. Email links use `CLIENT_URL`.
+- **SMS:** only the logging driver is currently implemented. Outsourcing texts are logged, and the admin must send the saved request manually. Connecting an SMS provider requires an additional driver and configuration validation changes.
+
+### Payments
+
+- **Bank transfer:** the customer submits a reference number and a receipt photo; an administrator verifies it.
+- **Cash on site:** an administrator records the payment.
+- **QR Ph:** available only when both `PAYMONGO_SECRET_KEY` and `PAYMONGO_WEBHOOK_SECRET` are configured. Payment confirmation comes from the PayMongo integration.
+
+The webhook endpoint is `/api/webhooks/paymongo`. Configure the integration for `payment.paid`, `payment.failed`, and `qr.expired`. For development, use test credentials and the test link printed by the API to simulate payment. Keep live credentials on the live server.
+
+### Photos and File Storage
+
+The shared photo limit is **20 MB per file**. Photo forms and API upload middleware enforce the same rule; `MAX_UPLOAD_MB`, when set, must be `20`. Supported photo formats are JPG, PNG, and WebP.
+
+- Uploaded payment proofs are stored under `apps/api/uploads/proofs` by default and accessed through protected routes.
+- Each package can have one saved setup photo under `apps/api/uploads/packages` by default. Admins can upload, replace, remove, or discard pending photo changes.
+- Customer package details show the saved setup photo. Bundled fallback images are labelled **Sample setup**.
+- Hidden or archived package photos require the protected admin route.
+- Equipment items have labelled mock appearance photos showing one item or one complete rental unit. Admins can replace the photo through Inventory; the same saved photo appears in the customer equipment rental price list and booking form.
+- `UPLOAD_DIR` can change the storage location. Uploaded files must be included in deployment backups. Check the repository's ignore rules before adding files; private payment proofs and customer uploads should stay outside Git.
+
+For public event gallery photos, follow the [Gallery Photo Guide](apps/client/src/assets/gallery/README.md).
+
+## Authentication and Security
+
+- Customer and admin pages use role-based route guards and server-side authorization.
+- Passwords are hashed with bcrypt. Sessions use JWTs with expiry and server-side validity checks.
+- Admin sign-in requires a password and an emailed six-digit code. The admin interface has an idle screen lock.
+- Only one admin session is current at a time; a newer sign-in replaces the older session. Customers can remain signed in on multiple devices.
+- Five wrong passwords lock an account for five minutes. Five wrong codes pause entry for two minutes. Code requests are limited by the API.
+- Socket connections use authenticated handshakes and the configured origin allowlist. Records are fetched through the existing HTTP API.
+- Photo uploads and request inputs are validated on the server.
+- Environment files and sample customer data are excluded by the repository's ignore rules. Keep actual credentials and private uploaded files outside Git as well.
+
+See [Testing](#testing) for the available authentication, authorization, and integration checks.
+
+## Testing
+
+Run checks relevant to the changes being made. The following commands exercise business rules or controlled fixtures without resetting the configured MySQL database:
+
+```bash
+npm run test:booking
+npm run test:inventory
+npm run test:mobile
+npm run test:labels
+npm run test:outsource
+npm run test:realtime
+node --test apps/api/scripts/package-photo-tests.js
+node --test apps/api/scripts/reference-photo-tests.js
+npm run build
+```
+
+`test:realtime` exercises HTTP and Socket.IO with controlled account and SQL fixtures rather than the configured database. `test:seed` separately checks the local sample data and requires the ignored sample folder.
+
+Database-backed checks require a prepared, local, non-production test database:
+
+```bash
+npm run test:booking:db
+npm run test:inventory:db
+node apps/api/scripts/package-photo-db-tests.js --writes-test-data
+node --test apps/api/scripts/reference-photo-db-tests.js
+```
+
+Read each script's fixture requirements before running it. For example, inventory database tests require an existing local customer and package. Integration scripts roll back or clean up their test fixtures as documented in their source.
+
+Route and security audits write test records and generated reports:
+
+```bash
+npm run audit:routes -- --writes-test-data
+npm run test:security -- --writes-test-data
+```
+
+Use a disposable local test database or a backed-up development database for these audits. Their reports are written under the local `docs/` folder. The commands listed here describe available verification tools; they are not a claim that every check has passed for every commit.
+
+## Deployment
+
+Build the customer and admin portals with each app's production `VITE_API_URL`. Serve `apps/client/dist` and `apps/admin/dist` as separate static sites, with an SPA fallback to `index.html` for deep links. Run the API separately and connect it to MySQL.
+
+Before starting a production API, configure:
+
+- `NODE_ENV=production` and a strong `JWT_SECRET` of at least 32 characters.
+- The production database connection and a non-empty `DB_PASSWORD`.
+- `MAIL_DRIVER=smtp`, SMTP credentials, and the business's own `MAIL_FROM`.
+- `CLIENT_URL` pointing to the HTTPS customer website.
+- `CORS_ORIGINS` containing the exact customer and admin origins.
+- `ALLOW_SMS_LOG=true` while the current logging-only SMS implementation is used.
+- PayMongo credentials and webhook configuration if QR payments are enabled.
+- HTTPS, reverse proxy settings, process management, database backups, and upload backups.
+
+For Socket.IO behind Nginx, the API server needs a WebSocket-capable location:
 
 ```nginx
 location /api/realtime/ {
@@ -368,10 +509,53 @@ location /api/realtime/ {
 }
 ```
 
-When updating an existing live site: install from the lockfile (`npm ci`), build both portals with
-their production `VITE_API_URL`, validate and reload the Nginx configuration, and restart the API.
-This change needs no database migration or data reset. Test with separate admin and customer
-sessions after deploying. Instant push currently covers one API process (the documented PM2
-setup); multiple workers still catch changes through polling and need a shared adapter for instant
-cross-worker delivery. LAN / preview testing also requires each browser's exact origin in
-`CORS_ORIGINS` (including its port); the Vite `/api` proxy supports WebSocket upgrades.
+For an existing deployment, install from the lockfile, apply required migrations and catalogue updates, rebuild the portals, validate proxy changes, and restart the API. Confirm the result using separate admin and customer sessions. Keep reset, sample seeding, and data-writing audits out of routine live updates.
+
+## Project Status and Limitations
+
+The repository contains implemented customer, admin, and API modules for the capstone system. Development and deployment verification continue as changes are made; the hosted version may be behind the local source.
+
+Current limitations and configuration-dependent behavior:
+
+- Actual email delivery requires SMTP configuration; development logging does not send email.
+- SMS delivery has no live provider driver yet.
+- File storage currently uses the API server's local filesystem.
+- QR payment availability and payment mode depend on PayMongo configuration.
+- Instant socket notifications currently cover one API process. Multiple workers need a shared adapter for immediate cross-worker delivery; polling remains a fallback.
+- The automatic equipment scheduler applies to equipment rentals. Returns still require actual returned and damaged quantities. See [Automatic Equipment Rental Checkout](apps/api/AUTOMATIC_CHECKOUT.md).
+- Venue addresses are entered as text and reviewed during booking; address search and map-pin selection are not included in the current implementation.
+- Sample customer records and local capstone documents are not included in a fresh GitHub clone.
+- README screenshots and academic team details still need to be supplied.
+
+## Team Members
+
+Academic team details have not yet been added to this README. Replace the entries below with the confirmed project information.
+
+| Name | Project role |
+| --- | --- |
+| To be added | Project member and assigned role |
+
+| Academic detail | Value |
+| --- | --- |
+| Institution and program | To be added |
+| Capstone adviser | To be added |
+| Academic year | To be added |
+
+## Documentation and Credits
+
+Repository guides:
+
+- [Booking Options](apps/api/BOOKING_OPTIONS.md) — menu selections, dessert charges, theme colors, and catalogue updates.
+- [Automatic Equipment Rental Checkout](apps/api/AUTOMATIC_CHECKOUT.md) — checkout scheduling, rental dispatch tracking, and deployment requirements.
+- [Gallery Photo Guide](apps/client/src/assets/gallery/README.md) — event gallery folders, photo naming, and thumbnails.
+- [API Environment Example](apps/api/.env.example) — supported backend settings.
+- [Database Schema](apps/api/schema.sql) — current table definitions.
+- `apps/api/http/` — saved API requests for VS Code REST Client.
+
+Additional capstone materials are kept locally under `docs/`, including the backend development plan, Hostinger go-live guide, architecture files, chapters, user guides, and test reports. That folder is ignored by Git, so those documents are not linked here as publicly available repository files.
+
+The system uses the open-source libraries listed in the workspace manifests, including React, Vite, Material UI, Express, Socket.IO, mysql2, Nodemailer, jsPDF, and html2canvas-pro. PayMongo provides the configured QR payment service. The project includes shared Tres Marias branding, public gallery assets, and labelled sample package setup visuals.
+
+## License
+
+No `LICENSE` file is currently included in this repository. The project team should add its chosen license when the distribution terms have been decided.
