@@ -19,6 +19,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
@@ -58,7 +59,6 @@ import { useColumnChoice } from '../lib/columns.js';
 const PAGE_SIZE = 10;
 const NO_EVENT = inventoryApi.NO_EVENT;
 
-// Status filter options as [key, label, test]; archived items only appear under "Archived"
 const STATUSES = [
   ['all', 'All', () => true],
   ['in_stock', 'In stock', (i) => i.stock === 'ok'],
@@ -70,7 +70,6 @@ const STATUSES = [
   ['archived', 'Archived', () => true]
 ];
 
-// Columns the admin can show or hide with "Filter columns", as [key, label]
 const OPTIONAL_COLUMNS = [
   ['category', 'Category'],
   ['total', 'Total'],
@@ -79,9 +78,8 @@ const OPTIONAL_COLUMNS = [
   ['rent', 'Rent Price'],
   ['condition', 'Condition']
 ];
-const COLUMNS_KEY = 'tm.admin.inventory.columns'; // this browser remembers the admin's column choice
+const COLUMNS_KEY = 'tm.admin.inventory.columns';
 
-// Title, description and button label of each stock action dialog
 const ACTIONS = {
   checkout: {
     title: 'Check Out',
@@ -110,22 +108,11 @@ const ACTIONS = {
   }
 };
 
-/**
- * Equipment inventory (from the Logistics wireframe): what Tres Marias owns, what is out at events and what is damaged.
- * Items can also be offered for rent through the Equipment Rental package: the Rent price column shows each
- * one's price per piece and damage fee, and the "For rent" filter lists only those.
- * Top: four summary cards (click one to filter). Card: search by name or code, Category and Status filters,
- * "Filter columns" to show/hide columns, then a paged table with checkboxes (bulk archive/restore) and a ⋮ menu per item
- * (details, edit, check out, return, report damage, repair, dispose, request from an outsourcing partner, archive).
- * Clicking a row opens its details and history.
- * Check-outs and returns linked to a reservation also appear in that reservation's audit trail.
- */
 export default function InventoryPage() {
   useDocumentTitle('Inventory', 'Tres Marias Admin');
   const navigate = useNavigate();
   const notify = useNotify();
-  // Load every item (archived included, for the Archived filter) and the reservations equipment can go to
-  const { data, loading, error, reload } = useResource(async () => {
+  const { data, loading, error, reload, setData } = useResource(async () => {
     const [items, events] = await Promise.all([
       inventoryApi.listInventory({ includeArchived: true }),
       inventoryApi.listCheckoutEvents()
@@ -137,17 +124,17 @@ export default function InventoryPage() {
   const [category, setCategory] = useState('all');
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState([]); // IDs ticked for bulk archive/restore
-  const [columns, setColumns] = useColumnChoice(COLUMNS_KEY, OPTIONAL_COLUMNS); // { category: true, total: true, ... }
-  const [columnsAnchor, setColumnsAnchor] = useState(null); // "Filter columns" menu
-  const [rowMenu, setRowMenu] = useState(null); // { anchor, item } for the ⋮ menu
-  const [adding, setAdding] = useState(false); // Add item(s) dialog open
-  const [editingId, setEditingId] = useState(null); // item in the edit dialog
-  const [stock, setStock] = useState(null); // { action, id } for a stock action dialog
-  const [detailsId, setDetailsId] = useState(null); // item in the details dialog
-  const [archive, setArchive] = useState(null); // { ids, archived } waiting for confirmation
+  const [selected, setSelected] = useState([]);
+  const [columns, setColumns] = useColumnChoice(COLUMNS_KEY, OPTIONAL_COLUMNS);
+  const [columnsAnchor, setColumnsAnchor] = useState(null);
+  const [rowMenu, setRowMenu] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [stock, setStock] = useState(null);
+  const [detailsId, setDetailsId] = useState(null);
+  const [archive, setArchive] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
-  // Back to page 1 and nothing ticked whenever the filters change
   useEffect(() => {
     setPage(1);
     setSelected([]);
@@ -155,10 +142,8 @@ export default function InventoryPage() {
 
   const items = data ? data.items : [];
   const active = items.filter((i) => !i.archived);
-  // Look up items by ID from the latest data, so open dialogs show fresh numbers after a change
   const byId = (id) => items.find((i) => i.id === id) || null;
 
-  // Summary figures (active items only)
   const totals = useMemo(() => {
     const sum = (key) => active.reduce((s, i) => s + i[key], 0);
     return {
@@ -172,7 +157,6 @@ export default function InventoryPage() {
     };
   }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Apply the status, category and search (name or code, spaces ignored)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     const test = STATUSES.find(([key]) => key === status)[2];
@@ -184,7 +168,6 @@ export default function InventoryPage() {
   }, [items, query, category, status]);
 
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  // If a change empties the last page, step back to the previous one
   useEffect(() => {
     if (page > 1 && (page - 1) * PAGE_SIZE >= filtered.length)
       setPage(Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
@@ -193,22 +176,19 @@ export default function InventoryPage() {
   const ticked = pageRows.filter((i) => selected.includes(i.id));
   const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  // Open a dialog from the ⋮ menu or the details dialog
   const openAction = (action, item) => {
     setRowMenu(null);
     if (action === 'details') setDetailsId(item.id);
     else if (action === 'edit') setEditingId(item.id);
+    else if (action === 'delete') setDeleting(item);
     else if (action === 'archive' || action === 'restore')
       setArchive({ ids: [item.id], archived: action === 'archive' });
-    // Renting this item in: start a request on the Outsourcing page with the item, and how many
-    // are missing when stock is low or out, already filled in
     else if (action === 'outsource') {
       const short = item.stock === 'ok' ? 0 : Math.max(1, item.lowStockAt - item.available);
       navigate(`/outsource?item=${encodeURIComponent(item.name)}${short ? `&qty=${short}` : ''}`);
     } else setStock({ action, id: item.id });
   };
 
-  // Table columns; optional ones follow the "Filter columns" choice
   const tableColumns = [
     {
       key: 'select',
@@ -252,7 +232,6 @@ export default function InventoryPage() {
       key: 'available',
       label: 'Available',
       align: 'right',
-      // Red when none are left, amber at or below the alert level
       render: (i) => (
         <Box>
           <Typography
@@ -284,7 +263,6 @@ export default function InventoryPage() {
       key: 'rent',
       label: 'Rent Price',
       align: 'right',
-      // Price per piece with the damage fee underneath, or a dash for items only our team uses
       render: (i) =>
         i.rentable ? (
           <Box>
@@ -311,7 +289,6 @@ export default function InventoryPage() {
           <Pill size="sm" label="Good" bg="rgba(16,185,129,0.12)" fg="#047857" />
         )
     },
-    // card: 'aside' — on phone cards the ⋮ menu sits at the top right
     {
       key: 'actions',
       label: 'Actions',
@@ -351,7 +328,6 @@ export default function InventoryPage() {
         }
       />
 
-      {/* Summary cards; clicking one filters the table. Two per row on phones and tablets, four on wide screens. */}
       <Box
         sx={{
           display: 'grid',
@@ -399,7 +375,6 @@ export default function InventoryPage() {
       </Box>
 
       <DashCard>
-        {/* Toolbar: search, Category, Status and Filter columns */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', mb: 2 }}>
           <SearchField
             id="inventory-search"
@@ -445,11 +420,9 @@ export default function InventoryPage() {
           >
             Filter columns
           </Button>
-          {/* Show or hide the optional columns */}
           <Menu anchorEl={columnsAnchor} open={Boolean(columnsAnchor)} onClose={() => setColumnsAnchor(null)}>
             {OPTIONAL_COLUMNS.map(([key, label]) => (
               <MenuItem key={key} dense onClick={() => setColumns((c) => ({ ...c, [key]: !c[key] }))}>
-                {/* The menu row does the toggling; the checkbox only shows the state */}
                 <Checkbox
                   size="small"
                   checked={columns[key]}
@@ -464,7 +437,6 @@ export default function InventoryPage() {
           </Menu>
         </Box>
 
-        {/* Bulk bar, shown when rows are ticked */}
         {ticked.length > 0 && (
           <Box
             sx={{
@@ -528,7 +500,6 @@ export default function InventoryPage() {
           <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
         )}
 
-        {/* ⋮ menu for one item; options depend on its counts */}
         <Menu
           anchorEl={rowMenu && rowMenu.anchor}
           open={Boolean(rowMenu)}
@@ -591,7 +562,17 @@ export default function InventoryPage() {
                   >
                     {menuItem.inUse > 0 ? 'Archive (return pieces first)' : 'Archive'}
                   </MenuItem>
-                ])
+                ]),
+            <Divider key="delete-divider" />,
+            <MenuItem
+              key="delete"
+              disabled={menuItem.inUse > 0}
+              onClick={() => openAction('delete', menuItem)}
+              sx={{ color: tokens.redPress, gap: 1 }}
+            >
+              <DeleteOutlineRoundedIcon fontSize="small" />
+              {menuItem.inUse > 0 ? 'Delete (return pieces first)' : 'Delete'}
+            </MenuItem>
           ]}
         </Menu>
       </DashCard>
@@ -625,6 +606,30 @@ export default function InventoryPage() {
       <DetailsDialog item={byId(detailsId)} onClose={() => setDetailsId(null)} onAction={openAction} />
 
       <ConfirmDialog
+        open={Boolean(deleting)}
+        onClose={() => setDeleting(null)}
+        title={deleting ? `Delete ${deleting.name}?` : ''}
+        description={
+          deleting
+            ? `Permanently delete ${deleting.code}, all ${deleting.total} pieces, its inventory history and uploaded photo. This cannot be undone. Items linked to bookings or additional charges must be archived instead.`
+            : ''
+        }
+        confirmLabel="Delete item"
+        tone="danger"
+        onConfirm={async () => {
+          const { id, name } = deleting;
+          await inventoryApi.deleteInventoryItem(id);
+          setData((current) =>
+            current ? { ...current, items: current.items.filter((item) => item.id !== id) } : current
+          );
+          setSelected((ids) => ids.filter((selectedId) => selectedId !== id));
+          setDetailsId((current) => (current === id ? null : current));
+          setDeleting(null);
+          notify(`${name} deleted.`);
+        }}
+      />
+
+      <ConfirmDialog
         open={Boolean(archive)}
         onClose={() => setArchive(null)}
         title={
@@ -639,7 +644,6 @@ export default function InventoryPage() {
         }
         confirmLabel={archive && archive.archived ? 'Archive' : 'Restore'}
         tone={archive && archive.archived ? 'danger' : 'primary'}
-        // Archive or restore, then clear the ticked rows
         onConfirm={async () => {
           const { ids, archived } = archive;
           await inventoryApi.setInventoryArchived(ids, archived);
@@ -652,21 +656,14 @@ export default function InventoryPage() {
   );
 }
 
-// A blank row in the Add item(s) dialog
 const blankRow = () => ({ name: '', category: '', total: '', lowStockAt: '', rentPrice: '', damageFee: '' });
 
-/**
- * Add one or more items at once. Each row: name, category, quantity, low-stock alert level, and the
- * rental price and damage fee for items customers can rent. A blank alert level defaults to 10% of
- * the quantity; a blank rent price means the item is not for rent. All rows are checked before anything is saved.
- */
 function AddItemsDialog({ open, onClose, onSaved }) {
   const isPhone = useMediaQuery('(max-width:599px)');
   const [rows, setRows] = useState([blankRow()]);
-  const [error, setError] = useState(null); // { row, field, message }
+  const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // Start with one empty row each time the dialog opens
   useEffect(() => {
     if (open) {
       setRows([blankRow()]);
@@ -678,12 +675,10 @@ function AddItemsDialog({ open, onClose, onSaved }) {
     setRows((r) => r.map((row, i) => (i === index ? { ...row, [field]: e.target.value } : row)));
     setError(null);
   };
-  // Error message for one field of one row
   const errorFor = (index, field) =>
     error && error.row === index && error.field === field ? error.message : undefined;
 
   const save = async () => {
-    // Turn the text inputs into numbers; the alert level defaults to 10% of the quantity
     const items = rows.map((row) => {
       const total = Number(row.total);
       const rentable = row.rentPrice !== '';
@@ -744,7 +739,6 @@ function AddItemsDialog({ open, onClose, onSaved }) {
               borderBottom: { xs: `1px solid ${tokens.cardLightBorder}`, sm: 0 }
             }}
           >
-            {/* Labels on the first row only on wide screens; on every row on phones */}
             <FormField
               id={`add-name-${index}`}
               label={isPhone || index === 0 ? 'Item name' : undefined}
@@ -785,7 +779,6 @@ function AddItemsDialog({ open, onClose, onSaved }) {
               error={errorFor(index, 'lowStockAt')}
               inputProps={{ min: 0, 'aria-label': 'Low-stock alert level' }}
             />
-            {/* For rent only when a rent price is typed */}
             <FormField
               id={`add-rent-${index}`}
               label={isPhone || index === 0 ? 'Rent ₱' : undefined}
@@ -831,10 +824,6 @@ function AddItemsDialog({ open, onClose, onSaved }) {
   );
 }
 
-/**
- * Edit one item's name, category, total, low-stock alert level, rental settings and notes.
- * A new rent price or damage fee only applies to rentals booked from now on; bookings already made keep theirs.
- */
 function EditItemDialog({ item, onClose, onSaved }) {
   const [photo, setPhoto] = useState(null);
   const [removePhoto, setRemovePhoto] = useState(false);
@@ -852,7 +841,6 @@ function EditItemDialog({ item, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const id = item && item.id;
 
-  // Fill the form when a different item opens
   useEffect(() => {
     if (item) {
       setPhoto(null);
@@ -871,7 +859,6 @@ function EditItemDialog({ item, onClose, onSaved }) {
     }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Change handler for one field (the "For rent" switch sends checked instead of a value)
   const set = (field) => (e) => {
     setValues((v) => ({ ...v, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
     setErrors({});
@@ -968,7 +955,7 @@ function EditItemDialog({ item, onClose, onSaved }) {
                   setErrors({});
                 }}
               >
-                Use mock photo
+                Use default photo
               </Button>
             )}
             {removePhoto && (
@@ -1028,7 +1015,6 @@ function EditItemDialog({ item, onClose, onSaved }) {
           hint="Flagged when available is at or below this"
           inputProps={{ min: 0 }}
         />
-        {/* Offered through the Equipment Rental package */}
         <FormControlLabel
           sx={{ gridColumn: { sm: '1 / -1' } }}
           control={<Switch checked={values.rentable} onChange={set('rentable')} />}
@@ -1078,11 +1064,6 @@ function EditItemDialog({ item, onClose, onSaved }) {
   );
 }
 
-/**
- * One dialog for every stock action (check out, return, report damage, repair, dispose).
- * Fields change with the action; quantities are pre-filled with the most likely amount
- * and can't be set above what the action allows (see maxFor).
- */
 function StockDialog({ action, item, events, onClose, onDone }) {
   const [values, setValues] = useState({ ref: NO_EVENT, qty: '', damagedQty: '0', note: '' });
   const [errors, setErrors] = useState({});
@@ -1090,7 +1071,6 @@ function StockDialog({ action, item, events, onClose, onDone }) {
   const open = Boolean(action && item);
   const id = item && item.id;
 
-  // Pre-fill when the dialog opens: return defaults to the first place with pieces out and all of them back
   useEffect(() => {
     if (!open) return;
     const firstOut = item.out[0];
@@ -1105,14 +1085,8 @@ function StockDialog({ action, item, events, onClose, onDone }) {
 
   if (!open) return <AppDialog open={false} onClose={onClose} title="" />;
 
-  // How many pieces are out at a place (an event ref or "no event")
   const outAt = (ref) => (item.out.find((o) => o.ref === ref) || { qty: 0 }).qty;
 
-  /**
-   * Highest number a quantity field accepts:
-   * check out / report damage → available pieces; repair / dispose → damaged pieces;
-   * return → pieces out at that place, minus what is already typed in the other return field.
-   */
   const maxFor = (field, v) => {
     if (action === 'return') return Math.max(0, outAt(v.ref) - (Number(field === 'qty' ? v.damagedQty : v.qty) || 0));
     return action === 'repair' || action === 'dispose' ? item.damaged : item.available;
@@ -1122,9 +1096,7 @@ function StockDialog({ action, item, events, onClose, onDone }) {
     const value = e.target.value;
     setValues((v) => {
       const next = { ...v, [field]: value };
-      // Switching the return source fills in everything out at that place
       if (action === 'return' && field === 'ref') next.qty = String(outAt(value));
-      // A quantity above the limit is lowered to the limit, e.g. typing 11 when only 3 are damaged becomes 3
       if ((field === 'qty' || field === 'damagedQty') && value !== '' && Number(value) > maxFor(field, next)) {
         next[field] = String(maxFor(field, next));
       }
@@ -1154,7 +1126,6 @@ function StockDialog({ action, item, events, onClose, onDone }) {
     }
   };
 
-  // Label for a place pieces are out: the event, or "No event linked"
   const placeLabel = (o) =>
     o.ref === NO_EVENT
       ? `No event linked · ${o.qty} out`
@@ -1281,7 +1252,6 @@ function StockDialog({ action, item, events, onClose, onDone }) {
   );
 }
 
-/** Item details: counts, where the in-use pieces are (with links to reservations), notes and the full history. */
 function DetailsDialog({ item, onClose, onAction }) {
   const navigate = useNavigate();
   if (!item) return <AppDialog open={false} onClose={onClose} title="" />;
@@ -1297,6 +1267,17 @@ function DetailsDialog({ item, onClose, onAction }) {
       actions={
         <>
           <Button onClick={onClose}>Close</Button>
+          <Button
+            color="error"
+            startIcon={<DeleteOutlineRoundedIcon />}
+            disabled={item.inUse > 0}
+            onClick={() => {
+              onClose();
+              onAction('delete', item);
+            }}
+          >
+            Delete
+          </Button>
           {!item.archived && (
             <>
               <Button
@@ -1410,7 +1391,6 @@ function DetailsDialog({ item, onClose, onAction }) {
         </>
       )}
 
-      {/* Damage actions; each button is off when it has nothing to act on */}
       {!item.archived && (item.damaged > 0 || item.available > 0) && (
         <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button
@@ -1462,7 +1442,6 @@ function DetailsDialog({ item, onClose, onAction }) {
           overflowY: 'auto'
         }}
       >
-        {/* Newest first; the newest dot is gold */}
         {item.history
           .slice()
           .reverse()

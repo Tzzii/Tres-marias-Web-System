@@ -7,25 +7,13 @@ import { CUSTOMER_EMAILS } from '../src/modules/notify/customer.emails.js';
 import { escapeHtml } from '../src/modules/notify/email.layout.js';
 import { outsourceRequestEmail } from '../src/modules/outsource/outsource.emails.js';
 import { composeContractText } from '@tm/shared/src/domain/outsource.js';
+import { BUSINESS } from '@tm/shared/src/services/config.js';
 
-/**
- * `npm run email:preview` — every customer email (Phase 13A) and every one-time-code email (2026-10-11)
- * with sample data, written to apps/api/tmp/email-preview/<name>.html and <name>.txt, plus index.html
- * listing each one's subject with links to both versions. Open index.html in a browser to look them over.
- *
- * No database and no mail: the builders are called directly with made-up bookings (dates counted from today,
- * so the cancel-deadline sentence shows both of its forms) and a made-up code. The samples include a very
- * long event name, an event name and reasons with <script>, quotes and line breaks, so the escaping and the
- * subject's cut can be checked by eye. Links use CLIENT_URL from apps/api/.env (portalLink).
- * Each email is also checked here: a subject on one line of at most 200 characters, and no raw <script in
- * the HTML. Exits with 1 when one fails. apps/api/tmp/ is ignored by git.
- */
 
 const OUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'tmp', 'email-preview');
 const DAY_MS = 86400000;
 const today = todayISO();
 
-// A booking as the reservations repo returns it, with only the fields the builders read
 const booking = (fields) => ({
   ref: 'RES-2026-1130-01',
   eventName: 'Santos Wedding',
@@ -39,7 +27,6 @@ const booking = (fields) => ({
 });
 
 const santos = booking();
-// A very long event name (over 120 characters): the subject must cut it with "…"
 const longName = booking({
   ref: 'RES-2026-1205-02',
   eventName:
@@ -48,14 +35,12 @@ const longName = booking({
   startTime: '22:00',
   endTime: '02:00'
 });
-// Typed text that must stay text: markup, quotes, an ampersand and a line break (also in the event name)
 const hostile = booking({
   ref: 'RES-2026-1212-03',
   eventName: 'Mia & Leo\'s "Garden" Debut <script>alert("x")</script>\r\nBcc: someone@example.com'
 });
 const HOSTILE_TEXT =
   'The receipt shows "₱2,000" & the amount sent was different.\nSee <script>alert("x")</script> and it\'s <b>not</b> bold.';
-// Requested 60 days ago for an event 10 days away: the paid-booking cancel deadline has passed
 const lateDeadline = booking({
   ref: 'RES-2026-1018-04',
   eventName: 'Reyes 7th Birthday',
@@ -76,10 +61,8 @@ const rental = booking({
 
 const payment = (fields) => ({ amount: 3000, method: 'bank', receiptNo: 'OR-1001', verifiedAt: Date.now(), ...fields });
 
-// A made-up one-time code for the code emails
 const SAMPLE_CODE = '176498';
 
-// Every variant: [file name, purpose, data] (firstName is what notify.service.js adds)
 const VARIANTS = [
   [
     'partner-supply-request',
@@ -100,7 +83,7 @@ const VARIANTS = [
     'outsourcing_request',
     {
       ref: 'OUT-2026-0002',
-      body: 'Hi Sample Supplier,\n\nPlease supply the following:\n- Photo booth: 1 pcs\n- LED wall: 2 pcs\n\nNeeded on 18 Oct 2026 at Sample Venue.\nAgreed amount: ₱12,000.\nPlease arrive at 8:00 AM.\n\nPlease text or call +63 951 562 1060 to confirm.'
+      body: `Hi Sample Supplier,\n\nPlease supply the following:\n- Photo booth: 1 pcs\n- LED wall: 2 pcs\n\nNeeded on 18 Oct 2026 at Sample Venue.\nAgreed amount: ₱12,000.\nPlease arrive at 8:00 AM.\n\nPlease email ${BUSINESS.email} or call ${BUSINESS.phone} to confirm.`
     }
   ],
   [
@@ -328,11 +311,9 @@ const VARIANTS = [
         'A downpayment of at least ₱13,500 is due on 17 Oct 2026. You can pay more, up to the full balance of ₱45,000.'
     }
   ],
-  // Phase 13B: the completion with its testimonial invite (an event, and a rental thanked for renting)
   ['event-completed', 'event_completed', { reservation: { ...santos, date: addDays(today, -1) } }],
   ['event-completed-long-name', 'event_completed', { reservation: { ...longName, date: addDays(today, -1) } }],
   ['rental-completed', 'event_completed', { reservation: rental }],
-  // The one-time-code emails (code.emails.js): the builders take the account's name, not firstName
   ['code-sign-up', 'customer_sign_up', { name: 'Athena', code: SAMPLE_CODE }],
   [
     'code-customer-new-email',
@@ -354,25 +335,14 @@ const VARIANTS = [
   ]
 ];
 
-// Every builder by purpose: the customer notices and the one-time-code emails (no purpose is in both)
 const BUILDERS = { ...CUSTOMER_EMAILS, ...CODE_EMAILS, outsourcing_request: outsourceRequestEmail };
 
-/**
- * True when `text` has a character that could break a mail header line: C0 controls (CR, LF, tab…), DEL,
- * C1 controls, or the Unicode line (U+2028) and paragraph (U+2029) separators. Tested by code point, so the
- * file holds no escape sequences an editor could turn into the characters themselves.
- */
 const hasControl = (text) =>
   Array.from(text).some((ch) => {
     const code = ch.codePointAt(0);
     return code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
   });
 
-/**
- * What is wrong with one built email, as a list of messages (empty when fine): the subject must be one line
- * (no control characters) of 1 to 200 characters, the HTML must have no raw "<script" and both versions
- * must have text.
- */
 function problemsOf({ subject, html, text }) {
   const problems = [];
   if (typeof subject !== 'string' || !subject.trim()) problems.push('empty subject');
@@ -386,7 +356,6 @@ function problemsOf({ subject, html, text }) {
   return problems;
 }
 
-/** Build every variant, write its files and the index, check each one. Returns the exit code. */
 function main() {
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
   fs.mkdirSync(OUT_DIR, { recursive: true });

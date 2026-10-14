@@ -16,34 +16,17 @@ import {
   useCountdown
 } from '@tm/shared';
 
-/**
- * The emailed-code step of the customer site (Phase 12: every customer code goes by email, never by SMS).
- * Three flows use it: Sign up (the account is made only after the code), Forgot password (Log in page and
- * My profile) and the password change in My profile. The server keeps the request, counts the wrong
- * codes and pauses code entry after too many; these pieces only show it.
- *   useCodeEntry()   the step's state: the request, the typed code, tries left, the pause, the resend timer
- *   CodeEntry        what the step shows: where the code went, the boxes, "Resend code", tries left
- *   EmailCodeDialog  the whole step in a dialog, for sign-up and the password change
- */
 
-/**
- * State for one code step. `challenge` is the server's request ({ challengeId, maskedEmail, expiresAt,
- * resendAt }); begin(challenge) starts with a new one (empty boxes, every try back), resent(times) takes
- * a resend's new times, type(value) follows the boxes, and wrong(error) shows a refused code (red,
- * emptied boxes, the tries the server says are left, or the pause) and returns the message for the
- * error banner ('' while the pause banner says it). When the pause ends, every try is back.
- */
 export function useCodeEntry() {
   const [challenge, setChallenge] = useState(null);
   const [code, setCode] = useState('');
-  const [codeState, setCodeState] = useState('idle'); // idle / error / success colour of the boxes
+  const [codeState, setCodeState] = useState('idle');
   const [attemptsLeft, setAttemptsLeft] = useState(RULES.maxCodeAttempts);
-  const [lockedUntil, setLockedUntil] = useState(null); // code entry paused until this time
+  const [lockedUntil, setLockedUntil] = useState(null);
   const resendSeconds = useCountdown(challenge ? challenge.resendAt : null);
   const lockSeconds = useCountdown(lockedUntil);
   const locked = Boolean(lockedUntil && lockSeconds > 0);
 
-  // The pause is over: every try is back
   useEffect(() => {
     if (lockedUntil && lockSeconds === 0) {
       setLockedUntil(null);
@@ -102,12 +85,6 @@ export function useCodeEntry() {
   };
 }
 
-/**
- * What a code step shows (`entry` is useCodeEntry()): the address the code went to, the pause banner,
- * the code boxes (checked as soon as the last digit is typed: onComplete), "Resend code" once the
- * resend timer runs out, and the tries left. `onType` runs on every change in the boxes (e.g. to clear
- * an error banner). `children` go under it (e.g. "Use a different email").
- */
 export function CodeEntry({ entry, busy, onComplete, onResend, onType, children }) {
   return (
     <>
@@ -159,13 +136,6 @@ export function CodeEntry({ entry, busy, onComplete, onResend, onType, children 
   );
 }
 
-/**
- * The emailed-code step in a dialog, open while `challenge` (the start step's answer) is set. The parent
- * calls the API: onVerify(code) saves and moves on (it resolves; a refusal rejects with the ApiError),
- * onResend() asks for a new code and resolves with { expiresAt, resendAt }, onRestart(message) runs when
- * the request can no longer be used (it expired: the parent closes the dialog and says why), and
- * onClose() is Cancel. A wrong code shakes the dialog, empties the boxes and says how many tries are left.
- */
 export function EmailCodeDialog({
   challenge,
   title,
@@ -182,7 +152,6 @@ export function EmailCodeDialog({
   const [formError, setFormError] = useState('');
   const [shake, setShake] = useState(false);
 
-  // A new request from the parent: start the step over
   useEffect(() => {
     if (challenge) {
       begin(challenge);
@@ -190,7 +159,6 @@ export function EmailCodeDialog({
     }
   }, [challenge, begin]);
 
-  // Check the code (all digits typed); on success the parent moves on
   const verify = async (value = entry.code) => {
     if (value.length !== RULES.codeLength) {
       setFormError(`Enter all ${RULES.codeLength} digits.`);
@@ -212,7 +180,6 @@ export function EmailCodeDialog({
     }
   };
 
-  // Ask for a new code (once the resend timer has run out)
   const resend = async () => {
     setBusy(true);
     setFormError('');

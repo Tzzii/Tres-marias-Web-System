@@ -40,13 +40,11 @@ import { usePdfDocument } from '../components/PdfDocument.jsx';
 import PaymentsSection from './reports/PaymentsSection.jsx';
 import ReportSheet from './reports/ReportSheet.jsx';
 
-// Tabs of this page as [key, label]
 const TABS = [
   ['overview', 'Overview'],
   ['payments', 'Payments and Balances']
 ];
 
-// Date range options as [key, label]
 const RANGES = [
   ['this_year', 'This year'],
   ['last_12', 'Last 12 months'],
@@ -54,13 +52,11 @@ const RANGES = [
   ['all', 'All time']
 ];
 
-// Saved reports as [key, name, description]
 const SAVED = [
   ['monthly_sales', 'Monthly Sales Summary', 'Verified payments per month, split by method, less refunds'],
   ['outstanding', 'Outstanding Balances', 'Every approved booking with money still due']
 ];
 
-// Short money labels for chart axes: ₱1.2M, ₱350k, or the full amount under ₱1,000; below 0 (more refunds than payments) with a minus sign
 const shortPeso = (v) =>
   v < 0
     ? `−${shortPeso(-v)}`
@@ -70,14 +66,6 @@ const shortPeso = (v) =>
         ? `₱${Math.round(v / 1000)}k`
         : peso(v);
 
-/**
- * 1y · Reports, with two tabs: Overview (figures computed from reservations, verified payments and
- * refunds: revenue is net of the refunds sent in the range, which also show as their own figure) and
- * Payments and balances. The open tab lives in the URL (?tab=overview|payments); a payment
- * link with ?verify= or ?filter= opens the Payments tab even without ?tab=.
- * The Overview's Print and Save PDF both use the same formatted A4 report (ReportSheet), not the
- * dashboard itself: Print prints it, Save PDF downloads it as tres-marias-report-<range>-<date>.pdf.
- */
 export default function ReportsPage() {
   useDocumentTitle('Reports', 'Tres Marias Admin');
   const [params, setParams] = useSearchParams();
@@ -89,27 +77,21 @@ export default function ReportsPage() {
       : 'overview';
   const notify = useNotify();
   const { savePdfDocument, savingPdfDocument, pdfDocument } = usePdfDocument();
-  const [range, setRange] = useState('this_year'); // selected date range
-  // Load the report; it reloads automatically whenever the range changes
+  const [range, setRange] = useState('this_year');
   const { data, loading, error, reload } = useResource(() => reportApi.getReport(range), [range]);
-  const [saved, setSaved] = useState(null); // result of a saved report, shown in a dialog
-  const [running, setRunning] = useState(null); // key of the saved report currently running
+  const [saved, setSaved] = useState(null);
+  const [running, setRunning] = useState(null);
   const rangeLabel = RANGES.find(([k]) => k === range)[1];
-  const sheetRef = useRef(null); // the formatted report that Print prints and Save PDF draws
-  const [savingPdf, setSavingPdf] = useState(false); // true while the PDF is being made
-  const [stampedAt, setStampedAt] = useState(() => Date.now()); // the "Generated" time on the report
+  const sheetRef = useRef(null);
+  const [savingPdf, setSavingPdf] = useState(false);
+  const [stampedAt, setStampedAt] = useState(() => Date.now());
 
-  // Stamp the report with the moment it is printed, from the Print button or Ctrl+P. flushSync puts
-  // the new time on the sheet before the browser lays out the printout.
   useEffect(() => {
     const stamp = () => flushSync(() => setStampedAt(Date.now()));
     window.addEventListener('beforeprint', stamp);
     return () => window.removeEventListener('beforeprint', stamp);
   }, []);
 
-  // Save the formatted report as a PDF, stamped with the time it is saved (the "Save as" window first, where
-  // the browser has one; Cancel saves nothing). If the browser can't make one, Print still can ("Save as PDF"
-  // in the print window).
   const savePdf = async () => {
     flushSync(() => setStampedAt(Date.now()));
     setSavingPdf(true);
@@ -126,7 +108,6 @@ export default function ReportsPage() {
     }
   };
 
-  // Run one of the saved reports for the current range and open the results dialog
   const run = async (kind) => {
     setRunning(kind);
     try {
@@ -139,7 +120,6 @@ export default function ReportsPage() {
     }
   };
 
-  // Revenue is charted per month, or per year for "All time"
   const byYear = Boolean(data && data.revenueBy === 'year');
 
   const saveSavedPdf = () => {
@@ -158,7 +138,6 @@ export default function ReportsPage() {
     <>
       <PageHeader
         title="Reports"
-        // The range, print and PDF controls belong to the Overview tab only; Print and Save PDF wait for the figures
         subtitle={
           tab === 'overview'
             ? `${rangeLabel} · updates automatically as bookings are completed and payments verified`
@@ -207,7 +186,6 @@ export default function ReportsPage() {
           )
         }
       />
-      {/* Switching tabs clears the other tab's URL options, e.g. ?verify= */}
       <Box className="tm-no-print">
         <SectionTabs
           ariaLabel="Report sections"
@@ -219,7 +197,6 @@ export default function ReportsPage() {
 
       {tab === 'payments' && <PaymentsSection />}
 
-      {/* The formatted report for Print and Save PDF; it stays off screen */}
       {tab === 'overview' && data && (
         <ReportSheet
           data={data}
@@ -238,7 +215,6 @@ export default function ReportsPage() {
 
       {tab === 'overview' && !error && (
         <>
-          {/* Summary numbers for the selected range, two per row on phones and tablets, five in a row on wide screens */}
           <Box
             sx={{
               display: 'grid',
@@ -352,7 +328,6 @@ export default function ReportsPage() {
         </>
       )}
 
-      {/* Saved report results. Columns are built from the keys of the first row. */}
       <AppDialog
         open={Boolean(saved)}
         onClose={() => setSaved(null)}

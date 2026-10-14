@@ -53,82 +53,27 @@ import { storeReferencePhoto } from './referencePhoto.js';
 import { storage } from '../../integrations/storage/index.js';
 import { cleanReferencePhoto } from '@tm/shared/src/domain/referencePhoto.js';
 
-/**
- * The reservation rules on the server (docs/backend-development-phases.md Phase 6, §9.4): the lists
- * and the detail page, the booking form (an event or an equipment rental), the customer's cancellation
- * and change request (Phase 6A) and acceptance of the quotation (which approves the request, 2026-10-08),
- * and the admin's actions and edits: quotation, decline,
- * confirm, complete, cancel, "Started preparing" and its undo, logistics, menu, theme and colours, notes and rented items
- * (Phase 6B), with the return shapes, error codes, messages and meta.field the pages expect; the
- * booking form's checks are repeated here in the same order because the server never trusts the page
- * (§3 rule 3). The rules that need no stored data (money and the due date after a
- * move, an out-of-date quotation, rental stock and a rental's total after an edit, availability,
- * online cancellation, the approval message) come from @tm/shared/src/domain, the same code the
- * portals run.
- *
- * On purpose:
- * - The customer is always the signed-in one (from the token), and every answer to a customer leaves
- *   out the admin's private `notes`. The admin's name in the activity log and in chat messages is the
- *   signed-in admin's (req.user.name).
- * - The date must be a real "YYYY-MM-DD" day, the start time "HH:MM", the occasion one of OCCASIONS (for
- *   "Other", the customer's own words from `occasionOther` are saved instead: bookingOccasion), and
- *   required text is checked after trimming (spaces alone are not an event name or a venue).
- * - A quotation's amounts must be whole pesos from 0 to MAX_AMOUNT, and a logistics edit needs the
- *   venue, city and address (the admin page never sends less, but the server never trusts the page).
- * - A booking, an accepted quotation, a logistics edit and a rented-items edit read the availability map and
- *   the rental stock from the database inside their own transaction, after taking the availability
- *   lock (lockAvailability), so two of them never pass the same check at once.
- * - Refunds (Phase 8) are taken off what was paid, from the refunds table.
- * - A GCash QR that is still open (Phase 8B, server only) shows in the summary as `openQr` and stops the
- *   customer's and the admin's cancellation until it is paid or expires: its payment may still arrive.
- * The automatic chat messages (thank-you, change request, refund notice, quotation, approval …) are
- * saved in the same transaction as the change they are about; the chat (modules/messages, Phase 7)
- * shows them. The quotation, the approval, the confirmation, a decline, a cancellation (Phase 13A) and
- * the completion with its testimonial invite (Phase 13B) also email the booking's customer
- * (notify.service.js queueCustomerEmail): queued in that same transaction after the change is written,
- * and sent only once it commits.
- * Lock order for every write, so two of them never deadlock: the availability lock (only when the
- * write takes or moves a slot or rental stock), then the booking's row (lockOwner), then the chat thread.
- */
 
-// Tries at a new ref when another booking took the same one first (see createReservation)
 const MAX_REF_ATTEMPTS = 3;
 
 const notFound = () => new ApiError('NOT_FOUND', 'We could not find this reservation.');
 const invalid = (message, field) => new ApiError('INVALID', message, field ? { field } : {});
 
-// Text sent by the page, trimmed; anything that is not text counts as empty. A lone half of an emoji
-// (possible only in a hand-made request) becomes "�", since MySQL refuses it inside a JSON column (the menu).
 const clean = (value) => (typeof value === 'string' ? value.toWellFormed().trim() : '');
-// Text cut to `max` characters as the pages count them, without splitting an emoji in two
 const cut = (text, max) => {
   const part = text.slice(0, max);
   return part.isWellFormed() ? part : part.slice(0, -1);
 };
-// A number sent by the page (a number, or digits as text); anything else is NaN, which fails every check
 const toNumber = (value) =>
   typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
-// An object sent by the page (the menu, the add-on quantities), or an empty one
 const plainObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 
-// True when the booking found is the ref as written. The column's collation (utf8mb4_unicode_ci) ignores
-// case and trailing spaces, so "res-2026-1020-01 " would find RES-2026-1020-01; only the exact ref
-// counts, and writes must use the stored spelling or their rows would not group with it.
 const sameRef = (found, ref) => found.ref === ref;
 
-// The admin's private notes never reach the customer (schema.sql: "never shown to the customer")
 // eslint-disable-next-line no-unused-vars
 const withoutNotes = ({ notes, ...rest }) => rest;
-// The answer as the asker may see it: a customer's own view (customerId set) or the admin's
 const viewFor = (customerId) => (customerId ? withoutNotes : (answer) => answer);
 
-/**
- * Reservation plus package name, customer contact and money figures (refunds taken off), for lists,
- * with `cancelDeadline` and `onlineCancel` (whether the customer
- * can cancel online now, domain/cancellation.js, which also counts the pieces checked out for it and an
- * open GCash QR), and `openQr`: the open GCash QR { id, amount, expiresAt } or null, so the Payments page
- * shows it again. `row` is one entry of repo.findReservations().
- */
 function summarize({
   reservation,
   packageName,
@@ -159,21 +104,12 @@ function summarize({
   };
 }
 
-/* ============================ Reads ============================ */
 
-/** All reservations (admin) or one customer's (`customerId`, without notes), newest request first. */
 export async function listReservations({ customerId } = {}) {
   const rows = await tx((conn) => repo.findReservations(conn, { customerId }));
   return rows.map((row) => viewFor(customerId)(summarize(row)));
 }
 
-/**
- * Full detail: the summary plus the package, the menu as a list, the add-ons (in the add-on list's
- * order, archived ones included), the payments (newest first), the refunds (newest recorded first), the
- * customer with their completed events, and the review (without the admin's flag note). With
- * `customerId`, only that customer's own booking (another customer's is NOT_FOUND, never FORBIDDEN, so
- * its existence is not given away) and no notes. The ref must be spelled exactly as stored (see sameRef).
- */
 export async function getReservation(ref, { customerId } = {}) {
   const detail = await tx(async (conn) => {
     const [row] = await repo.findReservations(conn, { customerId, ref });
@@ -189,7 +125,6 @@ export async function getReservation(ref, { customerId } = {}) {
       ...summarize(row),
       package: pkg,
       menuDishes: menuDishes(reservation),
-      // Charges and sizes alike (a size named in full, "Tent 10 × 10"), archived ones too
       addons: flattenAddons(addons).filter((addon) => reservation.addonIds.includes(addon.id)),
       payments: row.payments,
       refunds: row.refunds,
@@ -209,12 +144,6 @@ export async function getReservation(ref, { customerId } = {}) {
   return viewFor(customerId)(detail);
 }
 
-/**
- * How many of each rentable item are free on a date, for the rental form and the admin's edit dialog:
- * { itemId: { left, status } } (rentalAvailability in @tm/shared/src/domain/reservation.js). No date
- * gives {}; a date that is not a real "YYYY-MM-DD" day is INVALID.
- * `excludeRef` leaves one booking's own pieces free; the route passes it for an admin only.
- */
 export async function getRentalAvailability(date, { excludeRef } = {}) {
   if (date === undefined || date === '') return {};
   if (!isISODate(date)) throw invalid('Choose the date you need the items.', 'date');
@@ -222,10 +151,7 @@ export async function getRentalAvailability(date, { excludeRef } = {}) {
   return rentalAvailability(stockData, date, typeof excludeRef === 'string' ? excludeRef : undefined);
 }
 
-/* ============================ Booking ============================ */
 
-// The start time as sent: '' when missing (timeUnavailableReason then answers "Choose a start time",
-// as the booking form does); anything else must be "HH:MM", so e.g. "18:00:00" never reaches the CHAR(5) column
 function startTimeOf(form) {
   const value = form.startTime ?? '';
   if (value === '') return '';
@@ -233,12 +159,6 @@ function startTimeOf(form) {
   return value;
 }
 
-/**
- * The theme, colour motif and design details as sent (the booking form's section 4 or the admin's dialog),
- * cleaned with the form's own rules (cleanStyling: unknown keys dropped, each colour named again from its
- * code), or null when nothing was given. INVALID on the field the form shows it under
- * ('styling.themeOther', 'styling.colors', 'styling.notes') when stylingProblem finds something wrong.
- */
 function stylingOf(value) {
   const styling = cleanStyling(value);
   const problem = stylingProblem(styling);
@@ -246,24 +166,12 @@ function stylingOf(value) {
   return styling;
 }
 
-/**
- * The occasion the booking saves (bookingOccasion, the booking form's own check): one of OCCASIONS, or for
- * "Other" the customer's words in `occasionOther` ("Baby Shower"). INVALID on 'occasion' or 'occasionOther'.
- */
 function occasionOf(form) {
   const { occasion, problem } = bookingOccasion(clean(form.occasion), clean(form.occasionOther));
   if (problem) throw invalid(problem.message, problem.field);
   return occasion;
 }
 
-/**
- * An event's start and end time, checked against the day's other events (the booking form's checks, in
- * the same order): the start must be open (another event's window, or too little time before the next one,
- * TIME_UNAVAILABLE on startTime), the end must be 2 to 6 hours after it, on the hour or half hour (INVALID on
- * endTime; an end at or before the start is the next day), and the event must not run into the next one
- * (TIME_UNAVAILABLE on endTime). `map` is the availability map, with the booking being edited already left
- * out of its events. Returns { startTime, endTime }.
- */
 function eventTimesOf(form, date, map) {
   const startTime = startTimeOf(form);
   const startReason = timeUnavailableReason(date, startTime, map);
@@ -281,17 +189,6 @@ function eventTimesOf(form, date, map) {
   return { startTime, endTime };
 }
 
-/**
- * A Buffet and Catering or Catering only booking of an ordinary package (the booking form's checks,
- * in the same order). Because a buffet is charged per person, the estimate
- * is a real figure: package + guests x the price per person today, which is copied onto the booking so
- * a later price rise never changes it. An add-on with its own price is counted at today's price (copied
- * into the estimate's addonPrices); one without a price stays 0 until the quotation prices it.
- * The minimum downpayment in force today is copied the same way. The theme, colour motif and design
- * details are optional and never change the price (stylingOf). A stock-tracked charge (a tent size)
- * needs its pieces free on the date (addonStockProblem), though the pending request holds none yet.
- * Returns the booking's fields, its rental lines (none), and its activity and thank-you texts.
- */
 async function eventBooking(conn, pkg, form) {
   const date = form.date;
   if (!isISODate(date)) throw invalid('Choose the event date.', 'date');
@@ -303,11 +200,8 @@ async function eventBooking(conn, pkg, form) {
       `That date is not available (${reason.toLowerCase()}). Please pick another date.`,
       { field: 'date' }
     );
-  // The start and end times must not overlap another event that day (pending requests hold no time),
-  // and the event runs 2 to 6 hours
   const { startTime, endTime } = eventTimesOf(form, date, map);
 
-  // The customer's own count; it may differ from the package's default guest count at no extra charge
   const guests = toNumber(form.guests);
   if (!Number.isInteger(guests) || guests < RULES.minGuests || guests > RULES.maxGuests) {
     throw invalid(`Guests must be between ${RULES.minGuests} and ${RULES.maxGuests}.`, 'guests');
@@ -316,13 +210,8 @@ async function eventBooking(conn, pkg, form) {
   if (!SERVICE_TYPES.includes(serviceType))
     throw invalid('Choose whether you want a buffet or catering only.', 'serviceType');
 
-  // The look the customer wants (optional): null when the section was left blank
   const styling = stylingOf(form.styling);
 
-  // Add-ons archived while the form was open (or never offered) are dropped without an error; the rest
-  // keep the order they were ticked in. Those counted by the piece need a how-many, 1 to 99. A charge
-  // with sizes is booked by its sizes (each counted by the piece), never by itself, and a charge with
-  // packages by one of its packages (booked once), never two (packagePickProblem).
   const offered = bookableAddons(await catalogRepo.listAddons({}, conn));
   const ticked = [...new Set(Array.isArray(form.addonIds) ? form.addonIds : [])];
   const addons = ticked.map((id) => offered.find((addon) => addon.id === id)).filter(Boolean);
@@ -342,8 +231,6 @@ async function eventBooking(conn, pkg, form) {
   const menuCheck = menuProblem(form.menu, menuOptions);
   if (menuCheck) throw invalid(menuCheck.message, menuCheck.field);
   const menu = cleanMenu(form.menu, menuOptions);
-  // Stock-tracked charges (a tent size) need enough pieces free on the date. A pending request holds
-  // none yet, so accepting the quotation checks again.
   const stockProblem = addonStockProblem(
     await repo.rentalStockInputs(conn, date),
     { addonIds, addonQty },
@@ -363,7 +250,6 @@ async function eventBooking(conn, pkg, form) {
     throw invalid('Please complete every required field.');
   const occasion = occasionOf(form);
 
-  // The buffet price per person as it stands now, copied onto the booking (the fallback as in catalog.service.js)
   const pricePerPlate = Number(await catalogRepo.getPricePerPlate(conn)) || DEFAULT_PRICE_PER_PLATE;
   return {
     fields: {
@@ -383,7 +269,6 @@ async function eventBooking(conn, pkg, form) {
       venue,
       addonIds,
       addonQty,
-      // An add-on with its own price is counted at today's price; the quotation starts from it
       estimate: computeQuote({
         pkg,
         serviceType,
@@ -400,17 +285,6 @@ async function eventBooking(conn, pkg, form) {
   };
 }
 
-/**
- * Check what a rental asks for and turn it into booking lines: [{ itemId, name, qty, price, damageFee }].
- * `wanted` is [{ itemId, qty }] (the same item twice is added together). A line already on the booking
- * (`current`, the admin's edit of the rented items) keeps the price and damage fee it was booked at,
- * so editing a rental never reprices what the customer agreed to; a new line copies the item's price
- * and damage fee today, so a later price change never moves the booking. Every item must be for rent
- * (rentable, not archived, with a price, unless it is already on the booking) and have enough pieces
- * free on the date; `excludeRef` leaves the booking being edited out of the stock count, so its own
- * pieces count as free. Errors name the line: { field: 'rental.<itemId>' }. `stockData` is
- * repo.rentalStockInputs() for the date.
- */
 function rentalLines(stockData, wanted, date, { excludeRef, current = [] } = {}) {
   const qtyById = new Map();
   (Array.isArray(wanted) ? wanted : []).forEach((line) => {
@@ -453,14 +327,6 @@ function rentalLines(stockData, wanted, date, { excludeRef, current = [] } = {})
   });
 }
 
-/**
- * An Equipment rental request (the rental form's checks, in the same order). The
- * date only needs the usual notice and must not be blocked (a rental takes no event slot), and the
- * time is when the items are picked up or delivered, on the hour or half hour. Pick-up is at
- * RENTAL.pickupPlace and costs nothing; delivery adds the standard fee, which the admin may change in
- * the quotation. Every price is copied, so the estimate is the real rental total; so is today's
- * minimum downpayment. A rental has no theme or colours (`styling` is null, whatever was sent).
- */
 async function rentalBooking(conn, pkg, form) {
   const date = form.date;
   if (!isISODate(date)) throw invalid('Choose the date you need the items.', 'date');
@@ -472,7 +338,6 @@ async function rentalBooking(conn, pkg, form) {
       `That date is not available (${reason.toLowerCase()}). Please pick another date.`,
       { field: 'date' }
     );
-  // Hours and half hours only; other bookings that day don't matter to a rental
   const startTime = startTimeOf(form);
   const timeReason = timeUnavailableReason(date, startTime, { ...map, events: [] });
   if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason}.`, { field: 'startTime' });
@@ -524,30 +389,18 @@ async function rentalBooking(conn, pkg, form) {
   };
 }
 
-// The minimum downpayment as it stands now, read inside the booking's transaction and copied onto it
-// (the same fallback as catalog.service.js when the settings row is missing)
 const currentMinDownpayment = async (conn) =>
   Number(await catalogRepo.getMinDownpayment(conn)) || DEFAULT_MIN_DOWNPAYMENT;
 
-// The part of a ref shared by every booking for an event date: "2026-10-20" -> "RES-2026-1020-"
-// (the first ref for the date without its number, so the format stays in reservationRef.js)
 const refPrefix = (date) => makeReservationRef(date, []).replace(/\d+$/, '');
 
-// True when an insert failed because the ref was already taken (the reservations primary key)
 const isRefTaken = (err) =>
   Boolean(err) &&
   err.code === 'ER_DUP_ENTRY' &&
   String(err.sqlMessage || '').includes("for key 'reservations.PRIMARY'");
 
-/**
- * One booking, inside its transaction: take the availability lock, check the form, give it the next
- * ref for its event date, and save it with its add-ons or rental lines, its first activity entry and
- * the thank-you in the customer's chat. The customer must have ticked "I agree to the Terms of Service"
- * (`agreeTerms: true`); the version they agreed to (TERMS_VERSION) is saved on the booking.
- * Returns the customer's view of its summary.
- */
 async function book(conn, customer, form, referencePhoto) {
-  await lockAvailability(conn); // first, before any other row: bookings and calendar writes run one at a time
+  await lockAvailability(conn);
   if (form.agreeTerms !== true)
     throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');
   const pkg = typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null;
@@ -597,16 +450,7 @@ async function book(conn, customer, form, referencePhoto) {
   return withoutNotes(summarize(row));
 }
 
-/**
- * The signed-in customer submits the booking form; the status starts at Pending, which holds no slot
- * and no rental stock (the customer's acceptance of the quotation does). Picking the Equipment Rental package makes
- * it an Equipment rental. The ref comes from the refs already given out for the event date
- * (makeReservationRef); if another booking was saved with the same ref first, the whole booking is
- * tried again in a new transaction with a fresh read of the refs, up to MAX_REF_ATTEMPTS times (the
- * availability lock already makes this rare). `customer` is req.user: { id, name }.
- */
 export async function createReservation(customer, form, { transact = tx, referencePhoto: file } = {}) {
-  // Ignore customer-supplied file metadata. Only the file accepted by the upload route can be attached.
   const safeForm = { ...form, styling: { ...plainObject(form.styling), referencePhoto: null } };
   const referencePhoto = file ? await storeReferencePhoto(file) : null;
   try {
@@ -636,27 +480,11 @@ export async function getReferencePhoto(ref, { customerId, transact = tx } = {})
   });
 }
 
-/* ============================ Customer actions ============================ */
 
-/**
- * The customer cancels their own reservation online, when onlineCancellation (domain/cancellation.js,
- * the rule the pages show too) allows it: an unpaid booking any time before the event day; a paid one
- * only until its cancel deadline and before "Started preparing"; never while pieces are checked out
- * for it (inventory_allocations: an event's equipment or a rental's items), while a payment is being
- * verified (so that payment can't be verified after the cancellation) or while a GCash QR for it is open
- * (its payment may still arrive). A refusal carries that rule's
- * code and reason, the same answer as the summary's `onlineCancel`. When money was paid, an unread
- * message from the customer tells the team it has to be returned. Every cancellation (paid or not) also
- * emails the customer a 'reservation_cancelled' notice (Phase 13A), queued after the change is written
- * and sent once it commits. A cancelled approved booking frees
- * its slot (the portals then reload the availability map). Returns the customer's view of its summary.
- * Lock order as every write (Phase 6A): the booking's row (lockOwner), then the chat thread.
- */
 export async function cancelReservation(ref, customer, reason) {
   const text = clean(reason);
   if (!text) throw invalid('Tell us why you are cancelling.', 'reason');
   return tx(async (conn) => {
-    // Locked until the end, so an admin action on the same booking waits and then sees the cancellation
     const owner = await repo.lockOwner(conn, ref);
     if (!owner || !sameRef(owner, ref) || owner.customerId !== customer.id) throw notFound();
     const [row] = await repo.findReservations(conn, { ref });
@@ -681,7 +509,6 @@ export async function cancelReservation(ref, customer, reason) {
         customer.name
       );
     }
-    // The email goes in every case, paid or not (the chat message above only when money was paid)
     await queueCustomerEmail(conn, {
       customerId: row.reservation.customerId,
       ref: row.reservation.ref,
@@ -693,14 +520,6 @@ export async function cancelReservation(ref, customer, reason) {
   });
 }
 
-/**
- * The customer asks for a change: "Change request: …" in their chat with the admin (tagged with the
- * reservation, unread for the admin) and an activity entry. Any status.
- * The booking's row is locked before the chat is touched, the same order as cancelReservation (and
- * every write that posts a chat message: the booking first, then the conversation), so a cancel and a
- * change request sent at the same moment wait for each other instead of deadlocking.
- * Returns { threadId }, the conversation the page opens next.
- */
 export async function requestChange(ref, customer, message) {
   const text = clean(message);
   if (!text) throw invalid('Describe the change you would like.', 'message');
@@ -717,22 +536,6 @@ export async function requestChange(ref, customer, message) {
   });
 }
 
-/**
- * The customer accepts the quotation we sent, and that approves the request: the admin sets the price,
- * the customer agrees to it (decided 2026-10-08 with the capstone adviser; there is no admin Approve).
- * Only a pending request with a quotation can be accepted (NO_QUOTATION before one is sent), and only the
- * one the customer was looking at: `sentAt` must be the current quotation's, so a newer one sent
- * meanwhile is reviewed first, and an out-of-date one (the booking changed after it was sent) waits for
- * the revised quotation. The date must still be free (slotProblem: open, a slot under the capacity, the
- * time clear, the stock free), checked under the availability lock so two acceptances never take the
- * last slot; when it was taken meanwhile, the customer is asked to message us. Then the status moves to
- * Approved with the downpayment due date, the activity log keeps who accepted which amount, the
- * customer's acceptance goes into their chat (unread for the admin, so the team sees it), the
- * payment instruction (approvalMessage) follows with the quotation attached, and a 'reservation_approved'
- * email (Phase 13A) is queued with the total and the downpayment, sent once it commits. Only the first quotation
- * is accepted: one re-sent after this applies when it is sent (sendQuotation). Returns the customer's
- * view of its summary. Lock order as every slot write: the availability lock, the booking's row, the chat.
- */
 export async function acceptQuotation(ref, customer, sentAt) {
   return tx(async (conn) => {
     await lockAvailability(conn);
@@ -768,7 +571,6 @@ export async function acceptQuotation(ref, customer, sentAt) {
         `${blocked.problem} Please message us so we can find another ${blocked.fix === 'time' ? 'time' : 'date'} for you.`
       );
 
-    // Due in RULES.downpaymentDueDays, but no later than 3 days before the event (and never before today)
     const approved = { ...reservation, status: 'approved', downpaymentDue: downpaymentDueFor(reservation.date) };
     await repo.updateReservation(conn, ref, { status: approved.status, downpaymentDue: approved.downpaymentDue });
     await repo.insertActivity(conn, ref, {
@@ -801,54 +603,36 @@ export async function acceptQuotation(ref, customer, sentAt) {
   });
 }
 
-/* ============================ Admin actions and edits (Phase 6B) ============================ */
 
-// Bookings that are over: nothing on them is edited or re-quoted any more
 const CLOSED = ['completed', 'declined', 'cancelled'];
-// The most one amount in a quotation may be (the outsourcing contract limit too): anything above is a typo
 const MAX_AMOUNT = 10000000;
 
 const closedError = () => new ApiError('INVALID_STATE', 'This reservation is closed and can no longer be edited.');
-// "₱1,200"
 const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
-// A reason typed by the admin as a sentence of its own, e.g. "Our kitchen is closed" -> "Our kitchen is closed."
 const asSentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`);
-// "pick up" / "delivery", for log lines and chat messages
 const fulfilmentWord = (value) => (value === 'delivery' ? 'delivery' : 'pick up');
-// The rental lines with too few pieces free, e.g. "Monobloc chair (40 of 80), Round table (2 of 5)"
 const shortList = (short, stock) =>
   short.map((line) => `${line.name} (${stock[line.itemId] || 0} of ${line.qty})`).join(', ');
 
-// The admin's reason for a decline or a cancellation: at least 5 characters, as the admin's reason dialogs ask
 function reasonOf(value) {
   const text = clean(value);
   if (text.length < 5) throw invalid('Please give a short reason (at least 5 characters).', 'reason');
   return text;
 }
 
-// An amount typed into the quotation: a whole number of pesos from 0 to MAX_AMOUNT (a box left out is 0)
 function quotationAmount(value, field, message = `Enter an amount in whole pesos, up to ${pesoText(MAX_AMOUNT)}.`) {
   const amount = value === undefined ? 0 : toNumber(value);
   if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT) throw invalid(message, field);
   return amount;
 }
 
-// One entry in the booking's audit trail, by the signed-in admin
 const logAdmin = (conn, ref, admin, text) => repo.insertActivity(conn, ref, { at: now(), actor: admin.name, text });
 
-// The booking's summary as saved so far in the transaction (the admin's view, notes included)
 async function savedSummary(conn, ref) {
   const [row] = await repo.findReservations(conn, { ref });
   return summarize(row);
 }
 
-/**
- * One admin action on a booking, in its own transaction: the availability lock first when the action
- * takes or moves a slot or rental stock (`availability: true`), then the booking's row, locked until
- * the end (it must exist and be spelled exactly as stored, see sameRef), then `action(conn, row)` with
- * the booking as saved (an entry of repo.findReservations(), piecesOut included). A chat message the
- * action posts locks the customer's thread last.
- */
 function adminWrite(ref, action, { availability = false, transact = tx } = {}) {
   return transact(async (conn) => {
     if (availability) await lockAvailability(conn);
@@ -859,17 +643,6 @@ function adminWrite(ref, action, { availability = false, transact = tx } = {}) {
   });
 }
 
-/**
- * Why a pending request can't take its date now, or null when it can: the date has passed or is blocked,
- * an event finds the day at its daily capacity (CAPACITY), its whole time (start to end, with the setup
- * and tear-down buffer) clashing with the events approved that day (TIME_UNAVAILABLE) or its
- * stock-tracked charges (a tent size) taken (OUT_OF_STOCK), and an equipment rental, which takes no slot,
- * finds too few of its items free (OUT_OF_STOCK). Pending requests hold nothing, so only approved
- * bookings count. Answers { code, problem, fix }: `problem` says what is wrong in words both sides can
- * read, and `fix` ('date', 'time' or 'items') lets the admin (sending the quotation) and the customer
- * (accepting it) each be told their own next step. Reads the availability map and the rental stock in
- * the caller's transaction; acceptQuotation holds the availability lock while it reads them.
- */
 async function slotProblem(conn, reservation) {
   const { date, ref } = reservation;
   if (daysFromToday(date) < 0) return { code: 'INVALID_STATE', problem: 'This event date has passed.', fix: 'date' };
@@ -883,7 +656,6 @@ async function slotProblem(conn, reservation) {
     };
 
   if (isRental(reservation.serviceType)) {
-    // Another approved rental (or an event's checked-out equipment) may have taken the pieces meanwhile
     const stock = rentalStock(await repo.rentalStockInputs(conn, date), date, ref);
     const short = reservation.rentalItems.filter((line) => line.qty > (stock[line.itemId] || 0));
     return short.length
@@ -894,14 +666,12 @@ async function slotProblem(conn, reservation) {
         }
       : null;
   }
-  // The events already holding the date (this pending one holds none yet; rentals never do)
   if ((map.booked[date] || 0) >= map.capacity)
     return {
       code: 'CAPACITY',
       problem: `${formatDate(date)} is already at the daily capacity of ${map.capacity} events.`,
       fix: 'date'
     };
-  // Its stock-tracked charges (a tent size) must still be free: other approvals may have taken them
   const stockData = await repo.rentalStockInputs(conn, date);
   const short = addonShortfall(stockData, reservation, date, ref);
   if (short.length)
@@ -910,8 +680,6 @@ async function slotProblem(conn, reservation) {
       problem: `Not enough free on ${formatDate(date)}: ${shortList(short, rentalStock(stockData, date, ref))}.`,
       fix: 'date'
     };
-  // Its whole time (start to end, or RULES.defaultEventHours for an old booking with no end time) must
-  // be clear of the events approved that day, with the setup and tear-down buffer around them
   const timeReason = timeUnavailableReason(
     date,
     reservation.startTime,
@@ -923,19 +691,12 @@ async function slotProblem(conn, reservation) {
     : null;
 }
 
-// What the admin does about a slotProblem before the quotation can go out
 const ADMIN_FIX = {
   date: 'Move the event to another date',
   time: 'Change the time',
   items: 'Change the items or the date'
 };
 
-/**
- * The quotation's extra-guest values for an event above its package's default guest count (see
- * sendQuotation): { extraGuestsCharge, itemCounts }, both required then; { 0, {} } otherwise (a rental, or
- * guests at or below the default). Only the package's items to confirm are read from `values.itemCounts`;
- * a count for any other name is dropped. Errors name the field: 'extraGuestsCharge', 'itemCounts.<name>'.
- */
 function extraGuestValues(pkg, reservation, values) {
   const extra = isRental(reservation.serviceType) ? 0 : extraGuestsFor(pkg, reservation.guests);
   if (!extra) return { extraGuestsCharge: 0, itemCounts: {} };
@@ -961,38 +722,6 @@ function extraGuestValues(pkg, reservation, values) {
   return { extraGuestsCharge, itemCounts };
 }
 
-/**
- * Admin: price the add-ons and any other charges, apply a discount, and send the quotation to the
- * customer's chat. The food is never typed: a buffet is guests x
- * the rate stored on the booking (never today's), and a rental is its items at the prices they were
- * booked at plus any damage charges, with `deliveryFee` for a delivered rental (the standard fee when
- * left out). `values` is { addonPrices: { addonId: price of one }, extraGuestsCharge, itemCounts,
- * otherCharges, otherLabel, discount, deliveryFee, note }; every amount is whole pesos from 0 to MAX_AMOUNT.
- *
- * An event with more guests than its package's default (extraGuestsFor; domain/packageItems.js) needs two
- * more things, both required: `extraGuestsCharge`, the price of the equipment for those guests (0 is
- * allowed, to waive it), and `itemCounts`, the count of every package item that does not grow with the
- * guests ({ 'Elegant Food Warmers': 10, 'Helpers': 12 }, whole numbers 1 to ITEM_COUNT_MAX).
- * Both are saved on the quotation; at or below the default they are ignored and saved as 0 and {}.
- *
- * A pending request's quotation is an offer the customer accepts (acceptQuotation), so it is only sent
- * while the date can still be taken (slotProblem: the date open, a slot under the capacity, the time
- * clear, the stock free); otherwise the admin is told what to change first. Accepting checks again.
- * A quotation re-sent after it was accepted (a new guest count, damage charges) needs no acceptance.
- *
- * The new total can move the status (statusForPayments): forward when what was paid covers it (e.g. to
- * Confirmed), or back to Approved with a new due date when the payments fall below the downpayment.
- * It may be lower than what was paid: the quotation is sent as it is (a sent quotation is never edited
- * afterwards), the chat says how much was paid above it and that it will be returned, and the audit
- * trail keeps the old and new totals and the overpaid amount.
- *
- * Next to the chat message, a 'quotation_ready' email (Phase 13A) is queued with the same facts: 'new'
- * (a pending request's first quotation), 'revised' (a pending request re-quoted) or 'updated' (re-sent
- * after acceptance), the net, the note, the total before, the status before and after, what is still
- * needed for the downpayment and by when (only when the status moved back to Approved), the overpaid
- * amount and the damage lines on a rental's quotation. Sent once the transaction commits.
- * Returns the booking's summary.
- */
 export async function sendQuotation(ref, values, admin) {
   return adminWrite(ref, async (conn, row) => {
     const { reservation, payments, refunds } = row;
@@ -1023,7 +752,6 @@ export async function sendQuotation(ref, values, admin) {
     const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
     const { extraGuestsCharge, itemCounts } = extraGuestValues(pkg, reservation, values);
 
-    // The total the customer held before this quotation, for the audit trail
     const totalBefore = financials(reservation, payments, refunds).total;
     const quote = computeQuote({
       pkg,
@@ -1052,9 +780,7 @@ export async function sendQuotation(ref, values, admin) {
     const saved = { quotation };
     const log = [`Sent the quotation (${pesoText(quote.net)}).`];
 
-    // The new total may change where the booking stands; back at Approved it gets a new due date
     let extra = '';
-    // What is still needed for the downpayment and by when, for the email (only when moved back to Approved)
     let downpaymentStillNeeded = 0;
     let downpaymentDue = null;
     const money = financials(quoted, payments, refunds);
@@ -1071,7 +797,6 @@ export async function sendQuotation(ref, values, admin) {
         log.push(`Status moved to ${statusLabel(status)} under the new quotation.`);
       }
     }
-    // Paid more than the new total: say so in the chat and keep both totals in the audit trail
     const after = financials({ ...quoted, status }, payments, refunds);
     if (after.overpaid > 0) {
       log.push(
@@ -1080,7 +805,6 @@ export async function sendQuotation(ref, values, admin) {
       extra += ` You've paid ${pesoText(after.overpaid)} more than the new total. We'll return it and tell you here when it's sent.`;
     }
 
-    // A pending request's quotation waits for the customer to accept it on their reservation page
     if (reservation.status === 'pending') extra += ' Open your reservation and tap Accept Quotation to approve it.';
 
     await repo.updateReservation(conn, ref, saved);
@@ -1092,7 +816,6 @@ export async function sendQuotation(ref, values, admin) {
       { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref },
       admin.name
     );
-    // `reservation` is the booking before this send: a pending one with a quotation already is re-quoted
     const variant = reservation.status === 'pending' ? (reservation.quotation ? 'revised' : 'new') : 'updated';
     await queueCustomerEmail(conn, {
       customerId: reservation.customerId,
@@ -1109,7 +832,6 @@ export async function sendQuotation(ref, values, admin) {
         downpaymentStillNeeded,
         downpaymentDue,
         overpaid: after.overpaid,
-        // The quotation's damage lines (a rental's only; computeQuote drops lines with no pieces)
         damageLines: quote.damageCharges.map((line) => ({ name: line.name, qty: line.qty, amount: line.total }))
       }
     });
@@ -1117,10 +839,6 @@ export async function sendQuotation(ref, values, admin) {
   });
 }
 
-/**
- * Admin: decline a pending request, with a reason (5+ characters) sent to the customer's chat and in a
- * 'reservation_declined' email (Phase 13A, sent once the transaction commits). Returns the summary.
- */
 export async function declineReservation(ref, reason, admin) {
   const text = reasonOf(reason);
   return adminWrite(ref, async (conn, { reservation }) => {
@@ -1145,11 +863,6 @@ export async function declineReservation(ref, reason, admin) {
   });
 }
 
-/**
- * Admin: confirm a booking once its downpayment is verified; the contract becomes available in the
- * customer's Documents, said in their chat and in a 'booking_confirmed' email with the balance left
- * (Phase 13A, sent once the transaction commits). Returns the summary.
- */
 export async function confirmReservation(ref, admin) {
   return adminWrite(ref, async (conn, row) => {
     const { reservation } = row;
@@ -1175,13 +888,6 @@ export async function confirmReservation(ref, admin) {
   });
 }
 
-/**
- * Admin: mark a confirmed event completed, on or after its date, and invite a testimonial, in the
- * customer's chat and in an 'event_completed' email (Phase 13B, sent once the transaction commits). A
- * rental can only be completed once every rented piece is back (no inventory_allocations left) and the
- * customer holds a quotation with any damage charges on it, because a completed booking can't be
- * re-quoted (so the damage charges were already emailed with that quotation). Returns the summary.
- */
 export async function completeReservation(ref, admin) {
   return adminWrite(ref, async (conn, row) => {
     const { reservation } = row;
@@ -1217,16 +923,6 @@ export async function completeReservation(ref, admin) {
   });
 }
 
-/**
- * Admin: cancel an Approved, Downpayment paid or Confirmed booking, with a reason (5+ characters) shown
- * to the customer; a pending request is declined instead. Refused while a payment waits for
- * verification (PENDING_PAYMENT: verify or reject it first), while the customer's GCash QR for it is open
- * (PENDING_PAYMENT: its payment may still arrive) and while pieces are still checked out for it (record
- * their return first). Saves cancelled_by = 'admin', releases the date, keeps the reason in
- * the audit trail and tells the customer in their chat and in a 'reservation_cancelled' email (Phase 13A,
- * sent once the transaction commits); when money was paid the message says it will be
- * returned, and the booking shows under "Refunds to Send". Returns the summary.
- */
 export async function cancelReservationByAdmin(ref, reason, admin) {
   const text = reasonOf(reason);
   return adminWrite(ref, async (conn, row) => {
@@ -1272,12 +968,6 @@ export async function cancelReservationByAdmin(ref, reason, admin) {
   });
 }
 
-/**
- * Admin: mark that preparation has started ("Started preparing") on a booking whose downpayment is paid
- * (Downpayment paid or Confirmed). A mark (preparing_at), not a status: from now on the customer can no
- * longer cancel online (onlineCancellation), and their chat says to message us or call instead.
- * undoPreparing takes it back. Returns the summary.
- */
 export async function startPreparing(ref, admin) {
   return adminWrite(ref, async (conn, { reservation }) => {
     if (!['downpayment_paid', 'confirmed'].includes(reservation.status))
@@ -1302,11 +992,6 @@ export async function startPreparing(ref, admin) {
   });
 }
 
-/**
- * Admin: take back "Started preparing" (marked by mistake), while it is set and the booking is still
- * open, so a closed booking never gets a message about cancelling online. The customer is told in their
- * chat, with the date online cancellation stays open until when that date hasn't passed. Returns the summary.
- */
 export async function undoPreparing(ref, admin) {
   return adminWrite(ref, async (conn, { reservation }) => {
     if (!reservation.preparingAt)
@@ -1327,26 +1012,6 @@ export async function undoPreparing(ref, admin) {
   });
 }
 
-/**
- * Admin: edit an event's date, start and end time, guests and venue (the logistics card); an
- * equipment rental goes to updateRentalLogistics. `patch` is the logistics card's fields: { date,
- * startTime, endTime, guests, venueName, venueAddress, city, accessNotes } (and fulfilment for a rental).
- *
- * A new date must not be past, blocked or full (the admin may move an event inside the lead time) and must
- * have the event's stock-tracked charges (a tent size) free (OUT_OF_STOCK), and a new date, start or end
- * time must be clear of the other events that day (this one left out). The end time is 2 to 6 hours after
- * the start; a booking made before end times existed may keep none (it then counts as
- * RULES.defaultEventHours long), but once it has one it can't be emptied. Moving an
- * approved booking earlier pulls its downpayment due date in (dueAfterMove). The audit trail lists what
- * changed, old value and new.
- *
- * A buffet is charged per person, so a new guest count changes what the booking costs, and so does a new
- * count of guests above the package's default on a quotation that priced them (their equipment and the
- * items to confirm; domain/packageItems.js). The sent quotation is never edited: the customer is told in
- * their chat straight away (old and new food total, old and new extra guests), the booking shows as out
- * of date (quotationStale), and the new amount only counts once the admin re-sends the quotation. Before any quotation an event's estimate stays as booked (an open question
- * for the owner, docs §4.1). Runs under the availability lock. Returns { changed }: how many things changed.
- */
 export async function updateLogistics(ref, patch, admin) {
   const values = plainObject(patch);
   return adminWrite(
@@ -1362,7 +1027,6 @@ export async function updateLogistics(ref, patch, admin) {
       const { date } = values;
       if (!isISODate(date)) throw invalid('Choose the event date.', 'date');
       const startTime = startTimeOf(values);
-      // null: an old booking that has no end time and still gets none; '' (cleared) is refused below
       const endTime =
         typeof values.endTime === 'string' && values.endTime ? values.endTime : reservation.endTime ? '' : null;
       if (endTime !== null) {
@@ -1377,7 +1041,6 @@ export async function updateLogistics(ref, patch, admin) {
           throw new ApiError('DATE_UNAVAILABLE', `${formatDate(date)} is not available (${reason.toLowerCase()}).`, {
             field: 'date'
           });
-        // Its stock-tracked charges (a tent size) must be free on the new date too
         const stockData = await repo.rentalStockInputs(conn, date);
         const short = addonShortfall(stockData, reservation, date, ref);
         if (short.length)
@@ -1387,9 +1050,6 @@ export async function updateLogistics(ref, patch, admin) {
             { field: 'date' }
           );
       }
-      // A new date, start or end time: within booking hours, on the hour or half hour, and clear of the
-      // other events that day (this event is left out of its own check): the start may not fall in another
-      // event's window, and the event may not run into the next one
       if (date !== reservation.date || startTime !== reservation.startTime || endTime !== reservation.endTime) {
         const others = { ...map, events: map.events.filter((e) => e.ref !== ref) };
         const startReason = timeUnavailableReason(date, startTime, others);
@@ -1407,7 +1067,6 @@ export async function updateLogistics(ref, patch, admin) {
       if (!venue.name || !venue.address || !venue.city)
         throw invalid('Enter the venue, city and address.', 'venueName');
 
-      // What changed, both values, e.g. "Updated guests from 100 to 150, venue."
       const changes = [];
       if (date !== reservation.date) changes.push(`date from ${formatDate(reservation.date)} to ${formatDate(date)}`);
       if (startTime !== reservation.startTime) changes.push(`start time from ${reservation.startTime} to ${startTime}`);
@@ -1424,9 +1083,6 @@ export async function updateLogistics(ref, patch, admin) {
 
       await repo.updateReservation(conn, ref, { date, startTime, endTime, guests, venue, downpaymentDue: due });
       if (changes.length) await logAdmin(conn, ref, admin, `Updated ${changes.join(', ')}.`);
-      // The guest count moved on a quoted event: tell the customer what it does to their total before
-      // anyone re-sends anything, so a change can never pass unnoticed. A buffet's food is per person; the
-      // guests above the package's default matter on a quotation that priced them (it keeps extraGuests).
       const quote = reservation.quotation;
       if (guests !== reservation.guests && quote) {
         const reasons = [];
@@ -1462,14 +1118,6 @@ export async function updateLogistics(ref, patch, admin) {
   );
 }
 
-/**
- * updateLogistics for an equipment rental (inside its transaction): the date, the pick-up or delivery
- * time, pick up versus delivery, and the delivery address. A new date needs an open (not blocked) day
- * and enough of every rented item free that day. Switching between pick up and delivery adds or removes
- * the delivery fee, so the customer is told in their chat (old and new total), the audit trail keeps
- * both, and a sent quotation shows as out of date until the admin re-sends it. Before any quotation the
- * estimate simply follows the change.
- */
 async function updateRentalLogistics(conn, row, values, admin) {
   const { reservation } = row;
   const { ref } = reservation;
@@ -1496,7 +1144,6 @@ async function updateRentalLogistics(conn, row, values, admin) {
       });
   }
   if (date !== reservation.date || startTime !== reservation.startTime) {
-    // Hours and half hours only: a rental does not clash with events, so no events are passed
     const timeReason = timeUnavailableReason(date, startTime, { events: [] });
     if (timeReason) throw new ApiError('TIME_UNAVAILABLE', `${timeReason}.`, { field: 'startTime' });
   }
@@ -1508,7 +1155,6 @@ async function updateRentalLogistics(conn, row, values, admin) {
       ? { ...place, accessNotes: clean(values.accessNotes) }
       : { ...RENTAL.pickupPlace, accessNotes: '' };
 
-  // What changed, old value and new, for the audit trail
   const changes = [];
   if (date !== reservation.date) changes.push(`date from ${formatDate(reservation.date)} to ${formatDate(date)}`);
   if (startTime !== reservation.startTime)
@@ -1520,7 +1166,6 @@ async function updateRentalLogistics(conn, row, values, admin) {
   const { due, moved } = dueAfterMove(reservation, date);
   if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
 
-  // The total before and after a switch between pick up and delivery (the delivery fee comes or goes)
   const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
   const was = financials(reservation, row.payments, row.refunds).total;
   const total = rentalQuote(pkg, reservation, { fulfilment }).net;
@@ -1556,12 +1201,6 @@ async function updateRentalLogistics(conn, row, values, admin) {
   return { changed: changes.length };
 }
 
-/**
- * Admin: change what the customer is having (e.g. after agreeing it in chat): the service type, the four
- * menu lines and the food notes. Switching between a buffet and catering only changes the total (only a
- * buffet is charged per person), so when a quotation was sent the customer is told in their chat and the
- * quotation shows as out of date until the admin re-sends it. Returns { ok: true }.
- */
 export async function updateMenu(ref, body, admin) {
   const values = plainObject(body);
   return adminWrite(ref, async (conn, { reservation }) => {
@@ -1570,7 +1209,6 @@ export async function updateMenu(ref, body, admin) {
       throw invalid('An equipment rental has no menu. Edit the rented items instead.');
     const { serviceType } = values;
     if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose a buffet or catering only.', 'serviceType');
-    // Buffet dishes and optional juice/dessert use the same validation as the form.
     const options = { buffet: includesFood(serviceType), dessert: reservation.addonIds.includes(DESSERT_ADDON_ID) };
     const check = menuProblem(values.menu, options);
     if (check) throw invalid(check.message, check.field);
@@ -1583,7 +1221,6 @@ export async function updateMenu(ref, body, admin) {
       admin,
       before === serviceType ? 'Updated the menu.' : `Changed the booking from ${before} to ${serviceType}.`
     );
-    // Switching to or from a buffet changes what the customer owes: tell them before re-quoting
     if (before !== serviceType && reservation.quotation) {
       const food = includesFood(serviceType)
         ? `A buffet is charged per person, so food for ${reservation.guests} guests will be added to your total.`
@@ -1600,7 +1237,6 @@ export async function updateMenu(ref, body, admin) {
   });
 }
 
-// A styling (or null) in a form that compares by content: MySQL returns a JSON column's keys re-sorted
 const stylingKey = (styling) =>
   styling
     ? JSON.stringify([
@@ -1611,18 +1247,11 @@ const stylingKey = (styling) =>
       ])
     : 'none';
 
-// What the activity log says about a styling, e.g. "Royal; Burgundy, Gold" or "no theme; Sage Green"
 const stylingWords = (styling) => {
   const colors = styling.colors.map((c) => c.name).join(', ');
   return `${themeLabel(styling) || 'no theme'}${colors ? `; ${colors}` : ''}`;
 };
 
-/**
- * Admin: change the theme, colour motif and design details (e.g. after agreeing them in chat), with the
- * booking form's own rules (stylingOf). They never change the price, so the quotation is left as it is;
- * the change goes into the activity log, which the customer sees too. Not for an equipment rental (it has
- * none) or a closed booking. Saving what is already there changes nothing and logs nothing. Returns { ok: true }.
- */
 export async function updateStyling(ref, body, admin, { transact = tx } = {}) {
   return adminWrite(
     ref,
@@ -1644,7 +1273,6 @@ export async function updateStyling(ref, body, admin, { transact = tx } = {}) {
   );
 }
 
-/** Admin: save the private notes on a booking, as typed (never shown to the customer). Returns { ok: true }. */
 export async function saveNotes(ref, notes) {
   return adminWrite(ref, async (conn) => {
     await repo.updateReservation(conn, ref, { notes });
@@ -1652,17 +1280,6 @@ export async function saveNotes(ref, notes) {
   });
 }
 
-/**
- * Admin: change what a rental includes (e.g. after agreeing it in chat). `items` is the whole new list,
- * [{ itemId, qty }]. Lines already booked keep their prices; an added item takes today's price. Every
- * item needs enough pieces free on the date (this booking's own pieces count as free), and no line can
- * drop below what is already checked out for it (record those pieces' return first).
- *
- * The new total is never written into a sent quotation: the customer is told in their chat (old and new
- * total), the audit trail keeps both, and the quotation shows as out of date until the admin re-sends
- * it. Before any quotation the estimate follows the new list at once. Runs under the availability lock.
- * Returns { changed }: how many lines changed (0 when the list is the same, and nothing is written).
- */
 export async function updateRentalItems(ref, body, admin) {
   const { items } = plainObject(body);
   return adminWrite(
@@ -1687,7 +1304,6 @@ export async function updateRentalItems(ref, body, admin) {
         }
       });
 
-      // The change line by line, e.g. "Monobloc chair from 50 to 80, added 5 × Round table"
       const before = reservation.rentalItems;
       const changes = [];
       lines.forEach((line) => {

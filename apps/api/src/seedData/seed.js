@@ -2,30 +2,14 @@ import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE } from '@tm/shared/src
 import { addDays, todayISO } from '@tm/shared/src/utils/format.js';
 import { buildInventorySeed } from './inventorySeed.js';
 
-/**
- * The business data the API seeder loads (src/seed.js): the packages, additional charges and dishes,
- * the price per person and minimum downpayment, the daily capacity, the owner's admin account and
- * the inventory. `npm run seed:starter` loads this alone (the live server's fresh start).
- *
- * No customer is written here. The sample customers with their reservations, payments, chat, reviews
- * and outsourcing are in seedData/sample/, which stays on the developer's computer and out of GitHub
- * (.gitignore; split off 2026-10-08), so a clone of the repository, the live server's included, has
- * none. `npm run seed:api` adds them on top of this data (sampleLoader.js).
- *
- * No password is written here either (the repository is public): the seeder takes the accounts'
- * passwords from apps/api/.env (SEED_ADMIN_PASSWORD, SEED_CUSTOMER_PASSWORD), so these records carry none.
- */
 
-// Items included in a package as [quantity, name]; quantity is null for items without a count (e.g. "Buffet Table")
 const items = (list) => list.map(([qty, name]) => ({ qty, name }));
 
-// What every catering package (not the wedding ones) starts with
 const BUFFET_BASE = [
   [null, 'Buffet Table'],
   [null, 'Buffet Backdrop']
 ];
 
-// Tableware, tables and chairs for a catering package set up for `guests` (its default guest count)
 const cateringItems = ({ guests, warmers, warmerName, tables, pitchers, jugs, waiters }) =>
   items([
     ...BUFFET_BASE,
@@ -41,7 +25,6 @@ const cateringItems = ({ guests, warmers, warmerName, tables, pitchers, jugs, wa
     ...(waiters ? [[waiters, 'Helpers']] : [])
   ]);
 
-// What both wedding packages include besides their counts
 const WEDDING_EXTRAS = [
   [null, 'Goblets for the Presidential Table'],
   [null, 'Presidential Table Full Setup'],
@@ -53,18 +36,6 @@ const WEDDING_EXTRAS = [
   [null, 'Water Table']
 ];
 
-/**
- * Packages from the Tres Marias price lists. A package is equipment and service only:
- * food is cooked to the customer's request and priced by the admin in the quotation.
- * Packages are not tied to an occasion; any package can be booked for any event.
- * `guests` is the package's default guest count: it helps the customer pick a package, and the
- * booking follows the customer's own count at the same package price. Any package can be booked as a
- * Buffet (food cooked, charged per person) or as Catering only (the equipment on its own).
- *
- * The last one, Equipment Rental (`kind: 'rental'`), has no price, guests or items of its own: the
- * customer picks inventory items and pays each one's rental price per piece. Every other package
- * is `kind: 'package'`.
- */
 const PACKAGES = [
   {
     id: 'pkg-mini',
@@ -241,20 +212,6 @@ const PACKAGES = [
   }
 ].map((pkg) => ({ kind: 'package', icon: 'restaurant', featured: false, visible: true, archived: false, ...pkg }));
 
-/**
- * Additional charges a customer can tick on the reservation form. They start with no price of
- * their own (`price: null`), so each is priced in the quotation until the admin gives it one on
- * the Packages page (Additional charges tab).
- * The Tent comes in sizes: each size is a row of its own pointing at the Tent (`parentId`), counted
- * by the piece, and the customer books the sizes (nestAddons in domain/catalog.js). Sounds and lights
- * and Photographer and videographer are charges with packages (`hasPackages`, "Additional charges with
- * packages" on the admin's Packages page): their packages are rows stored the same way, but the customer
- * picks one, booked once, and each one's description says what it includes. Sizes and packages come
- * last, after every charge, so a charge is always saved before the rows that point at it.
- * The sound packages and their starting prices (the low end of the market price ranges the owner
- * shared on 2026-10-01) are estimates for the owner to confirm; the grand setup and the
- * photo and video packages have no price yet, so they are set in each quotation until the admin adds one.
- */
 const ADDONS = [
   {
     id: 'add-dessert',
@@ -272,27 +229,22 @@ const ADDONS = [
   },
   { id: 'add-host', name: 'Host', description: 'A host or emcee to run the program.' },
   { id: 'add-clown', name: 'Clown', description: 'A clown with games and balloon art for children.' },
-  // One charge for both (merged 2026-10-01; there was a separate Videographer before)
   {
     id: 'add-photographer',
     name: 'Photographer and videographer',
     description: 'Event photographer and videographer, with edited photos and a highlights video after the event.',
     hasPackages: true
   },
-  // The only charge counted by the piece: the customer says how many, and the admin prices one of them
   {
     id: 'add-waiters',
     name: 'Helper',
     description: 'Extra helpers on top of what your package includes.',
     hasQuantity: true
   },
-  // The Tent's sizes, priced per piece once the admin sets them
-  // Each books its tent in the inventory (inventorySeed.js ADDON_LINKS), so a booking holds it on the date
   { id: 'add-tent-10x10', parentId: 'add-tent', name: '10 × 10', description: '', hasQuantity: true },
   { id: 'add-tent-10x20', parentId: 'add-tent', name: '10 × 20', description: '', hasQuantity: true },
   { id: 'add-tent-20x20', parentId: 'add-tent', name: '20 × 20', description: '', hasQuantity: true },
   { id: 'add-tent-20x40', parentId: 'add-tent', name: '20 × 40', description: '', hasQuantity: true },
-  // The sound packages, smallest first
   {
     id: 'add-sound-basic',
     parentId: 'add-sounds-lights',
@@ -322,7 +274,6 @@ const ADDONS = [
     name: 'Grand / corporate / wedding setup',
     description: 'For large venues: full band equipment, heavy trusses, LED walls and a large generator'
   },
-  // The photo and video packages
   {
     id: 'add-photo-only',
     parentId: 'add-photographer',
@@ -344,11 +295,6 @@ const ADDONS = [
   }
 ].map((addon) => ({ parentId: null, price: null, hasQuantity: false, hasPackages: false, archived: false, ...addon }));
 
-/**
- * The dishes the admin offers, grouped by the four categories a buffet menu is built from.
- * A buffet takes exactly one dish from each category; the admin adds, renames and archives
- * them on the Packages page. Every dish costs the same, because a buffet is charged per person.
- */
 export const DISHES = [
   [
     'pork',
@@ -402,21 +348,13 @@ export const DISHES = [
   list.map(([slug, name]) => ({ id: `dish-${category}-${slug}`, category, name, archived: false }))
 );
 
-/**
- * Build the business data. The admin account's dates are relative to today; the inventory comes from
- * inventorySeed.js with every piece on the shelf. Returns { settings, admins, packages, addons, dishes,
- * dailyCapacity, inventory: { items, counter } }, which seed:starter loads as it is and the sample data
- * (seedData/sample/sample.js) builds on.
- */
 export function buildBusinessSeed() {
   const T = todayISO();
-  // Timestamp `offset` days from today at a given time
   const at = (offset, hour = 10, minute = 0) => {
     const [y, m, d] = addDays(T, offset).split('-').map(Number);
     return new Date(y, m - 1, d, hour, minute).getTime();
   };
 
-  // The owner's admin account, without a password (the seeder gives it SEED_ADMIN_PASSWORD)
   const admins = [
     {
       id: 'adm-001',
@@ -430,15 +368,12 @@ export function buildBusinessSeed() {
   ];
 
   return {
-    // Settings the admin edits in the app: the buffet price per person and the minimum downpayment
     settings: { pricePerPlate: DEFAULT_PRICE_PER_PLATE, minDownpayment: DEFAULT_MIN_DOWNPAYMENT },
     admins,
     packages: PACKAGES,
     addons: ADDONS,
     dishes: DISHES,
-    // The owner's default (2026-10-03): up to 5 events a day
     dailyCapacity: 5,
-    // Equipment inventory (items and the counter for new item codes)
     inventory: buildInventorySeed(admins[0].name)
   };
 }

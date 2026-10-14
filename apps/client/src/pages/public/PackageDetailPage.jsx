@@ -41,17 +41,10 @@ import SiteNav from '../../components/SiteNav.jsx';
 import { readIntent, saveIntent } from '../../lib/booking.js';
 import { site, siteContainerSx } from '../../theme/siteTheme.js';
 
-/**
- * 1b · Package detail, where the Reserve CTA lives. 1c gate opens from here.
- * The Equipment Rental package has no fixed items or price: its page lists every item that can be
- * rented with its price per piece, and its panel asks only for the date and the occasion.
- */
 export default function PackageDetailPage() {
-  // Package name from the URL, e.g. /packages/classic
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  // Load the package and the additional charges customers can ask for (the rental price list for the rental package)
   const { data, loading, error } = useResource(async () => {
     const pkg = await catalogApi.getPackageBySlug(slug);
     const [addons, rentals] = await Promise.all([catalogApi.listAddons(), isRentalPackage(pkg) ? catalogApi.listRentalItems() : []]);
@@ -59,33 +52,27 @@ export default function PackageDetailPage() {
   }, [slug]);
   useDocumentTitle(data ? data.pkg.name : 'Package');
 
-  // Pre-fill the reserve panel with anything picked earlier in the booking bar
   const intent = readIntent() || {};
   const [date, setDate] = useState(intent.date || '');
   const [guests, setGuests] = useState(intent.guests ? String(intent.guests) : '');
   const [occasion, setOccasion] = useState(intent.occasion || '');
   const [guestError, setGuestError] = useState('');
-  const [gateOpen, setGateOpen] = useState(false); // "Create an Account to Reserve" popup
+  const [gateOpen, setGateOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width:900px)');
 
-  // Unknown package slug: show the 404 page
   if (error) return <NotFoundPage homePath="/#packages" homeLabel="See all packages" />;
 
   const pkg = data && data.pkg;
-  // True for the Equipment Rental package
   const rental = isRentalPackage(pkg);
 
-  // Guest count is typed only (no up/down arrows): digits only, and never above the largest count the business serves
   const updateGuests = (raw) => {
     const digits = raw.replace(/\D/g, '');
-    if (digits && Number(digits) > RULES.maxGuests) return; // typing past the cap is ignored
+    if (digits && Number(digits) > RULES.maxGuests) return;
     setGuests(digits);
     setGuestError('');
   };
 
-  // "Reserve this date": check the guest count, save the picks, then go to the form (or ask to sign up first)
   const reserve = () => {
-    // Guest count is optional here, but if entered it must be within what the business serves (a rental has none)
     if (guests && !rental) {
       const n = Number(guests);
       if (!Number.isInteger(n) || n < RULES.minGuests || n > RULES.maxGuests) {
@@ -95,12 +82,10 @@ export default function PackageDetailPage() {
       }
     }
     saveIntent({ packageSlug: pkg.slug, packageName: pkg.name, date, guests: guests && !rental ? Number(guests) : null, occasion });
-    // Signed in: straight to the booking form. Signed out: show the account popup.
     if (user) navigate('/portal/book');
     else setGateOpen(true);
   };
 
-  // White price/reserve card (the light website theme already styles its fields). Built once and placed in a different spot on mobile vs desktop.
   const reservePanel = pkg && (
       <Paper id="reserve-panel" elevation={0} sx={{ p: 3, borderRadius: 3, backgroundColor: site.card, color: site.ink, border: `1px solid ${site.border}`, boxShadow: site.shadowPanel, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {rental ? (
@@ -121,8 +106,6 @@ export default function PackageDetailPage() {
             <Typography sx={{ fontSize: 13, color: site.inkSoft }}>Food and additional charges are priced in your quotation</Typography>
           </Box>
         )}
-        {/* Calendar shown right on the card: tapping a date picks it and lists the times already booked
-            (a rental takes no event slot, so only too-soon and blocked days are greyed out) */}
         <DateField id="pkg-date" label={rental ? 'Date you need the items' : 'Event date'} inline rental={rental} value={date} onChange={setDate} hint="Optional for now, you can choose it on the form." />
         <Box sx={{ display: 'grid', gridTemplateColumns: rental ? '1fr' : '1fr 1fr', gap: 1.5 }}>
           {!rental && <FormField id="pkg-guests" label="Guests" value={guests} placeholder={String(pkg.guests)} onChange={(e) => updateGuests(e.target.value)} error={guestError} inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }} />}
@@ -176,10 +159,8 @@ export default function PackageDetailPage() {
                 </Box>
               </Paper>
 
-              {/* Mobile: reserve panel sits here, before the long lists */}
               {!isDesktop && reservePanel}
 
-              {/* The rental package lists its price per piece instead of what is included, and has no food */}
               {rental && <RentalPriceList rentals={data.rentals} />}
 
               {!rental && (
@@ -205,10 +186,6 @@ export default function PackageDetailPage() {
                 <Typography sx={{ mt: 0.5, mb: 2.5, fontSize: 13.5, lineHeight: 1.75, color: site.inkSoft }}>
                   Food is not part of the package. On the reservation form you choose a buffet, where you pick four dishes, with up to two per category and we charge per person on top of this package, or catering only, where you get the equipment above and cook the food yourself. You can add any of the extras below; one without a price shown is priced in your quotation.
                 </Typography>
-                {/* Extras the customer can tick on the form, with the price when the admin set one (else priced per
-                    event); a charge with sizes lists each size, e.g. "Tent · 10 × 10 ₱4,500 each / 10 × 20", and a
-                    charge with packages says how many and the cheapest, e.g. "Sounds and lights · 4 packages from
-                    ₱3,500", with each package and its price in the tooltip */}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
                   {data.addons.map((a) => {
                     const choices = a.sizes || [];
@@ -237,14 +214,11 @@ export default function PackageDetailPage() {
               )}
             </Box>
 
-            {/* Desktop: reserve panel on the right side. Not sticky: with the calendar always open it is taller than the screen,
-                so sticking would hide the Reserve button until the end of the page. */}
             {isDesktop && reservePanel}
           </Box>
         )}
       </Container>
 
-      {/* 1n · sticky price bar with the Reserve CTA on phones */}
       {pkg && (
         <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1050, display: { xs: 'flex', md: 'none' }, alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 2, py: 1.25, pb: 'calc(10px + env(safe-area-inset-bottom))', backgroundColor: 'rgba(251, 247, 240, 0.97)', backdropFilter: 'blur(14px)', borderTop: `1px solid ${site.border}`, boxShadow: '0 -10px 30px -22px rgba(60, 42, 20, 0.45)' }}>
           <Box>
@@ -258,17 +232,11 @@ export default function PackageDetailPage() {
       )}
 
       <SiteFooter bottomSpace />
-      {/* Account popup shown to signed-out visitors who press Reserve */}
       {pkg && <AuthGate open={gateOpen} onClose={() => setGateOpen(false)} intent={{ date, guests: guests ? Number(guests) : null }} packageName={pkg.name} />}
     </Box>
   );
 }
 
-/**
- * The Equipment Rental price list: every item that can be rented, grouped like the inventory, with
- * its price per piece and the fee for a piece that comes back damaged or missing. Stock counts are
- * never shown here; the booking form says what is available on the customer's date.
- */
 function RentalPriceList({ rentals }) {
   return (
     <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>

@@ -52,45 +52,29 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-// Every photo upload uses the same size rule as the server.
 const MAX_FILE_MB = RULES.photoMaxMb;
-// Receipt photos the upload box takes: photos only, so a document can't be sent by mistake (owner, 2026-10-03)
 const PROOF_ACCEPT = 'image/jpeg,image/png,image/webp';
-// Payment method buttons. The QR option ('gcash' inside the system) is a PayMongo QR Ph code (Phase 8B),
-// which GCash, Maya and bank apps can all scan; a bank transfer is sent with a photo of its receipt; cash is
-// paid on site. There is no GCash number to send to. `note` is the small line under the name.
 const METHODS = [
   { value: 'gcash', label: 'QR Ph', note: 'GCash, Maya or bank app', icon: PhoneIphoneOutlinedIcon },
   { value: 'bank', label: 'Bank transfer', note: 'Upload receipt', icon: AccountBalanceOutlinedIcon },
   { value: 'cash', label: 'Cash on site', note: 'On the event day', icon: StorefrontOutlinedIcon }
 ];
 
-/**
- * The older way to copy text, for pages where navigator.clipboard does not exist: put the text in a
- * hidden text box, select it and run the browser's copy command. Throws if the browser refuses.
- */
 function copyWithTextArea(value) {
   const box = document.createElement('textarea');
   box.value = value;
   box.setAttribute('readonly', '');
-  // Off screen, and 16px so an iPhone does not zoom in when it is selected
   Object.assign(box.style, { position: 'fixed', top: '0', left: '-9999px', fontSize: '16px' });
   document.body.appendChild(box);
   box.select();
-  box.setSelectionRange(0, value.length); // iPhones ignore select() alone
+  box.setSelectionRange(0, value.length);
   const copied = document.execCommand('copy');
   document.body.removeChild(box);
   if (!copied) throw new Error('Copy was refused');
 }
 
-// How often an open GCash QR asks the server whether it was paid (only while the page is visible)
 const QR_POLL_MS = 4000;
 
-/**
- * The line under a QR Ph code in the Payment History, in the customer's words: until when it can be
- * paid, that it is being checked, or that nothing was charged (with PayMongo's reason for a failed one).
- * A paid QR is not listed: its payment is, with the receipt.
- */
 function qrHistoryNote(qr) {
   const state = qrState(qr);
   if (state === 'waiting') return `Open until ${formatClock(qr.expiresAt)}. Scan it in your app to pay.`;
@@ -100,24 +84,13 @@ function qrHistoryNote(qr) {
   return 'Not paid before it expired. Nothing was charged.';
 }
 
-/**
- * The open QR Ph code of a reservation (Phase 8B; GCash, Maya and bank apps can scan it): the code for its exact amount, its
- * status (Waiting for payment, then Checking payment once its time is up), a countdown to
- * when it stops working, how to pay it (on a phone: save the image and upload it from the gallery in the
- * app; no links that open other apps) and a "Save QR image" download. While it waits it asks the server
- * every 4 seconds, only while the page is visible; the server also checks with PayMongo, so the payment
- * shows even when PayMongo's own notice is late. `onUpdate(qr)` gets the QR once it is paid, expired or
- * failed; `onNew` goes back to the form after an expired or failed one.
- */
 function QrPanel({ qr, customerId, onUpdate, onNew }) {
   const [clock, setClock] = useState(Date.now());
-  // The countdown ticks once a second while the QR waits
   useEffect(() => {
     if (qr.status !== 'pending') return undefined;
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [qr.status]);
-  // Ask how the QR stands every few seconds while it waits and the page is on screen
   useEffect(() => {
     if (qr.status !== 'pending') return undefined;
     let alive = true;
@@ -127,7 +100,6 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
         const fresh = await paymentApi.getQrPayment(customerId, qr.id);
         if (alive && fresh.status !== 'pending') onUpdate(fresh);
       } catch (e) {
-        /* no answer this time: asked again in a few seconds */
       }
     }, QR_POLL_MS);
     return () => {
@@ -155,7 +127,6 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
     );
   }
 
-  // Time left, "29:41"; after the QR's time the server still checks for a payment made in its last seconds
   const left = Math.max(0, qr.expiresAt - clock);
   const countdown = `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`;
   return (
@@ -202,7 +173,6 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Scan to Pay {peso(qr.amount)}</Typography>
-          {/* Waiting for payment while the countdown runs, Checking payment once it reaches 0:00 */}
           <QrStatusChip qr={qr} at={clock} size="sm" />
         </Box>
         <Box>
@@ -235,27 +205,12 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
   );
 }
 
-/**
- * 1k · Payments: downpayment, balance, bank-transfer receipt upload, history and receipts.
- * Three ways to pay: a QR Ph code that GCash, Maya or a bank app scans (PayMongo, Phase 8B; the card can't be
- * picked while paymentOptions() says the QR isn't available, and there is no GCash number to send to), a bank transfer
- * with its reference number and a photo of the receipt (the admin verifies it), or cash on site.
- * One payment at a time per reservation: while a bank transfer waits for verification or a GCash QR is
- * open (QrPanel), the form is replaced by it. An open QR comes back with the page (the summary's openQr).
- * The customer types how much they are paying (whole pesos). Until the reservation's minimum downpayment
- * is reached, it is at least the rest of that minimum (all of it when the total is below the minimum)
- * and at most the balance; after that, any amount up to the balance, so the balance can be paid in parts.
- * The history also lists money returned to them (refunds), and every QR Ph code they opened that is not
- * paid (yet): Waiting for payment, Checking payment, or Expired / Failed · not charged. A paid QR shows
- * as its payment (Verified, with the receipt), so it is never listed twice.
- */
 export default function PaymentsPage() {
   useDocumentTitle('Payments');
   const navigate = useNavigate();
   const notify = useNotify();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  // Load the customer's reservations, payment history, refunds and QR Ph codes, and whether the GCash QR can be used
   const { data, loading, error, reload } = useResource(async () => {
     const [reservations, payments, refunds, qrs, options] = await Promise.all([
       reservationApi.listReservations({ customerId: user.id }),
@@ -266,12 +221,9 @@ export default function PaymentsPage() {
     ]);
     return { reservations, payments, refunds, qrs, options };
   }, [user.id]);
-  // The GCash / e-wallet QR can be used (PayMongo is set up on the server)
   const qr = Boolean(data && data.options && data.options.qr);
-  // The QR Ph codes in the history turn to Checking payment when their time is up, and are settled after the grace
   useQrWatch(data ? data.qrs : [], reload);
 
-  // Reservations that can be paid right now (approved or later, with money owed), soonest event first
   const payable = useMemo(
     () =>
       data
@@ -282,40 +234,33 @@ export default function PaymentsPage() {
     [data]
   );
 
-  const [ref, setRef] = useState(params.get('ref') || ''); // reservation being paid (can come from ?ref=)
-  const [amountText, setAmountText] = useState(''); // whole pesos typed in the amount box (digits only)
-  const [picked, setPicked] = useState(''); // the method card the customer chose ('' = the default below)
+  const [ref, setRef] = useState(params.get('ref') || '');
+  const [amountText, setAmountText] = useState('');
+  const [picked, setPicked] = useState('');
   const [referenceNo, setReferenceNo] = useState('');
-  const [file, setFile] = useState(null); // uploaded proof of payment
-  const [preview, setPreview] = useState(''); // temporary image URL for the thumbnail
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState('');
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [receipt, setReceipt] = useState(null); // receipt open in the document dialog
-  const [qrPay, setQrPay] = useState(null); // the GCash QR on screen: { id, ref, amount, expiresAt, status, qrImage }
-  const fileInput = useRef(null); // hidden <input type="file">, clicked by the upload box
-  const touch = useMediaQuery('(pointer: coarse)'); // phones and tablets: tap to upload, no drag and drop
+  const [receipt, setReceipt] = useState(null);
+  const [qrPay, setQrPay] = useState(null);
+  const fileInput = useRef(null);
+  const touch = useMediaQuery('(pointer: coarse)');
 
-  // If no valid reservation is selected, pick the first payable one
   useEffect(() => {
     if (!payable.length) return;
     if (!payable.some((r) => r.ref === ref)) setRef(payable[0].ref);
   }, [payable, ref]);
 
-  // Free the old preview image from memory when it changes or the page closes
   useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
 
-  // The method in use: the chosen card, or GCash when its QR can be used and a bank transfer otherwise
   const method = picked === 'gcash' && !qr ? 'bank' : picked || (qr ? 'gcash' : 'bank');
   const selected = payable.find((r) => r.ref === ref);
-  // The minimum downpayment isn't reached yet: this payment has to reach it
   const firstPayment = Boolean(selected) && !selected.downpaymentPaid;
-  // The least this payment can be: the rest of the minimum downpayment (never more than the balance), else ₱1
   const least = !selected ? 0 : firstPayment ? Math.min(selected.downpayment - selected.paid, selected.balance) : 1;
-  // What the box starts with: the least while the downpayment is owed, the remaining balance after that
   const suggested = !selected ? 0 : firstPayment ? least : selected.balance;
   const selectedRef = selected ? selected.ref : '';
-  // A GCash QR already open on this reservation (the server's summary names it) comes back with its image
   const openQrId = selected && selected.openQr ? selected.openQr.id : '';
   useEffect(() => {
     if (!openQrId) return undefined;
@@ -328,10 +273,8 @@ export default function PaymentsPage() {
       alive = false;
     };
   }, [openQrId, user.id]);
-  // The QR panel shows for the selected reservation only
   const shownQr = qrPay && selected && qrPay.ref === selected.ref ? qrPay : null;
 
-  // The QR was paid, expired or failed: say so; a paid one clears and the figures reload with the new receipt
   const qrUpdated = useCallback(
     (fresh) => {
       if (fresh.status === 'paid') {
@@ -343,12 +286,10 @@ export default function PaymentsPage() {
     [notify, reload]
   );
 
-  // Fill the box again whenever another reservation is chosen or its figures change (e.g. after a verified payment)
   useEffect(() => {
     setAmountText(suggested ? String(suggested) : '');
     setErrors((e) => ({ ...e, amount: '' }));
   }, [selectedRef, suggested]);
-  // Amount to pay now, and what is wrong with it (shown under the box as it is typed)
   const amount = Number(amountText) || 0;
   const amountProblem = !selected
     ? ''
@@ -363,7 +304,6 @@ export default function PaymentsPage() {
               : `Pay at least ${peso(least)} as your downpayment.`
             : 'Enter at least ₱1.'
           : '';
-  // Quick amounts under the box as [label, amount]: the minimum and the full amount (one button when they are the same), or the rest of the balance
   const quickAmounts = !selected
     ? []
     : firstPayment
@@ -374,16 +314,14 @@ export default function PaymentsPage() {
           ]
         : [[`Full amount ${peso(selected.balance)}`, selected.balance]]
       : [[`Remaining balance ${peso(selected.balance)}`, selected.balance]];
-  // Put a quick amount (or what was typed, digits only) in the box
   const setAmount = (value) => {
     setAmountText(String(value).replace(/\D/g, '').slice(0, 9));
     setErrors((e) => ({ ...e, amount: '' }));
   };
 
-  // Check the picked (or dropped) file is a photo and not too big, then keep it and show a preview of it
   const chooseFile = (event) => {
     const picked = event.target.files && event.target.files[0];
-    event.target.value = ''; // reset so picking the same file again still triggers onChange
+    event.target.value = '';
     if (!picked) return;
     if (!PROOF_ACCEPT.split(',').includes(picked.type)) {
       setErrors((e) => ({ ...e, proof: 'Please upload a photo or screenshot of your receipt (JPG, PNG or WebP).' }));
@@ -399,14 +337,12 @@ export default function PaymentsPage() {
     setErrors((e) => ({ ...e, proof: '' }));
   };
 
-  // Remove the uploaded file
   const clearFile = () => {
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview('');
   };
 
-  // Validate the amount, reference number and receipt photo, then send the bank transfer for the admin to verify
   const submit = async () => {
     const found = {};
     if (amountProblem) found.amount = amountProblem;
@@ -419,8 +355,6 @@ export default function PaymentsPage() {
 
     setBusy(true);
     try {
-      // Whether it counts as downpayment, full or balance is worked out by the payment service from the amount.
-      // `file` (the receipt photo) is uploaded with the payment; the server checks its real type.
       await paymentApi.submitPayment(user.id, {
         ref: selected.ref,
         method,
@@ -440,7 +374,6 @@ export default function PaymentsPage() {
     }
   };
 
-  // Check the amount, then ask the server for a GCash QR of exactly that amount
   const generateQr = async () => {
     if (amountProblem) {
       setErrors((e) => ({ ...e, amount: amountProblem }));
@@ -458,7 +391,6 @@ export default function PaymentsPage() {
     }
   };
 
-  // Load the reservation and open the receipt for a verified payment
   const openReceipt = async (payment) => {
     try {
       const detail = await reservationApi.getReservation(payment.ref, { customerId: user.id });
@@ -468,9 +400,6 @@ export default function PaymentsPage() {
     }
   };
 
-  // Copy an account number to the clipboard (spaces removed). navigator.clipboard only exists on
-  // https:// pages and localhost; opened any other way (e.g. a phone testing the portal over the
-  // Wi-Fi at http://192.168.x.x) the older copy command is used instead.
   const copy = async (text) => {
     const value = text.replace(/\s/g, '');
     try {
@@ -490,10 +419,7 @@ export default function PaymentsPage() {
     );
 
   const payments = data ? data.payments : [];
-  // Only verified payments have receipts
   const verified = payments.filter((p) => p.status === 'verified');
-  // Payments, refunds and unpaid QR Ph codes in one history, newest first (a refund is placed by when it
-  // was recorded, a QR by when it was opened; a paid QR is left out because its payment is listed)
   const history = [
     ...payments.map((p) => ({ key: p.id, at: p.submittedAt, payment: p })),
     ...(data ? data.refunds : []).map((r) => ({ key: r.id, at: r.recordedAt, refund: r })),
@@ -524,7 +450,6 @@ export default function PaymentsPage() {
                 id="pay-reservation"
                 label="Reservation"
                 value={ref}
-                // Switching reservation refills the amount (see suggested) and updates ?ref= in the URL
                 onChange={(e) => {
                   setRef(e.target.value);
                   setFormError('');
@@ -560,7 +485,6 @@ export default function PaymentsPage() {
                     </AlertBanner>
                   )}
 
-                  {/* A payment is already waiting for verification, or a GCash QR is open: hide the form until it's done */}
                   {selected.awaitingCount > 0 ? (
                     <AlertBanner tone="locked" title="Payment being verified">
                       We received {peso(selected.awaitingAmount)} and the admin is verifying it, usually within a day.
@@ -570,7 +494,6 @@ export default function PaymentsPage() {
                     <QrPanel qr={shownQr} customerId={user.id} onUpdate={qrUpdated} onNew={() => setQrPay(null)} />
                   ) : (
                     <>
-                      {/* How much to pay: one whole-peso box, with quick amounts underneath. Errors show under the box as the amount is typed. */}
                       <Box>
                         <FormField
                           id="pay-amount"
@@ -608,7 +531,6 @@ export default function PaymentsPage() {
                         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
                           {METHODS.map((m) => {
                             const on = method === m.value;
-                            // GCash can't be picked until its QR can be used
                             const off = m.value === 'gcash' && !qr;
                             return (
                               <ButtonBase
@@ -653,7 +575,6 @@ export default function PaymentsPage() {
                         )}
                       </Box>
 
-                      {/* Cash: just an explanation. QR Ph: the QR (Phase 8B). Bank: account details, reference number and receipt photo. */}
                       {method === 'cash' ? (
                         <AlertBanner tone="info" title="Paying in cash">
                           Cash is paid to our event coordinator on the day, who records it and issues your official
@@ -697,7 +618,6 @@ export default function PaymentsPage() {
                                 <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                   <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{value}</Typography>
-                                  {/* Copy button only next to rows whose label contains "number" (40px on touch screens, for the thumb) */}
                                   {/number/i.test(label) && (
                                     <IconButton
                                       size="small"
@@ -789,7 +709,6 @@ export default function PaymentsPage() {
                                 </IconButton>
                               </Box>
                             ) : (
-                              // Upload box: click (tap on phones) to open the file picker, or drag and drop a file onto it
                               <ButtonBase
                                 onClick={() => fileInput.current && fileInput.current.click()}
                                 onDragOver={(e) => e.preventDefault()}
@@ -846,8 +765,6 @@ export default function PaymentsPage() {
           )}
         </DashCard>
 
-        {/* minWidth 0 lets this column shrink to the phone's width; without it the long one-line
-            receipt names below stretch the whole page wider than the screen */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
           <DashCard>
             <CardTitle>Payment History</CardTitle>
@@ -857,9 +774,6 @@ export default function PaymentsPage() {
               <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>No payments yet.</Typography>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                {/* A refund reads "Refund −₱X" with how and when it was sent, and what was kept (and why) when it was less than
-                    owed; a refund of ₱0 reads "No refund", with the reason everything paid was kept. An unpaid QR Ph
-                    code reads "₱X · QR Ph" with where it stands and until when it can be paid. */}
                 {history.map(({ key, payment: p, refund: r, qr: q }) => (
                   <Box
                     key={key}

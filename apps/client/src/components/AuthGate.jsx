@@ -9,18 +9,12 @@ import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined';
 import { formatDateLong } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 
-/**
- * The account wall that fires on "Reserve this date" (1c). A centred modal on
- * desktop, a bottom sheet on phones (1n) so the package stays visible behind it.
- */
 export default function AuthGate({ open, onClose, intent, packageName }) {
   const navigate = useNavigate();
   const isPhone = useMediaQuery('(max-width:599px)');
 
-  // The content is the same for the modal and the bottom sheet, so build it once
   const body = (
     <Box sx={{ p: { xs: 3, sm: 3.5 }, color: site.ink }}>
-      {/* Small grab handle at the top of the bottom sheet (phones only) */}
       {isPhone && (
         <Box
           sx={{ width: 40, height: 4, borderRadius: 999, backgroundColor: site.border, mx: 'auto', mt: -1, mb: 2 }}
@@ -49,7 +43,6 @@ export default function AuthGate({ open, onClose, intent, packageName }) {
 
       <Box sx={{ mt: 2.5, p: 2, borderRadius: 1.5, backgroundColor: site.ivory, border: `1px solid ${site.border}` }}>
         <Typography sx={{ fontSize: 12, fontWeight: 700, color: site.inkMuted, mb: 1 }}>Saved Details</Typography>
-        {/* Show what the visitor already picked, as [label, value] rows */}
         {[
           ['Package', packageName],
           ['Date', intent?.date ? formatDateLong(intent.date) : 'Choose on the next step'],
@@ -63,7 +56,6 @@ export default function AuthGate({ open, onClose, intent, packageName }) {
       </Box>
 
       <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-        {/* Both options send the customer to the booking form once they're signed in */}
         <Button
           variant="contained"
           size="large"
@@ -87,7 +79,6 @@ export default function AuthGate({ open, onClose, intent, packageName }) {
     </Box>
   );
 
-  // No LightSurface wrapper: the public pages already use the light website theme (see PublicSite in App.jsx)
   return (
     <>
       {isPhone ? (

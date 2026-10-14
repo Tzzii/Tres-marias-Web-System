@@ -199,7 +199,6 @@ Edit `apps/api/.env` using the comments in `.env.example`:
 | `SEED_ADMIN_EMAIL` | Optional email override for the seeded admin; useful for an inbox you can access |
 | `SEED_CUSTOMER_PASSWORD` | Required only when loading the local sample customers |
 | `MAIL_DRIVER` | Use `log` locally or `smtp` for actual delivery |
-| `SMS_DRIVER` | Currently `log`; outsourcing SMS messages are logged |
 | `CORS_ORIGINS` | Allowed portal origins; locally, `http://localhost:5173,http://localhost:5174` |
 | `CLIENT_URL` | Customer website address used in email links; locally, `http://localhost:5173` |
 
@@ -327,7 +326,7 @@ Tres-marias-Web-System/
 |       |-- scripts/            # Database maintenance and verification scripts
 |       `-- src/
 |           |-- modules/        # Authentication and business service modules
-|           |-- integrations/   # Mail, SMS, storage, and PayMongo
+|           |-- integrations/   # Mail, storage, and PayMongo
 |           |-- middleware/     # Authentication, validation, uploads, rate limits
 |           `-- seedData/       # Business data; local sample/ folder is ignored
 |-- packages/shared/
@@ -399,11 +398,13 @@ For an explicitly planned first production initialization, the API workspace's s
 
 ## Integrations and Uploads
 
-### Email and SMS
+### Email
 
 - **Email:** `MAIL_DRIVER=log` records messages locally. `MAIL_DRIVER=smtp` uses the configured SMTP provider. Sign-in, registration, verification, and password recovery codes are sent by email.
 - **Customer notices:** implemented booking and payment events can send customer emails when SMTP is configured. Email links use `CLIENT_URL`.
-- **SMS:** only the logging driver is currently implemented. Outsourcing texts are logged, and the admin must send the saved request manually. Connecting an SMS provider requires an additional driver and configuration validation changes.
+- **Outsourcing requests:** sent to the partner's email address. Partner contact person, address, email and mobile number are required; notes are optional. Mobile numbers are contact details for calls. The development mail log driver saves the request and tells the admin that it was not delivered.
+
+Existing partners without a valid email must have one added before a request can be sent.
 
 ### Payments
 
@@ -421,7 +422,7 @@ The shared photo limit is **20 MB per file**. Photo forms and API upload middlew
 - Each package can have one saved setup photo under `apps/api/uploads/packages` by default. Admins can upload, replace, remove, or discard pending photo changes.
 - Customer package details show the saved setup photo. Bundled fallback images are labelled **Sample setup**.
 - Hidden or archived package photos require the protected admin route.
-- Equipment items have labelled mock appearance photos showing one item or one complete rental unit. Admins can replace the photo through Inventory; the same saved photo appears in the customer equipment rental price list and booking form.
+- Equipment items have appearance photos showing one item or one complete rental unit, without a mock-photo label in the interface. Admins can replace the photo through Inventory; the same saved photo appears in the customer equipment rental price list and booking form.
 - `UPLOAD_DIR` can change the storage location. Uploaded files must be included in deployment backups. Check the repository's ignore rules before adding files; private payment proofs and customer uploads should stay outside Git.
 
 For public event gallery photos, follow the [Gallery Photo Guide](apps/client/src/assets/gallery/README.md).
@@ -488,7 +489,6 @@ Before starting a production API, configure:
 - `MAIL_DRIVER=smtp`, SMTP credentials, and the business's own `MAIL_FROM`.
 - `CLIENT_URL` pointing to the HTTPS customer website.
 - `CORS_ORIGINS` containing the exact customer and admin origins.
-- `ALLOW_SMS_LOG=true` while the current logging-only SMS implementation is used.
 - PayMongo credentials and webhook configuration if QR payments are enabled.
 - HTTPS, reverse proxy settings, process management, database backups, and upload backups.
 
@@ -518,7 +518,6 @@ The repository contains implemented customer, admin, and API modules for the cap
 Current limitations and configuration-dependent behavior:
 
 - Actual email delivery requires SMTP configuration; development logging does not send email.
-- SMS delivery has no live provider driver yet.
 - File storage currently uses the API server's local filesystem.
 - QR payment availability and payment mode depend on PayMongo configuration.
 - Instant socket notifications currently cover one API process. Multiple workers need a shared adapter for immediate cross-worker delivery; polling remains a fallback.
@@ -526,6 +525,10 @@ Current limitations and configuration-dependent behavior:
 - Venue addresses are entered as text and reviewed during booking; address search and map-pin selection are not included in the current implementation.
 - Sample customer records and local capstone documents are not included in a fresh GitHub clone.
 - README screenshots and academic team details still need to be supplied.
+
+## Recommendations for Future Development
+
+SMS notifications and outsourcing dispatch may be considered in a future version once the client can satisfy the chosen provider's business registration and TIN requirements. The current system uses email for verification codes, customer notices, and outsourcing requests; SMS is outside its implemented scope.
 
 ## Team Members
 

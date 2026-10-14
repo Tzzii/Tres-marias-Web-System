@@ -1,21 +1,6 @@
-/**
- * SQL for reviews (docs §7.1: the repo holds SQL only; the rules are in feedback.service.js). A review
- * comes back in the shape the pages use:
- *   { id, customerId, ref, rating, categories: { food, service, punctuality, setup }, body, createdAt,
- *     status, featured, flagged, flagReason, archived, readByAdmin, reply: { body, at, by } | null }
- * `categories` and `reply` are flattened into columns (schema.sql: cat_*, reply_*), the way the
- * seeder saves them and scripts/db-roundtrip.js reads them back.
- *
- * Every function takes `db`: the pool, or a transaction's connection so reads and writes see and
- * lock the same rows. Lock order for a write that also posts to the chat (the admin's reply): the
- * booking's row first (lockOwner in reservations.repo.js), then the review's row (lockFeedback), then
- * the chat thread, the order every other write keeps.
- */
 
-// First row of a SELECT, or null
 const first = ([rows]) => rows[0] || null;
 
-// testimonials row -> review record
 const toFeedback = (row) => ({
   id: row.id,
   customerId: row.customer_id,
@@ -33,17 +18,7 @@ const toFeedback = (row) => ({
   reply: row.reply_body === null ? null : { body: row.reply_body, at: row.reply_at, by: row.reply_by }
 });
 
-/* ============================ Reads ============================ */
 
-/**
- * Reviews with the names the pages show: [{ feedback, customerName, customerEmail, customerMobile,
- * eventName, eventDate, occasion, guests, packageName }] ('' or 0 when the row is missing). Which ones:
- *   { customerId }   that customer's reviews
- *   { id }           one review ([] or one entry; the lookup ignores case, so callers compare the id)
- *   { published }    the public website's: published, not flagged, not archived, featured first
- *   nothing          every review
- * Newest first (created_at, then id), after the featured ones for `published`; `limit` caps how many.
- */
 export async function findFeedbacks(db, { customerId, id, published = false, limit } = {}) {
   const conditions = [];
   const params = [];
@@ -83,32 +58,22 @@ export async function findFeedbacks(db, { customerId, id, published = false, lim
   }));
 }
 
-/** The id and event of a review, { id, ref } as stored, or null (no lock: to find which booking to lock first). */
 export async function findFeedbackRef(db, id) {
   const row = first(await db.query('SELECT id, ref FROM testimonials WHERE id = ?', [id]));
   return row && { id: row.id, ref: row.ref };
 }
 
-/** The id of the review left for this booking, or null. */
 export async function findFeedbackIdFor(db, ref) {
   const row = first(await db.query('SELECT id FROM testimonials WHERE ref = ?', [ref]));
   return row ? row.id : null;
 }
 
-/** How many reviews the admin has not read yet (archived ones too). */
 export async function countUnread(db) {
   const row = first(await db.query('SELECT COUNT(*) AS n FROM testimonials WHERE read_by_admin = 0'));
   return Number(row.n);
 }
 
-/* ============================ Writes ============================ */
 
-/**
- * A review's moderation state with its row locked until the transaction ends, or null:
- * { id, ref, status, featured, flagged, archived }. Two admin actions on one review therefore run one
- * after the other, and each checks the state the other left. The id lookup ignores case, so callers
- * compare it. Only this table's row is locked (no joins), so the lock order above holds.
- */
 export async function lockFeedback(conn, id) {
   const row = first(
     await conn.query('SELECT id, ref, status, featured, flagged, archived FROM testimonials WHERE id = ? FOR UPDATE', [
@@ -127,10 +92,6 @@ export async function lockFeedback(conn, id) {
   );
 }
 
-/**
- * Save a new review: hidden from the website, not featured, flagged or archived, unread by the admin,
- * without a reply. A second review of the same booking fails with ER_DUP_ENTRY (UNIQUE ref).
- */
 export async function insertFeedback(conn, f) {
   await conn.query(
     `INSERT INTO testimonials (id, customer_id, ref, rating, cat_food, cat_service, cat_punctuality, cat_setup, body, created_at,
@@ -151,8 +112,6 @@ export async function insertFeedback(conn, f) {
   );
 }
 
-// The fields updateFeedback() may change, each with its column(s) and how the value is stored.
-// A fixed list, so a key from anywhere else can never become SQL.
 const COLUMNS = {
   status: [['status', (v) => v]],
   featured: [['featured', Boolean]],
@@ -167,7 +126,6 @@ const COLUMNS = {
   ]
 };
 
-/** Change some of a review's fields, e.g. { status: 'hidden', featured: false, readByAdmin: true }. */
 export async function updateFeedback(conn, id, changes) {
   const sets = [];
   const params = [];
@@ -182,13 +140,11 @@ export async function updateFeedback(conn, id, changes) {
   await conn.query(`UPDATE testimonials SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
 }
 
-/** Mark every review read by the admin. Returns how many were unread. */
 export async function markAllRead(db) {
   const [result] = await db.query('UPDATE testimonials SET read_by_admin = 1 WHERE read_by_admin = 0');
   return result.affectedRows;
 }
 
-/** Delete a review for good (the only table rows are really deleted from; nothing references it). */
 export async function deleteFeedback(conn, id) {
   await conn.query('DELETE FROM testimonials WHERE id = ?', [id]);
 }

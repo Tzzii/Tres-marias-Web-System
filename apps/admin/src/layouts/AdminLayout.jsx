@@ -28,20 +28,12 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
-/**
- * The admin frame (top bar, sidebar on desktop, bottom tabs on phones) around every admin screen
- * (1r–1y), with the notifications (requests, payments to verify, QR Ph payments received, feedback,
- * messages) and the sidebar badge counts.
- */
 export default function AdminLayout() {
   const navigate = useNavigate();
   const { user, signOut, updateUser } = useAuth();
 
-  // The session keeps a copy of the admin's details from sign-in. Compare it with the account record
-  // (re-checked whenever data changes) so the top bar and pages never show an old name, email or mobile.
   const account = useResource(() => authApi.getAdminProfile(user.id), [user.id]);
   useEffect(() => {
-    // The account no longer exists (removed, or the data was reset): end this session
     if (account.error && account.error.code === 'NOT_FOUND') {
       navigate('/login', { replace: true });
       signOut();
@@ -53,9 +45,6 @@ export default function AdminLayout() {
     }
   }, [account.data, account.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load reservations, payments, the admin's message threads, the outsourcing requests and the
-  // customer feedback at the same time. They feed the notification bell and the red badge counts in
-  // the sidebar (Messages included) and the phone tabs.
   const { data } = useResource(async () => {
     const [reservations, payments, threads, contracts, feedbacks] = await Promise.all([
       reservationApi.listReservations(),
@@ -67,15 +56,9 @@ export default function AdminLayout() {
     return { reservations, payments, threads, contracts, feedbacks };
   }, []);
 
-  // Build the notification list and badge counts from the loaded data.
-  // useMemo only recalculates this when `data` changes.
   const { notifications, pending, awaiting, unread, awaitingReply, newFeedback } = useMemo(() => {
-    // Nothing loaded yet: show no notifications and zero badges
     if (!data) return { notifications: [], pending: 0, awaiting: 0, unread: 0, awaitingReply: 0, newFeedback: 0 };
     const list = [];
-    // One notification per reservation request still waiting for the admin's quotation (or a revised one
-    // after a change). Once it is sent, the request waits for the customer to accept it, which approves it;
-    // their acceptance arrives as an unread chat message.
     const pendingList = data.reservations.filter((r) => ['quote', 'revise'].includes(pendingStep(r)));
     pendingList.forEach((r) =>
       list.push(
@@ -96,7 +79,6 @@ export default function AdminLayout() {
             }
       )
     );
-    // One notification per payment proof that the admin still needs to verify
     const awaitingList = data.payments.filter((p) => p.status === 'awaiting');
     awaitingList.forEach((p) =>
       list.push({
@@ -107,15 +89,8 @@ export default function AdminLayout() {
         to: `/reports?tab=payments&verify=${p.id}`
       })
     );
-    // One notification per QR Ph payment, which PayMongo verifies by itself (2026-10-09): no admin saw it, so
-    // this is how the admin hears that a downpayment came in or that a reservation is now fully paid. A
-    // balance payment counts as "fully paid" when it is the reservation's newest verified payment and the
-    // reservation is Confirmed (or Completed) with no balance left. Confirmed alone is not enough: the admin
-    // can confirm a booking once its downpayment is paid, so a part of the balance paid after that is
-    // "Balance Payment Received". Bank transfers have "Payment to Verify" above, and cash is recorded by
-    // the admin, so neither gets one.
     const reservationOf = new Map(data.reservations.map((r) => [r.ref, r]));
-    const newestVerified = new Map(); // ref -> its newest verified payment
+    const newestVerified = new Map();
     data.payments.forEach((p) => {
       const newest = newestVerified.get(p.ref);
       if (p.status === 'verified' && (!newest || p.verifiedAt > newest.verifiedAt)) newestVerified.set(p.ref, p);
@@ -148,7 +123,6 @@ export default function AdminLayout() {
               ];
         list.push({ id: `paid:${p.id}`, title, body, at: p.verifiedAt || p.submittedAt, to: `/reservations/${p.ref}` });
       });
-    // One notification per review the admin has not read yet
     const unreadFeedback = data.feedbacks.filter((f) => !f.readByAdmin);
     unreadFeedback.forEach((f) =>
       list.push({
@@ -159,7 +133,6 @@ export default function AdminLayout() {
         to: '/feedbacks?tab=unread'
       })
     );
-    // Count unread messages and add a notification for each thread with new messages (clicking opens it on the Messages page)
     let unreadCount = 0;
     data.threads.forEach((t) => {
       unreadCount += t.unread;
@@ -172,25 +145,17 @@ export default function AdminLayout() {
           to: `/messages?thread=${encodeURIComponent(t.id)}`
         });
     });
-    // Newest first, and keep only the latest 25
     list.sort((a, b) => b.at - a.at);
     return {
       notifications: list.slice(0, 25),
       pending: pendingList.length,
       awaiting: awaitingList.length,
       unread: unreadCount,
-      // Outsourcing requests sent but not yet answered by the partner
       awaitingReply: data.contracts.filter((c) => c.status === 'sent').length,
       newFeedback: unreadFeedback.length
     };
   }, [data]);
 
-  // Sidebar links, in the order they appear. `badge` shows a count bubble next to the link.
-  // Reservation & Calendar holds requests, all reservations and the calendar (badge = requests needing a quotation);
-  // Outsource sits under Inventory, since it covers what the inventory can't (badge = requests still
-  // waiting for a reply); Messages sits under Customers, one conversation per customer (badge = unread
-  // messages); Reports holds the payments tab (badge = payment proofs to verify);
-  // Feedbacks holds the reviews customers wrote (badge = reviews the admin has not read).
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
     {
@@ -209,9 +174,6 @@ export default function AdminLayout() {
     { key: 'feedbacks', label: 'Feedbacks', icon: RateReviewOutlinedIcon, to: '/feedbacks', badge: newFeedback }
   ];
 
-  // Phone bottom tabs: the pages used most on the go. Payments opens the Payments tab of Reports
-  // (and stays lit on the Overview tab). "More" opens the full menu (Inventory is there); its badge
-  // adds up the pages it hides that are waiting on the admin (partner replies and new feedback).
   const bottomNav = [
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
     { key: 'reservations', label: 'Reservations', icon: EventNoteOutlinedIcon, to: '/reservations', badge: pending },
@@ -235,19 +197,16 @@ export default function AdminLayout() {
       secondaryNavItems={[{ key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
       user={user}
       profileItems={[{ key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
-      // The top search bar sends the admin to the All reservations tab filtered by what they typed
       search={{
         placeholder: 'Search reservations or customers',
         onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`)
       }}
       notifications={notifications}
-      // Go to the login page first, then clear the session
       onLogout={() => {
         navigate('/login', { replace: true });
         signOut();
       }}
     >
-      {/* The current page (Dashboard, Payments, ...) renders here */}
       <Outlet />
     </PortalShell>
   );

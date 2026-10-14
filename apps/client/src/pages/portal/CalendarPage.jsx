@@ -32,15 +32,10 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-/**
- * 1j · Calendar: the customer's own events against open and fully booked dates. A blocked, fully booked
- * or too-soon date can be tapped to see why it is closed, with the admin's note for a date we blocked.
- */
 export default function CalendarPage() {
   useDocumentTitle('Calendar');
   const navigate = useNavigate();
   const { user } = useAuth();
-  // Load the customer's active reservations (not declined/cancelled) and the booking calendar
   const { data, loading, error, reload } = useResource(async () => {
     const [reservations, availability] = await Promise.all([
       reservationApi.listReservations({ customerId: user.id }),
@@ -50,11 +45,10 @@ export default function CalendarPage() {
   }, [user.id]);
 
   const now = parseISODate(todayISO());
-  const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() }); // month shown
-  const [mode, setMode] = useState('month'); // 'month' calendar or 'list' view
-  const [peek, setPeek] = useState(''); // closed date tapped to see why it can't be booked
+  const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [mode, setMode] = useState('month');
+  const [peek, setPeek] = useState('');
 
-  // Group the customer's reservations by date
   const byDate = useMemo(() => {
     const map = {};
     (data ? data.reservations : []).forEach((r) => {
@@ -63,10 +57,6 @@ export default function CalendarPage() {
     return map;
   }, [data]);
 
-  // Decide how each calendar day looks, using the same rules and marks as the booking date picker:
-  // my event > open > past date > too soon to book ("Needs...") > blocked by the admin > fully booked.
-  // Days with other customers' events get gold dots (never their names). Closed future days can be tapped
-  // (`peek`) to see why they are closed.
   const getDay = (iso) => {
     const mine = byDate[iso];
     if (mine)
@@ -77,7 +67,7 @@ export default function CalendarPage() {
         dots: mine.length
       };
     const reason = calendarApi.dateUnavailableReason(iso, data.availability);
-    const count = data.availability.booked[iso] || 0; // events already holding the date
+    const count = data.availability.booked[iso] || 0;
     if (!reason) {
       return count
         ? {
@@ -94,8 +84,6 @@ export default function CalendarPage() {
     return { tone: 'full', label: reason, badge: reason, unselectable: true, peek: true };
   };
 
-  // Clicking a day: a closed day only says why it is closed; otherwise open my event on that date, or start
-  // a reservation for that date
   const select = (iso, info = {}) => {
     if (info.peek) {
       setPeek(iso);
@@ -106,14 +94,11 @@ export default function CalendarPage() {
     else navigate(`/portal/book?date=${iso}`);
   };
 
-  // For list view: events by date, split into upcoming (soonest first) and past (most recent first)
   const sorted = data ? data.reservations.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
   const upcoming = sorted.filter((r) => daysFromToday(r.date) >= 0);
   const past = sorted.filter((r) => daysFromToday(r.date) < 0).reverse();
-  // Why the tapped closed day can't be booked, and our note for a date we blocked
   const peekReason = data && peek ? calendarApi.dateUnavailableReason(peek, data.availability) : '';
   const peekNote = peekReason ? blockNote(peek, data.availability) : '';
-  // Closed by us (our reason is shown as ours, even when it is "Fully booked"), not full by itself
   const peekBlocked = Boolean(peekReason) && data.availability.blocked.some((b) => b.date === peek);
 
   return (
@@ -143,7 +128,6 @@ export default function CalendarPage() {
                 { tone: 'open', label: 'Available (gold dots: events already booked)' }
               ]}
             />
-            {/* The closed day that was tapped: why it can't be booked, with our note for a date we blocked */}
             {peekReason && (
               <Box
                 role="status"
@@ -171,7 +155,6 @@ export default function CalendarPage() {
           </>
         ) : (
           <>
-            {/* Same place for the switch as in the month view: its own full-width row on top on phones */}
             <Box
               sx={{
                 display: 'flex',
@@ -252,7 +235,6 @@ export default function CalendarPage() {
   );
 }
 
-// Switch buttons: on phones each takes half the row and is 40px tall for fingers
 const toggleSx = {
   px: 1.75,
   textTransform: 'none',
@@ -261,10 +243,6 @@ const toggleSx = {
   minHeight: { xs: 40, sm: 0 }
 };
 
-/**
- * Month / List switch. `v && setMode(v)` ignores clicks that would unselect both buttons.
- * Full width on phones, where it sits on its own row above the calendar or the list.
- */
 function ModeToggle({ mode, setMode }) {
   return (
     <ToggleButtonGroup

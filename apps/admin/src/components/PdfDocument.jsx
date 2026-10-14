@@ -14,7 +14,6 @@ import {
   useNotify
 } from '@tm/shared';
 
-/** A paper layout for saved reports and outsourcing requests, rendered only while saving. */
 function PdfDocument({ document: doc, sheetRef }) {
   const columns = doc.rows?.length ? Object.keys(doc.rows[0]) : [];
   const money = doc.money || [];
@@ -144,7 +143,6 @@ function PdfDocument({ document: doc, sheetRef }) {
   );
 }
 
-/** Commit a snapshot before the save picker opens, then remove it after saving, cancelling or failing. */
 export function usePdfDocument() {
   const notify = useNotify();
   const sheetRef = useRef(null);

@@ -5,14 +5,193 @@ import { config } from '../src/config.js';
 import { pool, closePool } from '../src/db.js';
 import * as repo from '../src/modules/inventory/inventory.repo.js';
 import * as reservations from '../src/modules/reservations/reservations.repo.js';
-import { checkOutRental, returnRental } from '../src/modules/inventory/inventory.service.js';
+import { checkOutRental, deleteInventoryItem, returnRental } from '../src/modules/inventory/inventory.service.js';
 import { availableOf } from '@tm/shared/src/domain/inventory.js';
+import { createApp } from '../src/app.js';
+import { signToken } from '../src/lib/tokens.js';
+import { storage } from '../src/integrations/storage/index.js';
 
 if (config.isProduction || !['127.0.0.1', 'localhost', '::1'].includes(config.db.host))
   throw new Error('Inventory database tests require local, non-production MySQL.');
 after(() => closePool());
 const clock = { date: '2040-11-20', time: '09:00' };
 const actor = { name: 'Automatic inventory' };
+
+test('inventory deletion is admin-only', async () => {
+  const server = createApp().listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/admin/inventory/inv-qa-missing-${randomUUID().slice(0, 8)}`;
+    assert.equal((await fetch(url, { method: 'DELETE' })).status, 401);
+    const [[customer]] = await pool.query(
+      'SELECT id, name, password_changed_at AS passwordChangedAt FROM customers LIMIT 1'
+    );
+    assert.ok(customer, 'A local customer is needed; no seed/reset is performed.');
+    const token = signToken({ ...customer, role: 'customer' }, { ttl: '1m' });
+    assert.equal((await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })).status, 403);
+    const [[admin]] = await pool.query(
+      'SELECT id, name, password_changed_at AS passwordChangedAt, session_id AS sessionId FROM admins WHERE session_id IS NOT NULL LIMIT 1'
+    );
+    if (admin) {
+      const token = signToken({ ...admin, role: 'admin' }, { ttl: '1m' });
+      const response = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      assert.equal(response.status, 404);
+      assert.equal((await response.json()).code, 'NOT_FOUND');
+    }
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test('permanent inventory deletion (all database fixtures are rolled back)', async (t) => {
+  const conn = await pool.getConnection();
+  const files = [];
+  try {
+    await conn.beginTransaction();
+    const transact = (fn) => fn(conn);
+    async function fixture(changes = {}) {
+      const suffix = randomUUID().slice(0, 8);
+      const item = {
+        id: `inv-qa-delete-${suffix}`,
+        code: `QA-DELETE-${suffix}`,
+        name: `QA delete ${suffix}`,
+        category: 'Chairs',
+        total: 10,
+        lowStockAt: 1,
+        damaged: 0,
+        rentable: true,
+        rentPrice: 10,
+        damageFee: 20,
+        notes: '',
+        archived: false,
+        ...changes
+      };
+      await repo.insertItem(conn, item);
+      await repo.insertHistory(conn, item.id, { at: Date.now(), actor: 'QA admin', text: 'Added 10 pieces.' });
+      return item;
+    }
+    const read = async (id) => (await repo.findItems(conn, { ids: [id] })).items[0];
+    const remove = (id) => deleteInventoryItem(id, { transact });
+
+    await t.test(
+      'active and archived items are removed with their local history, including damaged stock',
+      async () => {
+        for (const changes of [{}, { archived: true, damaged: 2 }]) {
+          const item = await fixture(changes);
+          assert.deepEqual(await remove(item.id), { ok: true });
+          assert.equal(await read(item.id), undefined);
+          const [[row]] = await conn.query('SELECT COUNT(*) AS n FROM inventory_history WHERE item_id = ?', [item.id]);
+          assert.equal(row.n, 0);
+          await assert.rejects(remove(item.id), { code: 'NOT_FOUND' });
+        }
+      }
+    );
+    await t.test('unknown ids, case differences and trailing spaces cannot delete another item', async () => {
+      const item = await fixture();
+      for (const id of ['inv-qa-does-not-exist', item.id.toUpperCase(), `${item.id} `])
+        await assert.rejects(remove(id), { code: 'NOT_FOUND' });
+      assert.ok(await read(item.id));
+    });
+    await t.test('pieces checked out without an event block deletion and keep their history', async () => {
+      const item = await fixture();
+      await repo.setAllocation(conn, item.id, 'none', 2);
+      const before = await read(item.id);
+      await assert.rejects(remove(item.id), { code: 'IN_USE' });
+      assert.deepEqual(await read(item.id), before);
+      await repo.setAllocation(conn, item.id, 'none', 0);
+      assert.deepEqual(await remove(item.id), { ok: true });
+    });
+    await t.test('additional charge links block deletion', async () => {
+      const item = await fixture();
+      const addonId = `addon-qa-delete-${randomUUID().slice(0, 8)}`;
+      await conn.query(
+        'INSERT INTO addons (id, name, description, has_quantity, has_packages, sort_order, archived) VALUES (?, ?, ?, 1, 0, 0, 0)',
+        [addonId, 'QA deletion charge', 'Temporary test']
+      );
+      await conn.query('UPDATE inventory_items SET addon_id = ? WHERE id = ?', [addonId, item.id]);
+      await assert.rejects(remove(item.id), { code: 'IN_USE' });
+      assert.equal((await read(item.id)).addonId, addonId);
+    });
+    await t.test(
+      'rental lines, damage charges, dispatch records and event history independently block deletion',
+      async () => {
+        const [[booking]] = await conn.query('SELECT ref FROM reservations LIMIT 1');
+        assert.ok(booking, 'A local booking is needed; no seed/reset is performed.');
+        for (const kind of ['rental', 'damage', 'dispatch', 'history']) {
+          const item = await fixture();
+          if (kind === 'rental')
+            await reservations.insertRentalLines(conn, booking.ref, [
+              { itemId: item.id, name: item.name, qty: 1, price: 10, damageFee: 20 }
+            ]);
+          if (kind === 'damage')
+            await conn.query(
+              'INSERT INTO reservation_damage_charges (reservation_ref, item_id, name, qty, fee) VALUES (?, ?, ?, 1, 20)',
+              [booking.ref, item.id, item.name]
+            );
+          if (kind === 'dispatch') await repo.setRentalDispatch(conn, booking.ref, item.id, 1, Date.now());
+          if (kind === 'history')
+            await repo.insertHistory(conn, item.id, {
+              at: Date.now(),
+              actor: 'QA admin',
+              text: 'Returned all pieces.',
+              ref: booking.ref
+            });
+          const before = await read(item.id);
+          await assert.rejects(remove(item.id), { code: 'IN_USE' });
+          assert.deepEqual(await read(item.id), before);
+        }
+      }
+    );
+    await t.test('a failed item deletion rolls back its history removal', async () => {
+      const item = await fixture();
+      const before = await read(item.id);
+      await assert.rejects(
+        deleteInventoryItem(item.id, {
+          transact: async (fn) => {
+            await conn.query('SAVEPOINT qa_inventory_delete');
+            const failingConnection = {
+              query: (sql, params) => {
+                if (sql === 'DELETE FROM inventory_items WHERE id = ?') throw new Error('Simulated delete failure');
+                return conn.query(sql, params);
+              }
+            };
+            try {
+              return await fn(failingConnection);
+            } catch (err) {
+              await conn.query('ROLLBACK TO SAVEPOINT qa_inventory_delete');
+              throw err;
+            } finally {
+              await conn.query('RELEASE SAVEPOINT qa_inventory_delete');
+            }
+          }
+        }),
+        /Simulated delete failure/
+      );
+      assert.deepEqual(await read(item.id), before);
+    });
+    await t.test('uploaded photos survive refused deletions and are cleaned after successful deletion', async () => {
+      const item = await fixture();
+      const key = await storage.put(`equipment/qa-delete-${randomUUID()}.png`, Buffer.from('QA temporary photo'));
+      files.push(key);
+      await repo.setItemPhoto(conn, item.id, { key, mime: 'image/png' });
+      await repo.setAllocation(conn, item.id, 'none', 1);
+      await assert.rejects(remove(item.id), { code: 'IN_USE' });
+      const readFile = async () => {
+        const chunks = [];
+        for await (const chunk of storage.stream(key)) chunks.push(chunk);
+        return Buffer.concat(chunks).toString();
+      };
+      assert.equal(await readFile(), 'QA temporary photo');
+      await repo.setAllocation(conn, item.id, 'none', 0);
+      assert.deepEqual(await remove(item.id), { ok: true });
+      await assert.rejects(readFile(), { code: 'ENOENT' });
+    });
+  } finally {
+    await conn.rollback();
+    conn.release();
+    for (const key of files) await storage.remove(key);
+  }
+});
 
 test('automatic rental checkout transactions (temporary fixtures are rolled back or removed)', async (t) => {
   const conn = await pool.getConnection();
@@ -185,13 +364,13 @@ test('automatic rental checkout transactions (temporary fixtures are rolled back
       assert.equal(rentalStock(inputs, clock.date)[f.id], 47);
       assert.equal(rentalStock(inputs, clock.date, f.ref)[f.id], 57);
     });
-    await conn.rollback(); // discard every preceding fixture before the concurrency scenario
+    await conn.rollback();
     await t.test(
       'two independent workers commit one checkout; a later worker cannot re-dispatch returned stock',
       async () => {
         await conn.beginTransaction();
         const f = await fixture();
-        await conn.commit(); // only this synthetic future-dated fixture is visible to the two connections
+        await conn.commit();
         try {
           const results = await Promise.all([
             checkOutRental(f.ref, actor, { automatic: true, clock }),
@@ -204,7 +383,6 @@ test('automatic rental checkout transactions (temporary fixtures are rolled back
           assert.equal((await checkOutRental(f.ref, actor, { automatic: true, clock })).changed, false);
           assert.equal(availableOf(await read(f.id)), 60);
         } finally {
-          // Remove only the exact UUID fixture created above, with foreign keys still enforced.
           assert.match(f.ref, /^RES-QA-AUTO-[a-f0-9]{8}$/);
           await conn.beginTransaction();
           for (const table of [

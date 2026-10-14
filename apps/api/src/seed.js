@@ -1,4 +1,3 @@
-// First import on purpose: config.js sets the process time zone (Asia/Manila) before the other modules run
 import { config } from './config.js';
 import { pathToFileURL } from 'node:url';
 import { addedText } from '@tm/shared/src/domain/inventory.js';
@@ -12,37 +11,7 @@ import { NO_SAMPLE_DATA, loadSampleSeed } from './seedData/sampleLoader.js';
 import { buildBusinessSeed } from './seedData/seed.js';
 import { prepareSampleProofs } from './seedData/proofs.js';
 
-/**
- * Fill the database from the seed data, flattened into the tables of schema.sql. Two modes:
- * - `npm run seed:api` — the demo data: the business data (seedData/seed.js) plus the sample customers
- *   with their reservations, payments, chat, reviews and outsourcing (seedData/sample/), for development
- *   and testing. The sample folder is kept out of GitHub, so this mode works only on a computer that has
- *   it and refuses to run anywhere else, the live server included.
- * - `npm run seed:starter` (--starter) — the fresh start for go-live: only the business data, with no
- *   customers and every inventory piece on the shelf (see starterData()).
- * Either one replaces every row, so it refuses to run when NODE_ENV is production unless --force is
- * given. Run `npm run db:reset` first whenever schema.sql has changed.
- *
- * - Everything happens in one transaction: every table is emptied with DELETE (TRUNCATE would commit
- *   on its own), children first, then the rows go in parents first. Foreign keys stay checked the
- *   whole time, so a sample row that points at a missing record stops the run, and the rollback
- *   leaves the database exactly as it was before.
- * - The passwords come from apps/api/.env, never from the code (Phase 12; the repository is public):
- *   SEED_ADMIN_PASSWORD for the admin account and, for the demo data, SEED_CUSTOMER_PASSWORD for every
- *   sample customer (seedData/passwords.js). A missing or weak one stops the run before anything changes.
- *   They are hashed before the transaction starts, so it stays short, with the API's own hashSecret()
- *   (lib/passwords.js): the accounts get the same bcrypt cost as real sign-ups.
- * - SEED_ADMIN_EMAIL in apps/api/.env, when set, replaces the owner's email on the admin account. The
- *   account keeps the owner's name and mobile. A malformed address also stops the run before anything
- *   changes.
- * - Sample dates count from today in Manila time, so seeding again another day moves them.
- * - Prints the row count of every table and the counters, read back after the commit, and for the
- *   starter data the inventory totals (pieces, in use, damaged).
- */
 
-// Every table in schema.sql, in its CREATE TABLE order: each comes after the tables it points to.
-// Rows go in in this order and are deleted in the reverse order. A table missing from this list
-// would keep its old rows, so main() stops when the database and this list do not match.
 export const TABLES = [
   'admins',
   'customers',
@@ -83,26 +52,10 @@ export const TABLES = [
   'customer_email_changes'
 ];
 
-// --starter: load the fresh start (starterData()) instead of the demo data
 const STARTER = process.argv.includes('--starter');
 
-// The fresh start's first receipt number, OR-1001 (chosen by the owner 2026-10-01)
 const FIRST_RECEIPT = 1001;
 
-/**
- * The starter data (--starter): the fresh start the live server opens with, as if the website were
- * going up for the first time. Built from `business` (buildBusinessSeed() in seedData/seed.js) alone:
- * - Loaded: the admin account, the packages, add-ons and dishes, the price per person and minimum
- *   downpayment, the daily capacity, and the 48 inventory items (codes, totals, low-stock levels,
- *   rent prices and damage fees, and the tent sizes that book them).
- * - Inventory: every piece is on the shelf (nothing checked out, nothing damaged), and each item's
- *   history starts with one line dated `now`, the one the app writes when the admin adds an item.
- * - Empty: customers and everything made for them (reservations, payments, refunds, chat, reviews),
- *   blocked dates, and outsourcing partners and contracts; the admin adds the real partners.
- * - Counters start at the beginning (pay-0001, OUT-YYYY-0001, rf-0001), except inventory, so the next
- *   item added is EQ-0049, and receipt, so the first receipt is OR-1001. `receipt` is the NEXT number
- *   here, as in the sample data; toRows() stores the last one used.
- */
 function starterData(business, now) {
   const actor = business.admins[0].name;
   return {
@@ -127,18 +80,10 @@ function starterData(business, now) {
   };
 }
 
-/**
- * The seed as table rows: { table: [row, …] }, each row an object keyed by column name.
- * Tables left out (qr_payments, webhook_events, outbox, login_attempts, auth_challenges,
- * password_resets, signup_requests, password_changes, customer_email_changes) have no sample data and stay empty. Columns left out take their schema.sql
- * default, e.g. the admin's sign-in history and a delivery's outbox_id.
- * `hashes` maps each account id to its bcrypt hash; `now` stamps the two settings rows.
- */
 export function toRows(data, hashes, now) {
   const reservations = data.reservations;
   const inventory = data.inventory;
   const { partners, contracts } = data.outsourcing;
-  // The seed records no verifier; its one admin verified every verified sample payment
   const verifier = data.admins[0].id;
 
   return {
@@ -164,11 +109,9 @@ export function toRows(data, hashes, now) {
       company: c.company || '',
       created_at: c.createdAt,
       password_changed_at: c.passwordChangedAt ?? null,
-      // Current demos can carry the accepted Terms version, just as a completed signup does.
       terms_version: c.termsVersion || '',
       terms_accepted_at: c.termsAcceptedAt ?? null
     })),
-    // sort_order keeps each catalogue list in the seed's order
     packages: data.packages.map((p, index) => ({
       id: p.id,
       slug: p.slug,
@@ -187,12 +130,12 @@ export function toRows(data, hashes, now) {
     })),
     addons: data.addons.map((a, index) => ({
       id: a.id,
-      parent_id: a.parentId ?? null, // a size's or package's charge; the seed lists every charge before them
+      parent_id: a.parentId ?? null,
       name: a.name,
       description: a.description,
       price: a.price ?? null,
       has_quantity: a.hasQuantity,
-      has_packages: Boolean(a.hasPackages), // a charge with packages (Sounds and lights)
+      has_packages: Boolean(a.hasPackages),
       archived: a.archived,
       sort_order: index
     })),
@@ -212,7 +155,6 @@ export function toRows(data, hashes, now) {
       }
     ],
 
-    // `venue` is flattened into four columns; fulfilment is NULL for everything but an equipment rental
     reservations: reservations.map((r) => ({
       ref: r.ref,
       customer_id: r.customerId,
@@ -227,7 +169,7 @@ export function toRows(data, hashes, now) {
       fulfilment: r.fulfilment || null,
       menu: toJson(r.menu),
       food_notes: r.foodNotes || '',
-      styling: toJson(r.styling ?? null), // the theme, colours and design details; NULL when none (every rental)
+      styling: toJson(r.styling ?? null),
       price_per_plate: r.pricePerPlate ?? 0,
       min_downpayment: r.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT,
       venue_name: r.venue.name,
@@ -246,7 +188,6 @@ export function toRows(data, hashes, now) {
       created_at: r.createdAt,
       terms_version: r.termsVersion || ''
     })),
-    // sort_order keeps addonIds in order; qty comes from addonQty (1 when not asked)
     reservation_addons: reservations.flatMap((r) =>
       (r.addonIds || []).map((addonId, index) => ({
         reservation_ref: r.ref,
@@ -259,8 +200,6 @@ export function toRows(data, hashes, now) {
       r.activity.map((entry) => ({ reservation_ref: r.ref, at: entry.at, actor: entry.actor, text: entry.text }))
     ),
 
-    // receipt_no is NULL until verified (UNIQUE allows many NULLs, but only one ''). Proof storage
-    // metadata is optional and can be filled from an explicitly marked local demo fixture.
     payments: data.payments.map((p) => ({
       id: p.id,
       ref: p.ref,
@@ -276,11 +215,10 @@ export function toRows(data, hashes, now) {
       status: p.status,
       submitted_at: p.submittedAt,
       verified_at: p.verifiedAt ?? null,
-      verified_by: p.status === 'verified' && p.method !== 'qrph' ? verifier : null, // PayMongo confirms qrph: no admin
+      verified_by: p.status === 'verified' && p.method !== 'qrph' ? verifier : null,
       receipt_no: p.receiptNo || null,
       reject_reason: p.rejectReason || ''
     })),
-    // The seed has none today; the admin who recorded one is found by name (a refund record keeps the name the pages show)
     refunds: data.refunds.map((r) => ({
       id: r.id,
       ref: r.ref,
@@ -315,7 +253,6 @@ export function toRows(data, hashes, now) {
         history: toJson(m.history || [])
       }))
     ),
-    // `categories` and `reply` are flattened; the three reply columns are NULL when there is no reply
     testimonials: data.testimonials.map((t) => ({
       id: t.id,
       customer_id: t.customerId,
@@ -354,9 +291,8 @@ export function toRows(data, hashes, now) {
       damage_fee: i.damageFee,
       notes: i.notes || '',
       archived: i.archived,
-      addon_id: i.addonId ?? null // the Tent size that books it (addons come before inventory_items)
+      addon_id: i.addonId ?? null
     })),
-    // One row per entry of the item's allocations object: { reservation ref or 'none': qty }
     rental_dispatches: reservations.flatMap((r) =>
       Object.entries(r.rentalDispatches || {}).map(([itemId, qty]) => ({
         reservation_ref: r.ref,
@@ -377,7 +313,6 @@ export function toRows(data, hashes, now) {
         ref: entry.ref || null
       }))
     ),
-    // An equipment rental's lines (sort_order keeps rentalItems in order) and its damage charges
     reservation_rental_items: reservations.flatMap((r) =>
       (r.rentalItems || []).map((line, index) => ({
         reservation_ref: r.ref,
@@ -429,7 +364,6 @@ export function toRows(data, hashes, now) {
       answered_at: c.answeredAt ?? null,
       answer_note: c.answerNote || ''
     })),
-    // Sample deliveries were never really sent, so they have no outbox row (outbox_id stays NULL)
     outsource_deliveries: contracts.flatMap((c) =>
       c.deliveries.map((d) => ({ contract_id: c.id, channel: d.channel, to_address: d.to, at: d.at, body: d.body }))
     ),
@@ -437,7 +371,6 @@ export function toRows(data, hashes, now) {
       c.history.map((entry) => ({ contract_id: c.id, at: entry.at, actor: entry.actor, text: entry.text }))
     ),
 
-    // The seed's `receipt` is the NEXT number and the table keeps the LAST one used (§7.6).
     counters: [
       { name: 'receipt', value: data.counters.receipt - 1 },
       { name: 'payment', value: data.counters.payment },
@@ -448,11 +381,6 @@ export function toRows(data, hashes, now) {
   };
 }
 
-/**
- * Insert all of a table's rows in one statement. The columns come from the first row, and every
- * row must have exactly those keys: a key missing from one row would otherwise go in as NULL
- * without a word.
- */
 export async function insertRows(conn, table, rows) {
   if (!rows.length) return;
   const columns = Object.keys(rows[0]);
@@ -468,11 +396,6 @@ export async function insertRows(conn, table, rows) {
   await conn.query('INSERT INTO ?? (??) VALUES ?', [table, columns, values]);
 }
 
-/**
- * Compare the database's tables with TABLES. Returns what is wrong in plain words, or null when
- * the two match: a table missing from the database means schema.sql has not been run yet (or is
- * newer than the database); an extra one means TABLES was not updated after schema.sql changed.
- */
 async function schemaProblem() {
   const [rows] = await pool.query(
     'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()'
@@ -489,11 +412,6 @@ async function schemaProblem() {
   return null;
 }
 
-/**
- * Run the seed: the demo data, or the starter data with --starter (the fresh start for go-live).
- * Returns the exit code: 0 when every row went in, 1 when nothing changed (also when the demo data is
- * asked for on a computer without seedData/sample/).
- */
 async function main() {
   const what = STARTER ? 'the starter data: no customers, every inventory piece available' : 'the sample data';
   if (config.isProduction && !process.argv.includes('--force')) {
@@ -502,13 +420,11 @@ async function main() {
     );
     return 1;
   }
-  // The demo data needs the sample folder, which is only on the developer's computer
   const buildSample = STARTER ? null : await loadSampleSeed();
   if (!STARTER && !buildSample) {
     console.error(`Refusing to seed: ${NO_SAMPLE_DATA}`);
     return 1;
   }
-  // The accounts' passwords and the admin's email, from apps/api/.env (checked before anything changes)
   const passwords = seedPasswords({ customers: !STARTER });
   const adminEmail = seedAdminEmail();
   const problems = [...passwords.problems, adminEmail.problem].filter(Boolean);
@@ -529,13 +445,11 @@ async function main() {
 
     const now = Date.now();
     const business = buildBusinessSeed();
-    // SEED_ADMIN_EMAIL: the owner's account (admins[0]) signs in with this address instead; name and mobile stay
     if (adminEmail.email) {
       business.admins[0].email = adminEmail.email;
       console.log(`The admin account (${business.admins[0].name}) signs in with SEED_ADMIN_EMAIL from apps/api/.env.`);
     }
     const data = STARTER ? starterData(business, now) : buildSample(business);
-    // Every admin gets SEED_ADMIN_PASSWORD and every sample customer SEED_CUSTOMER_PASSWORD, each with its own salt
     const accounts = [
       ...data.admins.map((a) => [a.id, passwords.admin]),
       ...data.customers.map((c) => [c.id, passwords.customer])
@@ -545,7 +459,6 @@ async function main() {
     if (!STARTER) await prepareSampleProofs(rows);
 
     await tx(async (conn) => {
-      // A size points at its charge in the same table (addons.parent_id), so sizes are deleted first
       for (const table of [...TABLES].reverse())
         await conn.query(table === 'addons' ? 'DELETE FROM addons ORDER BY parent_id IS NULL' : 'DELETE FROM ??', [
           table
@@ -553,7 +466,6 @@ async function main() {
       for (const table of TABLES) await insertRows(conn, table, rows[table] || []);
     });
 
-    // Read back after the commit: what is really in the database now
     const counts = [];
     for (const table of TABLES) {
       const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM ??', [table]);

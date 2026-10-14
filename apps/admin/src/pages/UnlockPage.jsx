@@ -24,40 +24,24 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
-/**
- * The locked admin screen (after RULES.idleMinutes without activity, owner's rule 2026-10-03): the admin
- * types the password only, no emailed code, and goes back to the page they were on (?next=). The session's
- * token was already thrown away when it locked; the lock record keeps only the admin's name and the unlock
- * ticket (createAuth, lockOnIdle), and the server checks the ticket and the password (authApi.adminUnlock).
- * - Wrong passwords count as sign-in failures: the 5th locks the account for RULES.loginLockMinutes, the
- *   lock screen ends, and the admin signs in again at /login (with the code) once the lockout is over.
- * - When the sign-in session is over (the ticket ran out, or the password was changed elsewhere), the lock
- *   ends too and /login says the session has ended. When the account signed in again on another device or
- *   tab meanwhile (SESSION_REPLACED: newest sign-in wins), /login says that instead (?reason=replaced).
- * - "Not you? Sign in with another account" ends the lock right away.
- * With no lock (e.g. this address opened by hand), the page goes on to the dashboard or the sign-in.
- */
 export default function UnlockPage() {
   useDocumentTitle('Screen Locked', 'Tres Marias Admin');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { isAuthenticated, locked, signIn, signOut } = useAuth();
-  // Page to return to after unlocking (?next=...). safeNextPath blocks links to other websites.
   const next = safeNextPath(params.get('next'), '/dashboard');
 
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [shake, setShake] = useState(false); // plays the shake animation on a wrong password
+  const [shake, setShake] = useState(false);
   const [attemptsLeft, setAttemptsLeft] = useState(RULES.maxLoginAttempts);
-  const [lockedUntil, setLockedUntil] = useState(null); // the account lockout after too many wrong passwords
+  const [lockedUntil, setLockedUntil] = useState(null);
   const lockSeconds = useCountdown(lockedUntil);
 
-  // Already unlocked, or nothing to unlock: carry on to the page, or to the normal sign-in
   if (isAuthenticated) return <Navigate to={next} replace />;
   if (!locked && !lockedUntil) return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
 
-  // Check the password with the server; the answer is a new session (same end time as the old one)
   const unlock = async (event) => {
     event.preventDefault();
     if (!password) {
@@ -69,7 +53,6 @@ export default function UnlockPage() {
     setError('');
     try {
       const result = await authApi.adminUnlock({ ticket: locked.unlockTicket, password, email: locked.user.email });
-      // Keep the sign-in time and device from the code sign-in (My account shows them as "This session")
       signIn({ ...result, user: { ...locked.user, ...result.user } }, { remember: locked.persistent });
       navigate(next, { replace: true });
     } catch (e) {
@@ -77,11 +60,9 @@ export default function UnlockPage() {
       setPassword('');
       setShake(true);
       if (e.code === 'LOCKED') {
-        // Too many wrong passwords: the lock screen ends; the full sign-in opens again after the lockout
         setLockedUntil(e.meta && e.meta.lockedUntil ? e.meta.lockedUntil : Date.now() + RULES.loginLockMinutes * 60000);
         signOut();
       } else if (e.code === 'CHALLENGE_EXPIRED' || e.code === 'SESSION_REPLACED') {
-        // The sign-in session is over: it ran out, or a newer sign-in replaced it
         const reason = e.code === 'SESSION_REPLACED' ? 'replaced' : 'expired';
         signOut(reason);
         navigate(`/login?reason=${reason}&next=${encodeURIComponent(next)}`, { replace: true });
@@ -92,7 +73,6 @@ export default function UnlockPage() {
     }
   };
 
-  // "Not you?": end the lock, so the next sign-in is the full one with the emailed code
   const switchAccount = () => {
     signOut();
     navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true });
@@ -186,7 +166,6 @@ export default function UnlockPage() {
                       : ''}
                   </AlertBanner>
                 )}
-                {/* The username stays in the page for password managers, but can't be changed here */}
                 <input
                   type="email"
                   name="username"

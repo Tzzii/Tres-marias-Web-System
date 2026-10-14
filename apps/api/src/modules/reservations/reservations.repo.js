@@ -3,30 +3,9 @@ import { HOLDS_DATE } from '@tm/shared/src/utils/status.js';
 import { helperItemCounts } from '@tm/shared/src/utils/helperLabels.js';
 import { toJson, parseJson } from '../../lib/json.js';
 
-/**
- * SQL for reservations (docs §7.1: the repo holds SQL only; the rules are in reservations.service.js).
- * Records come back in the shape the pages and the shared rules use, built the way
- * scripts/db-roundtrip.js reads them back and checks them against the seed:
- * - `venue` from four columns; `addonIds` in sort_order; `addonQty` for add-ons counted by the piece
- *   (has_quantity; the others are stored as 1 and left out), and for any add-on asked for more than
- *   once, so a count survives the admin switching "counted by the piece" off after the booking (the
- *   booking keeps the count it was made with, and the quotation charges it);
- * - `rentalItems`, `fulfilment` and `damageCharges` on an equipment rental only (not even empty on
- *   other bookings); damage lines have no sort_order, so they come by item id;
- * - `minDownpayment` (copied at booking), `preparingAt` (the "Started preparing" time or null) and
- *   `cancelledBy` ('customer', 'admin' or null) on every booking;
- * - `activity` in the order it was written (id).
- *
- * Every function takes `db`: the pool, or a transaction's connection so reads and writes see and lock
- * the same rows. A list is one query per table (reservations with their package and customer names,
- * add-ons, activity, rental lines, damage lines, payments, refunds, checked-out pieces), joined up in
- * JS: never one query per booking.
- */
 
-// First row of a SELECT, or null
 const first = ([rows]) => rows[0] || null;
 
-// Rows grouped by one column, e.g. activity lines by reservation_ref: Map(value -> rows), rows in the order read
 function groupBy(rows, key) {
   const groups = new Map();
   rows.forEach((row) => {
@@ -36,12 +15,6 @@ function groupBy(rows, key) {
   return groups;
 }
 
-/**
- * The WHERE clause for the reservations to read (the table is always aliased `r`): every one (admin),
- * one customer's (`customerId`), one booking (`ref`), or one booking only when it is that customer's.
- * Only a missing value (undefined or null) leaves a condition out: an empty id or ref matches nothing,
- * it never widens the read to every booking.
- */
 function scope({ customerId, ref }) {
   const conditions = [];
   const params = [];
@@ -56,7 +29,6 @@ function scope({ customerId, ref }) {
   return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }
 
-// payments row -> payment record (the proof file's storage columns never leave the server); payments.repo.js uses it too
 export const toPayment = (row) => ({
   id: row.id,
   ref: row.ref,
@@ -69,11 +41,10 @@ export const toPayment = (row) => ({
   status: row.status,
   submittedAt: row.submitted_at,
   verifiedAt: row.verified_at,
-  receiptNo: row.receipt_no ?? '', // NULL until verified (the UNIQUE index allows many NULLs); '' in the record
+  receiptNo: row.receipt_no ?? '',
   rejectReason: row.reject_reason
 });
 
-// reservations row + its child rows -> reservation record
 function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], damageLines = [] }) {
   const record = {
     ref: row.ref,
@@ -82,14 +53,12 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     occasion: row.occasion,
     date: row.date,
     startTime: row.start_time,
-    // null for an equipment rental and for bookings made before end times existed (2026-10-03)
     endTime: row.end_time ?? null,
     guests: row.guests,
     packageId: row.package_id,
     serviceType: row.service_type,
     menu: parseJson(row.menu),
     foodNotes: row.food_notes,
-    // The theme, colour motif and design details (domain/styling.js), or null: a rental, a blank section, an older booking
     styling: parseJson(row.styling),
     pricePerPlate: row.price_per_plate,
     minDownpayment: row.min_downpayment,
@@ -109,7 +78,6 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     cancelledBy: row.cancelled_by,
     activity: activity.map((entry) => ({ at: entry.at, actor: entry.actor, text: entry.text })),
     createdAt: row.created_at,
-    // The Terms version the customer agreed to when booking ('' for bookings made before the form asked)
     termsVersion: row.terms_version || ''
   };
   if (record.quotation?.itemCounts) {
@@ -134,10 +102,6 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
   return record;
 }
 
-/**
- * refunds row (with the recording admin's name as admin_name) -> refund record. A refund record keeps
- * the admin's name in recordedBy, and the admin page shows it ("recorded by …"), so the id stays here.
- */
 export const toRefund = (row) => ({
   id: row.id,
   ref: row.ref,
@@ -153,18 +117,7 @@ export const toRefund = (row) => ({
   recordedBy: row.admin_name ?? ''
 });
 
-/* ============================ Reads ============================ */
 
-/**
- * Reservations with what a summary needs, newest request first (created_at; ties by ref, the seed's
- * order): [{ reservation, packageName, packageSlug, customerName, customerEmail, customerMobile,
- * payments, refunds, pendingQrs, piecesOut }]. The names are null when the package or customer row is
- * missing; `payments` are the booking's payment records, newest first; `refunds` its refund records
- * (Phase 8), newest recorded first, which financials() takes off what was paid; `pendingQrs` its GCash QRs
- * still marked pending ([{ id, amount, status, expiresAt }], Phase 8B; openQrIn in payments.service.js
- * says which one still counts as open); `piecesOut` is how many inventory pieces are checked out for it
- * (inventory_allocations), 0 when none. `filter` is { customerId?, ref? } (see scope()).
- */
 export async function findReservations(db, filter = {}) {
   const { where, params } = scope(filter);
   const [rows] = await db.query(
@@ -243,7 +196,7 @@ export async function findReservations(db, filter = {}) {
     payments: groupBy(payments, 'ref'),
     refunds: groupBy(refunds, 'ref'),
     qrs: groupBy(qrs, 'ref'),
-    pieces: new Map(pieces.map((row) => [row.reservation_ref, Number(row.pieces)])) // SUM comes back as a DECIMAL string
+    pieces: new Map(pieces.map((row) => [row.reservation_ref, Number(row.pieces)]))
   };
   return rows.map((row) => ({
     reservation: toReservation(row, {
@@ -269,7 +222,6 @@ export async function findReservations(db, filter = {}) {
   }));
 }
 
-/** How many of this customer's events are completed (the admin's "past events" on a booking). */
 export async function countCompleted(db, customerId) {
   const row = first(
     await db.query("SELECT COUNT(*) AS n FROM reservations WHERE customer_id = ? AND status = 'completed'", [
@@ -279,10 +231,6 @@ export async function countCompleted(db, customerId) {
   return Number(row.n);
 }
 
-/**
- * The review left for an event, or null. The admin's private note on a flag (flag_reason) is not even
- * read: it belongs to the Feedbacks page, not to the reservation both sides can open.
- */
 export async function findTestimonial(db, ref) {
   const row = first(
     await db.query(
@@ -315,13 +263,6 @@ export async function findTestimonial(db, ref) {
   };
 }
 
-/**
- * The booking's owner and status, { ref, customerId, status } or null, with its row locked until the
- * transaction ends, so two writes on one booking (e.g. the customer accepting the quotation while the
- * admin re-sends it) run one after the other and the second sees the first one's result. `ref` comes back as
- * stored: the lookup ignores case and trailing spaces (the column's collation), so callers compare it.
- * Lock order for every write: the availability lock (when needed), then this row, then the chat thread.
- */
 export async function lockOwner(conn, ref) {
   const row = first(
     await conn.query('SELECT ref, customer_id, status FROM reservations WHERE ref = ? FOR UPDATE', [ref])
@@ -329,12 +270,6 @@ export async function lockOwner(conn, ref) {
   return row && { ref: row.ref, customerId: row.customer_id, status: row.status };
 }
 
-/**
- * The bookings that hold their date (HOLDS_DATE: approved to confirmed), soonest event first, for the
- * inventory's check-out and the outsourcing contract dialogs (Phase 10): [{ ref, eventName, date, guests,
- * serviceType, venue: { name, city } }]. Bookings on the same date come in the order they were requested
- * (created_at, then ref).
- */
 export async function listHeldBookings(db) {
   const [rows] = await db.query(
     'SELECT ref, event_name, date, guests, service_type, venue_name, city FROM reservations WHERE status IN (?) ORDER BY date, created_at, ref',
@@ -350,20 +285,11 @@ export async function listHeldBookings(db) {
   }));
 }
 
-/** Every ref already given out that starts with `prefix` (e.g. "RES-2026-1020-"), declined and cancelled ones included. */
 export async function refsWithPrefix(conn, prefix) {
   const [rows] = await conn.query('SELECT ref FROM reservations WHERE ref LIKE ?', [`${prefix}%`]);
   return rows.map((row) => row.ref);
 }
 
-/**
- * What the rental stock rules (rentalStock in @tm/shared/src/domain/reservation.js) need for one date:
- *   inventory     every item, in the order it was added (its EQ- code): { id, name, total, damaged,
- *                 lowStockAt, rentable, archived, rentPrice, damageFee,
- *                 allocations: { reservationRef or 'none': all pieces currently checked out } }
- *   reservations  the bookings on the date in a status that holds it (HOLDS_DATE), each rental with its
- *                 rentalItems: [{ itemId, qty }]
- */
 export async function rentalStockInputs(db, date) {
   const [[items], [held], [lines], [allocations], [addonLinks]] = await Promise.all([
     db.query(
@@ -379,7 +305,6 @@ export async function rentalStockInputs(db, date) {
       [date, HOLDS_DATE]
     ),
     db.query('SELECT item_id, reservation_ref, qty FROM inventory_allocations', []),
-    // The additional charges of those bookings, for the pieces of stock-tracked ones (a tent size)
     db.query(
       `SELECT ra.reservation_ref, ra.addon_id, ra.qty FROM reservation_addons ra JOIN reservations r ON r.ref = ra.reservation_ref
         WHERE r.date = ? AND r.status IN (?)`,
@@ -400,7 +325,7 @@ export async function rentalStockInputs(db, date) {
       archived: Boolean(item.archived),
       rentPrice: item.rent_price,
       damageFee: item.damage_fee,
-      addonId: item.addon_id, // the charge or size that books it, or null
+      addonId: item.addon_id,
       allocations: Object.fromEntries((allocationsByItem.get(item.id) || []).map((a) => [a.reservation_ref, a.qty]))
     })),
     reservations: held.map((r) => ({
@@ -415,16 +340,7 @@ export async function rentalStockInputs(db, date) {
   };
 }
 
-/* ============================ Writes (inside a transaction) ============================ */
 
-/**
- * Save a new booking from its record. `venue` is flattened into four columns; fulfilment is NULL for
- * everything but an equipment rental, and endTime is NULL for a rental; `minDownpayment` is the setting
- * copied at booking, `termsVersion` the Terms version the customer agreed to ('' when none), `styling`
- * the theme and colours (JSON, NULL when none), and
- * `preparingAt` / `cancelledBy` start empty (NULL). A ref already in use fails with ER_DUP_ENTRY on
- * the primary key.
- */
 export async function insertReservation(conn, r) {
   await conn.query(
     `INSERT INTO reservations (ref, customer_id, event_name, occasion, date, start_time, end_time, guests, package_id, service_type, fulfilment,
@@ -468,7 +384,6 @@ export async function insertReservation(conn, r) {
   );
 }
 
-/** The ticked add-ons, in the order of `addonIds`; the quantity from `addonQty` (1 when not counted by the piece). */
 export async function insertAddons(conn, ref, addonIds, addonQty) {
   if (!addonIds.length) return;
   await conn.query('INSERT INTO reservation_addons (reservation_ref, addon_id, qty, sort_order) VALUES ?', [
@@ -476,7 +391,6 @@ export async function insertAddons(conn, ref, addonIds, addonQty) {
   ]);
 }
 
-/** A rental's lines ([{ itemId, name, qty, price, damageFee }]), in order. */
 export async function insertRentalLines(conn, ref, lines) {
   if (!lines.length) return;
   await conn.query(
@@ -485,17 +399,11 @@ export async function insertRentalLines(conn, ref, lines) {
   );
 }
 
-/** Swap a rental's lines for a new list (the admin's edit of the rented items), in the new list's order. */
 export async function replaceRentalLines(conn, ref, lines) {
   await conn.query('DELETE FROM reservation_rental_items WHERE reservation_ref = ?', [ref]);
   await insertRentalLines(conn, ref, lines);
 }
 
-/**
- * Swap a rental's damage lines for a new list ([{ itemId, name, qty, fee }], one line per item): the
- * return of damaged or missing pieces (inventory, Phase 10). They reach what the customer owes only
- * through a re-sent quotation.
- */
 export async function replaceDamageCharges(conn, ref, lines) {
   await conn.query('DELETE FROM reservation_damage_charges WHERE reservation_ref = ?', [ref]);
   if (!lines.length) return;
@@ -504,7 +412,6 @@ export async function replaceDamageCharges(conn, ref, lines) {
   ]);
 }
 
-// Record fields updateReservation may change -> [column, how the value is stored]
 const plain = (value) => value;
 const COLUMNS = {
   status: ['status', plain],
@@ -525,12 +432,6 @@ const COLUMNS = {
   declineReason: ['decline_reason', plain]
 };
 
-/**
- * Save changed fields of a booking, given in the record's shape, e.g. { status: 'approved',
- * downpaymentDue: '2026-10-06' } or { venue: { name, address, city, accessNotes } } (the four venue
- * columns). JSON fields (menu, styling, estimate, quotation) are stored with toJson. Only the fields in COLUMNS
- * and `venue` can be written; any other name is a programming error and throws before anything is saved.
- */
 export async function updateReservation(conn, ref, changes) {
   const sets = [];
   const params = [];
@@ -549,7 +450,6 @@ export async function updateReservation(conn, ref, changes) {
   await conn.query(`UPDATE reservations SET ${sets.join(', ')} WHERE ref = ?`, [...params, ref]);
 }
 
-/** Add an entry to the booking's audit trail (always in the transaction of the change it describes). */
 export async function insertActivity(conn, ref, { at, actor, text }) {
   await conn.query('INSERT INTO reservation_activity (reservation_ref, at, actor, text) VALUES (?, ?, ?, ?)', [
     ref,
@@ -559,7 +459,6 @@ export async function insertActivity(conn, ref, { at, actor, text }) {
   ]);
 }
 
-/** Mark a booking cancelled, with the reason and who cancelled it (`by`: 'customer' or 'admin'). */
 export async function setCancelled(conn, ref, reason, by) {
   await conn.query("UPDATE reservations SET status = 'cancelled', cancel_reason = ?, cancelled_by = ? WHERE ref = ?", [
     reason,

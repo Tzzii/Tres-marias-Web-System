@@ -4,28 +4,21 @@ import { keyframes } from '@mui/material/styles';
 import { BrandLogo, tokens, useDocumentTitle } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
-// Logo fades and grows in once when the page opens
 const enter = keyframes`
   from { opacity: 0; transform: scale(0.85); }
   to { opacity: 1; transform: scale(1); }
 `;
-// While hovered, the gold aura slowly swells and fades
 const breathe = keyframes`
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.7; transform: scale(1.08); }
 `;
 
-/**
- * First screen of the admin site: a large round logo. Clicking it opens the admin sign in, or the lock
- * screen (password only) when the session is locked after inactivity.
- */
 export default function SplashPage() {
   useDocumentTitle('Welcome', 'Tres Marias Admin');
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, locked } = useAuth();
 
-  // Already signed in: go straight to the dashboard
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   return (
@@ -40,12 +33,10 @@ export default function SplashPage() {
         backgroundImage: tokens.gradientCentered
       }}
     >
-      {/* Entrance animation lives on this wrapper so it doesn't block the hover transform on the button */}
       <Box sx={{ animation: `${enter} 600ms ease-out both` }}>
         <Box
           component="button"
           type="button"
-          // Keep ?next= and ?reason=idle so login shows the timeout notice and returns to the last page
           onClick={() => navigate(`${locked ? '/locked' : '/login'}${location.search}`)}
           aria-label="Open admin sign in"
           sx={{
@@ -57,7 +48,6 @@ export default function SplashPage() {
             borderRadius: '50%',
             cursor: 'pointer',
             transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1)',
-            // The aura: a soft gold glow behind the logo, hidden until hover
             '&::before': {
               content: '""',
               position: 'absolute',

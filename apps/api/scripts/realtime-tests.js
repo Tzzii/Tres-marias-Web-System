@@ -17,8 +17,6 @@ import { startRealtimeSync } from '../../../packages/shared/src/services/realtim
 import { http as portalHttp } from '../../../packages/shared/src/services/http.js';
 import { subscribe, onSignedOut } from '../../../packages/shared/src/services/events.js';
 
-// Real signed JWTs and real HTTP/WebSocket connections, with controlled account fixtures.
-// No SQL is sent to a database, no accounts or reservations are created, and no email is sent.
 const ORIGIN = 'https://portal.example.test';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const future = () => Math.floor(Date.now() / 1000) + 3600;
@@ -125,7 +123,6 @@ test('accepts current customer/admin sessions and sends no private payload to ei
   const bob = f.client({ token: f.token('customer', 'bob'), role: 'admin', customerId: 'alice', rooms: ['admin'] });
   const admin = f.client({ token: f.token('admin', 'staff') });
   await Promise.all([connected(alice), connected(bob), connected(admin)]);
-  // Client-supplied role / room claims don't become server permissions.
   for (const socket of f.realtime.io.of('/').sockets.values()) assert.deepEqual([...socket.rooms], [socket.id]);
   const updates = [event(alice, 'change'), event(bob, 'change'), event(admin, 'change')];
   publishChange();
@@ -182,7 +179,7 @@ for (const transport of ['websocket', 'polling']) {
     const f = await fixture(t);
     for (const extraHeaders of [{ Origin: 'https://attacker.example.test' }, {}]) {
       const err = await refused(f.client(undefined, { transports: [transport], extraHeaders }));
-      assert.equal(err.data, undefined); // no session or server details to the rejected origin
+      assert.equal(err.data, undefined);
     }
   });
 }
@@ -450,9 +447,9 @@ test('portal receives push updates, catches up after reconnect, and closes on si
   publishChange();
   await f.until(() => updates === 2);
   const [serverSocket] = f.realtime.io.of('/').sockets.values();
-  serverSocket.conn.close(); // genuine transport loss: Socket.IO must reconnect
+  serverSocket.conn.close();
   await f.until(() => f.realtime.io.of('/').sockets.size === 0);
-  publishChange(); // missed while offline
+  publishChange();
   await f.until(() => updates === 3);
   assert.equal(f.realtime.io.of('/').sockets.size, 1);
   stop();

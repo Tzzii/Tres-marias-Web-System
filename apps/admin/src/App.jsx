@@ -7,7 +7,6 @@ import LoginPage from './pages/LoginPage.jsx';
 import SplashPage from './pages/SplashPage.jsx';
 import UnlockPage from './pages/UnlockPage.jsx';
 
-// Keep the initial dashboard bundle small by loading each page on demand.
 const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const ReservationsCalendarPage = lazy(() => import('./pages/ReservationsCalendarPage.jsx'));
 const ReservationDetailPage = lazy(() => import('./pages/ReservationDetailPage.jsx'));
@@ -47,7 +46,6 @@ export default function App() {
           <Route path="reports" element={<Lazy page={ReportsPage} />} />
           <Route path="feedbacks" element={<Lazy page={FeedbacksPage} />} />
           <Route path="account" element={<Lazy page={AccountPage} />} />
-          {/* Preserve bookmarks that point to the old standalone pages. */}
           <Route path="requests" element={<TabRedirect to="/reservations" tab="requests" />} />
           <Route path="calendar" element={<TabRedirect to="/reservations" tab="calendar" />} />
           <Route path="payments" element={<TabRedirect to="/reports" tab="payments" />} />

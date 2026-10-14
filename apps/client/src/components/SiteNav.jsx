@@ -17,7 +17,6 @@ import { BUSINESS, BrandMark, firstName, initials } from '@tm/shared';
 import { useAuth } from '../auth.js';
 import { site, siteContainerSx } from '../theme/siteTheme.js';
 
-// Home page sections as [element id, link label]
 export const NAV_LINKS = [
   ['packages', 'Packages'],
   ['availability', 'Plan your event'],
@@ -27,7 +26,6 @@ export const NAV_LINKS = [
   ['contact', 'Contact']
 ];
 
-// Contact strip items are plain text (not links), so there is no hover colour or pointer cursor
 const utilityItemSx = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -37,22 +35,19 @@ const utilityItemSx = {
   color: site.onEspressoSoft
 };
 
-/**
- * Public site header (1a / 1b): an espresso contact strip above a sticky ivory navigation bar.
- * Section links scroll on the home page and route back to it from elsewhere.
- */
 export default function SiteNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const [scrolled, setScrolled] = useState(false); // page scrolled down: nav turns solid ivory with a soft shadow
-  const [menuOpen, setMenuOpen] = useState(false); // phone/tablet slide-out menu
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('');
   const navRef = useRef(null);
   const desktopNavRef = useRef(null);
+  const pendingSectionRef = useRef('');
+  const scrollSettledTimerRef = useRef(null);
   const [indicator, setIndicator] = useState(null);
 
-  // One white pill moves between buttons instead of replacing their backgrounds.
   useLayoutEffect(() => {
     const nav = desktopNavRef.current;
     if (!nav || !activeSection) return undefined;
@@ -82,13 +77,18 @@ export default function SiteNav() {
   }, [activeSection]);
 
   useEffect(() => {
-    setActiveSection(
-      location.pathname.startsWith('/packages/') ? 'packages' : location.pathname === '/' ? location.hash.slice(1) : ''
-    );
+    const locationSection = location.pathname.startsWith('/packages/')
+      ? 'packages'
+      : location.pathname === '/'
+        ? location.hash.slice(1)
+        : '';
+
+    setActiveSection(locationSection);
+    if (location.pathname === '/' && locationSection) pendingSectionRef.current = locationSection;
+    else pendingSectionRef.current = '';
     setMenuOpen(false);
   }, [location.pathname, location.hash]);
 
-  // Follow the section reaching the sticky header, including after layout changes.
   useEffect(() => {
     let frame = null;
     const sections =
@@ -102,42 +102,74 @@ export default function SiteNav() {
       const headerBottom = navRef.current?.getBoundingClientRect().bottom ?? 0;
       let current = '';
       for (const section of sections) {
-        // Match each anchor's scroll margin so clicking a link and manual scrolling agree.
         const scrollMargin = parseFloat(window.getComputedStyle(section).scrollMarginTop) || 0;
         if (section.getBoundingClientRect().top <= Math.max(headerBottom, scrollMargin) + 1) {
           current = section.id;
         }
       }
 
-      // The short contact footer may never reach the header on a tall screen.
       if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
         current = sections[sections.length - 1].id;
+      }
+
+      const pendingSection = pendingSectionRef.current;
+      if (pendingSection) {
+        const target = document.getElementById(pendingSection);
+        if (target) {
+          const scrollMargin = parseFloat(window.getComputedStyle(target).scrollMarginTop) || 0;
+          const maximumScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+          const targetScrollY = Math.min(
+            Math.max(0, window.scrollY + target.getBoundingClientRect().top - scrollMargin),
+            maximumScrollY
+          );
+
+          if (Math.abs(window.scrollY - targetScrollY) > 2) {
+            setActiveSection(pendingSection);
+            return;
+          }
+        }
+
+        pendingSectionRef.current = '';
+        window.clearTimeout(scrollSettledTimerRef.current);
       }
       setActiveSection(current);
     };
 
-    const onScroll = () => {
+    const requestUpdate = () => {
       if (frame === null) frame = window.requestAnimationFrame(updateScroll);
     };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
 
-    // Package loading, FAQ expansion and responsive layouts can move section boundaries.
-    const observer = new ResizeObserver(onScroll);
+    const onScroll = () => {
+      if (pendingSectionRef.current) {
+        window.clearTimeout(scrollSettledTimerRef.current);
+        scrollSettledTimerRef.current = window.setTimeout(() => {
+          pendingSectionRef.current = '';
+          requestUpdate();
+        }, 160);
+      }
+      requestUpdate();
+    };
+
+    updateScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', requestUpdate);
+
+    const observer = new ResizeObserver(requestUpdate);
     if (navRef.current) observer.observe(navRef.current);
     sections.forEach((section) => observer.observe(section));
 
     return () => {
       window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('resize', requestUpdate);
       observer.disconnect();
+      window.clearTimeout(scrollSettledTimerRef.current);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
   }, [location.pathname, location.hash]);
 
-  // On the home page: smooth-scroll to the section. On other pages: go to the home page at that section.
   const goToSection = (id) => {
+    pendingSectionRef.current = id;
+    setActiveSection(id);
     setMenuOpen(false);
     if (location.pathname === '/') {
       const target = document.getElementById(id);
@@ -150,7 +182,6 @@ export default function SiteNav() {
 
   return (
     <>
-      {/* Thin contact strip (desktop only): service area, phone and email shown as plain, non-clickable text */}
       <Box
         sx={{
           height: 32,
@@ -247,7 +278,7 @@ export default function SiteNav() {
                   backgroundColor: site.card,
                   boxShadow: '0 2px 6px rgba(60, 42, 20, 0.08)',
                   transition:
-                    'transform 600ms cubic-bezier(0.4, 0, 0.2, 1), width 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 240ms ease',
+                    'transform 280ms cubic-bezier(0.4, 0, 0.2, 1), width 280ms cubic-bezier(0.4, 0, 0.2, 1), opacity 180ms ease',
                   '@media (prefers-reduced-motion: reduce)': { transition: 'none' }
                 }}
               />
@@ -279,7 +310,6 @@ export default function SiteNav() {
                         '@media (prefers-reduced-motion: reduce)': { transition: 'none' }
                       }}
                     >
-                      {/* Reserve the bold label's width so active text never shifts the other buttons. */}
                       <Box
                         component="span"
                         data-label={label}
@@ -313,7 +343,6 @@ export default function SiteNav() {
                 gap: { xs: 1.5, sm: 1.75 }
               }}
             >
-              {/* Signed in: account button. Signed out: Log in and Sign up. */}
               {user ? (
                 <Button
                   onClick={() => navigate('/portal')}
@@ -333,7 +362,6 @@ export default function SiteNav() {
                     '&:hover': { backgroundColor: site.goldTint }
                   }}
                 >
-                  {/* Same size and padding as the portal header, so the circle sits centred in the pill's rounded end */}
                   <Avatar
                     sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, bgcolor: site.gold, color: site.ink }}
                   >
@@ -407,7 +435,6 @@ export default function SiteNav() {
         </Container>
       </AppBar>
 
-      {/* Slide-out menu for smaller screens */}
       <Drawer
         anchor="right"
         open={menuOpen}

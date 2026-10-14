@@ -18,7 +18,7 @@ import { cleanMobile } from './account.js';
  * A "contract" in this code is the stored record of an outsourcing REQUEST (the table, the functions and
  * the ids keep that name). Tres Marias does not send a partner a contract: the partner's own rates and
  * terms are what the admin follows, and the text that goes out only asks whether they can supply the
- * items for the event, answered by text or call to the business number. So every text the admin or a
+ * items for the event, answered by email or call to the business number. So every text the admin or a
  * partner reads says "request".
  */
 
@@ -43,8 +43,8 @@ const MAX_AMOUNT = 10000000;
 const refuse = (code, message, meta = {}) => ({ code, message, meta });
 const invalid = (message, meta) => refuse('INVALID', message, meta);
 
-/** How a partner can be reached, in sending order: ['email', 'sms'], one of the two, or none. */
-export const channelsOf = (partner) => [...(partner.email ? ['email'] : []), ...(partner.mobile ? ['sms'] : [])];
+/** Requests are delivered by email; mobile numbers are contact details. */
+export const channelsOf = (partner) => (EMAIL_RE.test((partner.email || '').trim()) ? ['email'] : []);
 
 /* ============================ Partners ============================ */
 
@@ -74,8 +74,8 @@ const suppliedService = (values) => {
 /**
  * What is wrong with a partner's details, or null: the partner dialog's rules, in its order. A name of
  * 2+ characters not already used (any case; `names` are the other partners' names, archived ones
- * included), a service from OUTSOURCE_SERVICES (Other needs a custom supply), and a way to reach them: an email address, a mobile
- * number or both (a partner with neither could never be sent a request), each well formed.
+ * included), a service from OUTSOURCE_SERVICES (Other needs a custom supply), a contact person and
+ * address, and required email and mobile contact details, each well formed. Notes are optional.
  */
 export function partnerProblem(values, { names = [] } = {}) {
   const name = (values.name || '').trim();
@@ -97,11 +97,13 @@ export function partnerProblem(values, { names = [] } = {}) {
     if (suppliedService(values).length > max)
       return invalid(`Keep the supply type to ${max} characters.`, { field: 'serviceOther' });
   }
+  if (!(values.contactPerson || '').trim()) return invalid('Enter the contact person.', { field: 'contactPerson' });
+  if (!(values.address || '').trim()) return invalid('Enter the address.', { field: 'address' });
   const { email, mobile } = contactOf(values);
-  if (!email && !mobile)
-    return invalid('Give an email address or a mobile number so requests can reach them.', { field: 'email' });
-  if (email && !EMAIL_RE.test(email)) return invalid('Enter a valid email address.', { field: 'email' });
-  if (mobile && validateMobile(mobile)) return invalid(validateMobile(mobile), { field: 'mobile' });
+  if (!email) return invalid('Give an email address so requests can reach them.', { field: 'email' });
+  if (!EMAIL_RE.test(email)) return invalid('Enter a valid email address.', { field: 'email' });
+  const mobileProblem = validateMobile(mobile);
+  if (mobileProblem) return invalid(mobileProblem, { field: 'mobile' });
   return null;
 }
 
@@ -210,7 +212,7 @@ export const EDITED_TEXT = 'Edited the draft.';
 /**
  * What stops a request from being sent, or null: it must be a draft or sent and still unanswered
  * (LOCKED otherwise), its partner must exist, must not be archived (an archived partner is given no new
- * contracts; restore them first) and must have an email address or a mobile number (NO_CHANNEL), and
+ * contracts; restore them first) and must have a valid email address (NO_CHANNEL), and
  * the text (`text`, already trimmed) must be at least 20 characters.
  */
 export function sendProblem(contract, partner, text) {
@@ -219,7 +221,7 @@ export function sendProblem(contract, partner, text) {
   if (!partner) return refuse('NOT_FOUND', 'Partner not found.');
   if (partner.archived) return invalid('That partner is archived. Restore them first.', { field: 'partner' });
   if (!channelsOf(partner).length)
-    return refuse('NO_CHANNEL', `${partner.name} has no email address or mobile number. Add one first.`, {
+    return refuse('NO_CHANNEL', `${partner.name} needs a valid email address. Add one first.`, {
       field: 'partner'
     });
   if (text.length < 20) return invalid('The request text is too short to send.', { field: 'body' });
@@ -227,31 +229,25 @@ export function sendProblem(contract, partner, text) {
 }
 
 /**
- * One send's deliveries: one per channel the partner has (channelsOf), each carrying the identical text,
- * so a partner reachable only by SMS gets word for word what an emailed partner gets.
+ * One send's email delivery, carrying the final request text.
  */
 export const contractDeliveries = (partner, text, at) =>
   channelsOf(partner).map((channel) => ({
     channel,
-    to: channel === 'email' ? partner.email : partner.mobile,
+    to: partner.email.trim(),
     at,
     body: text
   }));
 
-// "email" or "SMS", as the history lines name a channel
-const channelWord = (channel) => (channel === 'email' ? 'email' : 'SMS');
-
-/** The request's history line of a send, with where it went, e.g. "Sent the request by email (a@b.ph) and SMS (09171112233)." */
+/** The request's history line of a send, with the recipient email address. */
 export const sentText = (deliveries) =>
-  `Sent the request by ${deliveries.map((d) => `${channelWord(d.channel)} (${d.to})`).join(' and ')}.`;
+  `Sent the request by ${deliveries.map((d) => `email (${d.to})`).join(' and ')}.`;
 
 /**
- * The same send in the reservation's audit trail, e.g. "Sent the request by email and SMS.": the
- * customer sees that trail too, so it names the channels only, never the partner's email address or
- * mobile number.
+ * The same send in the reservation's audit trail: the customer sees that trail too, so it names
+ * email only, never the partner's contact details.
  */
-export const sentActivityText = (deliveries) =>
-  `Sent the request by ${deliveries.map((d) => channelWord(d.channel)).join(' and ')}.`;
+export const sentActivityText = () => 'Sent the request by email.';
 
 /** What is wrong with a status change, or null: a move NEXT_STATUS allows, and a reason of 5+ characters for a decline or a cancellation. */
 export function statusProblem(contract, status, reason) {
@@ -314,13 +310,12 @@ export function contractView(contract, partner, reservation) {
 }
 
 /**
- * The request text, built once and sent unchanged to email and SMS. It is not a contract: it asks the
- * partner whether they can supply these items for the event. The last line tells them to text or call the
- * business number to confirm (a reply to an SMS sender name goes nowhere, so the text never asks them to
- * "reply"); the admin hears the answer on that phone and records it. The price is the partner's own, the
+ * The request text, built once and sent by email. It is not a contract: it asks the
+ * partner whether they can supply these items for the event. The last line tells them to email or call
+ * the business to confirm; the admin records the answer. The price is the partner's own, the
  * one the admin follows.
  * A pure function, so the compose dialog can show the admin exactly what will go out and their
- * edits to it are what both channels carry.
+ * edits to it are what the email carries.
  */
 export function composeContractText({ ref, partner, items = [], needBy, eventName, eventDate, venue, amount, notes }) {
   const greeting = partner.contactPerson ? `Hi ${partner.contactPerson} (${partner.name}),` : `Hi ${partner.name},`;
@@ -337,6 +332,6 @@ export function composeContractText({ ref, partner, items = [], needBy, eventNam
   if (needBy) lines.push(`Needed on ${formatDate(needBy)}${venue ? ` at ${venue}` : ''}.`);
   if (Number(amount) > 0) lines.push(`Agreed amount: ${peso(amount)}.`);
   if (notes && notes.trim()) lines.push(notes.trim());
-  lines.push('', `Please text or call ${BUSINESS.phone} to confirm.`);
+  lines.push('', `Please email ${BUSINESS.email} or call ${BUSINESS.phone} to confirm.`);
   return lines.join('\n');
 }

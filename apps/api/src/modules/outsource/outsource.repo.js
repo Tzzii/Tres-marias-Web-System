@@ -1,26 +1,8 @@
 import { parseJson, toJson } from '../../lib/json.js';
 
-/**
- * SQL for outsourcing: partners, their contracts, each contract's deliveries, and both histories
- * (docs §7.1: the repo holds SQL only; the rules are in outsource.service.js and
- * @tm/shared/src/domain/outsource.js). Records come back in the shape domain/outsource.js works
- * with, the way the seeder saves them and scripts/db-roundtrip.js reads them:
- *   partner   { id, name, service, contactPerson, email, mobile, address, notes, archived, history }
- *   contract  { id, ref, partnerId, reservationRef, items, needBy, amount, notes, status, body,
- *               deliveries: [{ channel, to, at, body }], createdAt, sentAt, answeredAt, answerNote, history }
- * Histories and deliveries come in the order they were written (id). A delivery's outbox row stays on
- * the server (outbox_id): the record carries what the partner was sent, not how it went out.
- *
- * Every function takes `db`: the pool, or a transaction's connection so reads and writes see and lock
- * the same rows. Lock order for an outsourcing write (outsource.service.js): the contract's row, then
- * its partner's row (a send reads it FOR SHARE; archiving a partner locks it FOR UPDATE), and the
- * booking's row last (a history line's audit-trail copy only reads it, through its foreign key).
- */
 
-// First row of a SELECT, or null
 const first = ([rows]) => rows[0] || null;
 
-// Rows grouped by one column: Map(value -> rows), rows in the order read
 function groupBy(rows, key) {
   const groups = new Map();
   rows.forEach((row) => {
@@ -32,7 +14,6 @@ function groupBy(rows, key) {
 
 const toHistory = (rows = []) => rows.map((h) => ({ at: h.at, actor: h.actor, text: h.text }));
 
-// outsource_partners row + its history rows -> partner record
 const toPartner = (row, history) => ({
   id: row.id,
   name: row.name,
@@ -46,7 +27,6 @@ const toPartner = (row, history) => ({
   history: toHistory(history)
 });
 
-// outsource_contracts row + its delivery and history rows -> contract record
 const toContract = (row, deliveries = [], history = []) => ({
   id: row.id,
   ref: row.ref,
@@ -66,14 +46,7 @@ const toContract = (row, deliveries = [], history = []) => ({
   history: toHistory(history)
 });
 
-/* ============================ Partners ============================ */
 
-/**
- * Partners with their histories: every one, not the archived ones (`includeArchived: false`), or the
- * ones in `ids` (the lookup ignores case and trailing spaces, the column's collation, so callers compare
- * the ids they get back). `lock` locks their rows until the transaction ends (FOR UPDATE), as the first
- * read, so what follows sees what was saved before (see setPartnerArchived).
- */
 export async function findPartners(db, { ids, includeArchived = true, lock = false } = {}) {
   if (ids && !ids.length) return [];
   const conditions = [];
@@ -97,33 +70,21 @@ export async function findPartners(db, { ids, includeArchived = true, lock = fal
   return rows.map((row) => toPartner(row, byPartner.get(row.id)));
 }
 
-/**
- * A partner's record with its row read FOR SHARE until the transaction ends (a send: archiving the same
- * partner then waits, and a send waits for an archive in progress), or null. The lookup ignores case, so
- * callers compare the id.
- */
 export async function readPartnerShared(conn, id) {
   const row = first(await conn.query('SELECT * FROM outsource_partners WHERE id = ? FOR SHARE', [id]));
   return row ? toPartner(row, []) : null;
 }
 
-/** A partner's record without its history, or null (no lock). The lookup ignores case, so callers compare the id. */
 export async function readPartner(db, id) {
   const row = first(await db.query('SELECT * FROM outsource_partners WHERE id = ?', [id]));
   return row ? toPartner(row, []) : null;
 }
 
-/** Every partner's id and name (archived ones included), for the "already a partner" check. */
 export async function partnerNames(db) {
   const [rows] = await db.query('SELECT id, name FROM outsource_partners');
   return rows.map((row) => ({ id: row.id, name: row.name }));
 }
 
-/**
- * Each partner's contract counts, Map(partnerId -> { contractCount, openCount, lastSentAt }) (the numbers
- * partnerStats() in domain/outsource.js gives from a contract list): how many contracts, how many sent
- * and still waiting for the partner's answer, and when one was last sent (null when none).
- */
 export async function partnerContractStats(db) {
   const [rows] = await db.query(
     `SELECT partner_id, COUNT(*) AS contracts, SUM(status = 'sent') AS open, MAX(sent_at) AS last_sent
@@ -141,7 +102,6 @@ export async function partnerContractStats(db) {
   );
 }
 
-/** The ids of the partners in `ids` that have a contract sent and still waiting for their answer (status 'sent'). */
 export async function partnersWithOpenContracts(db, ids) {
   if (!ids.length) return new Set();
   const [rows] = await db.query(
@@ -151,7 +111,6 @@ export async function partnersWithOpenContracts(db, ids) {
   return new Set(rows.map((row) => row.partner_id));
 }
 
-/** Save a new partner. A name already in use (any case or accent) fails with ER_DUP_ENTRY (UNIQUE name). */
 export async function insertPartner(conn, partner) {
   await conn.query(
     `INSERT INTO outsource_partners (id, name, service, contact_person, email, mobile, address, notes, archived)
@@ -170,7 +129,6 @@ export async function insertPartner(conn, partner) {
   );
 }
 
-// Partner fields updatePartner() may change -> column. A fixed list, so a key from anywhere else never becomes SQL.
 const PARTNER_COLUMNS = {
   name: 'name',
   service: 'service',
@@ -182,7 +140,6 @@ const PARTNER_COLUMNS = {
   archived: 'archived'
 };
 
-/** Change some of a partner's fields, in the record's shape. A new name already in use fails with ER_DUP_ENTRY. */
 export async function updatePartner(conn, id, changes) {
   const sets = [];
   const params = [];
@@ -195,7 +152,6 @@ export async function updatePartner(conn, id, changes) {
   await conn.query(`UPDATE outsource_partners SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
 }
 
-/** Add an entry to a partner's history. */
 export async function insertPartnerHistory(conn, partnerId, { at, actor, text }) {
   await conn.query('INSERT INTO outsource_partner_history (partner_id, at, actor, text) VALUES (?, ?, ?, ?)', [
     partnerId,
@@ -205,14 +161,20 @@ export async function insertPartnerHistory(conn, partnerId, { at, actor, text })
   ]);
 }
 
-/* ============================ Contracts ============================ */
+export async function lockPartnerContracts(conn, partnerId) {
+  const [rows] = await conn.query(
+    'SELECT id, status FROM outsource_contracts WHERE partner_id = ? ORDER BY id FOR UPDATE',
+    [partnerId]
+  );
+  return rows;
+}
 
-/**
- * Contracts with their deliveries and histories, each with its partner's record (null when missing) and
- * its event ({ eventName, date, venue: { name, city } }, null when it is for no event or the booking is
- * missing): [{ contract, partner, reservation }], newest first (created_at, then ref: the order they
- * were drafted in). Every contract, or one (`id`; the lookup ignores case, so callers compare the id).
- */
+export async function deletePartner(conn, id) {
+  await conn.query('DELETE FROM outsource_partner_history WHERE partner_id = ?', [id]);
+  await conn.query('DELETE FROM outsource_partners WHERE id = ?', [id]);
+}
+
+
 export async function findContracts(db, { id } = {}) {
   const [rows] = await db.query(
     `SELECT c.*,
@@ -265,17 +227,11 @@ export async function findContracts(db, { id } = {}) {
   }));
 }
 
-/**
- * A contract's record (without deliveries and history) with its row locked until the transaction ends,
- * or null. Every write on a contract starts here, so two writes on one contract run one after the other.
- * The lookup ignores case, so callers compare the id.
- */
 export async function lockContract(conn, id) {
   const row = first(await conn.query('SELECT * FROM outsource_contracts WHERE id = ? FOR UPDATE', [id]));
   return row ? toContract(row) : null;
 }
 
-/** Save a new contract (a draft). */
 export async function insertContract(conn, c) {
   await conn.query(
     `INSERT INTO outsource_contracts (id, ref, partner_id, reservation_ref, items, need_by, amount, notes, status, body, created_at, sent_at, answered_at, answer_note)
@@ -299,7 +255,6 @@ export async function insertContract(conn, c) {
   );
 }
 
-// Contract fields updateContract() may change -> [column, how the value is stored]
 const plain = (value) => value;
 const CONTRACT_COLUMNS = {
   partnerId: ['partner_id', plain],
@@ -315,7 +270,6 @@ const CONTRACT_COLUMNS = {
   answerNote: ['answer_note', plain]
 };
 
-/** Change some of a contract's fields, in the record's shape (items are stored with toJson). */
 export async function updateContract(conn, id, changes) {
   const sets = [];
   const params = [];
@@ -329,7 +283,6 @@ export async function updateContract(conn, id, changes) {
   await conn.query(`UPDATE outsource_contracts SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
 }
 
-/** Add a delivery (one channel of one send) with the outbox row that carries it. */
 export async function insertDelivery(conn, contractId, { channel, to, at, body, outboxId }) {
   await conn.query(
     'INSERT INTO outsource_deliveries (contract_id, channel, to_address, at, body, outbox_id) VALUES (?, ?, ?, ?, ?, ?)',
@@ -337,7 +290,6 @@ export async function insertDelivery(conn, contractId, { channel, to, at, body, 
   );
 }
 
-/** Add an entry to a contract's history. */
 export async function insertContractHistory(conn, contractId, { at, actor, text }) {
   await conn.query('INSERT INTO outsource_contract_history (contract_id, at, actor, text) VALUES (?, ?, ?, ?)', [
     contractId,
@@ -347,7 +299,6 @@ export async function insertContractHistory(conn, contractId, { at, actor, text 
   ]);
 }
 
-/** A booking's status and ref as stored, { ref, status }, or null (no lock). The lookup ignores case, so callers compare the ref. */
 export async function readBookingStatus(db, ref) {
   const row = first(await db.query('SELECT ref, status FROM reservations WHERE ref = ?', [ref]));
   return row && { ref: row.ref, status: row.status };

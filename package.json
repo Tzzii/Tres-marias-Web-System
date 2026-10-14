@@ -23,6 +23,7 @@
     "test:security": "npm run test:security -w apps/api --",
     "test:realtime": "npm run test:realtime -w apps/api",
     "test:outsource": "npm run test:outsource -w apps/api",
+    "test:outsource:db": "npm run test:outsource:db -w apps/api",
     "test:mobile": "npm run test:mobile -w apps/api",
     "test:inventory": "npm run test:inventory -w apps/api",
     "test:labels": "npm run test:labels -w apps/api",

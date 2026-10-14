@@ -1,24 +1,12 @@
 import { toPayment, toRefund } from '../reservations/reservations.repo.js';
 
-/**
- * SQL for payments and refunds (docs §7.1: the repo holds SQL only; the rules are in payments.service.js).
- * Records come back in the shape the pages use; the reservation, its payments and
- * its refunds for the money figures come from reservations.repo.js (findReservations).
- *
- * The proof file's storage columns (proof_key, proof_mime, proof_size) are read only by findProof, for
- * the file route: no other answer carries them, so the path on the server never reaches a browser.
- * Every function takes `db`: the pool, or a transaction's connection.
- */
 
-// First row of a SELECT, or null
 const first = ([rows]) => rows[0] || null;
 
-// The columns toPayment reads, plus the event and customer names every payment answer carries
 const PAYMENT_COLUMNS = `pay.id, pay.ref, pay.customer_id, pay.amount, pay.kind, pay.method, pay.reference_no, pay.proof_name, pay.status,
        pay.submitted_at, pay.verified_at, pay.receipt_no, pay.reject_reason,
        r.event_name, r.date AS event_date, c.name AS customer_name`;
 
-// A payment with the names the answers need: { payment, eventName, eventDate, customerName }
 const withNames = (row) => ({
   payment: toPayment(row),
   eventName: row.event_name ?? '',
@@ -26,10 +14,6 @@ const withNames = (row) => ({
   customerName: row.customer_name ?? ''
 });
 
-/**
- * Payments with their event and customer names, newest first (ties in the order they were made):
- * every one, one customer's (`customerId`), or one payment (`id`).
- */
 export async function findPayments(db, { customerId, id } = {}) {
   const conditions = [];
   const params = [];
@@ -53,17 +37,11 @@ export async function findPayments(db, { customerId, id } = {}) {
   return rows.map(withNames);
 }
 
-/** A payment's id, reservation and status as stored, or null (the lookup ignores case, so callers compare the id). */
 export async function findPaymentRef(db, id) {
   const row = first(await db.query('SELECT id, ref, status FROM payments WHERE id = ?', [id]));
   return row && { id: row.id, ref: row.ref, status: row.status };
 }
 
-/**
- * The payment with its row locked until the transaction ends, as a record, or null. Taken after the
- * reservation's row (lockOwner), so two admins verifying the same payment run one after the other and
- * the second sees it verified.
- */
 export async function lockPayment(conn, id) {
   const row = first(
     await conn.query(
@@ -75,11 +53,6 @@ export async function lockPayment(conn, id) {
   return row && toPayment(row);
 }
 
-/**
- * True when another payment that is waiting or verified has the same reference number, compared without
- * spaces, dashes or underscores and ignoring capitals (referenceKey in @tm/shared/src/domain/payment.js).
- * Rejected payments don't count, so a receipt can be sent again after a rejection.
- */
 export async function referenceTaken(db, key) {
   const row = first(
     await db.query(
@@ -93,11 +66,6 @@ export async function referenceTaken(db, key) {
   return Boolean(row);
 }
 
-/**
- * Save a new payment. `proof` is { key, mime, size } for an uploaded file, or null (cash; the PayMongo QR
- * in Phase 8B). receipt_no stays NULL until verified (the UNIQUE index allows many NULLs); verified_by is
- * the admin who recorded or verified it, NULL for the customer's own upload.
- */
 export async function insertPayment(conn, p, proof = null, verifiedBy = null) {
   await conn.query(
     `INSERT INTO payments (id, ref, customer_id, amount, kind, method, reference_no, proof_key, proof_name, proof_mime, proof_size,
@@ -125,7 +93,6 @@ export async function insertPayment(conn, p, proof = null, verifiedBy = null) {
   );
 }
 
-/** Mark a waiting payment verified: what it is for (worked out again), the receipt number, when and by which admin. */
 export async function markVerified(conn, id, { kind, receiptNo, verifiedAt, verifiedBy }) {
   await conn.query(
     "UPDATE payments SET status = 'verified', kind = ?, receipt_no = ?, verified_at = ?, verified_by = ? WHERE id = ?",
@@ -133,15 +100,10 @@ export async function markVerified(conn, id, { kind, receiptNo, verifiedAt, veri
   );
 }
 
-/** Mark a waiting payment rejected, with the reason the customer sees. */
 export async function markRejected(conn, id, reason) {
   await conn.query("UPDATE payments SET status = 'rejected', reject_reason = ? WHERE id = ?", [reason, id]);
 }
 
-/**
- * The uploaded file behind a payment, for the proof route: { id, customerId, key, mime, name } with key
- * null when nothing was uploaded (cash, a sample payment, a QR payment), or null when there is no such payment.
- */
 export async function findProof(db, id) {
   const row = first(
     await db.query('SELECT id, customer_id, proof_key, proof_mime, proof_name FROM payments WHERE id = ?', [id])
@@ -151,12 +113,7 @@ export async function findProof(db, id) {
   );
 }
 
-/* ============================ Refunds ============================ */
 
-/**
- * Refunds with their event and customer names, newest recorded first (ties in the order they were made):
- * every one, or one customer's. The recording admin comes back as a name (recordedBy).
- */
 export async function findRefunds(db, { customerId } = {}) {
   const [rows] = await db.query(
     `SELECT f.*, a.name AS admin_name, r.event_name, r.date AS event_date, c.name AS customer_name
@@ -176,7 +133,6 @@ export async function findRefunds(db, { customerId } = {}) {
   }));
 }
 
-/** Save a refund; `recordedBy` is the admin's id (the record itself carries the admin's name). */
 export async function insertRefund(conn, f, recordedBy) {
   await conn.query(
     `INSERT INTO refunds (id, ref, customer_id, kind, amount, due, method, reference_no, sent_on, reason, recorded_at, recorded_by)
@@ -198,9 +154,7 @@ export async function insertRefund(conn, f, recordedBy) {
   );
 }
 
-/* ============================ GCash QR payments (Phase 8B) ============================ */
 
-// qr_payments row -> QR record (the image only when it was read)
 const toQr = (row) => ({
   id: row.id,
   ref: row.ref,
@@ -219,11 +173,9 @@ const toQr = (row) => ({
   failureReason: row.failure_reason ?? ''
 });
 
-// Every column but the image (a base64 PNG of about 14 KB), which only the first display needs
 const QR_COLUMNS = `q.id, q.ref, q.customer_id, q.amount, q.intent_id, q.code_id, q.status, q.expires_at, q.created_at, q.last_checked_at,
        q.paid_at, q.payment_id, q.provider_payment_id, q.failure_reason`;
 
-/** Save a new QR, pending until PayMongo reports it paid; `codeId` is PayMongo's qr_… (null when it gave none). */
 export async function insertQr(conn, qr) {
   await conn.query(
     `INSERT INTO qr_payments (id, ref, customer_id, amount, intent_id, code_id, qr_image, status, expires_at, created_at)
@@ -232,7 +184,6 @@ export async function insertQr(conn, qr) {
   );
 }
 
-/** One QR as a record (with its image when `image` is true), and the receipt number once paid; or null. */
 export async function findQr(db, id, { image = false } = {}) {
   const row = first(
     await db.query(
@@ -245,12 +196,6 @@ export async function findQr(db, id, { image = false } = {}) {
   return row && { ...toQr(row), receiptNo: row.receipt_no ?? '' };
 }
 
-/**
- * QRs as records with the receipt number once paid and the names the lists show, newest first (never
- * the image): { qr, eventName, eventDate, customerName } for every one, one customer's (`customerId`),
- * one booking's (`ref`; the lookup ignores case, so the caller compares the ref), and only those with
- * `status`.
- */
 export async function findQrs(db, { customerId, ref, status } = {}) {
   const conditions = [];
   const params = [];
@@ -281,22 +226,16 @@ export async function findQrs(db, { customerId, ref, status } = {}) {
   }));
 }
 
-/** The QR of a PayMongo Payment Intent (pi_…), or null: how a webhook finds its QR. */
 export async function findQrByIntent(db, intentId) {
   const row = first(await db.query(`SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.intent_id = ?`, [intentId]));
   return row && toQr(row);
 }
 
-/**
- * The QR of a PayMongo QR Ph code (qr_…), or null: how a qr.expired event, which names the code and not
- * the intent, finds its QR. QRs made before 2026-10-09 have no code id, so they are never found this way.
- */
 export async function findQrByCode(db, codeId) {
   const row = first(await db.query(`SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.code_id = ?`, [codeId]));
   return row && toQr(row);
 }
 
-/** A booking's QRs still marked pending (open, or past their time and not yet checked with PayMongo), newest first. */
 export async function findPendingQrs(db, ref) {
   const [rows] = await db.query(
     `SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.ref = ? AND q.status = 'pending' ORDER BY q.created_at DESC`,
@@ -305,13 +244,11 @@ export async function findPendingQrs(db, ref) {
   return rows.map(toQr);
 }
 
-/** The QR with its row locked until the transaction ends (taken after the booking's row, lockOwner), or null. */
 export async function lockQr(conn, id) {
   const row = first(await conn.query(`SELECT ${QR_COLUMNS} FROM qr_payments q WHERE q.id = ? FOR UPDATE`, [id]));
   return row && toQr(row);
 }
 
-// QR record fields updateQr may change -> column
 const QR_FIELDS = {
   status: 'status',
   lastCheckedAt: 'last_checked_at',
@@ -321,7 +258,6 @@ const QR_FIELDS = {
   failureReason: 'failure_reason'
 };
 
-/** Save changed fields of a QR, e.g. { status: 'expired' }. Any other field name is a programming error. */
 export async function updateQr(db, id, changes) {
   const entries = Object.entries(changes);
   entries.forEach(([field]) => {
@@ -334,10 +270,6 @@ export async function updateQr(db, id, changes) {
   );
 }
 
-/**
- * Note a PayMongo webhook event as handled, inside the transaction of what it changes. A retried event
- * fails here with ER_DUP_ENTRY (the id is the primary key), so it is never handled twice.
- */
 export async function insertWebhookEvent(conn, { id, type, livemode, receivedAt }) {
   await conn.query('INSERT INTO webhook_events (id, type, livemode, received_at) VALUES (?, ?, ?, ?)', [
     id,

@@ -11,8 +11,6 @@ import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlin
 import { BrandLogo, formatDateLong, shakeSx, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 
-// Log in <-> Sign up card flip. The card turns to the right until it is edge-on (flipOut),
-// the page changes, then the new card finishes the turn from the other side (flipIn).
 const FLIP_MS = 500;
 const flipOut = keyframes`
   from { transform: perspective(1400px) rotateY(0deg); opacity: 1; }
@@ -22,20 +20,13 @@ const flipIn = keyframes`
   from { transform: perspective(1400px) rotateY(-90deg); opacity: 0.6; }
   to   { transform: perspective(1400px) rotateY(0deg); opacity: 1; }
 `;
-// Visitors who ask for less motion get a plain page change
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/**
- * Switches between Log in and Sign up with the card flip. Returns `flipping` (pass it to FormCard)
- * and `flipTo(path)`, which plays the flip-out, then opens `path` and tells its card to flip in.
- * Used as the onClick of the "Sign up" / "Log in" links (the links keep their href for new tabs).
- */
 export function useCardFlip() {
   const navigate = useNavigate();
   const [flipping, setFlipping] = useState(false);
   const flipTo = (to) => (event) => {
-    // Let Ctrl/Cmd/Shift/middle clicks open a new tab as usual
     if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1)) return;
     if (event) event.preventDefault();
     if (flipping) return;
@@ -49,10 +40,6 @@ export function useCardFlip() {
   return { flipping, flipTo };
 }
 
-/**
- * Two-panel layout for Sign up (1d) and Log in (1e) in the light website look: brand on a warm
- * sand panel on the left, the form card on ivory on the right. The brand panel collapses to a slim header on phones.
- */
 export default function AuthLayout({ headline, perks, children, backTo = '/', backLabel = 'Back to browsing' }) {
   const navigate = useNavigate();
   return (
@@ -65,7 +52,6 @@ export default function AuthLayout({ headline, perks, children, backTo = '/', ba
         color: site.ink
       }}
     >
-      {/* Left: logo, headline and perks (headline/perks hidden on phones) */}
       <Box
         component="section"
         sx={{
@@ -144,7 +130,6 @@ export default function AuthLayout({ headline, perks, children, backTo = '/', ba
         </Box>
       </Box>
 
-      {/* Right: back button and the form passed in as children */}
       <Box
         component="main"
         sx={{
@@ -178,14 +163,8 @@ export default function AuthLayout({ headline, perks, children, backTo = '/', ba
   );
 }
 
-/**
- * The white card the auth forms sit in (fields and buttons follow the light website theme).
- * `flipping` turns the card away (see useCardFlip); a card opened by a flip (location state
- * `flip`) turns into view once when it first shows. A shake replaces the flip while it plays.
- */
 export function FormCard({ shake, flipping = false, onAnimationEnd, children, component = 'div', ...rest }) {
   const location = useLocation();
-  // Read once on mount so later re-renders (typing, errors) never replay the flip-in
   const [flippedIn] = useState(() => Boolean(location.state && location.state.flip) && !prefersReducedMotion());
   const flipSx = flipping
     ? { animation: `${flipOut} ${FLIP_MS}ms ease-in forwards`, pointerEvents: 'none' }
@@ -217,10 +196,8 @@ export function FormCard({ shake, flipping = false, onAnimationEnd, children, co
   );
 }
 
-/** Confirms the booking picked while browsing was kept (1d banner). */
 export function BookingIntentBanner({ intent }) {
   if (!intent) return null;
-  // Keep only the details that were actually picked, e.g. "Classic · Oct 3, 2026 · 80 guests"
   const parts = [
     intent.packageName,
     intent.date && formatDateLong(intent.date),

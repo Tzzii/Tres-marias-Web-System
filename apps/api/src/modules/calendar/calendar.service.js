@@ -13,38 +13,14 @@ import { ApiError } from '../../lib/ApiError.js';
 import { isClockTime, isISODate, now } from '../../lib/time.js';
 import * as repo from './calendar.repo.js';
 
-/**
- * The calendar rules on the server (docs/backend-development-phases.md Phase 5, §9.3): blocked
- * dates, the daily event capacity and availability, with the return shapes, error codes and messages
- * the pages expect (services/remote/calendar.js). The availability rules themselves (which reservations
- * take a slot, why a date or a start time is unavailable) come from
- * @tm/shared/src/domain/availability.js, the same code the portals run.
- *
- * On purpose:
- * - The public map has no events[].ref: anyone can read it, and it must not show which booking holds a time.
- * - Every date must be a real "YYYY-MM-DD" day, a start time must be "HH:MM", and a block's reason
- *   must be one of BLOCK_REASONS (the admin page only offers those). The block's note for customers is
- *   optional, up to BLOCK_NOTE_MAX characters; the public map carries it so the date pickers can show it.
- * Every write (block, unblock, capacity) also moves calendar_settings.updated_at (when the calendar
- * last changed), in the same transaction. The calendar keeps no audit trail (the schema has none),
- * so none is written here.
- */
 
-// Most dates one block request may cover (the admin page says so too)
 const MAX_BLOCK_DAYS = 60;
 
 const invalid = (message, field) => new ApiError('INVALID', message, { field });
 
-// A number sent by the page (a number, or digits as text: the capacity box sends text); anything else is NaN
 const toNumber = (value) =>
   typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
 
-/**
- * The availability map from the database, built by the shared buildSnapshot(). Its events keep their
- * refs, for checks made on the server (the reservations module leaves the booking being edited out of
- * its own check); getCalendar() removes them before the map leaves the server. Reads through the pool,
- * or through `db`, a transaction's connection, so a reservation write checks the map it locked.
- */
 export async function availabilityMap(db) {
   const [capacity, blocked, reservations] = await Promise.all([
     repo.getDailyCapacity(db),
@@ -54,20 +30,11 @@ export async function availabilityMap(db) {
   return buildSnapshot({ capacity, blocked, reservations });
 }
 
-/** The public availability map: { capacity, blocked: [{ date, reason, note }], booked, events: [{ date, startTime, hours }] }. */
 export async function getCalendar() {
   const map = await availabilityMap();
   return { ...map, events: map.events.map(({ date, startTime, hours }) => ({ date, startTime, hours })) };
 }
 
-/**
- * Is this date, and start time (and end time) if given, free to reserve? Returns { date, startTime,
- * endTime, available, reason, note, timeConflict } (startTime / endTime are '' when none was given).
- * Without an end time the start is checked for the shortest event (RULES.minEventHours); with one, the
- * event must run 2 to 6 hours and not run into the next event. `note` is the admin's note when the
- * date is blocked ('' otherwise). `timeConflict` is true when the date itself is open but the chosen
- * time is not.
- */
 export async function checkAvailability(date, time, end) {
   if (!isISODate(date)) throw invalid('Choose your event date.', 'date');
   const startTime = time ?? '';
@@ -103,38 +70,27 @@ export async function checkAvailability(date, time, end) {
   };
 }
 
-/**
- * Admin: block every date from `from` to `to` (both included, at most 60), with a reason from
- * BLOCK_REASONS and an optional note for customers (`note`, up to BLOCK_NOTE_MAX characters, e.g.
- * "Staff outing"), which the customers' date pickers show when the date is tapped. A date already
- * blocked gets the new reason and note. Returns { added, total }: the dates newly blocked, and the
- * dates in the range. Dates that already have bookings may be blocked too (the admin page warns about
- * them); their bookings are not changed.
- */
 export async function blockDates({ from, to, reason, note }) {
   if (!isISODate(from)) throw invalid('Choose the first and last date to block.', 'from');
   if (!isISODate(to)) throw invalid('Choose the first and last date to block.', 'to');
   if (to < from) throw invalid('The end date must be on or after the start date.', 'to');
-  // Number of days in the range, counting both ends (both dates are read as UTC midnight, so always whole days)
   const total = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
   if (total > MAX_BLOCK_DAYS) throw invalid(`Block at most ${MAX_BLOCK_DAYS} days at a time.`, 'to');
   if (!BLOCK_REASONS.includes(reason)) throw invalid('Choose a reason from the list.', 'reason');
   if (note !== undefined && note !== null && typeof note !== 'string') throw invalid('Write the note as text.', 'note');
-  // Spaces and line breaks squeezed to single spaces: the note is one short line for customers
   const cleanNote = (note || '').replace(/\s+/g, ' ').trim();
   if (cleanNote.length > BLOCK_NOTE_MAX)
     throw invalid(`Keep the note to ${BLOCK_NOTE_MAX} characters or fewer.`, 'note');
 
   const dates = Array.from({ length: total }, (_, i) => addDays(from, i));
   return tx(async (conn) => {
-    await repo.touchSettings(conn, now()); // first: calendar writes run one at a time
+    await repo.touchSettings(conn, now());
     const already = await repo.countBlocked(conn, from, to);
     await repo.upsertBlocks(conn, dates, reason, cleanNote);
     return { added: total - already, total };
   });
 }
 
-/** Admin: open a blocked date again. { ok: true } even when it was not blocked (nothing left to do). */
 export async function unblockDate(date) {
   if (!isISODate(date)) throw invalid('Choose the date to unblock.', 'date');
   await tx(async (conn) => {
@@ -144,11 +100,6 @@ export async function unblockDate(date) {
   return { ok: true };
 }
 
-/**
- * Admin: set how many events can be booked on one day, a whole number from 1 to 10 (the admin page
- * sends it as text, e.g. "3"). A capacity below what a date already holds is allowed: that date
- * simply shows as fully booked, and no booking changes. Returns { capacity }.
- */
 export async function setDailyCapacity(value) {
   const capacity = toNumber(value);
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 10)

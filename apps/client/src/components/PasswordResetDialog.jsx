@@ -20,30 +20,17 @@ import {
 } from '@tm/shared';
 import { CodeEntry, useCodeEntry } from './EmailCode.jsx';
 
-/**
- * Forgot password, in one dialog (Phase 12: the code goes by email, never by SMS):
- * 1. the email → checked (format, then that an account uses it) → the server emails a 6-digit code
- * 2. the emailed code → Verify
- * 3. the new password (same rules as sign-up) and its confirmation → Save
- * Two places open it:
- * - the Log in page ("Forgot password?"): the visitor types the email (`initialEmail` fills it in);
- * - My profile ("Forgot your current password?"): `accountEmail` is the signed-in customer's address,
- *   so step 1 only says where the code will go. The server then renews this session's token, so the
- *   customer stays signed in here while every other session ends.
- * `onDone({ email })` runs after the password is saved.
- */
 export default function PasswordResetDialog({ open, onClose, initialEmail = '', accountEmail = '', onDone }) {
-  const [step, setStep] = useState('email'); // 'email' | 'code' | 'password'
+  const [step, setStep] = useState('email');
   const [email, setEmail] = useState(accountEmail || initialEmail);
   const entry = useCodeEntry();
   const { begin } = entry;
   const [values, setValues] = useState({ password: '', confirm: '' });
-  const [errors, setErrors] = useState({}); // per-field messages
-  const [formError, setFormError] = useState(''); // banner message
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
 
-  // Start over each time the dialog opens, with the email typed on the log-in form (or the account's)
   useEffect(() => {
     if (open) {
       setStep('email');
@@ -55,14 +42,12 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     }
   }, [open, initialEmail, accountEmail, begin]);
 
-  // Back to step 1 with a message, e.g. when the request expired
   const restart = (message) => {
     setStep('email');
     begin(null);
     setFormError(message);
   };
 
-  // Step 1: check the email format, then ask the server; it checks the account and emails the code
   const proceed = async () => {
     const message = validateEmail(email);
     if (message) {
@@ -82,7 +67,6 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     }
   };
 
-  // Step 2: check the emailed code; on success move on to the new password
   const verify = async (value = entry.code) => {
     if (value.length !== RULES.codeLength) {
       setFormError(`Enter all ${RULES.codeLength} digits.`);
@@ -105,8 +89,6 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     }
   };
 
-  // Email a new code (allowed once the resend timer ends). Asking too soon or too often only shows the
-  // message; an expired request starts the reset again.
   const resend = async () => {
     setBusy(true);
     setFormError('');
@@ -120,7 +102,6 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     }
   };
 
-  // Step 3: check the new password and its confirmation, then save it
   const save = async () => {
     const found = {};
     const passwordError = validatePassword(values.password);
@@ -146,7 +127,6 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     }
   };
 
-  // Title, line under it and main button for each step
   const STEPS = {
     email: {
       title: 'Reset Your Password',
@@ -190,7 +170,6 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
         </>
       }
     >
-      {/* Enter in a text field submits the current step (the code boxes check themselves when full) */}
       <Box
         component="form"
         noValidate
@@ -268,7 +247,6 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
                 disabled={busy}
                 autoFocus
               />
-              {/* What the new password still needs, ticked live */}
               <PasswordChecklist value={values.password} />
             </Box>
             <PasswordField

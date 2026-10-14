@@ -106,29 +106,23 @@ test('partner emails use inline styling without tracking images, scripts or acco
   assert.ok(Buffer.byteLength(email.html) < 50 * 1024);
 });
 
-test('the email driver receives HTML plus exact text; the SMS driver receives the same plain text only', async () => {
+test('a partner with email and mobile receives one email with HTML plus exact text', async () => {
   const body = compose();
   const email = outsourceRequestEmail({ ref, body });
   const deliveries = contractDeliveries(partner, body, 123);
-  const mails = [],
-    texts = [];
+  const mails = [];
   const ports = {
     mailer: {
       deliver: async (message) => {
         mails.push(message);
         return { status: 'sent', providerId: 'test-mail' };
       }
-    },
-    sms: {
-      deliver: async (message) => {
-        texts.push(message);
-        return { status: 'logged', providerId: null };
-      }
     }
   };
   for (const delivery of deliveries) await deliverPartnerRequest(delivery, email, ports);
   assert.deepEqual(mails, [{ to: partner.email, subject: email.subject, text: body, html: email.html }]);
-  assert.deepEqual(texts, [{ to: partner.mobile, body }]);
+  assert.equal(deliveries.length, 1);
+  assert.equal(deliveries[0].channel, 'email');
 });
 
 test('driver failures still propagate to the existing failed-delivery handling', async () => {
@@ -143,4 +137,15 @@ test('driver failures still propagate to the existing failed-delivery handling',
     }),
     /Test SMTP failure/
   );
+});
+
+test('unsupported channels are rejected instead of being handed to the email driver', () => {
+  const email = outsourceRequestEmail({ ref, body: compose() });
+  const ports = { mailer: { deliver: () => assert.fail('The email driver must not receive a non-email delivery.') } };
+  for (const channel of ['sms', 'phone', undefined]) {
+    assert.throws(
+      () => deliverPartnerRequest({ channel, to: partner.mobile }, email, ports),
+      /only be delivered by email/
+    );
+  }
 });

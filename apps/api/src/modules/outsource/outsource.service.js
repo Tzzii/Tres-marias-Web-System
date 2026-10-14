@@ -27,7 +27,6 @@ import {
 import { BUSINESS, isRental } from '@tm/shared/src/services/config.js';
 import { pool, tx } from '../../db.js';
 import { mailer } from '../../integrations/mailer/index.js';
-import { sms } from '../../integrations/sms/index.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { newId, nextCounter } from '../../lib/ids.js';
 import { isISODate, now, todayISO } from '../../lib/time.js';
@@ -36,79 +35,37 @@ import * as reservationsRepo from '../reservations/reservations.repo.js';
 import * as repo from './outsource.repo.js';
 import { outsourceRequestEmail, deliverPartnerRequest } from './outsource.emails.js';
 
-/**
- * Outsourcing on the server (docs/backend-development-phases.md Phase 10, §9.10): the partners Tres
- * Marias rents from, the requests sent to them (a "contract" in the code is a request, see domain/outsource.js) and each one's status. Admin only. The
- * rules, texts, views and errors (with meta.field / meta.row) are @tm/shared/src/domain/outsource.js, and
- * the page's checks are repeated here in the same order because the server never trusts the page (§3 rule 3).
- *
- * Sending a request really sends it, through the mail and SMS ports (integrations/mailer and sms), with
- * one text for every channel. Nothing waits on an email or SMS provider while rows are locked: the send
- * is saved first, in one transaction (the contract marked sent, one delivery per channel, each with an
- * outbox row marked 'queued', the history line and the booking's audit-trail line); after the commit
- * each message is handed to its port, and its outbox row records what happened ('sent', 'logged' or
- * 'failed'). A channel that did not really go out (the log driver only prints it, or the provider refused
- * it) adds a line to the contract's history, and the answer carries `deliveryNote`, which the page shows,
- * telling the admin to send the request themselves (Save PDF).
- *
- * On purpose:
- * - The admin in the histories and the audit trail is the signed-in one (req.user.name).
- * - A partner, contract or booking must be named exactly as stored: the columns' collation ignores case
- *   and trailing spaces, so the service compares the id or ref itself.
- * - The date needed must be a real "YYYY-MM-DD" day (else "Choose the date the items are needed."), and
- *   text fits its column (a contract's items up to 50 lines, each name up to 120 characters).
- * - Two partner names that differ only by an accent are the same name to the UNIQUE index (NAME_TAKEN).
- * - `deliveryNote` (above): '' when every channel really went out.
- *
- * Lock order: the contract's row first (every contract write starts with lockContract), then its
- * partner's row (a send reads it FOR SHARE, so archiving that partner waits for the send, and a send
- * waits for an archive in progress and then refuses the archived partner), then the booking's row (a
- * line in its audit trail reads it through the foreign key). Archiving partners locks their rows first,
- * before it reads their contracts.
- */
 
-// A refusal from domain/outsource.js as an ApiError
 const toError = ({ code, message, meta }) => new ApiError(code, message, meta);
 const partnerNotFound = () => new ApiError('NOT_FOUND', 'Partner not found.');
 const contractNotFound = () => new ApiError('NOT_FOUND', 'Request not found.');
 
-// The columns' limits (schema.sql) for what the forms leave to the server: a contract's lines and their names
 const MAX_ITEMS = 50;
 const ITEM_NAME_MAX = 120;
 
-// True when a save failed because another partner already has the name (the UNIQUE name index)
 const isNameTaken = (err) =>
   Boolean(err) &&
   err.code === 'ER_DUP_ENTRY' &&
   String(err.sqlMessage || err.message).includes('uq_outsource_partners_name');
 const nameTaken = (name) => new ApiError('NAME_TAKEN', `"${name}" is already a partner.`, { field: 'name' });
 
-// A partner as the pages show it, read inside the transaction after a change
 async function partnerViewOf(db, id) {
   const [partner] = await repo.findPartners(db, { ids: [id] });
   const stats = (await repo.partnerContractStats(db)).get(id) || { contractCount: 0, openCount: 0, lastSentAt: null };
   return partnerView(partner, stats);
 }
 
-// A contract as the pages show it, read after a change
 async function contractViewOf(db, id) {
   const [row] = await repo.findContracts(db, { id });
   return contractView(row.contract, row.partner, row.reservation);
 }
 
-// The contract `id` names exactly, with its row locked until the transaction ends, or NOT_FOUND
 async function lockedContract(conn, id) {
   const contract = typeof id === 'string' && id ? await repo.lockContract(conn, id) : null;
   if (!contract || contract.id !== id) throw contractNotFound();
   return contract;
 }
 
-/**
- * A line in a contract's history, and for a contract that is for a booking, the same line in that
- * booking's audit trail ("Outsourcing · <partner>: …"; `activityText` instead of `text` when given: a
- * send names only the channels there, since the customer sees that trail). `partnerName` is the partner's
- * name, or the contract's ref when there is none.
- */
 async function logContract(conn, contract, partnerName, text, admin, activityText = text) {
   const at = now();
   await repo.insertContractHistory(conn, contract.id, { at, actor: admin.name, text });
@@ -121,9 +78,7 @@ async function logContract(conn, contract, partnerName, text, admin, activityTex
   }
 }
 
-/* ============================ Reads ============================ */
 
-/** Every partner (archived ones only when asked), by service order then name, with how they are reached and their contract counts. */
 export async function listPartners({ includeArchived = false } = {}) {
   const [partners, stats] = await Promise.all([
     repo.findPartners(pool, { includeArchived }),
@@ -136,16 +91,11 @@ export async function listPartners({ includeArchived = false } = {}) {
     .sort(partnerOrder);
 }
 
-/** Every contract, newest first, with its partner, its event and a one-line summary of the items. */
 export async function listContracts() {
   const rows = await repo.findContracts(pool);
   return rows.map((row) => contractView(row.contract, row.partner, row.reservation));
 }
 
-/**
- * The bookings a contract can be for: approved to confirmed, soonest first (same date: the earlier
- * request first). `rental` is true for an Equipment Rental booking; `venue` is "name, city".
- */
 export async function listOutsourceEvents() {
   const bookings = await reservationsRepo.listHeldBookings(pool);
   return bookings.map((r) => ({
@@ -158,14 +108,7 @@ export async function listOutsourceEvents() {
   }));
 }
 
-/* ============================ Partners ============================ */
 
-/**
- * Add a partner (`id` null) or save changes to one (partnerProblem: a name not already used, what they
- * supply, and an email address or a mobile number, each well formed). The details are checked before
- * the partner is looked up. A new partner gets its first history line; an
- * edit that changes anything lists the fields it changed. Returns the partner as the pages show it.
- */
 export async function savePartner(id, values, admin) {
   return tx(async (conn) => {
     const existing = id
@@ -197,12 +140,6 @@ export async function savePartner(id, values, admin) {
   });
 }
 
-/**
- * Archive or restore partners (`ids`; a repeated id counts once per mention in `count`).
- * A partner with a contract sent and still waiting for their answer can't be archived
- * (IN_USE, naming them). Their rows are locked before their contracts are read, so a contract being sent
- * to them at the same moment is either seen here or refused there. Returns { count }.
- */
 export async function setPartnerArchived(ids, archived, admin) {
   const flag = Boolean(archived);
   return tx(async (conn) => {
@@ -224,15 +161,27 @@ export async function setPartnerArchived(ids, archived, admin) {
   });
 }
 
-/* ============================ Contracts ============================ */
+export async function deletePartner(id, admin, { transact = tx } = {}) {
+  return transact(async (conn) => {
+    const contracts = await repo.lockPartnerContracts(conn, id);
+    const [partner] = await repo.findPartners(conn, { ids: [id], lock: true });
+    if (!partner || partner.id !== id) throw partnerNotFound();
+    if (contracts.some((contract) => ['sent', 'accepted'].includes(contract.status))) {
+      throw new ApiError('IN_USE', `Complete or cancel ${partner.name}'s awaiting reply or accepted requests first.`);
+    }
+    const at = now();
+    for (const contract of contracts) {
+      await repo.insertContractHistory(conn, contract.id, {
+        at,
+        actor: admin.name,
+        text: `Partner "${partner.name}" permanently deleted. Request retained.`
+      });
+    }
+    await repo.deletePartner(conn, partner.id);
+  });
+}
 
-/**
- * Save a contract as a draft: a new one (`id` null; it gets the next OUT-YYYY- number) or changes to a
- * draft (LOCKED once sent: its terms are what the partner received). contractProblem checks the
- * partner (not archived), the items, the date needed (today or later), the booking (approved to
- * confirmed) and the amount (whole pesos up to ₱10,000,000). A draft for a booking also goes in that
- * booking's audit trail. Returns the contract as the pages show it.
- */
+
 export async function saveContract(id, values, admin) {
   return tx(async (conn) => {
     const existing = id ? await lockedContract(conn, id) : null;
@@ -243,7 +192,6 @@ export async function saveContract(id, values, admin) {
     const partner = partnerFound && partnerFound.id === values.partnerId ? partnerFound : null;
     const ref = contractRef(values);
     const booking = ref !== NO_EVENT && typeof ref === 'string' ? await repo.readBookingStatus(conn, ref) : null;
-    // A date that is not a real YYYY-MM-DD day is answered as a missing one, at the same step
     const checked = { ...values, needBy: isISODate(values.needBy) ? values.needBy : '' };
     const problem = contractProblem(checked, {
       partner,
@@ -290,50 +238,29 @@ export async function saveContract(id, values, admin) {
   });
 }
 
-// "email" or "SMS"
-const CHANNEL_WORD = { email: 'email', sms: 'SMS' };
-
-// The contract's history line for a channel that did not really go out: only logged (no provider yet), or refused
-const undeliveredText = ({ channel, to, status }) =>
+const undeliveredText = ({ to, status }) =>
   status === 'logged'
-    ? `The ${CHANNEL_WORD[channel]} to ${to} was not sent: no ${CHANNEL_WORD[channel]} service is connected yet, so it was only saved in the outbox. Send the request yourself (Save PDF).`
-    : `The ${CHANNEL_WORD[channel]} to ${to} could not be sent. Send it again, or send the request yourself (Save PDF).`;
+    ? `The email to ${to} was not sent: no email service is connected yet, so it was only saved in the outbox. Send the request yourself (Save PDF).`
+    : `The email to ${to} could not be sent. Send it again, or send the request yourself (Save PDF).`;
 
-/**
- * The note the page shows after a send when a channel did not really go out, e.g. "OUT-2026-0008 is
- * marked sent, but no SMS service is connected yet, so the SMS was only saved. Save the PDF and
- * send it to Aling Nena Chairs and Tables yourself." '' when every channel went out.
- */
 function deliveryNote(ref, partnerName, results) {
-  const logged = results.filter((r) => r.status === 'logged').map((r) => CHANNEL_WORD[r.channel]);
-  const failed = results.filter((r) => r.status === 'failed').map((r) => CHANNEL_WORD[r.channel]);
-  if (!logged.length && !failed.length) return '';
+  const logged = results.some((r) => r.status === 'logged');
+  const failed = results.some((r) => r.status === 'failed');
+  if (!logged && !failed) return '';
   const parts = [];
-  if (logged.length)
-    parts.push(
-      `no ${logged.join(' or ')} service is connected yet, so the ${logged.join(' and ')} ${logged.length > 1 ? 'were' : 'was'} only saved`
-    );
-  if (failed.length) parts.push(`the ${failed.join(' and ')} could not be sent`);
+  if (logged) parts.push('no email service is connected yet, so the email was only saved');
+  if (failed) parts.push('the email could not be sent');
   return `${ref} is marked sent, but ${parts.join(', and ')}. Save the PDF and send it to ${partnerName} yourself.`;
 }
 
-/**
- * Hand each queued delivery to its port after the send was saved, and record how it went on its outbox
- * row. A provider that refuses a message (or a port that fails) never undoes the send: that channel is
- * 'failed', with the reason in the outbox row and on the server console. Returns the deliveries with
- * their `status`: 'sent', 'logged' or 'failed'.
- */
 async function deliverAll(contract, deliveries, email) {
   const results = [];
   for (const delivery of deliveries) {
     let outcome;
     try {
-      outcome = await deliverPartnerRequest(delivery, email, { mailer, sms });
+      outcome = await deliverPartnerRequest(delivery, email, { mailer });
     } catch (err) {
-      console.error(
-        `[outsource] ${contract.ref}: the ${CHANNEL_WORD[delivery.channel]} to ${delivery.to} could not be sent:`,
-        err.message
-      );
+      console.error(`[outsource] ${contract.ref}: the email to ${delivery.to} could not be sent:`, err.message);
       outcome = { status: 'failed', providerId: null, error: err.message };
     }
     await markOutbox(delivery.outboxId, {
@@ -341,23 +268,13 @@ async function deliverAll(contract, deliveries, email) {
       providerId: outcome.providerId,
       error: outcome.error || null
     }).catch((err) =>
-      console.error(
-        `[outsource] ${contract.ref}: could not record the ${CHANNEL_WORD[delivery.channel]} in the outbox:`,
-        err.message
-      )
+      console.error(`[outsource] ${contract.ref}: could not record the email in the outbox:`, err.message)
     );
     results.push({ ...delivery, status: outcome.status });
   }
   return results;
 }
 
-/**
- * Send (or send again) a request to its partner (sendProblem: a draft or an unanswered request, a
- * partner who is not archived and can be reached, and at least 20 characters of text). The same text
- * goes to every channel the partner has: an email when they have an email address, an SMS when they
- * have a mobile number, both when they have both. Saved first, then sent (see the top of this file).
- * Returns the contract as the pages show it, plus `deliveryNote` ('' when every channel went out).
- */
 export async function sendContract(id, body, admin) {
   const text = body.trim();
   const saved = await tx(async (conn) => {
@@ -367,7 +284,6 @@ export async function sendContract(id, body, admin) {
     const problem = sendProblem(contract, partner, text);
     if (problem) throw toError(problem);
 
-    // One delivery per channel, every one of them carrying the identical text, each with its outbox row
     const at = now();
     const email = outsourceRequestEmail({ ref: contract.ref, body: text });
     const deliveries = contractDeliveries(partner, text, at);
@@ -376,10 +292,10 @@ export async function sendContract(id, body, admin) {
         {
           channel: delivery.channel,
           to: delivery.to,
-          subject: delivery.channel === 'email' ? email.subject : null,
+          subject: email.subject,
           body: text,
           status: 'queued',
-          provider: delivery.channel === 'email' ? mailer.name : sms.name,
+          provider: mailer.name,
           meta: { purpose: 'outsourcing_contract', contractId: contract.id, contractRef: contract.ref }
         },
         conn
@@ -392,7 +308,6 @@ export async function sendContract(id, body, admin) {
     return { contract, partner, deliveries, email };
   });
 
-  // After the commit: hand each message over, then note on the contract any channel that did not go out
   const results = await deliverAll(saved.contract, saved.deliveries, saved.email);
   const undelivered = results.filter((r) => r.status !== 'sent');
   if (undelivered.length) {
@@ -413,12 +328,6 @@ export async function sendContract(id, body, admin) {
   };
 }
 
-/**
- * Record what happened next (statusProblem: a move NEXT_STATUS allows, and a reason of 5+ characters for
- * a decline or a cancellation): 'accepted' or 'declined' when the partner answers, 'completed' once the
- * items have arrived, 'cancelled' when the request is called off. Marking a contract completed without a
- * note keeps what the partner said when they accepted (statusChanges). Returns the contract.
- */
 export async function setContractStatus(id, status, note, admin) {
   const reason = note.trim();
   return tx(async (conn) => {

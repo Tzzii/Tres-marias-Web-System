@@ -16,20 +16,11 @@ import {
 } from '@tm/shared';
 import LegalText from './LegalText.jsx';
 
-/**
- * "We updated our Terms": shown in the customer portal when the account has not agreed to the current
- * TERMS_VERSION (an account made before the terms existed, or before they last changed). It shows the
- * full Terms of Service and Privacy Policy; "I agree" records the version on the account
- * (authApi.acceptTerms) and `onAccepted(profile)` updates the session. Closing it only puts it off: it
- * comes back at the next visit, and every reservation request still asks for the tick on its own.
- */
 export default function TermsUpdateDialog({ open, onClose, onAccepted, firstTime = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // The minimum downpayment named in the payment terms, once the catalogue has loaded (else left out)
   const minDownpayment = catalogApi.minDownpayment ? catalogApi.minDownpayment() : null;
 
-  // Record the agreement; a page left open while the terms changed is told to reload
   const accept = async () => {
     setBusy(true);
     setError('');

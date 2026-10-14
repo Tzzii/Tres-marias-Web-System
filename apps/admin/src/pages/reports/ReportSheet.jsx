@@ -4,20 +4,11 @@ import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import { BUSINESS, BarChart, LOGO_SRC, LightSurface, formatDateTime, peso, tokens } from '@tm/shared';
 
-// Small upper-case heading over each part of the report
 const HEADING_SX = { fontSize: 13, fontWeight: 800, color: tokens.goldDark };
-// The one-line explanation under a heading
 const NOTE_SX = { mt: 0.25, mb: 1.5, fontSize: 11.5, color: tokens.textMuted };
-// A part of the report kept on one page (when it fits), so a heading never ends a page without what it heads:
-// data-pdf-keep for Save PDF (utils/savePdf.js), break-inside for Print
 const KEEP = { 'data-pdf-keep': true };
 const KEEP_SX = { breakInside: 'avoid' };
 
-/**
- * A table of names and figures with a bold Total row at the bottom. The Total is a normal last row,
- * not a <tfoot>, because a printed table repeats its <tfoot> on every page it runs onto.
- * `head` names the columns; `rows` and `total` hold one cell per column; columns after the first are right-aligned.
- */
 function FigureTable({ head, rows, total }) {
   return (
     <Box
@@ -60,19 +51,10 @@ function FigureTable({ head, rows, total }) {
   );
 }
 
-/**
- * The Reports Overview laid out as a printed A4 report: the letterhead with the range and the time it was
- * made, the five figures, revenue per month (or year) as a chart beside a table with its total, bookings
- * per package with each one's share, and how the figures are counted.
- * It waits off screen (the tm-print-sheet class) in a portal on <body>, so it never shows on the page:
- * Print prints only this sheet (it is a tm-print-root, see global.css), and Save PDF draws it into the PDF
- * through `sheetRef`. `data` is reportApi.getReport()'s answer; `format` writes the chart's axis amounts.
- */
 export default function ReportSheet({ data, rangeLabel, generatedAt, format, sheetRef }) {
   const byYear = data.revenueBy === 'year';
   const revenueTotal = data.revenueChart.reduce((total, m) => total + m.value, 0);
   const bookings = data.packageCounts.reduce((total, p) => total + p.count, 0);
-  // A package's share of all bookings in whole percent ("—" when there are none)
   const share = (count) => (bookings ? `${Math.round((count / bookings) * 100)}%` : '—');
 
   const figures = [
@@ -91,7 +73,6 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
         aria-hidden="true"
         sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}
       >
-        {/* Letterhead, as on the quotations and receipts */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
             <Box
@@ -119,7 +100,6 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
 
         <Divider sx={{ my: 2.5, borderColor: tokens.gold, borderBottomWidth: 2 }} />
 
-        {/* The five figures in one bordered row */}
         <Box {...KEEP} sx={KEEP_SX}>
           <Typography sx={HEADING_SX}>Summary</Typography>
           <Typography sx={NOTE_SX}>Figures for {rangeLabel.toLowerCase()}.</Typography>
@@ -149,7 +129,6 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
           </Box>
         </Box>
 
-        {/* Revenue: the chart beside its table, months (or years) in order with their total */}
         <Box {...KEEP} sx={{ ...KEEP_SX, mt: 3.5 }}>
           <Typography sx={HEADING_SX}>{byYear ? 'Revenue by Year' : 'Revenue by Month'}</Typography>
           <Typography sx={NOTE_SX}>
@@ -187,7 +166,6 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
           </Box>
         </Box>
 
-        {/* Bookings per package, most booked first */}
         <Box {...KEEP} sx={{ ...KEEP_SX, mt: 3.5 }}>
           <Typography sx={HEADING_SX}>Bookings by Package</Typography>
           <Typography sx={NOTE_SX}>
@@ -204,7 +182,6 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
           )}
         </Box>
 
-        {/* How each figure is counted, the same rules the Overview tab uses */}
         <Box {...KEEP} sx={{ ...KEEP_SX, mt: 3.5, pt: 1.5, borderTop: `1px solid ${tokens.cardLightBorder}` }}>
           <Typography sx={{ fontSize: 11, fontWeight: 700, color: tokens.textSecondary }}>
             How the Figures Are Counted

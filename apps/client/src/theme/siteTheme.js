@@ -1,38 +1,24 @@
 import { createTheme } from '@mui/material/styles';
 import { lightPalette, lightTheme } from '@tm/shared';
 
-// Public pages use the available screen width with a small, consistent edge gutter.
 export const siteContainerSx = { maxWidth: 'none', px: { xs: 2, sm: 3, lg: 4 } };
 
-/**
- * "Warm Ivory & Gold" look for the public website (home, package pages, log in, sign up).
- * The customer portal and the admin dashboard keep the shared navy themes.
- *
- * About 80% of the site is light (ivory and sand), the logo's black becomes a warm charcoal for
- * text and main buttons, gold stays the accent, and espresso (warm dark brown) is used only for
- * the contact strip, the closing call-to-action panel and the footer.
- */
 export const site = {
-  // Light backgrounds
   ivory: '#fbf7f0',
   sand: '#f3eadb',
   card: '#ffffff',
   border: '#e8dcc6',
   borderHover: 'rgba(197, 160, 89, 0.7)',
 
-  // Text on light backgrounds
   ink: '#2b2622',
   inkSoft: '#5e554d',
   inkMuted: '#8a8078',
 
-  // Gold: `gold` for icons, lines and stars; `goldText` for gold words on light backgrounds (readable contrast)
-  // Raw hex values, not the `var(--tm-...)` tokens: MUI measures contrast on palette colours
   gold: lightPalette.gold,
   goldLight: lightPalette.goldLight,
   goldText: '#8a6a2f',
   goldTint: 'rgba(197, 160, 89, 0.12)',
 
-  // Warm dark sections and the text on them
   espresso: '#1f1a17',
   espressoDeep: '#171311',
   onEspresso: '#f5efe6',
@@ -40,16 +26,13 @@ export const site = {
   onEspressoMuted: '#9c9186',
   espressoBorder: 'rgba(197, 160, 89, 0.22)',
 
-  // Fonts: serif headings match "TRES MARIAS" in the logo, the sans body matches "Catering Services"
   fontSerif: '"Playfair Display", Georgia, "Times New Roman", serif',
   fontSans: '"Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 
-  // Soft, warm-tinted shadows
   shadowCard: '0 1px 2px rgba(60, 42, 20, 0.04), 0 18px 40px -24px rgba(60, 42, 20, 0.28)',
   shadowCardHover: '0 1px 2px rgba(60, 42, 20, 0.05), 0 28px 50px -22px rgba(60, 42, 20, 0.38)',
   shadowPanel: '0 30px 60px -30px rgba(60, 42, 20, 0.35), 0 0 0 1px rgba(197, 160, 89, 0.18)',
 
-  // Backgrounds
   gradientHero:
     'radial-gradient(ellipse at 18% 18%, rgba(197, 160, 89, 0.22) 0%, transparent 55%), ' +
     'radial-gradient(ellipse at 85% 75%, rgba(176, 96, 96, 0.10) 0%, transparent 55%), ' +
@@ -58,7 +41,6 @@ export const site = {
   textureLinen:
     'repeating-linear-gradient(115deg, rgba(120, 90, 40, 0.035) 0px, rgba(120, 90, 40, 0.035) 1px, transparent 1px, transparent 9px)',
 
-  // Four light package panel washes (cream, blush, sage, wheat), picked by package.mood
   moods: [
     'linear-gradient(150deg, #f7efe2 0%, #eadcc4 100%)',
     'linear-gradient(150deg, #f8ebe7 0%, #ecd6d0 100%)',
@@ -67,10 +49,6 @@ export const site = {
   ]
 };
 
-/**
- * MUI theme for the public website, built on the shared lightTheme so inputs, dialogs and tables
- * keep their styling. Charcoal is primary (main buttons turn gold-brown on hover), gold is secondary.
- */
 export const siteTheme = createTheme(lightTheme, {
   palette: {
     primary: { main: site.ink, light: '#4a423c', dark: site.goldText, contrastText: site.ivory },

@@ -41,15 +41,9 @@ import {
 } from '@tm/shared';
 import { SectionBar } from '../../components/SectionTabs.jsx';
 
-/**
- * 1v · Calendar tab of "Reservation & Calendar": booked events, blocked dates and daily capacity.
- * Drives the public availability check and the customer date picker. The page title and tabs come from ReservationsCalendarPage.
- * Opens on the date in ?date=YYYY-MM-DD when given (month shown and that day selected), otherwise on today.
- */
 export default function CalendarSection() {
   const navigate = useNavigate();
   const notify = useNotify();
-  // Load reservations and calendar settings (blocked dates + daily capacity) together
   const { data, loading, error, reload } = useResource(async () => {
     const [reservations, availability] = await Promise.all([
       reservationApi.listReservations(),
@@ -58,45 +52,35 @@ export default function CalendarSection() {
     return { reservations, availability };
   }, []);
 
-  // A ?date=YYYY-MM-DD link (e.g. a day clicked on the dashboard calendar) opens on that date; otherwise today
   const [params] = useSearchParams();
   const dateParam = params.get('date');
   const start = /^\d{4}-\d{2}-\d{2}$/.test(dateParam || '') ? dateParam : todayISO();
   const startDate = parseISODate(start);
-  const [view, setView] = useState({ year: startDate.getFullYear(), month: startDate.getMonth() }); // month shown
-  const [mode, setMode] = useState('month'); // 'month' or 'week' view
-  const [weekStart, setWeekStart] = useState(() => mondayOf(start)); // Monday of the week shown
-  const [selected, setSelected] = useState(start); // clicked date
+  const [view, setView] = useState({ year: startDate.getFullYear(), month: startDate.getMonth() });
+  const [mode, setMode] = useState('month');
+  const [weekStart, setWeekStart] = useState(() => mondayOf(start));
+  const [selected, setSelected] = useState(start);
 
-  // "Block a Date" form; `note` is optional, shown to customers with the reason when they tap the date
   const [block, setBlock] = useState({ from: '', to: '', reason: 'Fully booked', note: '' });
   const [blockErrors, setBlockErrors] = useState({});
   const [blocking, setBlocking] = useState(false);
-  // Daily capacity form
   const [capacity, setCapacity] = useState('');
   const [savingCapacity, setSavingCapacity] = useState(false);
-  const [unblock, setUnblock] = useState(null); // blocked date waiting for unblock confirmation
+  const [unblock, setUnblock] = useState(null);
 
-  // Fill the capacity box with the saved value once it loads
   useEffect(() => {
     if (data) setCapacity(String(data.availability.capacity));
   }, [data?.availability.capacity]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Group active reservations by date, e.g. { '2026-10-03': [res1, res2] }
   const byDate = useMemo(() => {
     const map = {};
     (data ? data.reservations : []).forEach((r) => {
-      // Declined and cancelled bookings don't take up the date
       if (['declined', 'cancelled'].includes(r.status)) return;
       (map[r.date] = map[r.date] || []).push(r);
     });
     return map;
   }, [data]);
 
-  // For one date: its reservations (pending requests and rentals included), whether it's blocked,
-  // how many event slots are taken, and whether customers see it as fully booked.
-  // `slots` and `full` use the same rule as the customer date picker: rentals and pending requests take
-  // no slot, and a day is also full when no start time is left between the booked events.
   const describe = (iso) => {
     const events = byDate[iso] || [];
     const blocked = data.availability.blocked.find((b) => b.date === iso);
@@ -106,7 +90,6 @@ export default function CalendarSection() {
     return { events, blocked, slots, full };
   };
 
-  // Tell the month calendar how to colour and label each day (blocked > full > has events > open)
   const getDay = (iso) => {
     const { events, blocked, slots, full } = describe(iso);
     if (blocked)
@@ -133,7 +116,6 @@ export default function CalendarSection() {
     return { tone: 'open', label: 'Open' };
   };
 
-  // Validate the date range and block those dates so customers can't book them
   const submitBlock = async () => {
     const found = {};
     if (!block.from) found.from = 'Choose the first date.';
@@ -141,7 +123,6 @@ export default function CalendarSection() {
     if (block.from && block.to && block.to < block.from) found.to = 'Must be on or after the first date.';
     setBlockErrors(found);
     if (Object.keys(found).length) return;
-    // Dates in the range that already have bookings; blocking still works, but the admin is warned
     const conflicts = Object.keys(byDate).filter(
       (d) =>
         d >= block.from &&
@@ -163,7 +144,6 @@ export default function CalendarSection() {
     }
   };
 
-  // Save how many events can be booked per day
   const saveCapacity = async () => {
     setSavingCapacity(true);
     try {
@@ -183,14 +163,11 @@ export default function CalendarSection() {
       </DashCard>
     );
 
-  // "YYYY-MM" of the month shown, used to list that month's blocked dates
   const monthKey = `${view.year}-${String(view.month + 1).padStart(2, '0')}`;
   const blockedThisMonth = data ? data.availability.blocked.filter((b) => b.date.startsWith(monthKey)) : [];
   const selectedInfo = data ? describe(selected) : null;
-  // The 7 dates of the week shown in week view
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Month / Week switch button. On phones it fills its own row (each button half, 40px tall for fingers).
   const toggleSx = {
     px: 1.75,
     textTransform: 'none',
@@ -242,9 +219,6 @@ export default function CalendarSection() {
               />
             ) : (
               <>
-                {/* Week view: previous/next week buttons, then one row per day.
-                    Phones: the Month / Week switch gets the first row, and the dates may wrap to two lines
-                    so the arrows and "This week" still fit on one row. */}
                 <Box
                   sx={{
                     display: 'flex',
@@ -344,10 +318,8 @@ export default function CalendarSection() {
             )}
           </DashCard>
 
-          {/* Details of the clicked date: its reservations and a Block/Unblock button */}
           {selectedInfo && (
             <DashCard>
-              {/* Slots count approved events only (not rentals or pending requests); a day can be full before every slot is taken when no start time is left */}
               <CardTitle
                 subtitle={
                   selectedInfo.blocked
@@ -417,7 +389,6 @@ export default function CalendarSection() {
             <CardTitle>Block a Date</CardTitle>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                {/* Picking a From date after the To date moves To forward to match */}
                 <DateField
                   id="block-from"
                   label="From"
@@ -448,7 +419,6 @@ export default function CalendarSection() {
                 onChange={(e) => setBlock((b) => ({ ...b, reason: e.target.value }))}
                 options={BLOCK_REASONS}
               />
-              {/* Customers see this under the calendar when they tap the date, after the reason */}
               <FormField
                 id="block-note"
                 label="Note for customers"
@@ -546,7 +516,6 @@ export default function CalendarSection() {
   );
 }
 
-/** Returns the Monday of the week containing the given date ("YYYY-MM-DD"). */
 function mondayOf(iso) {
   const d = parseISODate(iso);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));

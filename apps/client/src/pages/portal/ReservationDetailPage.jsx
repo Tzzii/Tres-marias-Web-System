@@ -61,25 +61,11 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-/**
- * 1i · Reservation details. Read-only except Accept Quotation, Request a change, Cancel and Pay.
- * A pending request is approved by the customer accepting the quotation we sent (pendingStep 'accept'):
- * the status card and the Payment Summary offer Accept Quotation, whose dialog shows the total, the
- * minimum downpayment and its due date first. An out-of-date quotation ('revise') waits for the revised one.
- * Cancel shows only while the booking can be cancelled online (the summary's `onlineCancel`, worked out
- * by domain/cancellation.js); the status card says until when, or why not and how to cancel instead.
- * It also shows the "Started preparing" mark, who cancelled, and any refund owed or sent, and the theme,
- * colours and design details chosen on the booking form (a card only when there are some; the team edits
- * them after a change request). The package's items are listed one per row (PackageItemList), and the
- * Payment Summary lists what the total is made of (ChargeLines), so the customer can see both without
- * opening the quotation.
- */
 export default function ReservationDetailPage() {
   const { ref } = useParams();
   const navigate = useNavigate();
   const notify = useNotify();
   const { user } = useAuth();
-  // Load the reservation. Passing customerId makes sure customers can only open their own bookings.
   const {
     data: r,
     loading,
@@ -88,10 +74,10 @@ export default function ReservationDetailPage() {
   } = useResource(() => reservationApi.getReservation(ref, { customerId: user.id }), [ref, user.id]);
   useDocumentTitle(r ? r.eventName : 'Reservation');
 
-  const [changeOpen, setChangeOpen] = useState(false); // "Request a change" dialog
-  const [cancelOpen, setCancelOpen] = useState(false); // cancel confirmation dialog
-  const [acceptOpen, setAcceptOpen] = useState(false); // "Accept quotation" confirmation dialog
-  const [doc, setDoc] = useState(null); // document open in the preview
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [acceptOpen, setAcceptOpen] = useState(false);
+  const [doc, setDoc] = useState(null);
 
   const crumbs = [{ label: 'My Reservations', to: '/portal/reservations' }, { label: r ? r.eventName : ref }];
 
@@ -117,27 +103,18 @@ export default function ReservationDetailPage() {
     );
   }
 
-  // Customer can request changes only in certain statuses (Pending, Approved)
   const editable = CUSTOMER_EDITABLE.includes(r.status);
-  // Online cancellation: allowed now, or the reason why not (checked again when cancelling)
   const online = r.onlineCancel || { allowed: false, reason: '', deadline: r.cancelDeadline };
   const closed = ['cancelled', 'declined', 'completed'].includes(r.status);
-  // What was returned so far on this booking, newest first
   const refunds = r.refunds || [];
   const refunded = r.refunded || 0;
-  // Can pay when approved or later, money is owed, and no payment is already waiting for verification
   const canPay = ['approved', 'downpayment_paid', 'confirmed'].includes(r.status) && r.balance > 0 && !r.awaitingCount;
-  // Quotation, contract and receipts for this reservation
   const docs = documentsFor(r);
-  // Pending: 'quote' (we still send the quotation), 'revise' (a revised one is coming) or 'accept'
   const step = pendingStep(r);
   const quotationDoc = docs.find((d) => d.kind === 'quotation');
-  // What accepting asks for: the minimum downpayment (the whole total when that is lower), due as an approval sets it
   const acceptDownpayment = r.quotation ? Math.min(r.downpayment, r.quotation.net) : 0;
-  // An equipment rental shows its items, pick up or delivery and any damage charges instead of a package and menu
   const rental = isRental(r.serviceType);
   const delivered = rental && r.fulfilment === 'delivery';
-  // The package's items for this booking's guest count (a rental has none)
   const items = rental ? [] : bookingItems(r);
 
   return (
@@ -173,10 +150,8 @@ export default function ReservationDetailPage() {
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        {/* Status progress bar plus a message explaining what happens next */}
         <DashCard>
           <StatusPipeline status={r.status} />
-          {/* The button sits under the text, so the text keeps the banner's full width on a phone */}
           {step === 'accept' && (
             <AlertBanner tone="info" sx={{ mt: 2 }} title="Your Quotation Is Ready">
               Net total {peso(r.quotation.net)}. Open the quotation under Documents to see every line, then accept it to
@@ -226,7 +201,6 @@ export default function ReservationDetailPage() {
               {r.declineReason}
             </AlertBanner>
           )}
-          {/* Records without cancelledBy are the customer's own cancellations */}
           {r.status === 'cancelled' && (
             <AlertBanner
               tone="error"
@@ -236,13 +210,11 @@ export default function ReservationDetailPage() {
               {r.cancelReason}
             </AlertBanner>
           )}
-          {/* Money owed back after a cancellation (an overpayment shows under Payment summary) */}
           {['cancelled', 'declined'].includes(r.status) && r.refundDue > 0 && (
             <AlertBanner tone="info" sx={{ mt: 2 }} title={`Refund due: ${peso(r.refundDue)}`}>
               We'll return it and tell you in your chat.
             </AlertBanner>
           )}
-          {/* Each refund recorded; a refund of ₱0 means everything paid was kept, with the reason */}
           {refunds.map((f) =>
             f.amount > 0 ? (
               <AlertBanner
@@ -261,13 +233,11 @@ export default function ReservationDetailPage() {
               </AlertBanner>
             )
           )}
-          {/* Preparation has started: the booking can no longer be cancelled online */}
           {r.preparingAt && !closed && (
             <Typography sx={{ mt: 2, fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>
               Preparation started on {formatDateLong(toISODate(new Date(r.preparingAt)))}.
             </Typography>
           )}
-          {/* Online cancellation: until when, or why not and how to cancel instead (nothing once the event day has come) */}
           {!closed && daysFromToday(r.date) > 0 && (
             <Typography
               sx={{ mt: r.preparingAt ? 0.5 : 2, fontSize: 13, lineHeight: 1.6, color: tokens.textSecondary }}
@@ -324,9 +294,6 @@ export default function ReservationDetailPage() {
                 >
                   {r.serviceType}
                 </CardTitle>
-                {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and
-                  the other counted items show the counts our quotation set, or a "To confirm" tag before it.
-                  One item per row, its count in its own column (PackageItemList), so a long list stays easy to read. */}
                 <Field
                   label={bookingExtraGuests(r) ? `Package includes, for your ${r.guests} guests` : 'Package includes'}
                 >
@@ -338,7 +305,6 @@ export default function ReservationDetailPage() {
                   </Typography>
                 )}
                 <Divider sx={{ my: 2 }} />
-                {/* A buffet lists the dish chosen for each category; catering only has no menu */}
                 {includesFood(r.serviceType) ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
                     {(r.menuDishes || []).map((dish) => (
@@ -353,7 +319,6 @@ export default function ReservationDetailPage() {
                 <Divider sx={{ my: 2 }} />
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                   {includesFood(r.serviceType) && <Field label="Drinks">{buffetDrinks(r.menu)} for every guest</Field>}
-                  {/* Charges counted by the piece show how many were asked for */}
                   <Field label="Additional charges">
                     {r.addons.length
                       ? r.addons
@@ -369,7 +334,6 @@ export default function ReservationDetailPage() {
               </DashCard>
             )}
 
-            {/* The look chosen on the booking form; hidden when there is none (a rental, a blank section, an older booking) */}
             {!rental && !stylingEmpty(r.styling) && (
               <DashCard>
                 <CardTitle
@@ -418,12 +382,10 @@ export default function ReservationDetailPage() {
               >
                 Payment Summary
               </CardTitle>
-              {/* What the total is made of, line by line, so the customer need not open the quotation to see it */}
               <ChargeLines r={r} rental={rental} delivered={delivered} />
               <DetailRow label="Minimum downpayment" sx={{ mt: 1 }}>
                 {peso(r.downpayment)}
               </DetailRow>
-              {/* Paid = what was received; money given back shows on its own row */}
               <DetailRow label="Paid">{peso(r.paid + refunded)}</DetailRow>
               {refunded > 0 && <DetailRow label="Refunded">− {peso(refunded)}</DetailRow>}
               {r.awaitingAmount > 0 && <DetailRow label="Being verified">{peso(r.awaitingAmount)}</DetailRow>}
@@ -433,7 +395,6 @@ export default function ReservationDetailPage() {
                   {peso(r.balance)}
                 </Box>
               </DetailRow>
-              {/* A lower revised quotation left more paid than the new total */}
               {r.overpaid > 0 && (
                 <AlertBanner tone="info" sx={{ mt: 1.5 }} title={`Overpaid ${peso(r.overpaid)}, to be returned`}>
                   We'll return it and tell you in your chat when it's sent.
@@ -519,7 +480,6 @@ export default function ReservationDetailPage() {
               </Box>
             </DashCard>
 
-            {/* After the event: show the customer's review, or invite them to write one */}
             {r.status === 'completed' && (
               <DashCard>
                 <CardTitle>Your Testimonial</CardTitle>
@@ -529,7 +489,6 @@ export default function ReservationDetailPage() {
                     <Typography sx={{ mt: 1, fontSize: 13.5, color: tokens.textSecondary }}>
                       “{r.testimonial.body}”
                     </Typography>
-                    {/* What you rated part by part */}
                     <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                       {FEEDBACK_CATEGORIES.filter(
                         ({ key }) => r.testimonial.categories && r.testimonial.categories[key]
@@ -539,7 +498,6 @@ export default function ReservationDetailPage() {
                         </Typography>
                       ))}
                     </Box>
-                    {/* The admin's answer to this review */}
                     {r.testimonial.reply && (
                       <Box
                         sx={{
@@ -582,7 +540,6 @@ export default function ReservationDetailPage() {
                 component="ol"
                 sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 1.75 }}
               >
-                {/* History of the booking, newest first */}
                 {r.activity
                   .slice()
                   .reverse()
@@ -615,7 +572,6 @@ export default function ReservationDetailPage() {
       <ChangeRequestDialog
         open={changeOpen}
         onClose={() => setChangeOpen(false)}
-        // Send the change request as a chat message (tagged with this event), then open the chat
         onSend={async (message) => {
           await reservationApi.requestChange(r.ref, user.id, message);
           setChangeOpen(false);
@@ -624,7 +580,6 @@ export default function ReservationDetailPage() {
         }}
       />
 
-      {/* Accepting approves the request: the server checks again that the date is still free, and a refusal stays in the dialog */}
       {step === 'accept' && (
         <ConfirmDialog
           open={acceptOpen}
@@ -659,7 +614,6 @@ export default function ReservationDetailPage() {
         tone="danger"
         reasonLabel="Why are you cancelling?"
         reasonPlaceholder="e.g. We moved the celebration to next year."
-        // Cancel with the reason the customer typed
         onConfirm={async (reason) => {
           await reservationApi.cancelReservation(r.ref, user.id, reason);
           setCancelOpen(false);
@@ -672,13 +626,11 @@ export default function ReservationDetailPage() {
   );
 }
 
-/** Dialog where the customer describes the change they want (10 to 2,000 characters, like a chat message). */
 function ChangeRequestDialog({ open, onClose, onSend }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Require at least 10 characters, send, then clear the text box
   const send = async () => {
     if (message.trim().length < 10) {
       setError('Describe the change you need (at least 10 characters).');
@@ -731,36 +683,18 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
   );
 }
 
-/**
- * What the customer pays for, one line each, with the total under them (the Payment Summary). The lines
- * come from the quotation we sent, or from the estimate before one, the same figures the quotation
- * printout lists:
- *   event    the package (with the guests it covers), the equipment for the guests above that, the buffet
- *            (guests × the price per person), and each additional charge (× how many, with the price of one)
- *   rental   the rented items (how many pieces), delivery or free pick-up, and any damage charges
- *   both     other charges and a discount, when the quotation has them
- * Before the quotation, the extra guests' equipment and each charge without its own price say "To be
- * quoted", and so does a charge added after the quotation was sent; the total then reads "₱20,000 +
- * quoted". The priced lines add up to the total, because r.total is the quote's net (financials in
- * domain/money.js).
- */
 function ChargeLines({ r, rental, delivered }) {
   const quote = r.quotation || r.estimate;
   const quoted = Boolean(r.quotation);
-  // Guests above the package's default: the ones the sent quotation priced (none on a quotation sent before
-  // the rule of 2026-10-09), or, before any quotation, the booking's own
   const extraGuests = rental ? 0 : quoted ? r.quotation.extraGuests || 0 : bookingExtraGuests(r);
-  // An add-on's line total (price × how many); a quotation saved before quantities only has the price
   const addonTotal = (id) =>
     (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
   const addonCount = (id) => (quote.addonQty && quote.addonQty[id]) || (r.addonQty || {})[id] || 1;
-  // A charge the sent quotation priced (one added after it waits for the revised quotation)
   const inQuotation = (id) => [quote.addonPrices, quote.addonTotals].some((prices) => prices && id in prices);
   const rentalLines = quote.rentalItems || [];
   const damageLines = quote.damageCharges || [];
   const pieces = (lines) => lines.reduce((sum, line) => sum + line.qty, 0);
 
-  // Each line: { key, label, note (small text under the label), value, toQuote (no price yet) }
   const lines = rental
     ? [
         {
@@ -800,7 +734,6 @@ function ChargeLines({ r, rental, delivered }) {
               }
             ]
           : []),
-        // The buffet is charged per person, so the line shows the sum it came from
         ...(quote.plates > 0
           ? [
               {
@@ -811,7 +744,6 @@ function ChargeLines({ r, rental, delivered }) {
               }
             ]
           : []),
-        // Before the quotation, a charge without its own price has none yet
         ...r.addons.map((a) => {
           const priced = quoted ? inQuotation(a.id) : addonTotal(a.id) > 0;
           const count = addonCount(a.id);
@@ -886,11 +818,6 @@ function ChargeLines({ r, rental, delivered }) {
   );
 }
 
-/**
- * What a rental includes: each item with how many and its price per piece (the prices it was booked
- * at), and any damage charges recorded after the items came back. The quotation is what the customer
- * pays; this card only lists the booking.
- */
 function RentalItemsCard({ r }) {
   const damage = r.damageCharges || [];
   return (

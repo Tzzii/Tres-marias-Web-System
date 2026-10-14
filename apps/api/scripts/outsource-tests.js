@@ -8,15 +8,25 @@ import {
   partnerServiceCategory,
   partnerOrder,
   partnerEditText,
-  contractView
+  contractView,
+  channelsOf,
+  contractDeliveries,
+  sendProblem,
+  sentText,
+  sentActivityText,
+  composeContractText
 } from '@tm/shared/src/domain/outsource.js';
 import { partnerBody } from '../src/modules/outsource/outsource.schemas.js';
 import { insertPartner, updatePartner, findPartners } from '../src/modules/outsource/outsource.repo.js';
+import { BUSINESS } from '@tm/shared/src/services/config.js';
 
 const details = {
   name: 'Local supplier',
   service: 'Other',
   serviceOther: 'Photo booth',
+  contactPerson: 'Local Coordinator',
+  address: 'Malvar, Batangas',
+  mobile: '09171234567',
   email: 'supplier@example.test'
 };
 
@@ -106,7 +116,21 @@ test('custom supplies are included under Other for partner and request filters, 
 test('custom supplies still require valid partner contact details', () => {
   assert.equal(partnerProblem({ ...details, email: '' }).meta.field, 'email');
   assert.equal(partnerProblem({ ...details, email: 'bad email' }).meta.field, 'email');
-  assert.equal(partnerProblem({ ...details, email: '', mobile: '09171234567' }), null);
+  assert.equal(partnerProblem({ ...details, email: '', mobile: '09171234567' }).meta.field, 'email');
+  assert.equal(partnerProblem({ ...details, mobile: '09171234567' }), null);
+  assert.equal(partnerProblem({ ...details, mobile: 'invalid' }).meta.field, 'mobile');
+});
+
+test('partner contact person, address and mobile are required while notes remain optional', () => {
+  for (const field of ['contactPerson', 'address', 'mobile']) {
+    for (const value of [undefined, '', '   ']) {
+      const problem = partnerProblem({ ...details, [field]: value });
+      assert.equal(problem.code, 'INVALID');
+      assert.equal(problem.meta.field, field);
+    }
+  }
+  assert.equal(partnerProblem({ ...details, notes: '' }), null);
+  assert.equal(partnerProblem(details), null);
 });
 
 test('SQL create, edit, and read preserve the actual custom supply in the existing service column', async () => {
@@ -143,4 +167,34 @@ test('request views carry the custom supply for partner pickers, details, and ex
   assert.equal(view.service, 'Photo booth');
   assert.equal(view.partnerName, 'Local supplier');
   assert.equal(view.itemsSummary, 'Photo booth × 1');
+});
+
+test('mobile never creates a delivery channel; email and mobile produce one email delivery', () => {
+  const partner = { ...details, mobile: '09171234567' };
+  assert.deepEqual(channelsOf(partner), ['email']);
+  assert.deepEqual(channelsOf({ ...partner, email: '' }), []);
+  assert.deepEqual(channelsOf({ ...partner, email: '   ' }), []);
+  assert.deepEqual(channelsOf({ ...partner, email: 'invalid' }), []);
+  const deliveries = contractDeliveries(partner, 'Final request text.', 123);
+  assert.deepEqual(deliveries, [{ channel: 'email', to: details.email, body: 'Final request text.', at: 123 }]);
+  assert.deepEqual(contractDeliveries({ ...partner, email: '' }, 'Final request text.', 123), []);
+  assert.equal(sentText(deliveries), `Sent the request by email (${details.email}).`);
+  assert.equal(sentActivityText(deliveries), 'Sent the request by email.');
+});
+
+test('new sends and resends require valid email, including previously mobile-only partners', () => {
+  for (const status of ['draft', 'sent']) {
+    for (const email of ['', '   ', 'invalid']) {
+      const problem = sendProblem({ status }, { ...details, email, mobile: '09171234567' }, 'x'.repeat(20));
+      assert.equal(problem.code, 'NO_CHANNEL');
+      assert.match(problem.message, /valid email address/);
+    }
+    assert.equal(sendProblem({ status }, details, 'x'.repeat(20)), null);
+  }
+  assert.equal(sendProblem({ status: 'accepted' }, details, 'x'.repeat(20)).code, 'LOCKED');
+});
+
+test('the request asks the partner to confirm by email or call', () => {
+  const body = composeContractText({ ref: 'OUT-2026-0001', partner: details });
+  assert.ok(body.endsWith(`Please email ${BUSINESS.email} or call ${BUSINESS.phone} to confirm.`));
 });

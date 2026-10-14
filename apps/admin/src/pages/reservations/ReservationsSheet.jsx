@@ -16,25 +16,10 @@ import {
   tokens
 } from '@tm/shared';
 
-// Statuses in the order a booking moves through them, for the counts under the letterhead
 const STATUS_ORDER = ['pending', 'approved', 'downpayment_paid', 'confirmed', 'completed', 'declined', 'cancelled'];
-// The table head: drawn again at the top of every page the table runs onto, by Save PDF (utils/savePdf.js)
-// and by Print (browsers repeat a <thead> on their own)
 const REPEAT = { 'data-pdf-repeat': true };
 
-/**
- * The All reservations list laid out for paper, on landscape A4 pages: the letterhead with which reservations
- * it holds (`filters`, the status tab, date range and search the list was filtered by, as [label, value]
- * pairs) and the time it was made, how many there are per status, then a table with one row per reservation:
- * reference, customer and email, event and occasion, date and time, venue and city, package and guests (or
- * "Equipment rental"), status, total, paid and balance. `rows` are the filtered reservations in their
- * on-screen order; `newestFirst` is true when they run newest first (past events).
- * Like the Reports sheet it waits off screen (tm-print-sheet, tm-print-landscape) in a portal on <body>, so
- * it never shows on the page: Print prints only this sheet (it is a tm-print-root, see global.css), and Save
- * PDF draws it into the PDF through `sheetRef`.
- */
 export default function ReservationsSheet({ rows, filters, newestFirst, generatedAt, sheetRef }) {
-  // How many of the listed reservations are in each status, leaving out the statuses with none
   const counts = STATUS_ORDER.map((s) => [titleCase(statusLabel(s)), rows.filter((r) => r.status === s).length]).filter(
     ([, n]) => n
   );
@@ -48,7 +33,6 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
         aria-hidden="true"
         sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}
       >
-        {/* Letterhead, as on the Reports sheet, the quotations and the receipts */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
             <Box
@@ -80,7 +64,6 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
 
         <Divider sx={{ my: 2.5, borderColor: tokens.gold, borderBottomWidth: 2 }} />
 
-        {/* How many reservations, in all and per status, in one bordered row */}
         <Box
           data-pdf-keep
           sx={{
@@ -114,10 +97,6 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
           one is sent; Paid is verified payments less refunds; a declined or cancelled reservation has no balance.
         </Typography>
 
-        {/* One row per reservation; amounts on the right. A row never splits across two pages. Cells use
-            plain classes rather than sx, so a long list stays quick to draw: ref (bold), sub (the second,
-            smaller line: a customer's email, an event's occasion, a venue's city), nowrap, wrap (long
-            names and emails break anywhere rather than widen the table) and money */}
         <Box
           component="table"
           sx={{
@@ -185,7 +164,6 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
                 </td>
                 <td className="wrap">
                   {r.packageName}
-                  {/* An equipment rental has no guest count */}
                   <span className="sub">{isRental(r.serviceType) ? 'Equipment rental' : `${r.guests} guests`}</span>
                 </td>
                 <td>{titleCase(statusLabel(r.status))}</td>

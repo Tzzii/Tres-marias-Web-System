@@ -16,22 +16,14 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-/**
- * 1l · Chat with the Tres Marias admin: one conversation per customer. Messages about a
- * reservation carry its event name as a tag; ?ref=RES-… (from a reservation or the dashboard)
- * tags the next messages with that event.
- */
 export default function MessagesPage() {
   useDocumentTitle('Chat');
   const notify = useNotify();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  // The customer's one conversation, created on first visit. live: false = the id never changes, so
-  // don't look it up again on every data change (creating it is itself a change).
   const threadId = useResource(async () => (await messageApi.openThread({ customerId: user.id })).id, [user.id], {
     live: false
   });
-  // Its messages, reloaded when data changes
   const thread = useResource(
     () =>
       threadId.data
@@ -39,10 +31,9 @@ export default function MessagesPage() {
         : Promise.resolve(null),
     [threadId.data, user.id]
   );
-  const [doc, setDoc] = useState(null); // attachment shown in the document dialog
-  const [topic, setTopic] = useState(null); // { ref, label }: the event the next messages are about
+  const [doc, setDoc] = useState(null);
+  const [topic, setTopic] = useState(null);
 
-  // ?ref=RES-… sets the topic to that reservation's event, then leaves the URL clean
   const refParam = params.get('ref');
   useEffect(() => {
     if (!refParam) return;
@@ -53,14 +44,11 @@ export default function MessagesPage() {
       .finally(() => setParams({}, { replace: true }));
   }, [refParam, user.id, setParams, notify]);
 
-  // Opening the chat marks the admin's messages as read. A failed mark (e.g. no connection for a
-  // moment) is simply tried again the next time the chat reloads with unread messages.
   useEffect(() => {
     if (thread.data && thread.data.unread > 0)
       messageApi.markThreadRead(thread.data.id, 'customer', { customerId: user.id }).catch(() => {});
   }, [thread.data]);
 
-  // Load the reservation an attachment belongs to, then open the document preview
   const openAttachment = async (attachment) => {
     try {
       const detail = await reservationApi.getReservation(attachment.ref, { customerId: user.id });
@@ -83,7 +71,6 @@ export default function MessagesPage() {
 
   return (
     <>
-      {/* The subtitle is hidden on phones to leave more room for the messages; the chat header below says the same */}
       <PageHeader
         title="Chat"
         subtitle={
@@ -106,7 +93,6 @@ export default function MessagesPage() {
           threadSubtitle="Tres Marias Catering · usually replies within an hour"
           composeTag={topic ? { label: topic.label } : null}
           onClearComposeTag={() => setTopic(null)}
-          // Send as the customer, tagged with the chosen event if any; the admin sees it in their inbox
           onSend={(body) =>
             messageApi.sendMessage(threadId.data, {
               side: 'customer',
@@ -116,7 +102,6 @@ export default function MessagesPage() {
               ref: topic ? topic.ref : null
             })
           }
-          // Edit or delete a message the customer typed, within 60 minutes of sending (the server checks it)
           onEdit={(messageId, body) => messageApi.editMessage(threadId.data, messageId, { side: 'customer', body })}
           onDelete={(messageId) => messageApi.deleteMessage(threadId.data, messageId, { side: 'customer' })}
           onOpenAttachment={openAttachment}

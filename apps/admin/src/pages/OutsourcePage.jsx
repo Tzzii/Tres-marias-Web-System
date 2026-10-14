@@ -20,7 +20,6 @@ import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import SmsOutlinedIcon from '@mui/icons-material/SmsOutlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import ViewColumnOutlinedIcon from '@mui/icons-material/ViewColumnOutlined';
 import {
@@ -64,7 +63,6 @@ import { usePdfDocument } from '../components/PdfDocument.jsx';
 const PAGE_SIZE = 10;
 const NO_EVENT = outsourceApi.NO_EVENT;
 
-// Name and chip colours for each request status
 const STATUS = {
   draft: { label: 'Draft', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
   sent: { label: 'Awaiting reply', bg: 'rgba(245, 158, 11, 0.14)', fg: '#b45309' },
@@ -74,7 +72,6 @@ const STATUS = {
   cancelled: { label: 'Cancelled', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
 };
 
-// Status filter options as [key, label, test]
 const STATUS_FILTERS = [
   ['all', 'All', () => true],
   ['draft', 'Draft', (c) => c.status === 'draft'],
@@ -85,7 +82,6 @@ const STATUS_FILTERS = [
   ['cancelled', 'Cancelled', (c) => c.status === 'cancelled']
 ];
 
-// Event-date filter options as [key, label, test]; requests with no event only show under "All"
 const DATE_FILTERS = [
   ['all', 'Event date: All', () => true],
   ['upcoming', 'Upcoming events', (c) => c.eventDate && c.eventDate >= todayISO()],
@@ -94,7 +90,6 @@ const DATE_FILTERS = [
   ['none', 'No event linked', (c) => !c.eventDate]
 ];
 
-// Columns the admin can show or hide with "Filter columns", as [key, label]
 const OPTIONAL_COLUMNS = [
   ['event', 'Assigned Event'],
   ['eventDate', 'Event Date'],
@@ -102,52 +97,29 @@ const OPTIONAL_COLUMNS = [
   ['amount', 'Outsource Price'],
   ['sentTo', 'Sent To']
 ];
-const COLUMNS_KEY = 'tm.admin.outsource.columns'; // this browser remembers the admin's column choice
+const COLUMNS_KEY = 'tm.admin.outsource.columns';
 
-// Tabs of this page as [key, label]
 const TABS = [
   ['contracts', 'Requests'],
   ['partners', 'Partners']
 ];
 
-/** "email and SMS", "SMS only", or a warning when a partner can't be reached at all. */
-const channelText = (channels) => {
-  if (channels.length === 2) return 'Email and SMS';
-  if (channels[0] === 'email') return 'Email only';
-  if (channels[0] === 'sms') return 'SMS only';
-  return 'No contact details';
-};
+const channelText = (channels) => (channels.includes('email') ? 'Email' : 'No email address');
 
-/** Small email / SMS chips showing how a partner is reached. */
 function ChannelChips({ channels, size = 'sm' }) {
-  if (!channels.length) return <Pill size={size} label="No contact" bg="rgba(239, 68, 68, 0.1)" fg="#b91c1c" />;
+  if (!channels.length) return <Pill size={size} label="No email" bg="rgba(239, 68, 68, 0.1)" fg="#b91c1c" />;
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
       {channels.includes('email') && (
         <Pill size={size} label="Email" bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" dot={false} />
       )}
-      {channels.includes('sms') && (
-        <Pill size={size} label="SMS" bg="rgba(16, 185, 129, 0.12)" fg="#047857" dot={false} />
+      {channels.some((channel) => channel !== 'email') && (
+        <Pill size={size} label="Previous delivery" bg={tokens.surfaceMuted} fg={tokens.textMuted} dot={false} />
       )}
     </Box>
   );
 }
 
-/**
- * Outsourcing: the partners Tres Marias rents from when its own stock runs short, and the requests sent to them.
- * A request is not a contract: it only asks whether the partner can supply the items for the event (they answer
- * text or call the business number, and the admin records the answer); the partner's own price and terms are
- * what the admin follows.
- * Top: four summary cards (click one to filter). Requests tab: search, Service, Event date and Status filters,
- * "Filter columns", then a paged table with checkboxes (bulk download) and a ⋮ menu per request
- * (open, send, record the reply, cancel). Partners tab: the same table shape for the partner list.
- *
- * A request is written once and sent to every channel its partner has — an email when they have an email
- * address, an SMS when they have a mobile number, both when they have both — with the same text in each.
- * If a channel did not really go out (no email or SMS service connected yet, or the provider
- * refused it), a warning says so and the request opens, so the admin can download it and send it themselves.
- * Requests for a reservation also appear in that reservation's audit trail.
- */
 export default function OutsourcePage() {
   useDocumentTitle('Outsourcing', 'Tres Marias Admin');
   const notify = useNotify();
@@ -156,8 +128,6 @@ export default function OutsourcePage() {
   const requested = params.get('tab');
   const tab = TABS.some(([key]) => key === requested) ? requested : 'contracts';
 
-  // Load the contracts, the partners (archived included, for the Archived filter), the reservations a
-  // contract can be assigned to, and the inventory (so item rows can show what is available)
   const { data, loading, error, reload } = useResource(async () => {
     const [contracts, partners, events, inventory] = await Promise.all([
       outsourceApi.listContracts(),
@@ -172,34 +142,31 @@ export default function OutsourcePage() {
   const [service, setService] = useState('all');
   const [when, setWhen] = useState('all');
   const [status, setStatus] = useState('all');
-  const [showArchived, setShowArchived] = useState(false); // Partners tab: the archived list instead of the active one
+  const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState([]); // contract IDs ticked for the bulk download
-  const [columns, setColumns] = useColumnChoice(COLUMNS_KEY, OPTIONAL_COLUMNS); // { event: true, amount: true, ... }
-  const [columnsAnchor, setColumnsAnchor] = useState(null); // "Filter columns" menu
-  const [rowMenu, setRowMenu] = useState(null); // { anchor, contract } for the ⋮ menu
-  const [partnerMenu, setPartnerMenu] = useState(null); // { anchor, partner } for the ⋮ menu on the Partners tab
-  const [editing, setEditing] = useState(null); // { id } or { prefill } for the contract dialog
-  const [partnerForm, setPartnerForm] = useState(null); // { id } or {} for the partner dialog
-  const [sendingId, setSendingId] = useState(null); // contract in the send dialog
-  const [detailsId, setDetailsId] = useState(null); // contract in the details dialog
-  const [answer, setAnswer] = useState(null); // { id, status } waiting for confirmation
-  const [archive, setArchive] = useState(null); // { ids, archived } waiting for confirmation
+  const [selected, setSelected] = useState([]);
+  const [columns, setColumns] = useColumnChoice(COLUMNS_KEY, OPTIONAL_COLUMNS);
+  const [columnsAnchor, setColumnsAnchor] = useState(null);
+  const [rowMenu, setRowMenu] = useState(null);
+  const [partnerMenu, setPartnerMenu] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [partnerForm, setPartnerForm] = useState(null);
+  const [sendingId, setSendingId] = useState(null);
+  const [detailsId, setDetailsId] = useState(null);
+  const [answer, setAnswer] = useState(null);
+  const [archive, setArchive] = useState(null);
+  const [deletingPartner, setDeletingPartner] = useState(null);
 
   const contracts = data ? data.contracts : [];
   const partners = data ? data.partners : [];
   const activePartners = partners.filter((p) => !p.archived);
-  // Look up by ID from the latest data, so open dialogs show fresh details after a change
   const contractById = (id) => contracts.find((c) => c.id === id) || null;
 
-  // Back to page 1 and nothing ticked whenever the filters or the tab change
   useEffect(() => {
     setPage(1);
     setSelected([]);
   }, [query, service, when, status, showArchived, tab]);
 
-  // Opened from the inventory's "Request from a partner" (/outsource?item=Monobloc+chair&qty=40):
-  // start a request with that item already filled in, then clear it from the URL
   useEffect(() => {
     const item = params.get('item');
     if (!item || !data) return;
@@ -208,7 +175,6 @@ export default function OutsourcePage() {
     setParams({ tab: 'contracts' }, { replace: true });
   }, [params, setParams, data]);
 
-  // Summary figures across every contract, with the partner count from the active partners
   const totals = useMemo(
     () => ({
       partners: activePartners.length,
@@ -223,7 +189,6 @@ export default function OutsourcePage() {
     [contracts, partners] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  // Apply the status, service, event-date and search filters to the contracts
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     const byStatus = STATUS_FILTERS.find(([key]) => key === status)[2];
@@ -241,7 +206,6 @@ export default function OutsourcePage() {
       );
   }, [contracts, query, service, when, status]);
 
-  // The Partners tab shares the search box and the Service filter, and has its own Active / Archived switch
   const filteredPartners = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     return partners
@@ -258,7 +222,6 @@ export default function OutsourcePage() {
 
   const rows = tab === 'contracts' ? filtered : filteredPartners;
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  // If a change empties the last page, step back to the previous one
   useEffect(() => {
     if (page > 1 && (page - 1) * PAGE_SIZE >= rows.length) setPage(Math.max(1, Math.ceil(rows.length / PAGE_SIZE)));
   }, [rows.length, page]);
@@ -266,7 +229,6 @@ export default function OutsourcePage() {
   const ticked = tab === 'contracts' ? pageRows.filter((c) => selected.includes(c.id)) : [];
   const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  // Open a dialog from the ⋮ menu or from the details dialog
   const openAction = (action, contract) => {
     setRowMenu(null);
     if (action === 'details') setDetailsId(contract.id);
@@ -276,7 +238,6 @@ export default function OutsourcePage() {
     else setAnswer({ id: contract.id, status: action });
   };
 
-  // Save the request details and the exact message sent to its partner as a branded PDF.
   const saveContractPdf = (contract) =>
     savePdfDocument({
       title: `Outsourcing Request - ${contract.ref}`,
@@ -296,14 +257,13 @@ export default function OutsourcePage() {
         [
           'Sent',
           contract.sentAt
-            ? `${formatDateTime(contract.sentAt)} by ${contract.deliveries.map((d) => (d.channel === 'email' ? `email (${d.to})` : `SMS (${d.to})`)).join(' and ')}`
+            ? `${formatDateTime(contract.sentAt)} · ${contract.deliveries.map((d) => (d.channel === 'email' ? `email (${d.to})` : `previous delivery (${d.to})`)).join(' and ')}`
             : 'Not sent yet'
         ]
       ],
       message: contract.body || '(the request text is written when it is sent)'
     });
 
-  // Save the ticked requests as one landscape PDF table.
   const saveTickedPdf = () => {
     if (!ticked.length) return;
     const rowsOut = ticked.map((c) => ({
@@ -325,7 +285,6 @@ export default function OutsourcePage() {
     });
   };
 
-  // Table columns for the Requests tab; optional ones follow the "Filter columns" choice
   const contractColumns = [
     {
       key: 'select',
@@ -392,7 +351,6 @@ export default function OutsourcePage() {
       label: 'Request Status',
       render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} />
     },
-    // Where it went: the channels it was actually sent to, or how it will be sent once it is
     columns.sentTo && {
       key: 'sentTo',
       label: 'Sent To',
@@ -408,7 +366,7 @@ export default function OutsourcePage() {
       label: 'Actions',
       align: 'right',
       width: 72,
-      card: 'aside', // on phone cards the ⋮ menu sits at the top right, next to the status
+      card: 'aside',
       render: (c) => (
         <IconButton
           size="small"
@@ -421,7 +379,6 @@ export default function OutsourcePage() {
     }
   ].filter(Boolean);
 
-  // Table columns for the Partners tab
   const partnerColumns = [
     {
       key: 'name',
@@ -443,8 +400,7 @@ export default function OutsourcePage() {
         <Box>
           <ChannelChips channels={p.channels} />
           <Typography sx={{ fontSize: 12, color: tokens.textMuted, mt: 0.25 }}>
-            {[p.email, p.mobile && formatMobile(p.mobile)].filter(Boolean).join(' · ') ||
-              'Add an email or mobile number'}
+            {[p.email, p.mobile && formatMobile(p.mobile)].filter(Boolean).join(' · ') || 'Add an email address'}
           </Typography>
         </Box>
       )
@@ -466,7 +422,7 @@ export default function OutsourcePage() {
       label: 'Actions',
       align: 'right',
       width: 72,
-      card: 'aside', // on phone cards the ⋮ menu sits at the top right
+      card: 'aside',
       render: (p) => (
         <IconButton
           size="small"
@@ -494,7 +450,7 @@ export default function OutsourcePage() {
     <>
       <PageHeader
         title="Outsourcing"
-        subtitle="Rent what your own stock can't cover. Ask a partner by email, SMS or both if they can supply it for an event."
+        subtitle="Rent what your own stock can't cover. Ask a partner by email if they can supply it for an event."
         actions={
           <>
             <Button variant="outlined" startIcon={<StorefrontOutlinedIcon />} onClick={() => setPartnerForm({})}>
@@ -512,7 +468,6 @@ export default function OutsourcePage() {
         }
       />
 
-      {/* Summary cards; clicking one opens the matching request filter. Two per row on phones and tablets. */}
       <Box
         sx={{
           display: 'grid',
@@ -526,7 +481,7 @@ export default function OutsourcePage() {
           tone="gold"
           label="Total Partners"
           value={totals.partners}
-          meta={totals.unreachable ? `${totals.unreachable} with no contact details` : 'All can be reached'}
+          meta={totals.unreachable ? `${totals.unreachable} need an email address` : 'All can be emailed'}
           loading={loading}
           onClick={() => setParams({ tab: 'partners' })}
         />
@@ -568,7 +523,6 @@ export default function OutsourcePage() {
         />
       </Box>
 
-      {/* Switching tabs keeps the search and Service filter, and starts the list again at page 1 */}
       <SectionTabs
         ariaLabel="Outsourcing sections"
         value={tab}
@@ -580,7 +534,6 @@ export default function OutsourcePage() {
       />
 
       <DashCard>
-        {/* Toolbar: search, Service, Event date, Status and Filter columns (the last three are for requests) */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', mb: 2 }}>
           <SearchField
             id="outsource-search"
@@ -655,11 +608,9 @@ export default function OutsourcePage() {
               >
                 Filter columns
               </Button>
-              {/* Show or hide the optional columns */}
               <Menu anchorEl={columnsAnchor} open={Boolean(columnsAnchor)} onClose={() => setColumnsAnchor(null)}>
                 {OPTIONAL_COLUMNS.map(([key, label]) => (
                   <MenuItem key={key} dense onClick={() => setColumns((c) => ({ ...c, [key]: !c[key] }))}>
-                    {/* The menu row does the toggling; the checkbox only shows the state */}
                     <Checkbox
                       size="small"
                       checked={columns[key]}
@@ -676,7 +627,6 @@ export default function OutsourcePage() {
           )}
         </Box>
 
-        {/* Bulk bar, shown when requests are ticked */}
         {ticked.length > 0 && (
           <Box
             sx={{
@@ -753,7 +703,6 @@ export default function OutsourcePage() {
         )}
         {!loading && rows.length > 0 && <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />}
 
-        {/* ⋮ menu for one request; the options depend on its status */}
         <Menu
           anchorEl={rowMenu && rowMenu.anchor}
           open={Boolean(rowMenu)}
@@ -813,7 +762,6 @@ export default function OutsourcePage() {
           ]}
         </Menu>
 
-        {/* ⋮ menu for one partner */}
         <Menu
           anchorEl={partnerMenu && partnerMenu.anchor}
           open={Boolean(partnerMenu)}
@@ -866,7 +814,17 @@ export default function OutsourcePage() {
               >
                 Archive partner
               </MenuItem>
-            )
+            ),
+            <MenuItem
+              key="delete"
+              onClick={() => {
+                setPartnerMenu(null);
+                setDeletingPartner({ id: menuPartner.id, name: menuPartner.name });
+              }}
+              sx={{ color: tokens.redPress }}
+            >
+              Delete partner
+            </MenuItem>
           ]}
         </Menu>
       </DashCard>
@@ -879,7 +837,6 @@ export default function OutsourcePage() {
         events={data ? data.events : []}
         inventory={data ? data.inventory : []}
         onClose={() => setEditing(null)}
-        // A new draft goes straight on to the send dialog, so writing and sending is one flow
         onSaved={(contract, wasNew) => {
           setEditing(null);
           notify(wasNew ? `${contract.ref} saved as a draft.` : 'Draft saved.');
@@ -900,9 +857,6 @@ export default function OutsourcePage() {
       <SendDialog
         contract={contractById(sendingId)}
         onClose={() => setSendingId(null)}
-        // When a channel did not really go out (no email or SMS service connected yet, or the provider
-        // refused it), the API says so in deliveryNote: warn, and open the contract, whose history says
-        // which channel and whose "Save PDF" lets the admin send it themselves
         onSent={(contract) => {
           setSendingId(null);
           if (contract.deliveryNote) {
@@ -910,10 +864,7 @@ export default function OutsourcePage() {
             notify(contract.deliveryNote, 'warning');
             return;
           }
-          const where = [...new Set(contract.deliveries.map((d) => d.channel))]
-            .map((c) => (c === 'email' ? 'email' : 'SMS'))
-            .join(' and ');
-          notify(`${contract.ref} sent to ${contract.partnerName} by ${where}.`);
+          notify(`${contract.ref} sent to ${contract.partnerName} by email.`);
         }}
       />
 
@@ -925,7 +876,6 @@ export default function OutsourcePage() {
         savingPdf={savingPdfDocument}
       />
 
-      {/* Record the partner's reply, mark a request delivered, or cancel it */}
       <ConfirmDialog
         open={Boolean(answer)}
         onClose={() => setAnswer(null)}
@@ -997,33 +947,37 @@ export default function OutsourcePage() {
           notify(archive.archived ? 'Partner archived.' : 'Partner restored.');
         }}
       />
+
+      <ConfirmDialog
+        open={Boolean(deletingPartner)}
+        onClose={() => setDeletingPartner(null)}
+        title={deletingPartner ? `Delete ${deletingPartner.name}?` : ''}
+        description="This permanently deletes the partner and their profile history from the system. This cannot be undone. Past requests are kept and will show Removed partner. Complete or cancel any awaiting reply or accepted requests first."
+        confirmLabel="Delete partner"
+        tone="danger"
+        onConfirm={async () => {
+          await outsourceApi.deletePartner(deletingPartner.id);
+          setDeletingPartner(null);
+          notify('Partner permanently deleted.');
+        }}
+      />
     </>
   );
 }
 
-// A blank item row in the request dialog. `custom` is true once the admin chooses "Other item…",
-// which swaps the dropdown for a box they can type an item name into.
 const blankItem = () => ({ name: '', qty: '', custom: false });
-// Value used in the item dropdown for something that is not in the inventory
 const OTHER_ITEM = '__other__';
 
-/**
- * Write a request, or edit one that is still a draft: partner, the event it is for, the items and
- * how many, the date they are needed, the partner's price and any extra line for the partner.
- * Saving a new one opens the send dialog next.
- */
 function ContractDialog({ open, contract, prefill, partners, events, inventory, onClose, onSaved }) {
   const isPhone = useMediaQuery('(max-width:599px)');
   const [values, setValues] = useState({ partnerId: '', reservationRef: NO_EVENT, needBy: '', amount: '', notes: '' });
   const [items, setItems] = useState([blankItem()]);
-  const [errors, setErrors] = useState({}); // { field: message, itemRow: index }
+  const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const id = contract && contract.id;
 
-  // Fill the form when the dialog opens: from the draft being edited, else from the prefill
   useEffect(() => {
     if (!open) return;
-    // An item that is not in the inventory is shown in the "Other item" box instead of the dropdown
     const asRow = (item) => ({
       name: item.name,
       qty: String(item.qty || ''),
@@ -1061,12 +1015,8 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
   };
 
   const partner = partners.find((p) => p.id === values.partnerId);
-  // Partners to choose from: the active ones, plus a draft's own partner if they have since been archived
-  // (shown as archived; saving then asks the admin to pick an active partner or restore them)
   const partnerChoices = partners.filter((p) => !p.archived || p.id === values.partnerId);
-  // The event fills in the date needed and the venue, so the partner is told where to deliver
   const event = events.find((e) => e.ref === values.reservationRef);
-  // Item dropdown: the inventory, plus a row for anything not in it
   const itemOptions = [
     ...inventory.map((i) => ({ value: i.name, label: `${i.name} (${i.available} available)` })),
     { value: OTHER_ITEM, label: 'Other item…' }
@@ -1132,7 +1082,6 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
           label="For which event"
           value={values.reservationRef}
           onChange={(e) => {
-            // Picking an event suggests its date as the date needed, unless one is already set
             const next = e.target.value;
             const chosen = events.find((ev) => ev.ref === next);
             setValues((v) => ({ ...v, reservationRef: next, needBy: v.needBy || (chosen ? chosen.date : '') }));
@@ -1169,7 +1118,6 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
               required={isPhone || index === 0}
               placeholder="Choose an item"
               value={item.custom ? OTHER_ITEM : item.name}
-              // "Other item…" clears the name and opens the box next to it; anything else is an inventory item
               onChange={(e) => {
                 const chosen = e.target.value;
                 setItems((list) =>
@@ -1269,10 +1217,6 @@ function ContractDialog({ open, contract, prefill, partners, events, inventory, 
   );
 }
 
-/**
- * Add a partner or edit one. Either an email address or a mobile number is enough: the request is
- * sent to whichever of the two is on file, so a partner who only texts still receives it.
- */
 function PartnerDialog({ open, partner, onClose, onSaved }) {
   const [values, setValues] = useState({
     name: '',
@@ -1288,7 +1232,6 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const id = partner && partner.id;
 
-  // Fill the form when the dialog opens on a partner, or clear it for a new one
   useEffect(() => {
     if (!open) return;
     setValues(
@@ -1329,8 +1272,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
     }
   };
 
-  // What the partner can be reached by as the admin types
-  const channels = [...(values.email.trim() ? ['email'] : []), ...(values.mobile.trim() ? ['sms'] : [])];
+  const channels = values.email.trim() ? ['email'] : [];
 
   return (
     <AppDialog
@@ -1340,7 +1282,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
       maxWidth="sm"
       fullScreenOnMobile
       title={id ? 'Edit Partner' : 'Add Partner'}
-      description="Requests go to the email address and the mobile number on file. One of the two is enough."
+      description="Requests go to the partner's email address."
       actions={
         <>
           <Button onClick={onClose} disabled={busy}>
@@ -1389,9 +1331,9 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           />
         )}
         <FormField
-          id="partner-contact"
+          id="partner-contactPerson"
           label="Contact person"
-          optional
+          required
           value={values.contactPerson}
           onChange={set('contactPerson')}
           error={errors.contactPerson}
@@ -1400,7 +1342,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
         <FormField
           id="partner-address"
           label="Address"
-          optional
+          required
           value={values.address}
           onChange={set('address')}
           error={errors.address}
@@ -1409,20 +1351,21 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
         <FormField
           id="partner-email"
           label="Email address"
+          required
           type="email"
           value={values.email}
           onChange={set('email')}
           error={errors.email}
-          hint="Where the request is emailed."
           placeholder="name@example.com"
         />
         <MobileField
           id="partner-mobile"
           label="Mobile number"
+          required
           value={values.mobile}
           onChange={set('mobile')}
           error={errors.mobile}
-          hint="Where the request is texted."
+          hint={false}
           autoComplete="off"
         />
       </Box>
@@ -1439,15 +1382,14 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
         placeholder="Delivery terms, rates, how far ahead they need to be booked…"
         sx={{ mt: 1.75 }}
       />
-      {/* Tells the admin, before saving, which way a request will reach this partner */}
       <Box sx={{ mt: 1.75 }}>
         {channels.length ? (
           <AlertBanner tone="info" title={`Requests go out by ${channelText(channels).toLowerCase()}`}>
-            {channels.length === 2 ? 'Both get the same text.' : 'The other channel is used once you add it.'}
+            The request is sent to the email address on file.
           </AlertBanner>
         ) : (
-          <AlertBanner tone="locked" title="No way to reach them yet">
-            Add an email address or a mobile number, or requests can't be sent.
+          <AlertBanner tone="locked" title="Email address required">
+            Add an email address so requests can be sent.
           </AlertBanner>
         )}
       </Box>
@@ -1455,18 +1397,12 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
   );
 }
 
-/**
- * Review and send a request. The text is written from the request's own details and can be edited;
- * whatever is here is what goes out — the same words to the email address and to the mobile number,
- * so a partner who only has a number is told exactly what an emailed partner is told.
- */
 function SendDialog({ contract, onClose, onSent }) {
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const id = contract && contract.id;
 
-  // Write the text when a different contract opens: keep what was already sent, else compose it
   useEffect(() => {
     if (!contract) return;
     setBody(
@@ -1499,9 +1435,7 @@ function SendDialog({ contract, onClose, onSent }) {
     }
   };
 
-  // An SMS is counted in 160-character parts, so the admin can see how long a text this makes
-  const parts = Math.max(1, Math.ceil(body.length / 160));
-  const canSend = contract.channels.length > 0;
+  const canSend = contract.channels.includes('email');
 
   return (
     <AppDialog
@@ -1523,7 +1457,6 @@ function SendDialog({ contract, onClose, onSent }) {
         </>
       }
     >
-      {/* Where it goes, and the promise that both channels carry the same words */}
       {canSend ? (
         <Box
           sx={{
@@ -1544,24 +1477,14 @@ function SendDialog({ contract, onClose, onSent }) {
               </Typography>
             </Box>
           )}
-          {contract.channels.includes('sms') && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <SmsOutlinedIcon sx={{ fontSize: 18, color: tokens.green }} />
-              <Typography sx={{ fontSize: 13 }}>
-                SMS to <b>{formatMobile(contract.partnerMobile)}</b> · {parts} message{parts === 1 ? '' : 's'}
-              </Typography>
-            </Box>
-          )}
           <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
-            {contract.channels.length === 2
-              ? 'Both carry the text below, word for word.'
-              : 'This is the only channel on file for them.'}
+            The email carries the text below, word for word.
           </Typography>
         </Box>
       ) : (
         <Box sx={{ mb: 2 }}>
-          <AlertBanner tone="locked" title="No way to reach this partner">
-            {contract.partnerName} has no email address and no mobile number. Add one on the Partners tab first.
+          <AlertBanner tone="locked" title="Email address required">
+            {contract.partnerName} needs a valid email address. Add one on the Partners tab first.
           </AlertBanner>
         </Box>
       )}
@@ -1590,7 +1513,6 @@ function SendDialog({ contract, onClose, onSent }) {
   );
 }
 
-/** One request in full: its details, the text that was sent, where it went, and its history. */
 function DetailsDialog({ contract, onClose, onAction, savingPdf }) {
   if (!contract) return <AppDialog open={false} onClose={onClose} title="" />;
   const chip = STATUS[contract.status];
@@ -1685,7 +1607,6 @@ function DetailsDialog({ contract, onClose, onAction, savingPdf }) {
         </Box>
       )}
 
-      {/* The text that went out, and every channel it went to */}
       <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.75 }}>
         {contract.sentAt ? 'What was sent' : 'Not sent yet'}
       </Typography>
@@ -1707,15 +1628,14 @@ function DetailsDialog({ contract, onClose, onAction, savingPdf }) {
           <Box sx={{ mt: 1.25, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {contract.deliveries.map((d, i) => (
               <Typography key={i} sx={{ fontSize: 12.5, color: tokens.textMuted }}>
-                {d.channel === 'email' ? 'Email' : 'SMS'} to {d.channel === 'email' ? d.to : formatMobile(d.to)} ·{' '}
-                {formatDateTime(d.at)}
+                {d.channel === 'email' ? 'Email' : 'Previous delivery'} to {d.to} · {formatDateTime(d.at)}
               </Typography>
             ))}
           </Box>
         </>
       ) : (
         <Typography sx={{ fontSize: 13, color: tokens.textMuted }}>
-          The request text is written when you send it, and both the email and the SMS carry it word for word.
+          The request text is written when you send it, and the email carries it word for word.
         </Typography>
       )}
 

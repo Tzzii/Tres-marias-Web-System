@@ -25,24 +25,14 @@ import {
 import { useAuth } from '../auth.js';
 import TermsUpdateDialog from '../components/TermsUpdateDialog.jsx';
 
-/**
- * The customer account frame (1g–1l, 1p): sidebar on desktop, bottom tabs on phones. It also asks, once per
- * visit, an account that has not agreed to the current Terms of Service and Privacy Policy to read and
- * accept them (TermsUpdateDialog).
- */
 export default function PortalLayout() {
   const navigate = useNavigate();
   const notify = useNotify();
   const { user, signOut, updateUser } = useAuth();
-  const [termsLater, setTermsLater] = useState(false); // "Remind me later" on the terms prompt, for this visit
+  const [termsLater, setTermsLater] = useState(false);
 
-  // The session keeps a copy of the customer's details from log-in. Compare it with the account record
-  // (re-checked whenever data changes) so the portal never shows an old name, mobile or company. With the
-  // API this is also the first call a portal page makes, so a token the server no longer accepts
-  // (expired, edited, or older than a password change) signs the customer out right away (a 401 does that).
   const account = useResource(() => authApi.getCustomerProfile(user.id), [user.id]);
   useEffect(() => {
-    // The account no longer exists (e.g. the browser data was reset): end this session
     if (account.error && account.error.code === 'NOT_FOUND') {
       navigate('/login', { replace: true });
       signOut();
@@ -54,12 +44,9 @@ export default function PortalLayout() {
     }
   }, [account.data, account.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The account record says which Terms version the customer last agreed to ('' = never): an older one
-  // brings up the prompt, until it is accepted or put off for this visit
   const fresh = account.data;
   const termsDue = Boolean(fresh) && fresh.termsVersion !== TERMS_VERSION && !termsLater;
 
-  // Load this customer's reservations and chat threads for the notification bell and badges
   const { data } = useResource(async () => {
     const [reservations, threads] = await Promise.all([
       reservationApi.listReservations({ customerId: user.id }),
@@ -68,17 +55,13 @@ export default function PortalLayout() {
     return { reservations, threads };
   }, [user.id]);
 
-  // Build notifications from each reservation's status and from unread messages.
-  // Recalculated only when `data` changes.
   const { notifications, unreadMessages, paymentsDue } = useMemo(() => {
     if (!data) return { notifications: [], unreadMessages: 0, paymentsDue: 0 };
     const list = [];
-    let due = 0; // reservations that still need a downpayment
+    let due = 0;
     data.reservations.forEach((r) => {
-      // Use the time of the latest activity as the notification time
       const lastAt = r.activity.length ? r.activity[r.activity.length - 1].at : r.createdAt;
       const to = `/portal/reservations/${r.ref}`;
-      // Approved but unpaid: link to Payments, unless proof was already uploaded
       if (r.status === 'approved' && !r.downpaymentPaid) {
         if (!r.awaitingCount) due += 1;
         list.push({
@@ -113,7 +96,6 @@ export default function PortalLayout() {
           at: lastAt,
           to
         });
-      // A quotation to accept (accepting approves the request); a new one sent replaces the notification
       if (pendingStep(r) === 'accept')
         list.push({
           id: `${r.ref}:quoted:${r.quotation.sentAt}`,
@@ -123,7 +105,6 @@ export default function PortalLayout() {
           to
         });
     });
-    // Count unread chat messages and add a notification for each thread with new ones
     let unread = 0;
     data.threads.forEach((t) => {
       unread += t.unread;
@@ -137,12 +118,10 @@ export default function PortalLayout() {
         });
       }
     });
-    // Newest first, keep the latest 20
     list.sort((a, b) => b.at - a.at);
     return { notifications: list.slice(0, 20), unreadMessages: unread, paymentsDue: due };
   }, [data]);
 
-  // Desktop sidebar links. `match` keeps "My Reservations" highlighted on the booking form too.
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/portal', exact: true },
     {
@@ -166,7 +145,6 @@ export default function PortalLayout() {
     { key: 'testimonials', label: 'My Testimonials', icon: RateReviewOutlinedIcon, to: '/portal/testimonials' }
   ];
 
-  // Phone bottom tab bar (fewer items than the sidebar)
   const bottomNav = [
     { key: 'home', label: 'Home', icon: HomeOutlinedIcon, to: '/portal', exact: true },
     {
@@ -205,7 +183,6 @@ export default function PortalLayout() {
         onSubmit: (q) => navigate(`/portal/reservations?q=${encodeURIComponent(q)}`)
       }}
       notifications={notifications}
-      // Go back to the public home page, then clear the session
       onLogout={() => {
         navigate('/', { replace: true });
         signOut();
@@ -217,7 +194,7 @@ export default function PortalLayout() {
         firstTime={Boolean(fresh) && !fresh.termsVersion}
         onClose={() => setTermsLater(true)}
         onAccepted={(profile) => {
-          setTermsLater(true); // closes it at once; the reload below brings the new version
+          setTermsLater(true);
           updateUser({ termsVersion: profile.termsVersion });
           account.reload();
           notify('Thank you. Your agreement to our terms is saved.');

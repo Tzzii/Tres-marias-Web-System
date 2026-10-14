@@ -36,8 +36,6 @@ import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import LegalText from '../../components/LegalText.jsx';
 import { readIntent } from '../../lib/booking.js';
 
-// Validation rule for each field. Each returns an error message, or '' when valid.
-// First name, last name, email and mobile are required; middle name is optional (no rule).
 const RULES = {
   firstName: (v) => required(v, 'First name'),
   lastName: (v) => required(v, 'Last name'),
@@ -48,22 +46,14 @@ const RULES = {
   agree: (v) => (v ? '' : 'Please agree to the Terms of Service and Privacy Policy.')
 };
 
-/**
- * 1d · Sign up. From the gate it continues to the reservation form; from the nav, the dashboard.
- * Two steps (Phase 12): the form, then the 6-digit code the server emails to the address typed. The
- * account is made, and the customer signed in, only once that code is entered, so every account's
- * email is proven.
- */
 export default function SignupPage() {
   useDocumentTitle('Create an Account');
   const navigate = useNavigate();
   const notify = useNotify();
   const [params] = useSearchParams();
   const { isAuthenticated, signIn } = useAuth();
-  // ?continue=booking means the visitor came from "Reserve this date"
   const continuingBooking = params.get('continue') === 'booking';
   const intent = continuingBooking ? readIntent() : null;
-  // Where to go after signing up: the booking form or the dashboard
   const destination = continuingBooking ? '/portal/book' : '/portal';
 
   const [values, setValues] = useState({ firstName: '', middleName: '', lastName: '', email: '', mobile: '', password: '', confirm: '', agree: false });
@@ -71,34 +61,27 @@ export default function SignupPage() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false); // dialog with the full Terms of Service and Privacy Policy
-  const [challenge, setChallenge] = useState(null); // the emailed-code step ({ challengeId, maskedEmail, … }), open while set
-  // "Log in" flips the card over to the login page (keeps the booking the visitor started)
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [challenge, setChallenge] = useState(null);
   const { flipping, flipTo } = useCardFlip();
   const loginPath = continuingBooking ? '/login?next=/portal/book' : '/login';
-  // The minimum downpayment named in the terms. Loading the catalogue brings it up to date from the API
-  // (remote/catalog.js); until it arrives (null) the terms leave the amount out.
   const catalog = useResource(() => catalogApi.getCatalog(), []);
   const minimum = catalog.data ? catalogApi.minDownpayment() : null;
 
-  // Already signed in: skip this page
   if (isAuthenticated) return <Navigate to={destination} replace />;
 
-  // Change handler for one field (the agree checkbox uses `checked` instead of `value`)
   const set = (field) => (event) => {
     const value = field === 'agree' ? event.target.checked : event.target.value;
     setValues((v) => ({ ...v, [field]: value }));
     setErrors((e) => ({ ...e, [field]: '' }));
   };
 
-  // Validate everything, then ask the server to check the form and email a code (no account yet)
   const submit = async (event) => {
     event.preventDefault();
     const found = collectErrors(values, RULES);
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) {
-      // Shake the form and put the cursor in the first field with an error
       setShake(true);
       const first = document.getElementById(`signup-${Object.keys(found)[0]}`);
       if (first) first.focus();
@@ -106,11 +89,9 @@ export default function SignupPage() {
     }
     setBusy(true);
     try {
-      // The tick is sent too: the server refuses a sign-up without it and records the terms version agreed to
       setChallenge(await authApi.startSignUp({ ...values, agreeTerms: values.agree }));
     } catch (error) {
       setShake(true);
-      // e.g. "email already registered" is shown under the email field
       if (error.meta && error.meta.field) setErrors((e) => ({ ...e, [error.meta.field]: error.message }));
       else setFormError(error.message);
     } finally {
@@ -118,8 +99,6 @@ export default function SignupPage() {
     }
   };
 
-  // The emailed code: the server makes the account and signs the customer in, then the page continues.
-  // Someone else taking the email meanwhile sends the customer back to the form with the message under it.
   const confirmCode = async (code) => {
     try {
       const session = await authApi.confirmSignUp({ challengeId: challenge.challengeId, code });
@@ -146,7 +125,6 @@ export default function SignupPage() {
         <BookingIntentBanner intent={intent} />
         {formError && <AlertBanner tone="error">{formError}</AlertBanner>}
 
-        {/* Name in separate parts: first and middle side by side (stacked on phones), last name below */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
           <FormField id="signup-firstName" label="First name" required autoComplete="off" value={values.firstName} onChange={set('firstName')} error={errors.firstName} disabled={busy} />
           <FormField id="signup-middleName" label="Middle name" optional autoComplete="off" value={values.middleName} onChange={set('middleName')} disabled={busy} />
@@ -156,7 +134,6 @@ export default function SignupPage() {
         <MobileField id="signup-mobile" label="Mobile number" required autoComplete="off" value={values.mobile} onChange={set('mobile')} error={errors.mobile} hint="We text you about event-day updates only." disabled={busy} />
         <Box>
           <PasswordField id="signup-password" label="Password" required autoComplete="new-password" value={values.password} onChange={set('password')} error={errors.password} disabled={busy} />
-          {/* What the password still needs, ticked live (the server checks the same rule) */}
           <PasswordChecklist value={values.password} />
         </Box>
         <PasswordField id="signup-confirm" label="Confirm password" required autoComplete="new-password" value={values.confirm} onChange={set('confirm')} error={errors.confirm} disabled={busy} />
@@ -189,7 +166,6 @@ export default function SignupPage() {
         </Typography>
       </FormCard>
 
-      {/* Step 2: the code emailed to the new address; Cancel goes back to the filled-in form */}
       <EmailCodeDialog
         challenge={challenge}
         title="Confirm Your Email"
@@ -211,7 +187,6 @@ export default function SignupPage() {
         actions={
           <Button
             variant="contained"
-            // "I agree" in the dialog ticks the checkbox and closes the dialog
             onClick={() => {
               setValues((v) => ({ ...v, agree: true }));
               setErrors((e) => ({ ...e, agree: '' }));
@@ -222,7 +197,6 @@ export default function SignupPage() {
           </Button>
         }
       >
-        {/* The full Terms of Service and Privacy Policy (legal/terms.js), the same text as the /terms and /privacy pages */}
         <Typography sx={{ fontSize: 12.5, color: tokens.textMuted, mb: 2 }}>
           Last updated {TERMS_UPDATED}. You can also read them on their own pages:{' '}
           <Link component={RouterLink} to="/terms" target="_blank" rel="noopener" sx={{ fontWeight: 600, color: tokens.goldDark }}>Terms of Service</Link> and{' '}

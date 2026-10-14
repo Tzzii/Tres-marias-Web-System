@@ -1,4 +1,3 @@
-// config.js first: it fixes the time zone (Asia/Manila) before the seed works out its dates
 import { config } from '../src/config.js';
 import bcrypt from 'bcrypt';
 import { stat } from 'node:fs/promises';
@@ -9,39 +8,16 @@ import { seedPasswords, seedAdminEmail } from '../src/seedData/passwords.js';
 import { NO_SAMPLE_DATA, loadSampleSeed } from '../src/seedData/sampleLoader.js';
 import { buildBusinessSeed } from '../src/seedData/seed.js';
 
-/**
- * `npm run db:roundtrip` — run right after `npm run seed:api`, on the same day. Reads every table back,
- * rebuilds each collection in the record shape of the sample data (buildSampleSeed() in
- * src/seedData/sample/sample.js, on top of buildBusinessSeed() in src/seedData/seed.js) and deep-compares
- * it with a fresh build of that data. Exits with 1 on any difference and lists them, and also when this
- * computer has no seedData/sample/ (kept out of GitHub).
- *
- * It is also the tested reference for reading records out of the database (database -> record), which the
- * module repos need from Phase 6 on: e.g. a reservation's `venue` object from four columns, `addonIds` in
- * sort_order, `addonQty` only for add-ons counted by the piece, and `rentalItems` / `fulfilment` /
- * `damageCharges` only on an equipment rental.
- *
- * Allowed differences: receiptNo '' against NULL, counters.receipt minus one (stored as the last number
- * used), seededOn, JSON key order, messages in time order, and message ids (random in the seed, so they are
- * left out). Passwords are not in the seed records (Phase 12): each account's hash is checked against
- * SEED_ADMIN_PASSWORD or SEED_CUSTOMER_PASSWORD from apps/api/.env instead. Anything done in the app after
- * seeding (a sign-in, a booking) and a seed made on another day also show up as differences.
- *
- * Read-only, apart from one emoji message written inside a transaction and rolled back.
- * First written for the Phase 2 check (2026-09-24), copied here for Phase 6.
- */
 
-const problems = []; // differences that fail the check
-const notes = []; // worth knowing, not a failure
+const problems = [];
+const notes = [];
 const fail = (msg) => problems.push(msg);
 const q = async (sql, params = []) => (await pool.query(sql, params))[0];
-// BOOLEAN columns come back as 0/1
 const bool = (v) => {
   if (v !== 0 && v !== 1) fail(`boolean column holds ${JSON.stringify(v)}`);
   return v === 1;
 };
 
-// Deep compare: object key order ignored, arrays by index, primitives with ===
 function diff(a, b, path, out) {
   if (a === b) return;
   if (Array.isArray(a) || Array.isArray(b)) {
@@ -67,7 +43,6 @@ const compare = (label, db, seed) => {
   out.forEach(fail);
   return out.length;
 };
-// Compare two lists of records keyed by `key` (their order is not stored for these collections)
 const compareKeyed = (label, dbList, seedList, key) => {
   const dbMap = new Map(dbList.map((r) => [r[key], r]));
   const seedMap = new Map(seedList.map((r) => [r[key], r]));
@@ -80,7 +55,6 @@ const compareKeyed = (label, dbList, seedList, key) => {
   }
   return n;
 };
-// Rows grouped by one column, e.g. activity lines by reservation_ref
 const group = (rows, key) => {
   const m = new Map();
   rows.forEach((r) => {
@@ -105,7 +79,6 @@ async function check() {
     `DB ${config.db.database} on ${config.db.host}:${config.db.port}; fresh sample data dated ${seed.seededOn}, TZ ${process.env.TZ}`
   );
 
-  // ---- accounts (each password hash checked with bcrypt against the seed passwords in .env) ----
   const passwords = seedPasswords({ customers: true });
   passwords.problems.forEach(fail);
   const adminRows = await q('SELECT * FROM admins ORDER BY id');
@@ -138,14 +111,12 @@ async function check() {
     if (c.middle_name) r.middleName = c.middle_name;
     if (c.last_name) r.lastName = c.last_name;
     if (c.password_changed_at !== null) r.passwordChangedAt = c.password_changed_at;
-    // The Terms version agreed to: none on the sample accounts, so only a set one is compared
     if (c.terms_version) r.termsVersion = c.terms_version;
     if (c.terms_accepted_at !== null) r.termsAcceptedAt = c.terms_accepted_at;
     customers.push(r);
   }
   compareKeyed('customers', customers, seed.customers, 'id');
 
-  // ---- catalogue (ordered by sort_order: the order the pages show) ----
   const packages = (await q('SELECT * FROM packages ORDER BY sort_order, id')).map((p) => ({
     id: p.id,
     slug: p.slug,
@@ -183,7 +154,6 @@ async function check() {
   compare('dishes', dishes, seed.dishes);
   const hasQty = new Set(addonRows.filter((a) => a.has_quantity).map((a) => a.id));
 
-  // ---- reservations with their child rows (the database -> record mapping for reservations.repo.js) ----
   const addonLinks = group(
     await q('SELECT * FROM reservation_addons ORDER BY reservation_ref, sort_order'),
     'reservation_ref'
@@ -194,7 +164,6 @@ async function check() {
     await q('SELECT * FROM reservation_rental_items ORDER BY reservation_ref, sort_order'),
     'reservation_ref'
   );
-  // No sort_order on damage lines: they come back by item id (one line per item and booking)
   const damageLines = group(
     await q('SELECT * FROM reservation_damage_charges ORDER BY reservation_ref, item_id'),
     'reservation_ref'
@@ -223,13 +192,11 @@ async function check() {
       serviceType: r.service_type,
       menu: parseJson(r.menu),
       foodNotes: r.food_notes,
-      // The theme, colours and design details: a JSON object, or NULL when the row left them blank (every rental)
       styling: parseJson(r.styling),
       pricePerPlate: r.price_per_plate,
       minDownpayment: r.min_downpayment,
       venue: { name: r.venue_name, address: r.venue_address, city: r.city, accessNotes: r.access_notes },
       addonIds: links.map((l) => l.addon_id),
-      // Only add-ons counted by the piece carry a quantity in the record; the others are stored as 1
       addonQty: Object.fromEntries(links.filter((l) => hasQty.has(l.addon_id)).map((l) => [l.addon_id, l.qty])),
       status: r.status,
       estimate: parseJson(r.estimate),
@@ -243,12 +210,10 @@ async function check() {
       activity: acts.map((a) => ({ at: a.at, actor: a.actor, text: a.text })),
       createdAt: r.created_at
     };
-    // The Terms version agreed to when booking: none on the sample bookings, so only a set one is compared
     if (r.terms_version) out.termsVersion = r.terms_version;
     links
       .filter((l) => !hasQty.has(l.addon_id))
       .forEach((l) => l.qty !== 1 && fail(`${r.ref}: qty ${l.qty} on an add-on without hasQuantity`));
-    // The rental fields exist on an equipment rental only (not even empty on other bookings)
     if (r.service_type === 'Equipment rental') {
       out.rentalItems = (rentalLines.get(r.ref) || []).map((l) => ({
         itemId: l.item_id,
@@ -278,7 +243,6 @@ async function check() {
   });
   compareKeyed('reservations', reservations, seed.reservations, 'ref');
 
-  // ---- payments ----
   const paymentRows = await q('SELECT * FROM payments');
   for (const p of paymentRows) {
     if (p.proof_key) {
@@ -293,7 +257,6 @@ async function check() {
       fail(`payments[${p.id}]: proof metadata without a file key`);
   }
   const payments = paymentRows.map((p) => {
-    // PayMongo confirms a GCash QR payment ('qrph'), so it has no admin; the admin verified every other verified one
     const verifier = p.status === 'verified' && p.method !== 'qrph' ? seed.admins[0].id : null;
     if (p.verified_by !== verifier) fail(`payments[${p.id}]: verified_by ${p.verified_by} for ${p.method} ${p.status}`);
     if (p.receipt_no === '') fail(`payments[${p.id}]: receipt_no stored as ''`);
@@ -315,7 +278,6 @@ async function check() {
   });
   compareKeyed('payments', payments, seed.payments, 'id');
 
-  // ---- refunds (the admin's id comes back as the name, like the API's answers) ----
   const refunds = await q('SELECT f.*, a.name AS admin_name FROM refunds f JOIN admins a ON a.id = f.recorded_by').then(
     (rows) =>
       rows.map((f) => ({
@@ -335,7 +297,6 @@ async function check() {
   );
   compareKeyed('refunds', refunds, seed.refunds, 'id');
 
-  // ---- chat (messages come back in time order; ids left out, see above) ----
   const withoutId = ({ id, ...message }) => message; // eslint-disable-line no-unused-vars
   const msgRows = group(await q('SELECT * FROM messages ORDER BY thread_id, at, id'), 'thread_id');
   const threads = (await q('SELECT * FROM threads ORDER BY id')).map((t) => ({
@@ -356,7 +317,6 @@ async function check() {
       history: parseJson(m.history) || []
     }))
   }));
-  // The seed's arrays sorted by `at` (stable), the way the database returns them
   const seedThreadsSorted = seed.threads.map((t) => ({ ...t, messages: [...t.messages].sort((a, b) => a.at - b.at) }));
   seed.threads.forEach((t, i) => {
     if (t.messages.some((m, n) => m !== seedThreadsSorted[i].messages[n]))
@@ -371,7 +331,6 @@ async function check() {
     'id'
   );
 
-  // ---- feedback ----
   const testimonials = (await q('SELECT * FROM testimonials')).map((t) => ({
     id: t.id,
     customerId: t.customer_id,
@@ -390,7 +349,6 @@ async function check() {
   }));
   compareKeyed('testimonials', testimonials, seed.testimonials, 'id');
 
-  // ---- calendar and settings (always exactly one row each) ----
   const [calSettings] = await q('SELECT * FROM calendar_settings');
   const [catSettings] = await q('SELECT * FROM catalog_settings');
   const settingsRows = [
@@ -418,7 +376,6 @@ async function check() {
     seed.settings
   );
 
-  // ---- inventory ----
   const allocs = group(await q('SELECT * FROM inventory_allocations'), 'item_id');
   const invHistory = group(await q('SELECT * FROM inventory_history ORDER BY id'), 'item_id');
   const inventory = (await q('SELECT * FROM inventory_items')).map((i) => ({
@@ -445,7 +402,6 @@ async function check() {
   }));
   compareKeyed('inventory', inventory, seed.inventory, 'id');
 
-  // ---- outsourcing ----
   const partnerHistory = group(await q('SELECT * FROM outsource_partner_history ORDER BY id'), 'partner_id');
   const partners = (await q('SELECT * FROM outsource_partners')).map((p) => ({
     id: p.id,
@@ -485,7 +441,6 @@ async function check() {
   }));
   compareKeyed('contracts', contracts, seed.outsourcing.contracts, 'id');
 
-  // ---- counters (receipt stored as the last one used; the 'change' stamp is not seed data, Phase 7) ----
   const counterRows = await q("SELECT * FROM counters WHERE name <> 'change'");
   const counters = Object.fromEntries(counterRows.map((c) => [c.name, c.name === 'receipt' ? c.value + 1 : c.value]));
   compare('counters', counters, seed.counters);
@@ -495,7 +450,6 @@ async function check() {
     `| seed.counters.receipt=${seed.counters.receipt}`
   );
 
-  // ---- tables the seed leaves empty (sign-ins, codes and deliveries fill them) ----
   for (const t of [
     'login_attempts',
     'auth_challenges',
@@ -511,7 +465,6 @@ async function check() {
     if (n !== 0) fail(`${t} has ${n} rows`);
   }
 
-  // ---- integrity: every foreign key, the two 'none' columns, receipt numbers ----
   const fks = await q(`SELECT k.TABLE_NAME t, k.COLUMN_NAME c, k.REFERENCED_TABLE_NAME pt, k.REFERENCED_COLUMN_NAME pc
     FROM information_schema.KEY_COLUMN_USAGE k WHERE k.TABLE_SCHEMA = DATABASE() AND k.REFERENCED_TABLE_NAME IS NOT NULL`);
   let fkChecked = 0;
@@ -539,7 +492,6 @@ async function check() {
     await q(`SELECT COUNT(receipt_no) AS withReceipt, SUM(receipt_no IS NULL) AS nullReceipt, MIN(receipt_no) AS first, MAX(receipt_no) AS last,
     (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments' AND INDEX_NAME = 'uq_payments_receipt_no' AND NON_UNIQUE = 0) AS uniqueIndex FROM payments`);
 
-  // ---- special characters, byte for byte ----
   const [chars] = await q(`SELECT
     (SELECT COUNT(*) FROM reservations WHERE event_name LIKE '%–%') AS enDashEvents,
     (SELECT COUNT(*) FROM reservations WHERE city LIKE '%ñ%') AS enyeCities,
@@ -548,7 +500,6 @@ async function check() {
     (SELECT COUNT(*) FROM testimonials WHERE reply_body LIKE '%—%') AS emDash`);
   const [dash] = await q('SELECT HEX(?) AS hex', ['–']);
   if (dash.hex !== 'E28093') fail('en dash not stored as UTF-8 E2 80 93');
-  // Emoji: the seed has none, so write one in a transaction, read it back, and roll back
   const conn = await pool.getConnection();
   let emojiOk = false;
   try {
@@ -569,7 +520,6 @@ async function check() {
   if (!emojiOk) fail('emoji did not round-trip');
   const [{ leftover }] = await q("SELECT COUNT(*) AS leftover FROM messages WHERE id = 'm-emoji-test'");
 
-  // ---- the numbers the plan lists ----
   const count = async (t) => (await q(`SELECT COUNT(*) AS n FROM ${t}`))[0].n;
   const summary = {
     admins: await count('admins'),
@@ -593,7 +543,6 @@ async function check() {
   );
   console.log(`foreign keys checked for orphans: ${fkChecked} (0 orphans unless listed below)`);
   console.log(`characters: ${JSON.stringify(chars)}; emoji round trip ${emojiOk}, test row left behind ${leftover}`);
-  // A seed from another day moves every relative date, so say how old the seed is
   console.log(
     `settings updated_at: catalog ${ageMin(catSettings.updated_at)} min ago, calendar ${ageMin(calSettings.updated_at)} min ago (both set by seed:api)`
   );

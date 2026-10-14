@@ -4,7 +4,6 @@ import { bumpStamp } from '../changes/changes.repo.js';
 import { dueRentals } from './inventory.repo.js';
 import { checkOutRental } from './inventory.service.js';
 
-/** Runs without an open browser. Database locks and the dispatch ledger also protect multiple API processes. */
 export function createRentalCheckoutScheduler({
   clock = businessClock,
   loadDue = (at) => dueRentals(pool, at),
@@ -24,9 +23,9 @@ export function createRentalCheckoutScheduler({
       if (stopped) break;
       try {
         const result = await checkout(ref, at);
-        if (result.changed) await publish(); // only committed changes; refresh inventory and audit trails
+        if (result.changed) await publish();
       } catch (error) {
-        report(error); // one failing rental must not stop the remaining ones
+        report(error);
       }
     }
   }
@@ -50,7 +49,7 @@ export function createRentalCheckoutScheduler({
         void run();
       }, intervalMs);
       timer.unref();
-      void run(); // recover today's missed checkouts after a restart
+      void run();
     },
     async stop() {
       stopped = true;

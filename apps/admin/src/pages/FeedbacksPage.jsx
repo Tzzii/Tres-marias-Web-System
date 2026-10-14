@@ -48,8 +48,6 @@ import {
 
 const PAGE_SIZE = 5;
 
-// Filter tabs as [key, label, test function that decides if a feedback belongs in the tab].
-// Archived feedback is kept out of the first three tabs; it has a tab of its own.
 const FILTERS = [
   ['all', 'All Reviews', (f) => !f.archived],
   ['unread', 'Unread', (f) => !f.readByAdmin && !f.archived],
@@ -57,25 +55,14 @@ const FILTERS = [
   ['archived', 'Archived', (f) => f.archived]
 ];
 
-/**
- * Feedbacks: the reviews customers write after a completed event.
- *
- * The same record the customer wrote in their portal is the one shown here. The admin
- * decides whether it goes on the website (published, or featured on the homepage), sets a
- * flag on a review that needs checking, archives the old ones, and answers the customer —
- * a reply is saved under their review and arrives as a message in their portal.
- */
 export default function FeedbacksPage() {
   useDocumentTitle('Feedbacks', 'Tres Marias Admin');
   const navigate = useNavigate();
   const notify = useNotify();
-  // Every feedback, newest first. Reloads by itself whenever a review or a flag changes.
   const { data, loading, error, reload } = useResource(() => feedbackApi.listFeedbacks(), []);
-  // The open tab lives in the URL (?tab=unread), so the notification bell can link straight to it
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const filter = FILTERS.some(([key]) => key === requested) ? requested : 'all';
-  // A reservation links here with ?q=RES-... to show that event's review
   const [query, setQuery] = useState(params.get('q') || '');
   const setFilter = (value) => {
     const next = {};
@@ -84,19 +71,16 @@ export default function FeedbacksPage() {
     setParams(next, { replace: true });
   };
   const [page, setPage] = useState(1);
-  const [replying, setReplying] = useState(null); // feedback being answered in the dialog
-  const [flagging, setFlagging] = useState(null); // feedback being flagged (needs a reason)
-  const [deleting, setDeleting] = useState(null); // feedback about to be deleted
-  const [busyId, setBusyId] = useState(''); // the card whose action is still running
+  const [replying, setReplying] = useState(null);
+  const [flagging, setFlagging] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [busyId, setBusyId] = useState('');
 
-  // Back to page 1 when the tab or the search changes
   useEffect(() => setPage(1), [filter, query]);
 
   const rows = data || [];
-  // Number of feedbacks in each tab
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(([k, , test]) => [k, rows.filter(test).length])), [rows]);
 
-  // Reports and analytics, counted over everything except the archive (the "All reviews" tab)
   const stats = useMemo(() => {
     const active = rows.filter((f) => !f.archived);
     const total = active.length;
@@ -114,7 +98,6 @@ export default function FeedbacksPage() {
     };
   }, [rows]);
 
-  // Apply the tab and the search over the customer, the event and the review itself
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const test = FILTERS.find(([k]) => k === filter)[2];
@@ -127,13 +110,11 @@ export default function FeedbacksPage() {
       );
   }, [rows, filter, query]);
 
-  // Keep the page in range when reviews leave the list (deleted, archived, filtered out)
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pages);
   const shown = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
   const unread = counts.unread || 0;
 
-  // Run one card action: keep that card's buttons disabled while it runs, then report the result
   const act = async (id, run, message) => {
     setBusyId(id);
     try {
@@ -167,8 +148,6 @@ export default function FeedbacksPage() {
         }
       />
 
-      {/* ==================== Reports and analytics ==================== */}
-      {/* Two per row on phones (narrow card layout), four on large screens */}
       <Box
         sx={{
           display: 'grid',
@@ -312,7 +291,6 @@ export default function FeedbacksPage() {
       <ReplyDialog
         feedback={replying}
         onClose={() => setReplying(null)}
-        // Save the answer under the review and send the same words to the customer's chat thread
         onSubmit={async (body) => {
           await feedbackApi.replyToFeedback(replying.id, body);
           setReplying(null);
@@ -357,7 +335,6 @@ export default function FeedbacksPage() {
   );
 }
 
-/** One review: who wrote it, which event it is about, what they said and what the admin can do with it. */
 function FeedbackCard({
   feedback,
   busy,
@@ -376,13 +353,11 @@ function FeedbackCard({
       sx={{
         borderRadius: 2,
         border: `1px solid ${feedback.flagged ? 'rgba(239, 68, 68, 0.35)' : tokens.cardLightBorder}`,
-        // Unread reviews carry a gold edge so they stand out in the list
         borderLeft: `3px solid ${unread ? tokens.gold : feedback.flagged ? tokens.red : tokens.cardLightBorder}`,
         backgroundColor: feedback.archived ? tokens.surfaceSubtle : '#fff',
         p: { xs: 1.75, sm: 2.25 }
       }}
     >
-      {/* Customer on the left, event and website status on the right */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between' }}>
         <Box sx={{ minWidth: 220, flex: '1 1 300px' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -421,7 +396,6 @@ function FeedbackCard({
           </Box>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
             <Typography sx={{ fontSize: 12.5, color: tokens.textMuted, minWidth: 92 }}>Status</Typography>
-            {/* Flagged and archived reviews are off the website until that is undone, so the picker waits */}
             {feedback.flagged || feedback.archived ? (
               <FeedbackStatusChip feedback={feedback} />
             ) : (
@@ -445,7 +419,6 @@ function FeedbackCard({
         “{feedback.body}”
       </Typography>
 
-      {/* What the customer rated part by part */}
       <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2.5 } }}>
         {FEEDBACK_CATEGORIES.map(({ key, label }) => (
           <Typography key={key} sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
@@ -457,7 +430,6 @@ function FeedbackCard({
         ))}
       </Box>
 
-      {/* The admin's own note on why this review was set aside */}
       {feedback.flagged && feedback.flagReason && (
         <Box
           sx={{
@@ -473,7 +445,6 @@ function FeedbackCard({
         </Box>
       )}
 
-      {/* The answer the customer already received */}
       {feedback.reply && (
         <Box
           sx={{
@@ -547,13 +518,11 @@ function FeedbackCard({
   );
 }
 
-/** Dialog for answering a review. The reply is saved under it and sent to the customer as a message. */
 function ReplyDialog({ feedback, onClose, onSubmit }) {
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Start with the reply already sent (if any), so the admin edits instead of retyping
   useEffect(() => {
     if (feedback) {
       setBody(feedback.reply ? feedback.reply.body : '');

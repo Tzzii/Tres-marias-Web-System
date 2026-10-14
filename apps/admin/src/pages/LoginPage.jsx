@@ -26,39 +26,30 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
-/**
- * 1q · Admin log in: username and password on the page. When they are correct,
- * a pop-up asks for the 6-digit code emailed to the admin.
- */
 export default function LoginPage() {
   useDocumentTitle('Admin Sign In', 'Tres Marias Admin');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { isAuthenticated, signIn } = useAuth();
-  // Page to return to after signing in (?next=...). safeNextPath blocks links to other websites.
   const next = safeNextPath(params.get('next'), '/dashboard');
 
-  // Sign-in form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState({}); // per-field error messages
-  const [formError, setFormError] = useState(''); // error banner (on the page, or in the code pop-up while it is open)
-  const [lockedUntil, setLockedUntil] = useState(null); // time the lockout ends
-  const [lockKind, setLockKind] = useState('password'); // what caused the lockout: 'password' or 'code'
-  const [busy, setBusy] = useState(false); // true while waiting for the server
-  const [shake, setShake] = useState(false); // plays the shake animation on a wrong attempt
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
+  const [lockedUntil, setLockedUntil] = useState(null);
+  const [lockKind, setLockKind] = useState('password');
+  const [busy, setBusy] = useState(false);
+  const [shake, setShake] = useState(false);
 
-  // Code pop-up state (the pop-up is open while `challenge` is set)
-  const [challenge, setChallenge] = useState(null); // code request info (ID, masked email, resend time)
+  const [challenge, setChallenge] = useState(null);
   const [code, setCode] = useState('');
-  const [codeState, setCodeState] = useState('idle'); // idle / error / success colour of the code boxes
+  const [codeState, setCodeState] = useState('idle');
   const [attemptsLeft, setAttemptsLeft] = useState(RULES.maxCodeAttempts);
 
-  // Seconds left on the lockout and on the "Resend code" timer
   const lockSeconds = useCountdown(lockedUntil);
   const resendSeconds = useCountdown(challenge ? challenge.resendAt : null);
 
-  // When the lockout timer reaches 0, unlock the form and reset attempts
   useEffect(() => {
     if (lockedUntil && lockSeconds === 0) {
       setLockedUntil(null);
@@ -67,17 +58,13 @@ export default function LoginPage() {
     }
   }, [lockSeconds, lockedUntil]);
 
-  // Already signed in: skip the login page
   if (isAuthenticated) return <Navigate to={next} replace />;
 
   const locked = Boolean(lockedUntil && lockSeconds > 0);
   const codeOpen = Boolean(challenge);
 
-  // Check the fields, then send username + password to the server.
-  // On success the server emails a code and the code pop-up opens.
   const startSignIn = async (event) => {
-    event.preventDefault(); // stop the browser from reloading the page
-    // Validate fields before calling the server
+    event.preventDefault();
     const found = {};
     const emailError = validateEmail(email);
     if (emailError) found.email = emailError.replace('Email', 'Username');
@@ -94,7 +81,6 @@ export default function LoginPage() {
       setAttemptsLeft(RULES.maxCodeAttempts);
       setChallenge(result);
     } catch (error) {
-      // Wrong password or locked: shake the form, clear the password and explain why
       setShake(true);
       setPassword('');
       if (error.code === 'LOCKED') {
@@ -109,7 +95,6 @@ export default function LoginPage() {
     }
   };
 
-  // Check the emailed code. If correct, save the session and open the dashboard.
   const verify = async (value = code) => {
     if (value.length !== RULES.codeLength) {
       setFormError(`Enter all ${RULES.codeLength} digits.`);
@@ -123,7 +108,6 @@ export default function LoginPage() {
       signIn(result);
       navigate(next, { replace: true });
     } catch (error) {
-      // Wrong code: show red boxes, clear the input, and handle each error type
       setBusy(false);
       setCodeState('error');
       setShake(true);
@@ -144,8 +128,6 @@ export default function LoginPage() {
     }
   };
 
-  // Ask the server to email a new code (allowed once the resend timer ends). Asking too soon only
-  // shows the message; any other failure (e.g. the sign-in expired) closes the code step.
   const resend = async () => {
     setBusy(true);
     setFormError('');
@@ -162,7 +144,6 @@ export default function LoginPage() {
     }
   };
 
-  // Close the code pop-up and go back to the sign-in form, optionally showing a message (e.g. "code expired")
   const closeCode = (message = '') => {
     setChallenge(null);
     setPassword('');
@@ -171,9 +152,6 @@ export default function LoginPage() {
     setFormError(message);
   };
 
-  // ?reason=idle: signed out automatically for inactivity; ?reason=password: signed out after changing the password;
-  // ?reason=expired: the server ended the session (the token expired, or the password was changed elsewhere);
-  // ?reason=replaced: the account signed in on another device or tab, which ended this session (newest sign-in wins)
   const reason = params.get('reason');
 
   return (
@@ -248,9 +226,6 @@ export default function LoginPage() {
                 If this wasn't you, sign in again and change your password.
               </AlertBanner>
             )}
-            {/* Banners show here only while the code pop-up is closed; the pop-up has its own.
-                The lockout banner names its cause, so closing the pop-up during a code lockout
-                doesn't look like a wrong-password lockout. */}
             {locked && !codeOpen && (
               <AlertBanner
                 tone="locked"
@@ -302,13 +277,11 @@ export default function LoginPage() {
         </LightSurface>
       </Box>
 
-      {/* Code pop-up: emailed code boxes, resend link and attempts left. Closing it cancels the sign-in. */}
       <AppDialog open={codeOpen} onClose={() => closeCode()} title="Enter Your Code" maxWidth="xs" busy={busy}>
         {challenge && (
           <Box
             component="form"
             noValidate
-            // Pressing Enter / the main button checks the code
             onSubmit={(e) => {
               e.preventDefault();
               verify();
@@ -337,7 +310,6 @@ export default function LoginPage() {
                 if (codeState !== 'idle') setCodeState('idle');
                 if (formError) setFormError('');
               }}
-              // Auto-submit as soon as the last digit is typed
               onComplete={(value) => verify(value)}
               disabled={busy || locked}
               state={codeState}

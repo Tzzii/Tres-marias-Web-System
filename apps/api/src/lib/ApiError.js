@@ -1,30 +1,12 @@
-/**
- * The error a service throws on purpose, e.g. new ApiError('INVALID_STATE', 'Only pending requests can be approved.').
- *
- * Same constructor as the frontend's ApiError (packages/shared/src/services/errors.js), which the API
- * client (services/http.js) rebuilds from the { code, message, meta } that middleware/errors.js sends:
- * the pages branch on `code`, never on the HTTP status, so a page and this file must spell a code the same.
- */
 export class ApiError extends Error {
   constructor(code, message, meta = {}) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
-    this.meta = meta; // extra detail for the page, e.g. { field: 'email' } or { lockedUntil }
+    this.meta = meta;
   }
 }
 
-/**
- * HTTP status for each code (docs/backend-development-phases.md §7.4). A code missing here is sent as 400.
- * OVER_BALANCE and NO_QUOTATION are not in §7.4; like NO_CHANNEL they mean "not possible in the record's
- * current state", so they use 409. (NO_MOBILE, the forgot-password error for an account without a mobile
- * number, went away in Phase 12, when the reset code moved from SMS to email.)
- * OUT_OF_STOCK (Phase 6A): not enough pieces of a rental item free on the date; 409 like CAPACITY.
- * DELIVERY_FAILED (Phase 3): the email provider refused a one-time code, so the code never left; 502
- * like PAYMENT_PROVIDER, since another service failed, not the request.
- * SESSION_REPLACED (2026-10-09): an admin session ended because the same account signed in somewhere
- * newer (one sign-in at a time, middleware/auth.js); 401 like UNAUTHENTICATED, and the page says why.
- */
 export const STATUS = Object.freeze({
   INVALID: 400,
   INVALID_CREDENTIALS: 401,

@@ -18,6 +18,7 @@
     "test:security": "node scripts/security-tests.js",
     "test:realtime": "node --test scripts/realtime-tests.js",
     "test:outsource": "node --test scripts/outsource-tests.js scripts/outsource-email-tests.js",
+    "test:outsource:db": "node --test scripts/outsource-db-tests.js",
     "test:mobile": "node --test scripts/mobile-tests.js",
     "test:inventory": "node --test scripts/inventory-tests.js",
     "test:labels": "node --test scripts/helper-label-tests.js",

@@ -29,43 +29,29 @@ import {
 } from '@tm/shared';
 import { SectionBar } from '../../components/SectionTabs.jsx';
 
-// Status tabs shown in this section (their names come from statusLabel, in Title Case: "Downpayment Paid")
 const TABS = ['pending', 'approved', 'downpayment_paid', 'confirmed', 'completed', 'declined'];
 
-/**
- * 1s · Requests tab of "Reservation & Calendar": the pending requests and where each stands, and decline,
- * one by one or in bulk. There is no Approve: quotations are priced and sent from each reservation's page
- * (the food has no fixed price), and the customer approves a request by accepting its quotation in their
- * portal. A request still needing a quotation (or a revised one) shows "Send quotation"; one sent and
- * current shows "Waiting for customer". The page title and tabs come from ReservationsCalendarPage.
- */
 export default function RequestsSection() {
   const navigate = useNavigate();
   const notify = useNotify();
-  // Load all reservations
   const { data, loading, error, reload } = useResource(() => reservationApi.listReservations(), []);
-  const [tab, setTab] = useState('pending'); // selected status tab
-  const [query, setQuery] = useState(''); // search text
-  const [selected, setSelected] = useState([]); // REFs ticked for bulk actions
-  const [confirm, setConfirm] = useState(null); // open confirm dialog: { type: 'decline', refs }
+  const [tab, setTab] = useState('pending');
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState([]);
+  const [confirm, setConfirm] = useState(null);
 
   const rows = data || [];
-  // Number of reservations per tab
   const counts = useMemo(
     () => Object.fromEntries(TABS.map((t) => [t, rows.filter((r) => r.status === t).length])),
     [rows]
   );
   const pending = rows.filter((r) => r.status === 'pending');
-  // The requests the admin still has to quote (or re-quote), and those waiting for the customer to accept
   const toQuote = pending.filter((r) => pendingStep(r) !== 'accept');
   const toAccept = pending.length - toQuote.length;
-  // Age in days of the oldest request still needing a quotation (86400000 ms = 1 day)
   const oldestDays = toQuote.length
     ? Math.max(...toQuote.map((r) => Math.floor((Date.now() - r.createdAt) / 86400000)))
     : 0;
 
-  // Rows for the current tab matching the search.
-  // Pending: oldest request first (first come, first served). Others: by event date.
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows
@@ -77,15 +63,11 @@ export default function RequestsSection() {
       .sort((a, b) => (tab === 'pending' ? a.createdAt - b.createdAt : a.date.localeCompare(b.date)));
   }, [rows, tab, query]);
 
-  // Ticked rows that are still visible in the current tab/search
   const selectedRows = visible.filter((r) => selected.includes(r.ref));
-  // Tick or untick one row
   const toggle = (ref) => setSelected((s) => (s.includes(ref) ? s.filter((x) => x !== ref) : [...s, ref]));
 
-  /** Run an action on several reservations and report partial failures plainly. */
   const runBulk = async (refs, action, verb) => {
     const failures = [];
-    // Process one at a time; a failure on one does not stop the others
     for (const ref of refs) {
       try {
         await action(ref);
@@ -94,13 +76,11 @@ export default function RequestsSection() {
       }
     }
     setSelected([]);
-    // Show how many succeeded, and the first error if any failed
     const done = refs.length - failures.length;
     if (done) notify(`${verb} ${done} ${done === 1 ? 'reservation' : 'reservations'}.`);
     if (failures.length) notify(`Could not update ${failures.length}: ${failures[0]}`, 'error');
   };
 
-  // Table columns. The checkbox column, the quotation step and the Decline button only appear on the Pending tab.
   const columns = [
     ...(tab === 'pending'
       ? [
@@ -152,7 +132,6 @@ export default function RequestsSection() {
       )
     },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
-    // An equipment rental has no guest count
     { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     {
       key: 'quoted',
@@ -225,7 +204,6 @@ export default function RequestsSection() {
             >
               <FilterTabs
                 value={tab}
-                // Switching tabs clears the ticked rows
                 onChange={(v) => {
                   setTab(v);
                   setSelected([]);
@@ -239,7 +217,6 @@ export default function RequestsSection() {
               <SearchField id="requests-search" value={query} onChange={setQuery} />
             </Box>
 
-            {/* Bulk action bar, shown when at least one row is ticked */}
             {selectedRows.length > 0 && (
               <Box
                 sx={{
@@ -308,7 +285,6 @@ export default function RequestsSection() {
         </DashCard>
       </Box>
 
-      {/* Confirm dialog. It closes itself, then runs the action on every chosen REF. */}
       <ConfirmDialog
         open={confirm?.type === 'decline'}
         onClose={() => setConfirm(null)}
@@ -322,7 +298,6 @@ export default function RequestsSection() {
         tone="danger"
         reasonLabel="Reason shown to the customer"
         reasonPlaceholder="e.g. We are fully booked on this date. We would be glad to cater another date."
-        // `reason` is the text the admin typed; it is shown to the customer
         onConfirm={async (reason) => {
           const refs = confirm.refs;
           setConfirm(null);

@@ -8,7 +8,7 @@ import { http } from '../http.js';
  *
  * - The server decides whose account a /me call is about from the session token; the id arguments
  *   (customerId, adminId) some pages pass are not sent.
- * - Every one-time code is emailed by the server (never texted, Phase 12) and never comes back in a
+ * - Every one-time code is emailed by the server and never comes back in a
  *   response: the admin's sign-in and contact-change codes, and the customer's codes for signing up,
  *   resetting a forgotten password, and changing the password or login email in My profile.
  * - Lockouts are enforced by the server. getLockout only remembers, for this tab, the lock the server

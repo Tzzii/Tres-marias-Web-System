@@ -85,36 +85,19 @@ import {
 } from '@tm/shared';
 import RefundDialog, { refundRecordedText } from '../components/RefundDialog.jsx';
 
-// Statuses where the booking is finished and can no longer be edited
 const CLOSED = ['completed', 'declined', 'cancelled'];
-// Statuses whose equipment can be checked out (approved to confirmed); the admin can cancel these too
 const HOLDS = ['approved', 'downpayment_paid', 'confirmed'];
-// Statuses in which preparation can start: the downpayment is paid
 const PREPARABLE = ['downpayment_paid', 'confirmed'];
 
-/**
- * 1t · Reservation details. The one screen where the admin edits a booking.
- * A pending request has no Approve: the admin sends the quotation (or declines), and the customer
- * approves the request by accepting it in their portal; the status card says which side it waits on.
- * Besides the status actions, the admin can cancel an approved, downpayment-paid or confirmed booking
- * (with a reason the customer sees), mark "Started preparing" (after which the customer can't cancel
- * online) or undo it, and record the refund owed on a cancelled or overpaid booking. An event's theme,
- * colours and design details from the booking form have their own card and Edit dialog (StylingDialog).
- * The Payments card also shows the customer's QR Ph codes (QrCodes): a notice while one is open, and
- * the record of every one they opened.
- */
 export default function ReservationDetailPage() {
-  // The reservation reference from the URL, e.g. /reservations/RES-2026-1020-01
   const { ref } = useParams();
   const navigate = useNavigate();
   const notify = useNotify();
-  // Load the reservation with its package, food request, add-ons and payments
   const { data: r, loading, error, reload } = useResource(() => reservationApi.getReservation(ref), [ref]);
   useDocumentTitle(r ? `${r.ref} · ${r.eventName}` : 'Reservation', 'Tres Marias Admin');
 
-  const [dialog, setDialog] = useState(null); // which dialog is open: decline, confirm, complete, cancel, prepare, unprepare, refund, cash, food, rentalItems, checkout, return
-  const [doc, setDoc] = useState(null); // document open in the preview dialog
-  // Breadcrumb links shown above the title
+  const [dialog, setDialog] = useState(null);
+  const [doc, setDoc] = useState(null);
   const crumbs = [{ label: 'Reservation & Calendar', to: '/reservations?tab=all' }, { label: ref }];
 
   if (error) {
@@ -139,9 +122,7 @@ export default function ReservationDetailPage() {
   }
 
   const closed = CLOSED.includes(r.status);
-  // Pending: 'quote' (send the quotation), 'revise' (re-send it: the booking changed) or 'accept' (the customer's turn)
   const step = pendingStep(r);
-  // Run a save action and show a success or error toast
   const act = async (fn, message) => {
     try {
       await fn();
@@ -151,7 +132,6 @@ export default function ReservationDetailPage() {
     }
   };
 
-  // Open (or create) the chat with this reservation's customer on the Messages page
   const messageCustomer = async () => {
     try {
       const { id } = await messageApi.openThread({ customerId: r.customerId });
@@ -161,10 +141,6 @@ export default function ReservationDetailPage() {
     }
   };
 
-  // Buttons in the page header change with the status:
-  // pending -> Send (or Re-send) quotation / Decline (the customer approves by accepting the quotation),
-  // downpayment paid -> Confirm, confirmed and event day reached -> Mark completed,
-  // and approved to confirmed -> Cancel reservation (a pending request is declined instead)
   const headerActions = (
     <>
       {r.status === 'pending' && (
@@ -200,7 +176,6 @@ export default function ReservationDetailPage() {
       )}
     </>
   );
-  // What was returned on this booking, newest first
   const refunds = r.refunds || [];
   const refunded = r.refunded || 0;
 
@@ -215,10 +190,8 @@ export default function ReservationDetailPage() {
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        {/* Progress bar of the booking status, plus decline/cancel/overdue notices and the "Started preparing" mark */}
         <DashCard>
           <StatusPipeline status={r.status} />
-          {/* A pending request waits on the admin's quotation, or on the customer accepting it (which approves it) */}
           {step === 'quote' && (
             <AlertBanner tone="warning" sx={{ mt: 2 }} title="Send the quotation">
               The customer approves this request by accepting the quotation in their portal. The date is not held until
@@ -242,7 +215,6 @@ export default function ReservationDetailPage() {
               {r.declineReason}
             </AlertBanner>
           )}
-          {/* Records without cancelledBy are the customer's own cancellations */}
           {r.status === 'cancelled' && (
             <AlertBanner
               tone="error"
@@ -257,7 +229,6 @@ export default function ReservationDetailPage() {
               Due {formatDate(r.downpaymentDue)}. Send a reminder from Payments or message the customer.
             </AlertBanner>
           )}
-          {/* A mark, not a status: once set, the customer can only cancel by chat or phone */}
           {!closed && (PREPARABLE.includes(r.status) || r.preparingAt) && (
             <Box
               sx={{
@@ -332,7 +303,6 @@ export default function ReservationDetailPage() {
               }
             />
 
-            {/* An equipment rental shows its items and their check-out and return instead of a package and menu */}
             {isRental(r.serviceType) ? (
               <RentalCard
                 r={r}
@@ -355,9 +325,6 @@ export default function ReservationDetailPage() {
                 >
                   {r.serviceType}
                 </CardTitle>
-                {/* For the booking's guest count: above the package's default, plates, chairs and tables grow and the
-                  other counted items show the counts set in the quotation, or a "To confirm" tag until it is sent.
-                  One item per row, its count in its own column (PackageItemList). */}
                 <Field
                   label={
                     bookingExtraGuests(r)
@@ -368,7 +335,6 @@ export default function ReservationDetailPage() {
                   <PackageItemList items={bookingItems(r)} />
                 </Field>
                 <Divider sx={{ my: 2 }} />
-                {/* A buffet lists the dish chosen for each category, so the kitchen reads it at a glance */}
                 {includesFood(r.serviceType) ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
                     {(r.menuDishes || []).map((dish) => (
@@ -383,7 +349,6 @@ export default function ReservationDetailPage() {
                 <Divider sx={{ my: 2 }} />
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                   {includesFood(r.serviceType) && <Field label="Drinks">{buffetDrinks(r.menu)} for every guest</Field>}
-                  {/* Charges counted by the piece show how many the customer asked for */}
                   <Field label="Additional charges">
                     {r.addons.length
                       ? r.addons
@@ -399,8 +364,6 @@ export default function ReservationDetailPage() {
               </DashCard>
             )}
 
-            {/* The look the customer chose on the booking form (Theme and Colors); the admin edits it after a
-                change request. "To Discuss" when they haven't decided. A rental has none. */}
             {!isRental(r.serviceType) && (
               <DashCard>
                 <CardTitle
@@ -436,7 +399,6 @@ export default function ReservationDetailPage() {
 
             <DashCard>
               <CardTitle>Payments</CardTitle>
-              {/* This booking's own minimum (copied when it was made), or the whole total when that is lower */}
               <DetailRow label={`Minimum downpayment · ${peso(r.downpayment)}`}>
                 {['pending', 'declined', 'cancelled'].includes(r.status)
                   ? '—'
@@ -445,7 +407,6 @@ export default function ReservationDetailPage() {
                     : `Unpaid${r.downpaymentDue ? ` · due ${formatDate(r.downpaymentDue)}` : ''}`}
               </DetailRow>
               <DetailRow label="Total">{peso(r.total)}</DetailRow>
-              {/* Paid = what was received; money given back shows on its own row */}
               <DetailRow label="Paid">{peso(r.paid + refunded)}</DetailRow>
               {refunded > 0 && <DetailRow label="Refunded">− {peso(refunded)}</DetailRow>}
               <DetailRow label="Balance">{peso(r.balance)}</DetailRow>
@@ -481,9 +442,7 @@ export default function ReservationDetailPage() {
                   ))}
                 </Box>
               )}
-              {/* The customer's QR Ph codes: a notice while one is open, and the record of each one */}
               <QrCodes reservationRef={r.ref} />
-              {/* Record a cash payment only once approved and while money is still owed */}
               {['approved', 'downpayment_paid', 'confirmed', 'completed'].includes(r.status) && r.balance > 0 && (
                 <Button fullWidth variant="contained" sx={{ mt: 2 }} onClick={() => setDialog('cash')}>
                   Mark payment received
@@ -491,8 +450,6 @@ export default function ReservationDetailPage() {
               )}
             </DashCard>
 
-            {/* Money to return (a cancellation or an overpayment) and the refunds already recorded (a refund of
-                ₱0 records that everything paid was kept, and why) */}
             {(r.refundDue > 0 || refunds.length > 0) && (
               <DashCard>
                 <CardTitle
@@ -550,7 +507,6 @@ export default function ReservationDetailPage() {
               </DashCard>
             )}
 
-            {/* The review the customer wrote for this event. It is moderated on the Feedbacks page. */}
             {r.testimonial && (
               <DashCard>
                 <CardTitle
@@ -627,7 +583,6 @@ export default function ReservationDetailPage() {
                 }}
                 className="tm-scroll"
               >
-                {/* History of every change, newest first (the newest dot is gold) */}
                 {r.activity
                   .slice()
                   .reverse()
@@ -657,7 +612,6 @@ export default function ReservationDetailPage() {
         </Box>
       </Box>
 
-      {/* Dialogs for each status change; each calls the API, closes, and shows a toast */}
       <ConfirmDialog
         open={dialog === 'decline'}
         onClose={() => setDialog(null)}
@@ -826,17 +780,8 @@ export default function ReservationDetailPage() {
   );
 }
 
-/**
- * Editable event details: date, start and end time, guests, setup, venue and access notes. The end time
- * is 2 to 6 hours after the start; moving the start keeps the event's length. A booking made before end
- * times existed shows none (it counts as 4 hours) until the admin picks one.
- * For an equipment rental: the date, the pick-up or delivery time, pick up versus delivery and the
- * delivery address (no guests). Switching between pick up and delivery changes the total, so it
- * is flagged before saving, the same way a new guest count on a buffet is.
- */
 function LogisticsCard({ r, closed, onSave }) {
   const rental = isRental(r.serviceType);
-  // Form values built from the saved reservation
   const initial = () => ({
     date: r.date,
     startTime: r.startTime,
@@ -850,7 +795,6 @@ function LogisticsCard({ r, closed, onSave }) {
   });
   const [values, setValues] = useState(initial);
   const [busy, setBusy] = useState(false);
-  // Refill the form when the saved reservation changes
   useEffect(
     () => setValues(initial()),
     [
@@ -866,10 +810,7 @@ function LogisticsCard({ r, closed, onSave }) {
     ]
   ); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // True when something was changed, so Save/Reset appear enabled
   const dirty = JSON.stringify(values) !== JSON.stringify(initial());
-  // Change handler for one field (accepts an input event or a plain value from the date picker).
-  // Switching a picked-up rental to delivery empties the address, which still holds our pick-up point.
   const set = (k) => (e) =>
     setValues((v) => {
       const value = e && e.target ? e.target.value : e;
@@ -886,13 +827,9 @@ function LogisticsCard({ r, closed, onSave }) {
       return next;
     });
   const delivered = rental && values.fulfilment === 'delivery';
-  // A rental switched between pick up and delivery gains or loses the delivery fee
   const switching = rental && values.fulfilment !== r.fulfilment;
-  // A buffet is charged per person, so a new guest count moves the total before it is even saved
   const guestsNow = Number(values.guests) || 0;
   const repricing = includesFood(r.serviceType) && guestsNow !== r.guests && guestsNow > 0;
-  // Guests above the package's default are priced in the quotation (with the items to confirm), so a new
-  // number of them changes the total too, once the quotation is re-sent (domain/packageItems.js)
   const extraBefore = rental ? 0 : bookingExtraGuests(r);
   const extraNow = rental || !usesGuestRule(r) ? 0 : extraGuestsFor(r.package, guestsNow);
   const extraMoves = guestsNow > 0 && guestsNow !== r.guests && extraNow !== extraBefore;
@@ -1006,9 +943,6 @@ function LogisticsCard({ r, closed, onSave }) {
   return (
     <DashCard sx={{ containerType: 'inline-size', containerName: 'logistics-form' }}>
       <CardTitle subtitle={closed ? 'This reservation is closed.' : 'Editable by admin'}>Event and Logistics</CardTitle>
-      {/* Changing the guest count on a buffet changes what the customer owes, so say so plainly
-          before it is saved. Saving tells the customer in their chat; only re-sending the
-          quotation actually changes the amount. */}
       {repricing && (
         <AlertBanner tone="warning" sx={{ mb: 2 }} title="This changes the customer's total">
           {r.guests} → {guestsNow} guests at {peso(r.pricePerPlate)} per person moves the buffet from{' '}
@@ -1016,8 +950,6 @@ function LogisticsCard({ r, closed, onSave }) {
           customer; the amount they owe only changes once you re-send the quotation.
         </AlertBanner>
       )}
-      {/* The same for the guests above the package's default: their equipment and the items to confirm are
-          set in the quotation, so a new number of them needs a re-sent quotation */}
       {extraMoves && (
         <AlertBanner tone="warning" sx={{ mb: 2 }} title="This changes the extra guests">
           {extraBefore || 'No'} → {extraNow || 'no'} guests above the package's {r.package.guests}. Their equipment and
@@ -1036,7 +968,6 @@ function LogisticsCard({ r, closed, onSave }) {
         }}
       >
         <DateField id="l-date" label="Date" mode="any" value={values.date} onChange={set('date')} disabled={closed} />
-        {/* Same hour / minute / AM-PM picker as the customer form: booking hours only, every 30 minutes */}
         <TimeField
           id="l-start"
           label="Start time"
@@ -1114,48 +1045,11 @@ function LogisticsCard({ r, closed, onSave }) {
   );
 }
 
-/**
- * The admin prices the quotation. The package price is fixed and the food works itself out - a
- * buffet is the guest count times the per-person rate stored on this booking, and Catering only
- * has no food at all - so the admin only prices each additional charge the customer ticked (one with
- * its own price on the Packages page is filled in, and can still be changed for this booking), any
- * other charges (e.g. extra hours) and a discount, then sends it to the customer.
- *
- * For an add-on counted by the piece the amount typed is the price of ONE; the line total is that
- * times the quantity the customer asked for.
- *
- * An event with more guests than its package's default (the owner's rule, 2026-10-09; domain/packageItems.js)
- * asks for two more things before it can be sent: the price of the equipment for the extra guests (0 waives
- * it) and the count of each package item that does not grow with the guests (food warmers, pitchers, water
- * jugs, helpers), shown to the customer instead of "to confirm". Plates, glasses, cutlery, chairs and tables
- * grow by themselves.
- *
- * Other charges and Discount are optional: a blank one is sent as 0. A sent quotation can always be re-sent,
- * also with nothing changed (e.g. the customer asks for it again); a line under the form then says the same
- * quotation goes out once more. A quotation that is out of date (a new guest count) is re-sent the same way.
- *
- * An equipment rental lists its items at the prices they were booked at and any damage charges;
- * the admin only sets the delivery fee (standard RENTAL.deliveryFee, more for a large order).
- *
- * The new total may be lower than what the customer has paid: the card says how much would be paid
- * above it, and once sent that amount shows under Refund to be returned (the customer is told in the chat).
- *
- * On a pending request the quotation is the offer the customer accepts in their portal, which approves
- * the request; the server refuses to send it when the date can no longer be taken (full, blocked, the
- * time or the stock taken), and a newer one sent before they accept is the one they accept. A quotation
- * re-sent after it was accepted applies as soon as it is sent.
- */
 function QuotationCard({ r, closed, onSend }) {
   const rental = isRental(r.serviceType);
   const delivered = rental && r.fulfilment === 'delivery';
-  // Guests above the package's default and the package items whose count the admin sets for them (none on a rental)
   const extraGuests = rental ? 0 : extraGuestsFor(r.package, r.guests);
   const confirmItems = rental ? [] : itemsToConfirm(r.package, r.guests);
-  // Form values from the last sent quotation (blank amounts when nothing was sent yet).
-  // The delivery fee starts at the standard fee until a delivered quotation sets another.
-  // Before the first quotation, an add-on with its own price starts at the price the booking was made
-  // at (its estimate), else at today's price on the Packages page; one with no price starts blank.
-  // The extra guests' charge and the counts to confirm start from the last quotation that set them, else blank.
   const initial = () => {
     const q = r.quotation;
     const amount = (value) => (q && value ? String(value) : '');
@@ -1185,20 +1079,15 @@ function QuotationCard({ r, closed, onSend }) {
   };
   const [values, setValues] = useState(initial);
   const [busy, setBusy] = useState(false);
-  // After a quotation is sent, reset the fields to the sent values
   useEffect(() => setValues(initial()), [r.quotation?.sentAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Change handler for one field
   const set = (key) => (e) => setValues((v) => ({ ...v, [key]: e.target.value }));
-  // Change handler for one additional charge's price
   const setAddonPrice = (id) => (e) =>
     setValues((v) => ({ ...v, addonPrices: { ...v.addonPrices, [id]: e.target.value } }));
-  // Change handler for the count of one item to confirm
   const setItemCount = (name) => (e) =>
     setValues((v) => ({ ...v, itemCounts: { ...v.itemCounts, [name]: e.target.value } }));
   const itemCount = (name) => (values.itemCounts || {})[name] ?? '';
 
-  // Live price calculation. The food comes from the booking, not from anything typed here.
   const preview = computeQuote({
     pkg: r.package,
     serviceType: r.serviceType,
@@ -1214,9 +1103,7 @@ function QuotationCard({ r, closed, onSend }) {
     otherCharges: values.otherCharges,
     discount: values.discount
   });
-  // An add-on's label carries its count when it is charged by the piece
   const addonLabel = (a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name);
-  // Every amount must be a number of 0 or more
   const invalid = (value) => value !== '' && (Number.isNaN(Number(value)) || Number(value) < 0);
   const amountError = (value) => (invalid(value) ? 'Enter a valid amount.' : '');
   const anyInvalid = [
@@ -1226,12 +1113,10 @@ function QuotationCard({ r, closed, onSend }) {
     ...(extraGuests ? [values.extraGuestsCharge] : []),
     ...Object.values(values.addonPrices)
   ].some(invalid);
-  // A count to confirm is a whole number from 1 up
   const countError = (value) =>
     value !== '' && !(Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= ITEM_COUNT_MAX)
       ? `Enter a whole number from 1 to ${ITEM_COUNT_MAX.toLocaleString('en-PH')}.`
       : '';
-  // Discount must not be more than the total
   const gross =
     preview.packageTotal +
     preview.extraGuestsCharge +
@@ -1243,20 +1128,14 @@ function QuotationCard({ r, closed, onSend }) {
     preview.otherCharges;
   const discountError =
     amountError(values.discount) || (preview.discount > gross ? 'Discount is larger than the total.' : '');
-  // A total below what was already paid is allowed: the difference is returned to the customer
   const paidAbove = Math.max(0, r.paid - preview.net);
-  // Every additional charge needs a price before the quotation can be sent. The food does not:
-  // it is already known from the service type and the guest count.
   const missingPrice = r.addonIds.some((id) => !Number(values.addonPrices[id]));
-  // Extra guests need their equipment priced (0 is allowed) and every item to confirm counted
   const missingExtra =
     extraGuests > 0 &&
     (values.extraGuestsCharge === '' ||
       confirmItems.some((item) => itemCount(item.name) === '' || countError(itemCount(item.name))));
-  // What the server receives: every blank amount (Other charges, Discount, …) is sent as 0
   const toSend = (v) => ({
     addonPrices: Object.fromEntries(Object.entries(v.addonPrices).map(([id, price]) => [id, Number(price) || 0])),
-    // Only while there are extra guests; the server ignores both otherwise
     ...(extraGuests
       ? {
           extraGuestsCharge: Number(v.extraGuestsCharge) || 0,
@@ -1271,9 +1150,6 @@ function QuotationCard({ r, closed, onSend }) {
     discount: Number(v.discount) || 0,
     note: v.note
   });
-  // True when nothing was sent yet, the booking changed since it was sent (out of date), or what would be
-  // sent differs from the last one (a blank and a 0 are the same amount). It never blocks the button: with
-  // nothing changed, the same quotation can still be re-sent, and a line says so.
   const changed =
     !r.quotation || r.quotationStale || JSON.stringify(toSend(values)) !== JSON.stringify(toSend(initial()));
   const peso0 = { startAdornment: <InputAdornment position="start">₱</InputAdornment> };
@@ -1283,16 +1159,12 @@ function QuotationCard({ r, closed, onSend }) {
       <CardTitle subtitle={r.quotation ? `Last sent ${formatDateTime(r.quotation.sentAt)}` : 'Not sent yet'}>
         Quotation
       </CardTitle>
-      {/* The booking changed after the quotation went out, so what the customer holds is out of
-          date. Their total does not move until this is re-sent, which is the point. */}
       {r.quotationStale && !closed && (
         <AlertBanner tone="warning" sx={{ mb: 2 }} title="The customer's quotation is out of date">
-          {/* Name only what actually changed, so the reason is obvious at a glance */}
           {r.quotationStaleReason} Re-send it so the customer has the correct total.
         </AlertBanner>
       )}
       {rental ? (
-        // Worked out, never typed: each item at the price it was booked at, then any damage charges
         <>
           {preview.rentalItems.map((line) => (
             <DetailRow key={line.itemId} label={`${line.name} · ${line.qty} × ${peso(line.price)}`}>
@@ -1315,7 +1187,6 @@ function QuotationCard({ r, closed, onSend }) {
           <DetailRow label={`Package · ${r.packageName} (${r.package.guests} guests)`}>
             {peso(preview.packageTotal)}
           </DetailRow>
-          {/* Worked out, never typed: the guest count times the rate this booking was made at */}
           {includesFood(r.serviceType) ? (
             <DetailRow label={`Buffet · ${preview.plates} × ${peso(preview.pricePerPlate)}`}>
               {peso(preview.food)}
@@ -1326,9 +1197,7 @@ function QuotationCard({ r, closed, onSend }) {
         </>
       )}
       {closed ? (
-        // Closed reservations show the sent amounts read-only
         <>
-          {/* A booking quoted before the extra-guest rule (2026-10-09) has neither line */}
           {usesGuestRule(r) && preview.extraGuests > 0 && (
             <DetailRow label={`Extra ${preview.extraGuests} guests (equipment)`}>
               {peso(preview.extraGuestsCharge)}
@@ -1351,7 +1220,6 @@ function QuotationCard({ r, closed, onSend }) {
         </>
       ) : (
         <Box sx={{ my: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          {/* A delivered rental: standard fee unless the order is large */}
           {delivered && (
             <FormField
               id="q-delivery"
@@ -1366,8 +1234,6 @@ function QuotationCard({ r, closed, onSend }) {
               inputProps={{ min: 0, step: 50 }}
             />
           )}
-          {/* More guests than the package's default: price their equipment, then count each item that does
-              not grow with the guests (the customer sees these counts instead of "to confirm") */}
           {extraGuests > 0 && (
             <>
               <FormField
@@ -1418,7 +1284,6 @@ function QuotationCard({ r, closed, onSend }) {
               value={values.addonPrices[a.id] ?? ''}
               onChange={setAddonPrice(a.id)}
               error={amountError(values.addonPrices[a.id] ?? '')}
-              // By the piece: type what one costs, and the line total follows the customer's count
               hint={
                 a.hasQuantity
                   ? `Price of one · ${(r.addonQty || {})[a.id] || 1} = ${peso(preview.addonTotals[a.id])}`
@@ -1523,7 +1388,6 @@ function QuotationCard({ r, closed, onSend }) {
   );
 }
 
-/** Admin-only notes about the booking. The Save button appears once the text changes. */
 function NotesCard({ r, onSave }) {
   const [notes, setNotes] = useState(r.notes);
   const [busy, setBusy] = useState(false);
@@ -1558,21 +1422,11 @@ function NotesCard({ r, onSave }) {
   );
 }
 
-/**
- * The booking's QR Ph codes (Phase 8B), inside the Payments card. While the customer has one open, a
- * notice says so: Waiting for payment until its time is up, then Checking payment while the server asks
- * PayMongo whether it was paid in its last seconds. There is nothing for the admin to do (PayMongo
- * confirms it, and cash waits until it is paid or expires), so the notice has no button. Below it, every
- * code the customer opened, newest first, as the record: when it was opened, and its receipt number once
- * paid, until when it can be paid, or why it failed. Nothing shows for a booking with no QR codes.
- * The list reloads by itself on every change and when an open code's time or grace runs out (useQrWatch).
- */
 function QrCodes({ reservationRef }) {
   const { data, reload } = useResource(() => paymentApi.listQrPayments({ ref: reservationRef }), [reservationRef]);
   const qrs = data || [];
   useQrWatch(qrs, reload);
   if (!qrs.length) return null;
-  // The open one (only one at a time per booking), as the notice shows it
   const open = qrs.find((q) => q.status === 'pending');
   const openState = open ? qrState(open) : '';
   return (
@@ -1611,15 +1465,10 @@ function QrCodes({ reservationRef }) {
   );
 }
 
-/**
- * Dialog to record a cash payment collected by the admin: any amount from ₱1 to the balance, even
- * below the minimum downpayment (the booking moves to Downpayment paid once what was paid reaches it).
- */
 function CashDialog({ open, onClose, r, onSubmit }) {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // When opened, pre-fill the full remaining balance
   useEffect(() => {
     if (open) {
       setAmount(String(r.balance));
@@ -1627,7 +1476,6 @@ function CashDialog({ open, onClose, r, onSubmit }) {
     }
   }, [open, r.balance]);
 
-  // Amount must be more than 0 and not more than the balance
   const submit = async () => {
     const n = Number(amount);
     if (!n || n <= 0) return setError('Enter the amount received.');
@@ -1680,13 +1528,6 @@ function CashDialog({ open, onClose, r, onSubmit }) {
   );
 }
 
-/**
- * Dialog for the admin to change what the customer is having (e.g. after agreeing it in chat):
- * the service type, the four menu lines and the note. Each line is picked the same way as on the
- * booking form (MenuPicker: the dishes as radio buttons, or "Others" with a text box that can name
- * more than one dish). Switching between Buffet and Catering only changes the total, so the customer
- * is messaged and the quotation is left flagged until re-sent.
- */
 function MenuDialog({ open, onClose, r, onSubmit }) {
   const start = () => ({ serviceType: r.serviceType, menu: { ...(r.menu || {}) }, foodNotes: r.foodNotes || '' });
   const [values, setValues] = useState(start);
@@ -1695,7 +1536,6 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
   const [busy, setBusy] = useState(false);
   const buffet = includesFood(values.serviceType);
 
-  // Start from what is saved, and load the dishes still on offer, each time the dialog opens
   useEffect(() => {
     if (!open) return;
     setValues(start());
@@ -1716,11 +1556,9 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
   };
 
   const changed = JSON.stringify(values) !== JSON.stringify(start());
-  // A buffet needs a dish (or something under "Others") for every part before it can be saved
   const menuCheck = menuProblem(values.menu, { buffet, dessert: r.addonIds.includes(DESSERT_ADDON_ID) });
   const incomplete = Boolean(menuCheck);
 
-  // Save; errors from the server stay in the dialog
   const save = async () => {
     if (incomplete) return setError(menuCheck.message);
     setBusy(true);
@@ -1772,7 +1610,6 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
               : 'Equipment and setup only, with no per-person charge'
           }
         />
-        {/* Only a buffet has a menu: the dishes on offer as radio buttons, or "Others" with a text box */}
         {buffet && <MenuPicker idPrefix="menu" menu={values.menu} dishes={dishes} onChange={setDish} />}
         {buffet && (
           <FormField
@@ -1803,12 +1640,6 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
   );
 }
 
-/**
- * Dialog for the admin to change the theme, colour motif and design details (e.g. after the customer's
- * change request), with the same fields and rules as the booking form (StylingFields; the server checks
- * them again). They never change the price, so nothing is re-quoted; the change shows in the Activity.
- * Once "Started preparing" is marked, a warning asks the admin to check the team can still change the linens.
- */
 function StylingDialog({ open, onClose, r, onSubmit }) {
   const start = () => ({ theme: '', themeOther: '', colors: [], notes: '', ...(r.styling || {}) });
   const [values, setValues] = useState(start);
@@ -1816,7 +1647,6 @@ function StylingDialog({ open, onClose, r, onSubmit }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Start from what is saved each time the dialog opens
   useEffect(() => {
     if (!open) return;
     setValues(start());
@@ -1832,7 +1662,6 @@ function StylingDialog({ open, onClose, r, onSubmit }) {
   const cleaned = cleanStyling(values);
   const changed = JSON.stringify(cleaned) !== JSON.stringify(cleanStyling(start()));
 
-  // Save; a problem the form or the server finds shows under its field (or on top when it has none)
   const save = async () => {
     const problem = stylingProblem(cleaned);
     if (problem) return setErrors({ [problem.field]: problem.message });
@@ -1883,17 +1712,10 @@ function StylingDialog({ open, onClose, r, onSubmit }) {
   );
 }
 
-/**
- * An equipment rental's items: how many of each, the price per piece it was booked at, how many are
- * out right now, and any damage charges. From here the admin edits the items (before the rental is
- * closed), checks everything out once it is approved, and records the return afterwards.
- */
 function RentalCard({ r, closed, onEdit, onCheckOut, onReturn }) {
-  // Pieces checked out for this rental right now, { itemId: pieces }; refreshes when the inventory changes
   const { data } = useResource(() => inventoryApi.rentalCheckoutState(r.ref), [r.ref]);
   const out = data?.out || {};
   const piecesOut = Object.values(out).reduce((sum, qty) => sum + qty, 0);
-  // Some booked pieces are not out yet
   const toCheckOut =
     Boolean(data) &&
     r.rentalItems.some((line) => line.qty > Math.max(out[line.itemId] || 0, data.dispatched[line.itemId] || 0));
@@ -1970,20 +1792,13 @@ function RentalCard({ r, closed, onEdit, onCheckOut, onReturn }) {
   );
 }
 
-/**
- * Dialog to change a rental's items: how many of each, including items not on it yet. Items already
- * booked keep the price they were booked at; added items take today's rental price. Each row says how
- * many are free on the rental date (this rental's own pieces count as free). Saving tells the customer
- * in their chat and flags the quotation, which has to be re-sent for the new total to count.
- */
 function RentalItemsDialog({ open, onClose, r, onSubmit }) {
-  const [items, setItems] = useState([]); // [{ id, name, category, price }], this rental's items first
-  const [free, setFree] = useState({}); // { itemId: { left } } on the rental date
-  const [qty, setQty] = useState({}); // { itemId: how many, as typed }
+  const [items, setItems] = useState([]);
+  const [free, setFree] = useState({});
+  const [qty, setQty] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Start from what is booked, and load the rentable items and what is free that day, each time the dialog opens
   useEffect(() => {
     if (!open) return;
     setQty(Object.fromEntries(r.rentalItems.map((line) => [line.itemId, String(line.qty)])));
@@ -2002,7 +1817,6 @@ function RentalItemsDialog({ open, onClose, r, onSubmit }) {
       .catch((e) => setError(e.message));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Digits only, never above what one line can ask for
   const setCount = (id) => (e) => {
     const digits = e.target.value.replace(/\D/g, '');
     if (digits && Number(digits) > RENTAL.maxQty) return;
@@ -2017,7 +1831,6 @@ function RentalItemsDialog({ open, onClose, r, onSubmit }) {
     JSON.stringify(chosen.map((item) => [item.id, Number(qty[item.id])])) !==
     JSON.stringify(r.rentalItems.map((line) => [line.itemId, line.qty]));
 
-  // Save; errors from the server (e.g. not enough free that day) stay in the dialog
   const save = async () => {
     if (!chosen.length) return setError('Keep at least one item on the rental.');
     setBusy(true);
@@ -2065,7 +1878,6 @@ function RentalItemsDialog({ open, onClose, r, onSubmit }) {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {items.map((item, index) => (
           <Box key={item.id}>
-            {/* A heading wherever the category changes */}
             {(index === 0 || items[index - 1].category !== item.category) && (
               <Typography
                 sx={{ mt: index ? 1.5 : 0, mb: 0.75, fontSize: 12.5, fontWeight: 700, color: tokens.textMuted }}
@@ -2099,19 +1911,12 @@ function RentalItemsDialog({ open, onClose, r, onSubmit }) {
   );
 }
 
-/**
- * Dialog to record a rental coming back: for each item out, how many came back fine and how many came
- * back damaged or not at all. Fine pieces return to Available; the others go to Damaged in the
- * inventory and are charged at the item's damage fee. The customer is told in their chat, and the
- * quotation has to be re-sent for the charge to count.
- */
 function ReturnDialog({ open, onClose, r, onSubmit }) {
-  const [out, setOut] = useState({}); // { itemId: pieces out }
-  const [rows, setRows] = useState({}); // { itemId: { good, damaged } } as typed
+  const [out, setOut] = useState({});
+  const [rows, setRows] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Each time it opens: everything out, all of it back in good condition to start with
   useEffect(() => {
     if (!open) return;
     setError('');
@@ -2127,13 +1932,11 @@ function ReturnDialog({ open, onClose, r, onSubmit }) {
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lines = r.rentalItems.filter((line) => out[line.itemId]);
-  // Digits only
   const set = (id, field) => (e) => {
     setRows((all) => ({ ...all, [id]: { ...all[id], [field]: e.target.value.replace(/\D/g, '') } }));
     setError('');
   };
   const count = (id, field) => Number((rows[id] || {})[field]) || 0;
-  // A row can't bring back more than is out
   const tooMany = lines.find((line) => count(line.itemId, 'good') + count(line.itemId, 'damaged') > out[line.itemId]);
   const charge = lines.reduce((sum, line) => sum + count(line.itemId, 'damaged') * line.damageFee, 0);
 

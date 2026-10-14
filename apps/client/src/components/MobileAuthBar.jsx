@@ -4,14 +4,9 @@ import Button from '@mui/material/Button';
 import { useAuth } from '../auth.js';
 import { site } from '../theme/siteTheme.js';
 
-/**
- * Sticky bottom bar on phones (1m) that keeps Log in / Sign up reachable
- * without opening the menu. Hidden once signed in.
- */
 export default function MobileAuthBar() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  // Signed-in customers don't need the bar
   if (user) return null;
   return (
     <Box

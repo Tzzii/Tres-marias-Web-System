@@ -2,30 +2,12 @@ import { ApiError } from '../lib/ApiError.js';
 import { readToken, sessionReplaced } from '../lib/tokens.js';
 import { findSessionAccount } from '../modules/auth/auth.repo.js';
 
-/**
- * Route guards (docs/backend-development-phases.md §7.2, §12.7). A request is signed in when it
- * carries "Authorization: Bearer <token>" and the token is:
- *   1. genuine and unexpired: signed with JWT_SECRET, HS256 only (lib/tokens.js), and
- *   2. still current: its account exists and the account's password has not changed since the token
- *      was made (the token's `pwv` equals password_changed_at). Changing or resetting a password
- *      therefore signs out every older session.
- *   3. for an admin, from the newest sign-in (2026-10-09): the token's `sid` equals the account's
- *      session_id, which every code sign-in replaces. Signing in on another device (or another tab)
- *      ends this session with SESSION_REPLACED, so the portal can say why. An admin token with no
- *      `sid` (made before this rule) is simply no longer accepted.
- * Then req.user = { id, role: 'customer' | 'admin', name, exp }. The name is read from the database
- * on every request, so an audit entry never carries a name that has since changed; `exp` (seconds)
- * lets a renewed token end when this one would have.
- */
 
-// The token from "Authorization: Bearer <token>", or null
 function bearer(req) {
   const [scheme, token] = (req.get('Authorization') || '').split(' ');
   return scheme === 'Bearer' && token ? token : null;
 }
 
-// The signed-in user behind the request: { user } when the token is usable, otherwise { user: null },
-// with replaced: true when it is an admin token whose sign-in a newer sign-in has replaced
 export async function readSessionToken(token, findAccount = findSessionAccount) {
   const payload = token ? readToken(token) : null;
   if (
@@ -40,7 +22,6 @@ export async function readSessionToken(token, findAccount = findSessionAccount) 
   const account = await findAccount(payload.role, payload.sub);
   if (!account || (Number(account.passwordChangedAt) || 0) !== payload.pwv) return { user: null };
   if (payload.role === 'admin') {
-    // Newest sign-in wins: only the account's current sign-in may use the admin pages
     if (typeof payload.sid !== 'string' || !account.sessionId) return { user: null };
     if (payload.sid !== account.sessionId) return { user: null, replaced: true };
   }
@@ -49,11 +30,6 @@ export async function readSessionToken(token, findAccount = findSessionAccount) 
 
 const readSession = (req) => readSessionToken(bearer(req));
 
-/**
- * A signed-in user is required: otherwise 401 UNAUTHENTICATED, or 401 SESSION_REPLACED for an admin
- * session ended by a newer sign-in; either makes the portal end its session (services/http.js).
- * Sets req.user.
- */
 export async function requireAuth(req, res, next) {
   const { user, replaced } = await readSession(req);
   if (replaced) throw sessionReplaced();
@@ -62,15 +38,9 @@ export async function requireAuth(req, res, next) {
   next();
 }
 
-/** The signed-in user must have this role ('customer' or 'admin'): otherwise 403 FORBIDDEN. Use after requireAuth. */
 export const requireRole = (role) => (req, res, next) =>
   req.user && req.user.role === role ? next() : next(new ApiError('FORBIDDEN', 'You do not have access to this.'));
 
-/**
- * For public routes that show more to an admin (e.g. hidden packages, Phase 4): sets req.user when
- * the request carries a usable token, and otherwise carries on as a guest. A bad or replaced token is
- * not an error here, just no user.
- */
 export async function optionalAuth(req, res, next) {
   const { user } = await readSession(req);
   if (user) req.user = user;

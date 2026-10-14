@@ -32,8 +32,6 @@ import { Reveal, reducedMotionSx, useInView } from '../../components/Reveal.jsx'
 import { GALLERY, photoCount } from '../../lib/gallery.js';
 import { site, siteContainerSx } from '../../theme/siteTheme.js';
 
-// Hero line fade-up: hidden and lowered until the hero is on screen, then eased in `delay` ms later.
-// Replays when the visitor scrolls back up to the hero.
 const heroLine = (shown, delay) => ({
   opacity: shown ? 1 : 0,
   transform: shown ? 'none' : 'translateY(18px)',
@@ -41,16 +39,11 @@ const heroLine = (shown, delay) => ({
   ...reducedMotionSx
 });
 
-// Reviews strip: the track rolls to the left for ever. It holds the same run of cards twice, so
-// sliding it exactly one half (-50%) lands on an identical picture and the jump back is invisible.
 const reviewRoll = keyframes`
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 `;
 
-// Services section cards as [icon, title, description]. The payment card names the minimum downpayment the
-// admin has set (`minimum`, in pesos); while it is still loading (null) the amount is left out rather than
-// showing a starting value that may be out of date.
 const servicesList = (minimum) => [
   [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick four dishes from our menu, with up to two per category, with unlimited water and juice for every guest. Served plated by our team, at one price per person.'],
   [AutoAwesomeOutlinedIcon, 'Event styling', 'Themed table setups, floral centrepieces, backdrops and mood lighting designed around your motif.'],
@@ -59,8 +52,6 @@ const servicesList = (minimum) => [
   [LocalBarOutlinedIcon, 'Food tasting', 'Buffet bookings include a complimentary food tasting for four dishes.']
 ];
 
-// FAQ section as [question, answer]. Numbers come from BUSINESS and RULES in config.js and from the
-// admin's minimum downpayment (`minimum`, null while loading), so the answers stay correct if those change.
 const faqList = (minimum) => [
   ['How far in advance should I book?', `Reserve at least ${RULES.leadDays} days before your event. Popular dates, especially weekends in wedding season, fill up early, so we recommend booking as soon as your date is set.`],
   [
@@ -83,8 +74,6 @@ const faqList = (minimum) => [
   ['How many guests can you serve?', `From ${RULES.minGuests} up to ${RULES.maxGuests.toLocaleString('en-PH')} guests. Each package shows its default guest count, so you can pick the one closest to yours, and we follow the guest count you give us.`]
 ];
 
-// Soft light background of each gallery box (keyed by event folder), seen while its cover photo loads.
-// The boxes themselves and their photos come from lib/gallery.js.
 const GALLERY_WASH = {
   wedding: 'linear-gradient(150deg, #fbf3ea 0%, #efdcc9 100%)',
   debut: 'linear-gradient(150deg, #f9ecef 0%, #ecd3da 100%)',
@@ -94,96 +83,70 @@ const GALLERY_WASH = {
   birthday: 'linear-gradient(150deg, #f6eee6 0%, #e6d6c6 100%)'
 };
 
-// Smooth-scroll to the element with this id
 const scrollToId = (id) => {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
-/** 1a · Browse / landing: the public entry point, no login required. */
 export default function HomePage() {
   useDocumentTitle('Celebrations Worth Savouring');
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  // Load visible packages and the reviews the team published (featured ones first)
   const packages = useResource(() => catalogApi.listPackages(), []);
   const testimonials = useResource(() => feedbackApi.listPublished({ limit: 3 }), []);
-  // Whether the hero text is on screen (drives its fade-up)
   const [heroRef, heroShown] = useInView();
-  // The minimum downpayment the admin has set. A catalogue read brings it up to date from the API
-  // (remote/catalog.js), so it is only read once the packages have loaded; until then (null) the
-  // payment texts leave the amount out.
   const minimum = packages.data ? catalogApi.minDownpayment() : null;
   const services = servicesList(minimum);
   const faqs = faqList(minimum);
 
-  // Arriving with /#section (from another page) scrolls to that section
   useEffect(() => {
     if (!location.hash) return undefined;
     const timer = setTimeout(() => scrollToId(location.hash.slice(1)), 120);
     return () => clearTimeout(timer);
   }, [location.hash, packages.loading]);
 
-  // The gallery pop-up is part of the browser history. Opening it, and opening a photo from its grid, each
-  // add a step with the same address (router state), so the phone's Back button first leaves the photo, then
-  // closes the pop-up, instead of leaving the page. The state is { key, photo, depth }: the event's folder,
-  // the index of the photo shown large (none for the grid) and how many steps the pop-up has added (1 or 2).
   const gallery = (location.state && location.state.gallery) || null;
   const galleryEvent = gallery ? GALLERY.find((event) => event.key === gallery.key) || null : null;
-  // True while a step back is on its way, so a second click (e.g. a double-click on X) can't step back off the page
   const steppingBack = useRef(false);
   useEffect(() => {
     steppingBack.current = false;
   }, [location.key]);
-  // Puts a gallery state in the history: as a new step, or in place of the current one (`replace`).
-  // The address (and its #section) stays the same, so the page does not scroll.
   const setGallery = (next, replace = false) => {
     navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace, state: { ...location.state, gallery: next } });
   };
-  // Undoes the pop-up's own steps (once, however many times it is asked)
   const stepBack = (steps) => {
     if (steppingBack.current) return;
     steppingBack.current = true;
     navigate(-steps);
   };
-  // A gallery box opens its grid, or its only photo straight away
   const openGallery = (event) => {
     if (gallery) return;
     setGallery(event.photos.length === 1 ? { key: event.key, photo: 0, depth: 1 } : { key: event.key, depth: 1 });
   };
-  // A grid photo opens large as a new step; previous / next replace it, so Back returns straight to the grid
   const showPhoto = (index) => {
     if (gallery) setGallery({ key: gallery.key, photo: index, depth: 2 });
   };
   const stepPhoto = (index) => {
     if (gallery) setGallery({ ...gallery, photo: index }, true);
   };
-  // From a large photo back to the grid: undo the photo's step (or, if the photo opened first, show the grid in its place)
   const backToGrid = () => {
     if (!gallery) return;
     if (gallery.depth > 1) stepBack(1);
     else setGallery({ key: gallery.key, depth: 1 }, true);
   };
-  // Closing undoes every step the pop-up added, landing back on the page where the visitor was
   const closeGallery = () => {
     if (gallery) stepBack(gallery.depth > 1 ? 2 : 1);
   };
 
-  // Only reviews the admin published on the Feedbacks page reach the website
   const reviews = testimonials.data || [];
-  // One run of the rolling strip: the published reviews repeated until there are at least six cards,
-  // so even a single review fills the width. The track below shows this run twice (see reviewRoll).
   const reviewRun = reviews.length ? Array.from({ length: Math.ceil(6 / reviews.length) }, () => reviews).flat() : [];
-  // "No reviews yet" only once the reviews have loaded and there are none: not while they load, and
-  // not when they could not be loaded
   const noReviews = !testimonials.loading && !testimonials.error && reviews.length === 0;
 
   return (
     <Box sx={{ backgroundColor: site.ivory, color: site.ink, minHeight: '100vh' }}>
       <SiteNav />
 
-      {/* ==================== HERO ==================== */}
       <Box
         component="section"
         sx={{
@@ -194,14 +157,11 @@ export default function HomePage() {
           pt: { xs: 8, md: 11 },
           pb: { xs: 8, md: 11 },
           background: site.gradientHero,
-          // Slowly drifting warm glow and a faint linen texture over the ivory hero.
-          // The texture fades out towards the bottom so the hero blends into the page with no visible edge.
           '&::before': { content: '""', position: 'absolute', inset: '-40%', background: 'radial-gradient(circle at 50% 50%, rgba(197, 160, 89, 0.16) 0%, transparent 45%)', animation: 'tmHeroDrift 18s ease-in-out infinite alternate', pointerEvents: 'none' },
           '&::after': { content: '""', position: 'absolute', inset: 0, backgroundImage: site.textureLinen, maskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', pointerEvents: 'none' }
         }}
       >
         <Box ref={heroRef} sx={{ position: 'relative', zIndex: 2, maxWidth: 860, mx: 'auto' }}>
-          {/* Badge, title, text and buttons fade up in turn whenever the hero comes on screen */}
           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 2.25, py: 0.875, mb: 3.25, borderRadius: 999, border: `1px solid ${site.borderHover}`, backgroundColor: 'rgba(255, 255, 255, 0.6)', fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: site.goldText, ...heroLine(heroShown, 100) }}>
             <Box sx={{ display: 'flex', color: site.gold }}>
               {Array.from({ length: 5 }, (_, i) => (
@@ -227,13 +187,10 @@ export default function HomePage() {
         </Box>
       </Box>
 
-      {/* ==================== PACKAGES ==================== */}
       <Box component="section" id="packages" sx={{ py: { xs: 10, md: 12 }, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={siteContainerSx}>
-          {/* The count leaves out the Equipment Rental package, which is priced per piece rather than flat */}
           <SectionHead eyebrow="Our Packages" title="Pick the Package That Fits Your Guest Count" description={`${packages.data ? packages.data.filter((p) => !isRentalPackage(p)).length : 'Our'} packages, each a flat price for the buffet setup, tableware, tables and chairs. Any package works for any occasion, as a buffet we cook for you or as catering only. Need only a few things? Rent them by the piece.`} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 4 }}>
-            {/* Grey placeholder cards while loading, then one card per package (its position staggers the entrance animation) */}
             {packages.loading
               ? Array.from({ length: 3 }, (_, i) => <Skeleton key={i} variant="rounded" height={420} sx={{ borderRadius: 3, bgcolor: site.sand }} />)
               : (packages.data || []).map((pkg, index) => <PackageCard key={pkg.id} pkg={pkg} index={index} />)}
@@ -241,24 +198,17 @@ export default function HomePage() {
         </Container>
       </Box>
 
-      {/* ==================== PLAN YOUR EVENT ==================== */}
       <Box component="section" id="availability" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={siteContainerSx}>
-          {/* If the date is open, leave time to read the result, then return to the packages to choose one. */}
           <Reveal y={28}>
             <BookingBar onAvailable={() => setTimeout(() => scrollToId('packages'), 900)} />
           </Reveal>
         </Container>
       </Box>
 
-      {/* ==================== GALLERY ==================== */}
       <Box component="section" id="gallery" sx={{ py: { xs: 10, md: 12 }, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={siteContainerSx}>
           <SectionHead eyebrow="Gallery" title="Moments We Have Served" description="A glimpse of the celebrations our team has had the honour of catering." />
-          {/* One box per event that has photos (lib/gallery.js): two per row, three on wide screens, and a short
-              last row is centred. Each box fades up as it comes into view and shows the event's cover photo (its
-              first) over the soft colour; on hover it lifts and the photo zooms in slightly. Clicking it (or
-              Enter / Space) opens the event's photos in the pop-up at the end of the page (GalleryDialog). */}
           <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 3 }}>
             {GALLERY.map((event, i) => (
               <Reveal key={event.key} delay={(i % 3) * 100} sx={{ width: { xs: 'calc((100% - 24px) / 2)', lg: 'calc((100% - 48px) / 3)' } }}>
@@ -285,7 +235,6 @@ export default function HomePage() {
                   }}
                 >
                   <Box component="img" className="tm-gallery-cover" src={event.photos[0].thumb} alt="" loading="lazy" decoding="async" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease' }} />
-                  {/* Darkens the bottom of the photo so the white name stays readable */}
                   <Box component="span" sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(23, 19, 17, 0) 38%, rgba(23, 19, 17, 0.74) 100%)' }} />
                   <Box component="span" sx={{ position: 'relative', display: 'block' }}>
                     <Typography component="span" sx={{ display: 'block', fontFamily: site.fontSerif, fontSize: { xs: 16, md: 20 }, fontWeight: 600, lineHeight: 1.25, color: '#fff' }}>
@@ -301,7 +250,6 @@ export default function HomePage() {
             ))}
           </Box>
 
-          {/* No published reviews yet: one card in the review style, with five empty stars and the label */}
           {noReviews && (
             <Paper elevation={0} sx={{ mt: 6, mx: 'auto', maxWidth: 364, p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard, textAlign: 'center' }}>
               <Box aria-hidden="true" sx={{ display: 'flex', justifyContent: 'center', color: site.gold, mb: 1.5 }}>
@@ -313,11 +261,7 @@ export default function HomePage() {
             </Paper>
           )}
 
-          {/* Customer reviews under the gallery (only if there are any) */}
           {reviews.length > 0 && (
-            /* Window on the strip: it hides everything outside, fades both edges so cards slip in and out
-               instead of being cut off, and holds the roll still while the visitor points at a card.
-               Reduced motion: the roll stops and the strip becomes a normal side-scrolling row. */
             <Box
               sx={{
                 mt: 6,
@@ -328,9 +272,6 @@ export default function HomePage() {
                 '@media (prefers-reduced-motion: reduce)': { overflowX: 'auto', maskImage: 'none', WebkitMaskImage: 'none' }
               }}
             >
-              {/* The track: the same run of reviews twice, rolling left without stopping (see reviewRoll).
-                  Longer runs take proportionally longer, so the cards always drift at the same speed.
-                  The second copy is only there to keep the loop seamless, so screen readers skip it. */}
               <Box
                 className="tm-review-track"
                 sx={{
@@ -366,12 +307,10 @@ export default function HomePage() {
         </Container>
       </Box>
 
-      {/* ==================== SERVICES ==================== */}
       <Box component="section" id="services" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={siteContainerSx}>
           <SectionHead eyebrow="What We Handle" title="Everything Under One Roof" description="You plan the guest list. We take care of the rest, from the first tasting to the last cleared plate." />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 4 }}>
-            {/* White cards fade up as they come into view (cards in a row follow one another); on hover the card lifts and the icon tile fills gold */}
             {services.map(([Icon, name, text], i) => (
               <Reveal key={name} delay={(i % 3) * 110} sx={{ height: '100%' }}>
                 <Paper elevation={0} sx={{ height: '100%', p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard, transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease', '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover }, '&:hover .tm-service-icon': { color: '#fff', backgroundColor: site.gold, borderColor: site.gold } }}>
@@ -389,10 +328,8 @@ export default function HomePage() {
         </Container>
       </Box>
 
-      {/* ==================== CLOSING CTA ==================== */}
       <Box component="section" sx={{ py: { xs: 10, md: 12 } }}>
         <Container maxWidth={false} sx={siteContainerSx}>
-          {/* Espresso panel (the one dark block before the footer); it fades in and grows very slightly into place */}
           <Reveal y={18} scale={0.98}>
             <Paper elevation={0} sx={{ p: { xs: 4, md: 8 }, textAlign: 'center', borderRadius: 4, backgroundColor: site.espresso, border: `1px solid ${site.espressoBorder}`, backgroundImage: site.gradientCta, boxShadow: site.shadowCardHover }}>
               <Typography component="h2" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 30, md: 42 }, fontWeight: 600, color: site.onEspresso }}>
@@ -403,7 +340,6 @@ export default function HomePage() {
                   ? 'Start a new reservation from your account, or check on the ones already in progress.'
                   : 'Create your account to submit a reservation, follow its status and manage payments in one place.'}
               </Typography>
-              {/* Buttons change depending on whether the visitor is signed in */}
               <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Button variant="contained" onClick={() => (user ? navigate('/portal/book') : scrollToId('packages'))} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.espresso, backgroundColor: site.gold, '&:hover': { backgroundColor: site.goldLight } }}>
                   {user ? 'New reservation' : 'Choose a package'}
@@ -417,13 +353,10 @@ export default function HomePage() {
         </Container>
       </Box>
 
-      {/* ==================== FAQ ==================== */}
-      {/* Last section before the footer. Click a question to show or hide its answer; several can be open at once */}
       <Box component="section" id="faq" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={{ maxWidth: 820 }}>
           <SectionHead eyebrow="FAQ" title="Questions We Hear Often" description="Everything you might want to know before reserving. Still unsure? Our team is happy to help." />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {/* Questions fade up one after another as the list comes into view */}
             {faqs.map(([question, answer], i) => (
               <Reveal key={question} delay={i * 70} y={14}>
                 <Accordion
@@ -435,7 +368,7 @@ export default function HomePage() {
                     border: `1px solid ${site.border}`,
                     boxShadow: 'none',
                     transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
-                    '&::before': { display: 'none' }, // hide MUI's default divider line between accordions
+                    '&::before': { display: 'none' },
                     '&:hover, &.Mui-expanded': { borderColor: site.borderHover, boxShadow: site.shadowCard }
                   }}
                 >
@@ -457,7 +390,6 @@ export default function HomePage() {
       <SiteFooter bottomSpace={!user} />
       <MobileAuthBar />
 
-      {/* Pop-up with the photos of the gallery box that was opened (see the gallery state above) */}
       <GalleryDialog event={galleryEvent} photo={gallery ? gallery.photo : null} onShowPhoto={showPhoto} onStep={stepPhoto} onBack={backToGrid} onClose={closeGallery} />
     </Box>
   );

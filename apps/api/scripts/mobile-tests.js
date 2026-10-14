@@ -8,7 +8,13 @@ import { partnerFields, partnerProblem } from '@tm/shared/src/domain/outsource.j
 import { startSignUp, updateCustomerProfile } from '../src/modules/auth/auth.service.js';
 import { updateCustomerContact } from '../src/modules/customers/customers.service.js';
 
-const partner = { name: 'Phone test supplier', service: 'Transport', email: 'supplier@example.test' };
+const partner = {
+  name: 'Phone test supplier',
+  service: 'Transport',
+  email: 'supplier@example.test',
+  contactPerson: 'Local Coordinator',
+  address: 'Malvar, Batangas'
+};
 const invalid = '+6391234567896';
 
 test('PH mobile equivalents share validation, domestic storage and +63 display', () => {
@@ -83,10 +89,10 @@ test('letters, commas, extensions and embedded text cannot be silently stripped 
   }
 });
 
-test('an optional partner mobile may be blank when email is present; provided phones must pass', () => {
-  assert.equal(partnerProblem({ ...partner, mobile: '' }), null);
+test('partner email and mobile are required; provided phones must pass', () => {
+  assert.equal(partnerProblem({ ...partner, mobile: '' }).meta.field, 'mobile');
   assert.equal(partnerProblem({ ...partner, email: '', mobile: '' }).meta.field, 'email');
-  assert.equal(partnerProblem({ ...partner, email: '', mobile: '+639171234567' }), null);
+  assert.equal(partnerProblem({ ...partner, email: '', mobile: '+639171234567' }).meta.field, 'email');
   assert.equal(partnerProblem({ ...partner, mobile: invalid }).meta.field, 'mobile');
   assert.equal(validateMobile(''), 'Mobile number is required.');
 });

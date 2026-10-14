@@ -2,14 +2,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { tokens } from '@tm/shared';
 
-/**
- * The sections of the Terms of Service or the Privacy Policy (termsOfService() / privacyPolicy() from
- * @tm/shared): a heading for each, its paragraphs, then its points as a bulleted list. Used by the
- * public /terms and /privacy pages and inside the sign-up and "We updated our terms" dialogs, so the
- * text is the same everywhere. `numbered` puts "1." … before the headings; `idPrefix` gives each
- * section an id (e.g. "terms-payments") for the page's "On This Page" links; `colors` sets the
- * heading and body colours of the surface it sits on.
- */
 export default function LegalText({ sections, numbered = true, idPrefix = '', colors = {}, compact = false }) {
   const heading = colors.heading || tokens.textPrimary;
   const body = colors.body || tokens.textSecondary;

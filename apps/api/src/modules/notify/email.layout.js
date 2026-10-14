@@ -2,30 +2,7 @@ import { BUSINESS } from '@tm/shared/src/services/config.js';
 import { lightPalette } from '@tm/shared/src/theme/palettes.js';
 import { config } from '../../config.js';
 
-/**
- * The one layout every email is drawn with (Phase 13A, 2026-10-10), so no email builds HTML by joining
- * strings itself. A builder passes structured parts as plain text and gets back the HTML and the plain-text
- * version of the same email: renderEmail() for the customer notices (customer.emails.js), and
- * renderCodeEmail() for the one-time-code emails (modules/auth/code.emails.js; in this look since
- * 2026-10-11, plain text only before). Both share one frame (frame()). On purpose:
- *
- * - Every value is escaped here (escapeHtml), so a customer's event name or an admin's reason with
- *   "<script>" or quotes is shown as text, never run or parsed as markup.
- * - The subject is made by emailSubject() only: control characters (CR, LF and the rest) are taken out, so
- *   no text can add a mail header, and a long event name is shortened. No other header carries user text.
- * - Links are made by portalLink() only: config.clientUrl (the website's own address from .env) plus a fixed
- *   portal path; a reservation ref goes through encodeURIComponent. Never the request's Host or Origin.
- * - The look follows the public website's "Warm Ivory & Gold": an ivory page, a white card, an espresso band
- *   with the wordmark as text (no images), one charcoal button, and the full link written under it so the
- *   domain can be read before tapping. Table layout and inline CSS only (what email apps support): no
- *   external CSS, fonts, images, scripts or tracking pixels.
- * - The footer has the business's details as plain text (project rule: no tel:/mailto: links anywhere) and
- *   says we never ask for a password or a one-time code.
- * - A one-time-code email has no button and no link at all: the code is typed into the page that asked for
- *   it. The code is never in the subject or the inbox preview line.
- */
 
-// The website's colours (apps/client/src/theme/siteTheme.js; the gold is the shared palette's)
 const C = {
   page: '#fbf7f0',
   card: '#ffffff',
@@ -41,7 +18,6 @@ const C = {
   buttonText: '#fbf7f0'
 };
 
-// A status label's colours: info (gold), success (soft green), attention (soft red: rejected, failed, declined, cancelled)
 const TONES = {
   info: { bg: '#f6eddc', fg: C.goldText, line: C.gold },
   success: { bg: '#e6f2e8', fg: '#2f6b40', line: '#4b9a63' },
@@ -51,24 +27,20 @@ const TONES = {
 const SERIF = "Georgia, 'Times New Roman', serif";
 const SANS = "'Segoe UI', Helvetica, Arial, sans-serif";
 
-/** Text made safe to put inside HTML: & < > " ' become entities. Anything that is not text becomes text first. */
 export const escapeHtml = (value) =>
   String(value ?? '').replace(
     /[&<>"']/g,
     (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]
   );
 
-// Control characters (C0 including CR, LF and tab, DEL, C1) and the Unicode line and paragraph separators
 const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
 
-/** Text on one line: control characters become spaces, runs of spaces become one, and the ends are trimmed. */
 export const oneLine = (value) =>
   String(value ?? '')
     .replace(CONTROL, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-/** One line of at most `max` characters, cut with "…" when longer (never in the middle of an emoji). */
 export function shorten(value, max = 60) {
   const chars = Array.from(oneLine(value));
   return chars.length > max
@@ -79,15 +51,9 @@ export function shorten(value, max = 60) {
     : chars.join('');
 }
 
-/**
- * A subject line: "{what happened}: {event} ({ref})", e.g. "Payment received: ₱3,000 for Santos Wedding
- * (RES-2026-1130-01)". The event name is shortened to about 60 characters, and the whole line is one line
- * (no CR/LF: nothing typed by a person can add a mail header) of at most 200 characters (the outbox column is 255).
- */
 export const emailSubject = (what, eventName, ref) =>
   shorten(`${oneLine(what)}: ${shorten(eventName, 60)} (${oneLine(ref)})`, 200);
 
-/** The portal pages an email may link to. A reservation's page is built by reservationPath(). */
 export const PORTAL_PATHS = Object.freeze({
   payments: '/portal/payments',
   documents: '/portal/documents',
@@ -95,27 +61,18 @@ export const PORTAL_PATHS = Object.freeze({
   testimonials: '/portal/testimonials'
 });
 
-/** "/portal/reservations/RES-2026-1130-01", the ref encoded so it can never change the path. */
 export const reservationPath = (ref) => `/portal/reservations/${encodeURIComponent(String(ref ?? ''))}`;
 
-/**
- * The full address of a portal page: config.clientUrl + the path. Only /portal/ paths are allowed, so an
- * email can only ever point at the customer's own pages on this website (behind sign-in; a signed-out
- * customer is sent back there after logging in).
- */
 export function portalLink(path) {
   if (typeof path !== 'string' || !path.startsWith('/portal/')) throw new Error(`[notify] Not a portal path: ${path}`);
   return `${config.clientUrl}${path}`;
 }
 
-// Escaped text with its line breaks kept (an admin's reason may have several lines)
 const multiline = (value) => escapeHtml(String(value ?? '').trim()).replace(/\r?\n/g, '<br>');
 
-// One paragraph of the body
 const paragraph = (text, extra = '') =>
   `<p style="margin:0 0 14px;font-family:${SANS};font-size:15px;line-height:1.6;color:${C.ink};${extra}">${multiline(text)}</p>`;
 
-// The details card: label / value rows, values in bold when `strong`
 function detailsTable(rows) {
   if (!rows || !rows.length) return '';
   const cells = rows
@@ -129,13 +86,11 @@ function detailsTable(rows) {
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:4px 0 18px;background:${C.sand};border:1px solid ${C.border};border-radius:10px;border-collapse:separate">${cells}</table>`;
 }
 
-// A list under its own heading (e.g. "Damage Charges"): rows of { label, value }
 function listSection(section) {
   if (!section || !section.rows || !section.rows.length) return '';
   return `<p style="margin:0 0 8px;font-family:${SERIF};font-size:16px;font-weight:bold;color:${C.ink}">${escapeHtml(section.heading)}</p>${detailsTable(section.rows)}`;
 }
 
-// The box with a coloured left border: the reason, the admin's note or the next step
 function boxBlock(box) {
   if (!box || !box.text) return '';
   const tone = TONES[box.tone] || TONES.info;
@@ -146,7 +101,6 @@ ${box.title ? `<p style="margin:0 0 4px;font-family:${SANS};font-size:13px;font-
 </td></tr></table>`;
 }
 
-// The one button ("bulletproof": a table cell, so it shows as a button even where CSS is limited) and the full link under it
 function buttonBlock(button) {
   const url = portalLink(button.path);
   const href = escapeHtml(url);
@@ -157,8 +111,6 @@ function buttonBlock(button) {
 <p style="margin:0 0 18px;font-family:${SANS};font-size:12.5px;line-height:1.5;color:${C.inkMuted}">Or open this link: <a href="${href}" target="_blank" rel="noopener" style="color:${C.goldText};word-break:break-all">${href}</a></p>`;
 }
 
-// The one-time code, large in the middle of a sand card, with how long it works under it. The gaps between
-// the digits are letter-spacing, so copying the code gives the 6 digits with no spaces.
 function codeBlock(code, validMinutes) {
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:4px 0 18px;background:${C.sand};border:1px solid ${C.border};border-radius:10px;border-collapse:separate"><tr>
 <td align="center" style="padding:18px 14px">
@@ -168,25 +120,16 @@ function codeBlock(code, validMinutes) {
 </td></tr></table>`;
 }
 
-// The footer lines (plain text: no tel: or mailto: links): the business's details, why this email came
-// (`reason`), and what we never ask for
 const footerLines = (reason) => [
   `${BUSINESS.name} · ${BUSINESS.address} · ${BUSINESS.phone}`,
   reason,
   'We will never ask for your password or one-time code.'
 ];
 
-// The footer of every customer notice (renderEmail)
 const FOOTER = footerLines(
   "You're receiving this because you have a reservation with Tres Marias. For questions, message us from your account."
 );
 
-/**
- * The frame every email shares, as one HTML page: the hidden inbox preview line, the ivory page, the white
- * card with the espresso band (the wordmark as text), the status label in its tone's colours, the serif
- * heading, then `body` (HTML made by the blocks above, so already escaped), the sign-off and the `footer`
- * lines. `label`, `preheader`, `heading` and the footer lines are plain text, escaped here.
- */
 function frame({ label, tone, preheader, heading, body, footer }) {
   const toneColors = TONES[tone] || TONES.info;
   return `<!DOCTYPE html>
@@ -223,15 +166,12 @@ ${footer.map((line) => `<p style="margin:0 0 6px;font-family:${SANS};font-size:1
 </html>`;
 }
 
-// The text version's lines as one text: no two empty lines in a row, the ends trimmed
 const joinLines = (lines) =>
   lines
     .filter((line, i, all) => !(line === '' && all[i - 1] === ''))
     .join('\n')
     .trim();
 
-// Standard request item lines become a real Item / Quantity table. Values still come from the
-// admin's final message, rather than a second copy of the contract that could disagree with their edits.
 function requestItemsTable(items) {
   const cell = `padding:10px 12px;font-family:${SANS};font-size:14px;color:${C.ink};vertical-align:top;word-break:break-word;`;
   return `<table width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:4px 0 18px;border:1px solid ${C.border};border-radius:10px;border-collapse:separate;table-layout:fixed">
@@ -241,10 +181,8 @@ function requestItemsTable(items) {
 </table>`;
 }
 
-/** Partner request email: the same branded frame, with the final compose text as its source. */
 export function renderPartnerRequestEmail({ ref, text }) {
   const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
-  // The frame already names the business and request; remove only the exact generated opening line.
   if (lines[0] === `${BUSINESS.name} · Outsourcing request ${ref}`) lines.shift();
   const blocks = [];
   let words = [];
@@ -292,25 +230,9 @@ export function renderPartnerRequestEmail({ ref, text }) {
     body: detailsTable([{ label: 'Request number', value: ref, strong: true }]) + blocks.join('\n'),
     footer
   });
-  return { html, text }; // The text fallback, SMS, outbox and downloaded request retain the exact final message.
+  return { html, text };
 }
 
-/**
- * One customer email as { html, text }, from plain-text parts (every one is escaped here):
- *   label        the small status label under the header, e.g. "Quotation Ready" (Title Case)
- *   tone         'info' (gold), 'success' (green) or 'attention' (red: rejected, failed, declined, cancelled)
- *   preheader    the inbox preview line, stating the fact, e.g. "Net total ₱45,000 · Accept it to approve your reservation."
- *   heading      the serif heading, e.g. "Your Quotation Is Ready"
- *   firstName    for "Hi {first name}," ("Hi there," when empty)
- *   intro        one or two short sentences (an array of paragraphs)
- *   details      [{ label, value, strong }] for the details card; amounts with strong: true
- *   sections     [{ heading, rows: [{ label, value }] }], lists under their own heading (e.g. damage charges)
- *   box          { title, text, tone } for the reason, the admin's note or the next step (left out when no text)
- *   after        paragraphs after the details and the box (e.g. "Your contract is in Documents.")
- *   button       { label, path }: the one button; `path` is a portal path (PORTAL_PATHS or reservationPath)
- *   security     a small note under the button, e.g. "If you didn't cancel this, change your password right away and message us."
- * The text version carries the same facts in the same order, with the link on a line of its own.
- */
 export function renderEmail({
   label,
   tone = 'info',
@@ -348,7 +270,6 @@ export function renderEmail({
   ].join('\n');
   const html = frame({ label, tone, preheader, heading, body, footer: FOOTER });
 
-  // The plain-text version: the same facts, the link on its own line
   const lines = ['TRES MARIAS CATERING SERVICES', oneLine(label), '', oneLine(heading), '', greeting, ''];
   intro.filter(Boolean).forEach((text) => lines.push(String(text).trim(), ''));
   if (details.length) {
@@ -371,22 +292,6 @@ export function renderEmail({
   return { html, text: joinLines(lines) };
 }
 
-/**
- * One one-time-code email as { html, text }, in the same frame as renderEmail (modules/auth/code.emails.js
- * has one builder per purpose). From plain-text parts, every one escaped here:
- *   label         the small status label under the header, e.g. "Sign-Up Code" (Title Case)
- *   preheader     the inbox preview line; never the code, so a notification does not show it
- *   heading       the serif heading, e.g. "Finish Creating Your Account"
- *   firstName     for "Hi {first name}," ("Hi there," when empty)
- *   intro         the sentence before the code, e.g. "Your code to finish creating your Tres Marias account is:"
- *   code          the 6 digits, drawn large in a sand card with "Expires in {validMinutes} minutes" under it
- *   validMinutes  how many minutes the code works
- *   ifNotYou      what to do when they did not ask for the code, in a box titled "Never share this code with anyone"
- *   reason        the footer's own "You're receiving this because ..." line
- * No button and no link, on purpose: the code is typed into the page that asked for it.
- * The text version carries the same facts in the same order, with the code on a line of its own (the log
- * mail driver prints that version, and scripts/lib/harness.js codeIn() reads the code from that line).
- */
 export function renderCodeEmail({
   label,
   preheader = '',

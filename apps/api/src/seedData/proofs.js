@@ -2,7 +2,6 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
 
-/** Attach an explicitly marked local demo PNG to sample bank payments, when supplied. */
 export async function prepareSampleProofs(rows) {
   const fixture = new URL('./sample/demo-bank-proof.png', import.meta.url);
   const proof = await readFile(fixture).catch((err) => (err.code === 'ENOENT' ? null : Promise.reject(err)));

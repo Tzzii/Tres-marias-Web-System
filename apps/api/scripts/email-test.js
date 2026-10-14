@@ -14,23 +14,6 @@ import { CUSTOMER_EMAILS } from '../src/modules/notify/customer.emails.js';
 import { queueCustomerEmail, useMailerForTests } from '../src/modules/notify/notify.service.js';
 import { codeIn } from './lib/harness.js';
 
-/**
- * `npm run test:email` — checks of the customer email notices (Phase 13A, 2026-10-10) and of the
- * one-time-code emails (their HTML look, 2026-10-11):
- *
- * 1. Every email (every purpose and variant, with a hostile event name and reason): the HTML escapes what
- *    people typed (no raw <script>, quotes escaped), the subject is one line (no CR/LF) of at most 200
- *    characters with a long event name cut short, every link in the HTML starts with CLIENT_URL and goes to
- *    a /portal/ page, the text version has the link on a line of its own, and nothing private is in it.
- *    Every one-time-code email (code.emails.js) too: the code is shown once in the HTML and on a line of its
- *    own in the text version (where codeIn() of scripts/lib/harness.js reads it), never in the subject or the
- *    inbox preview line; no link, image or script at all; a typed name or new email address is escaped.
- * 2. The helpers themselves: escapeHtml, oneLine, shorten, emailSubject, portalLink, reservationPath.
- * 3. With a stub mailer and the local database (read, plus rows it removes again): a transaction that rolls
- *    back sends nothing and leaves no outbox row; a mailer that throws doesn't change the action's result,
- *    and its outbox row ends up 'failed'; queueCustomerEmail refuses to run outside tx().
- * Part 3 needs MySQL and at least one customer in the local database; it writes one outbox row and removes it.
- */
 
 let passed = 0;
 let failed = 0;
@@ -41,7 +24,6 @@ const check = (name, ok, detail = '') => {
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ---------------- sample data (the contract in customer.emails.js) ----------------
 const HOSTILE =
   'The "Best" <script>alert("x")</script> Party & Reunion of the Santos–Reyes Family with All the Cousins From Batangas and Laguna\r\nBcc: someone@example.com';
 const REASON = 'Your receipt was <b>blurry</b> & "unreadable".\nPlease send a clearer photo. <script>alert(1)</script>';
@@ -191,7 +173,6 @@ const SAMPLES = [
   ]
 ];
 
-// ---------------- 1. every email ----------------
 console.log(`\nCLIENT_URL = ${config.clientUrl}\n`);
 const purposesSeen = new Set();
 for (const [name, purpose, data] of SAMPLES) {
@@ -257,7 +238,6 @@ check(
     .join(', ')
 );
 
-// Phase 13B: the completion email invites a testimonial, names no amount, and thanks a rental for renting
 const completedEvent = CUSTOMER_EMAILS.event_completed({
   reservation: { ...reservation, eventName: 'Santos Wedding', status: 'confirmed' },
   firstName: 'Ana'
@@ -287,8 +267,6 @@ check(
   completedRental.subject
 );
 
-// The one-time-code emails: the code once in the HTML and on its own line in the text, no link, typed text
-// escaped (the greeting uses the name's first word, so the markup is put right against it)
 const CODE = '176498';
 const CODE_SAMPLES = [
   ['customer_sign_up', { name: 'Ana<b>', code: CODE }],
@@ -383,7 +361,6 @@ check(
   noName.text.includes('Hi there,') && noName.html.includes('Hi there,')
 );
 
-// ---------------- 2. helpers ----------------
 check('escapeHtml', escapeHtml(`<a href="x">'&'</a>`) === '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
 check('oneLine removes CR, LF, tab and line separators', oneLine('a\r\nb\tc\u2028d\u0007e') === 'a b c d e');
 check('shorten cuts with …', shorten('x'.repeat(100), 60).length === 60 && shorten('x'.repeat(100), 60).endsWith('…'));
@@ -404,7 +381,6 @@ try {
 }
 check('portalLink refuses anything but a /portal/ path', refused);
 
-// ---------------- 3. transactions, with a stub mailer ----------------
 const sent = [];
 useMailerForTests({
   name: 'stub',
@@ -432,7 +408,6 @@ try {
 }
 if (customer) {
   const data = { reservation: { ...reservation, eventName: 'Email test', customerId: customer.id }, amount: 3000 };
-  // a) rolled back: nothing delivered, no outbox row
   let outboxId = null;
   try {
     await tx(async (conn) => {
@@ -445,7 +420,6 @@ if (customer) {
       throw new Error('the action failed');
     });
   } catch {
-    /* expected */
   }
   await sleep(300);
   const [[{ n: rolledRows }]] = await pool.query('SELECT COUNT(*) AS n FROM outbox WHERE id = ?', [outboxId || '']);
@@ -456,7 +430,6 @@ if (customer) {
   );
   check('rolled-back transaction: no outbox row left', Number(rolledRows) === 0, `${rolledRows} rows`);
 
-  // b) committed, with a mailer that throws: the action's answer is unchanged, the row is marked failed
   useMailerForTests({
     name: 'stub',
     deliver: async () => {
@@ -488,7 +461,6 @@ if (customer) {
     JSON.stringify(meta)
   );
 
-  // c) committed with a working mailer: delivered once, after the commit, with html and text
   sent.length = 0;
   useMailerForTests({
     name: 'stub',
@@ -520,7 +492,6 @@ if (customer) {
     JSON.stringify(okRow)
   );
 
-  // Remove the test rows
   await pool.query('DELETE FROM outbox WHERE id IN (?, ?)', [committedId || '', okId || '']);
   const [[{ n: left }]] = await pool.query(
     "SELECT COUNT(*) AS n FROM outbox WHERE JSON_UNQUOTE(JSON_EXTRACT(meta, '$.ref')) = 'RES-EMAIL-TEST'"

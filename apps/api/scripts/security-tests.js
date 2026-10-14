@@ -30,47 +30,20 @@ import {
   writeFile
 } from './lib/harness.js';
 
-/**
- * `npm run test:security -- --writes-test-data` — the 19 security tests of Phase 12 (docs §8, Phase 12 #4),
- * #20 (one admin sign-in at a time: the newest wins, 2026-10-09), plus a few checks of what Phase 12 added
- * (email codes, production settings, security headers).
- *
- * It starts its own API process (lib/harness.js startApi) on the database in apps/api/.env, with
- * test-only settings: the log mail driver (each emailed code is kept in the outbox table, so the tests can
- * read it), uploads in a temp folder (the test receipts never land in apps/api/uploads), and a pretend
- * PayMongo (lib/fake-paymongo.js, loaded only into that process) with its own webhook secret, so the
- * webhook tests need no network and no real key. #15 starts two more processes in production mode.
- *
- * It makes its own test data first (fixtures()): three test customers (A, B, C, @example.test), an
- * approved one-piece equipment rental for each (booked and approved through the API), and B's bank
- * transfer with a receipt photo. Sessions are signed with JWT_SECRET like the API's own (no password is
- * typed, no code is read from a real inbox); only #20 signs in for real, as a test admin of its own (code
- * from the outbox), which it deletes afterwards. Every call that the rate limits could answer sends its own
- * made-up client address (X-Forwarded-For, which the API trusts from its one proxy), so the tests do not
- * trip over each other; #9 and #11 are the tests that hit the limits on purpose.
- *
- * The data stays (the database is meant to be reset afterwards, see lib/harness.js), so the script needs
- * --writes-test-data. The report goes to docs/security-tests.md (or --out <file>); the exit code is 1 when
- * any test fails. Run it on the live server in Phase 13 too, before `npm run seed:starter`.
- */
 
-// The pretend PayMongo's secrets, given only to this script's own API process
 const FAKE_SECRET_KEY = 'sk_test_securitytestsonly';
 const FAKE_WEBHOOK_SECRET = 'whsk_securitytestsonly';
 const UPLOAD_DIR = path.join(runDir(), 'uploads');
 
-// The API process the tests talk to: development mode with the test-only settings above
 const TEST_ENV = {
   NODE_ENV: 'development',
   MAIL_DRIVER: 'log',
-  SMS_DRIVER: 'log',
   CORS_ORIGINS: 'http://localhost:5173,http://localhost:5174',
   PAYMONGO_SECRET_KEY: FAKE_SECRET_KEY,
   PAYMONGO_WEBHOOK_SECRET: FAKE_WEBHOOK_SECRET,
   UPLOAD_DIR
 };
 
-// Settings that pass the production checks of config.js (none of them reaches a real service in #15)
 const productionEnv = (extra = {}) => ({
   NODE_ENV: 'production',
   JWT_SECRET: crypto.randomBytes(32).toString('hex'),
@@ -79,9 +52,7 @@ const productionEnv = (extra = {}) => ({
   SMTP_HOST: 'smtp.invalid',
   SMTP_USER: 'security-test',
   MAIL_FROM: 'Tres Marias <no-reply@tresmarias.test>',
-  ALLOW_SMS_LOG: 'true',
   CORS_ORIGINS: 'https://tresmarias.test',
-  // The https:// website address the customer emails link to (Phase 13A: production refuses localhost)
   CLIENT_URL: 'https://tresmarias.test',
   PAYMONGO_SECRET_KEY: '',
   PAYMONGO_WEBHOOK_SECRET: '',
@@ -89,7 +60,6 @@ const productionEnv = (extra = {}) => ({
   ...extra
 });
 
-// A real 1 x 1 PNG: what a phone screenshot of a bank receipt starts like
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64'
@@ -97,17 +67,11 @@ const PNG = Buffer.from(
 
 const random = (n = 6) => crypto.randomBytes(n).toString('hex');
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-// "401 UNAUTHENTICATED" for a check's line
 const said = (res) => `${res.status}${res.body && res.body.code ? ` ${res.body.code}` : ''}`;
 
-/* ============================ Results ============================ */
 
 const results = [];
 
-/**
- * One test: `run(ok)` makes the calls and records each check with ok(condition, what happened). The test
- * passes when every check does; a crash is a failure with its message.
- */
 async function test(id, title, expected, run) {
   const entry = { id, title, expected, checks: [], passed: true };
   results.push(entry);
@@ -125,13 +89,7 @@ async function test(id, title, expected, run) {
   if (!entry.passed) entry.checks.filter((c) => !c.ok).forEach((c) => console.log(`        ✗ ${c.text}`));
 }
 
-/* ============================ Test data ============================ */
 
-/**
- * Three test customers with an approved one-piece equipment rental each, on the first date the rental
- * form accepts with at least 10 pieces of an item free (21 days ahead or later), and B's bank transfer
- * with a receipt photo, waiting for the admin. Everything goes through the API, as the pages do it.
- */
 async function fixtures(call) {
   const adminAcc = await adminAccount();
   const admin = tokenFor(adminAcc, 'admin');
@@ -155,7 +113,6 @@ async function fixtures(call) {
   }
   if (!date) throw new Error('No date in the next 400 days has 10 pieces of a rentable item free.');
 
-  // Book a one-piece rental as the customer; extra fields go into the form as they are
   const book = async (who, extra = {}) => {
     const res = await call('POST', '/reservations', {
       token: who.token,
@@ -174,8 +131,6 @@ async function fixtures(call) {
     if (res.status !== 201) throw new Error(`Booking for ${who.name} failed: ${res.status} ${res.text}`);
     return res.body;
   };
-  // The admin prices it (a pick-up rental's quotation is its items) and the customer accepts the
-  // quotation, which approves it (there is no admin approve since 2026-10-08)
   const approve = async (who, ref) => {
     const quote = await call('POST', `/admin/reservations/${ref}/quotation`, {
       token: admin,
@@ -194,7 +149,6 @@ async function fixtures(call) {
   const RB = await approve(B, (await book(B)).ref);
   const RC = await approve(C, (await book(C)).ref);
 
-  // Each booking posted a thank-you in its customer's chat, so A and B each have a conversation
   for (const who of [A, B]) who.thread = (await call('GET', '/threads', { token: who.token })).body[0].id;
 
   const PB = await payByBank(call, B, RB);
@@ -202,7 +156,6 @@ async function fixtures(call) {
   return { admin, adminAcc, A, B, C, RA, RB, RC, PB: PB.body, item, date, rentalPackage };
 }
 
-/** A bank transfer with a receipt file, as the Payments page sends it (multipart). */
 function payByBank(
   call,
   who,
@@ -219,13 +172,11 @@ function payByBank(
   return call('POST', '/payments', { token: who.token, form });
 }
 
-/** Files in the test API's upload folder (receipts saved so far). */
 const savedFiles = () => {
   const dir = path.join(UPLOAD_DIR, 'proofs');
   return fs.existsSync(dir) ? fs.readdirSync(dir).length : 0;
 };
 
-/** A PayMongo-style webhook body and its Paymongo-Signature header, signed with `secret`. */
 function webhook(type, intentId, secret = FAKE_WEBHOOK_SECRET, eventId = `evt_sectest_${random(8)}`) {
   const raw = JSON.stringify({
     data: {
@@ -250,7 +201,6 @@ function webhook(type, intentId, secret = FAKE_WEBHOOK_SECRET, eventId = `evt_se
 const base64url = (value) =>
   Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url');
 
-/* ============================ The tests ============================ */
 
 async function runTests(call, fx) {
   const { admin, adminAcc, A, B, C, RA, RB, RC, PB } = fx;
@@ -317,7 +267,6 @@ async function runTests(call, fx) {
     ok(tag.status === 404, `A tags B's booking in A's own conversation: ${said(tag)}`);
   });
 
-  // Admin addresses tried by #4 and #5 (the last one does not exist: the admin guard answers first)
   const adminCalls = [
     ['GET', '/admin/reservations'],
     ['GET', '/admin/customers'],
@@ -463,7 +412,6 @@ async function runTests(call, fx) {
   });
 
   await test(10, 'Brute force on the emailed codes', '423 after 5 wrong codes', async (ok) => {
-    // (a) Forgot password
     let res = await call('POST', '/auth/customer/password-reset', { ip: nextIp(), body: { email: B.email } });
     ok(
       res.status === 200 && res.body.challengeId && /•/.test(res.body.maskedEmail),
@@ -483,7 +431,6 @@ async function runTests(call, fx) {
     res = await call('POST', `/auth/customer/password-reset/${resetId}/verify`, { ip: nextIp(), body: { code } });
     ok(res.status === 423, `The right reset code while paused: ${said(res)}`);
 
-    // (b) Sign-up: no account exists until the code is right
     const email = `sectest-signup-${random(4)}@example.test`;
     res = await call('POST', '/auth/customer/register', {
       ip: nextIp(),
@@ -520,7 +467,6 @@ async function runTests(call, fx) {
     const [[{ still }]] = await pool.query('SELECT COUNT(*) AS still FROM customers WHERE email = ?', [email]);
     ok(still === 0, 'Still no account after the wrong codes');
 
-    // (c) Password change in My profile: the current password, then the emailed code
     res = await call('POST', '/me/password', {
       token: A.token,
       body: { current: A.password, next: 'Changed-Test-2026' }
@@ -661,7 +607,6 @@ async function runTests(call, fx) {
   });
 
   await test(15, 'An error in production', 'No stack trace or SQL in the answer', async (ok) => {
-    // The database is unreachable (a port nothing listens on), so the first database read fails
     const deadPort = String(await freePort());
     const prod = await startApi({ label: 'production-api', env: productionEnv({ DB_PORT: deadPort }) });
     try {
@@ -676,7 +621,6 @@ async function runTests(call, fx) {
     } finally {
       await prod.stop();
     }
-    // The same failure in development shows the reason, to help debugging (never in production)
     const dev = await startApi({
       label: 'development-api',
       env: { ...productionEnv({ DB_PORT: deadPort }), NODE_ENV: 'development' }
@@ -734,7 +678,6 @@ async function runTests(call, fx) {
         res.headers.get('x-content-type-options') === 'nosniff',
       'Served as JSON with X-Content-Type-Options: nosniff (a browser never runs it as a page)'
     );
-    // The pages print every text through React, which escapes it; nothing in the code writes raw HTML
     const raw = [];
     const scan = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -756,7 +699,6 @@ async function runTests(call, fx) {
     );
   });
 
-  // The QR for #18 and #19: C opens a GCash QR (PayMongo is the test fake in this API process)
   const qr = await call('POST', '/payments/qr', { token: C.token, body: { ref: RC.ref, amount: RC.balance } });
   const [[qrRow]] =
     qr.status === 201 ? await pool.query('SELECT intent_id FROM qr_payments WHERE id = ?', [qr.body.id]) : [[null]];
@@ -816,11 +758,9 @@ async function runTests(call, fx) {
   });
 
   await test(20, 'A newer admin sign-in ends the older session', '401 SESSION_REPLACED', async (ok) => {
-    // A test admin of its own, so the real admin's sign-in is not touched; deleted at the end
     const testAdmin = await createTestAdmin();
     const replaced = (res) => res.status === 401 && res.body && res.body.code === 'SESSION_REPLACED';
     try {
-      // The real two steps: password (emails a code), then the code from the outbox
       const signIn = async (device) => {
         const start = await call('POST', '/auth/admin/start', {
           ip: nextIp(),
@@ -857,7 +797,6 @@ async function runTests(call, fx) {
       res = await call('GET', '/admin/me', { token: phone.token });
       ok(res.status === 200, `The phone works: ${said(res)}`);
 
-      // The phone's own lock screen keeps the phone's sign-in
       res = await call('POST', '/auth/admin/unlock', {
         ip: nextIp(),
         body: { ticket: phone.unlockTicket, password: testAdmin.password }
@@ -876,18 +815,15 @@ async function runTests(call, fx) {
         `After unlocking, the phone's new and old tokens both work: ${both.map(said).join(', ')} (same sign-in)`
       );
 
-      // A token made before this rule (no session id) ends with "session ended", not "another device"
       res = await call('GET', '/admin/me', { token: tokenFor(testAdmin, 'admin') });
       ok(res.status === 401 && res.body.code === 'UNAUTHENTICATED', `An admin token with no session id: ${said(res)}`);
 
-      // Signing in on the laptop again moves the session back: now the phone is out
       const laptopAgain = await signIn('The laptop (again)');
       res = await call('GET', '/admin/me', { token: phone.token });
       ok(replaced(res), `The phone's next request: ${said(res)}`);
       res = await call('GET', '/admin/me', { token: laptopAgain.token });
       ok(res.status === 200, `The laptop works again: ${said(res)}`);
 
-      // Customers keep several sessions; the real admin's session is untouched
       res = await call('GET', '/me', { token: A.token });
       ok(res.status === 200, `Customer A, signed in all along, is not affected: ${said(res)}`);
       res = await call('GET', '/admin/reservations', { token: admin });
@@ -899,14 +835,12 @@ async function runTests(call, fx) {
     ok(n === 0, 'The test admin was deleted afterwards');
   });
 
-  /* ---------------- Extra checks of what Phase 12 added ---------------- */
 
   await test(
     'E1',
     'Sign-up, password reset and password change with the emailed code',
     'Works with the right code; each code works once',
     async (ok) => {
-      // Sign-up: the account appears only with the right code, which then can't be used again
       const email = `sectest-new-${random(4)}@example.test`;
       let res = await call('POST', '/auth/customer/register', {
         ip: nextIp(),
@@ -942,7 +876,6 @@ async function runTests(call, fx) {
       });
       ok(res.status === 409 && res.body.code === 'EMAIL_TAKEN', `Signing up again with that email: ${said(res)}`);
 
-      // Forgot password for C (locked out by #9): a finished reset lifts the lock
       res = await call('POST', '/auth/customer/password-reset', { ip: nextIp(), body: { email: C.email } });
       const resetId = res.body.challengeId;
       res = await call('POST', `/auth/customer/password-reset/${resetId}/verify`, {
@@ -966,7 +899,6 @@ async function runTests(call, fx) {
       res = await call('GET', '/me', { token: C.token });
       ok(res.status === 401, `C's session from before the reset: ${said(res)} (every older session ended)`);
 
-      // Password change for B in My profile: current password + emailed code; this session goes on
       res = await call('POST', '/me/password', {
         token: B.token,
         body: { current: 'not-the-password', next: 'Changed-B-2026' }
@@ -1000,8 +932,6 @@ async function runTests(call, fx) {
     const run = await runApiBriefly(
       productionEnv({
         MAIL_DRIVER: 'log',
-        SMS_DRIVER: 'log',
-        ALLOW_SMS_LOG: 'false',
         CORS_ORIGINS: 'http://localhost:5173',
         CLIENT_URL: 'http://localhost:5173',
         JWT_SECRET: 'short'
@@ -1013,7 +943,6 @@ async function runTests(call, fx) {
     );
     for (const needle of [
       'MAIL_DRIVER must be "smtp" in production',
-      'SMS_DRIVER must be a real SMS provider',
       'CORS_ORIGINS must list only the live portals',
       'CLIENT_URL must be the live website',
       'JWT_SECRET must be at least 32'
@@ -1040,7 +969,6 @@ async function runTests(call, fx) {
   });
 }
 
-/* ============================ Report ============================ */
 
 function report(base, fx) {
   const main = results.filter((r) => typeof r.id === 'number');

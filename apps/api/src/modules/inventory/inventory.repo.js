@@ -1,22 +1,6 @@
-/**
- * SQL for the equipment inventory (docs §7.1: the repo holds SQL only; the rules are in
- * inventory.service.js and @tm/shared/src/domain/inventory.js). An item comes back in the record
- * shape domain/inventory.js works with, the way the seeder saves it and scripts/db-roundtrip.js reads it:
- *   { id, code, name, category, total, lowStockAt, allocations: { reservationRef or 'none': pieces out },
- *     damaged, rentable, rentPrice, damageFee, notes, archived, history: [{ at, actor, text, ref? }] }
- * `allocations` comes from inventory_allocations (one row per item and place; a row that would reach 0
- * is deleted), `history` from inventory_history in the order it was written (id); a history line
- * carries `ref` only when it is about a reservation.
- *
- * Every function takes `db`: the pool, or a transaction's connection so reads and writes see and lock
- * the same rows. Lock order for an inventory write (inventory.service.js): the availability lock, then
- * the booking's row when the write is for one, then the item rows (lockItems), then the chat thread.
- */
 
-// First row of a SELECT, or null
 const first = ([rows]) => rows[0] || null;
 
-// Rows grouped by one column: Map(value -> rows), rows in the order read
 function groupBy(rows, key) {
   const groups = new Map();
   rows.forEach((row) => {
@@ -26,7 +10,6 @@ function groupBy(rows, key) {
   return groups;
 }
 
-// inventory_items row + its allocation and history rows -> item record
 const toItem = (row, allocations = [], history = []) => ({
   id: row.id,
   code: row.code,
@@ -42,20 +25,11 @@ const toItem = (row, allocations = [], history = []) => ({
   photoVersion: row.photo_key ? row.photo_key.split('/').pop() : null,
   notes: row.notes,
   archived: Boolean(row.archived),
-  addonId: row.addon_id ?? null, // the additional charge or size that books it (set on the Packages page)
+  addonId: row.addon_id ?? null,
   history: history.map((h) => ({ at: h.at, actor: h.actor, text: h.text, ...(h.ref === null ? {} : { ref: h.ref }) }))
 });
 
-/* ============================ Reads ============================ */
 
-/**
- * Items with their allocations and history, in the order they were added (their EQ- code), and the
- * event name and date of every booking they have pieces out at: { items, eventOf(ref) -> { eventName,
- * date } or null }. Which items: every one, or not the archived ones (`includeArchived: false`), or the
- * ones in `ids` (the lookup ignores case and trailing spaces, the column's collation, so callers compare
- * the ids they get back). `lock` locks the item rows and their allocation rows until the transaction
- * ends (FOR UPDATE; pass the transaction's connection), before anything else is read.
- */
 export async function findItems(db, { ids, includeArchived = true, lock = false } = {}) {
   if (ids && !ids.length) return { items: [], eventOf: () => null };
   const conditions = [];
@@ -91,16 +65,26 @@ export async function findItems(db, { ids, includeArchived = true, lock = false 
   };
 }
 
-/** Every item's id and name (archived ones included), for the "already in the inventory" check. */
 export async function itemNames(db) {
   const [rows] = await db.query('SELECT id, name FROM inventory_items');
   return rows.map((row) => ({ id: row.id, name: row.name }));
 }
 
-/**
- * What is out for one reservation: [{ itemId, ref, qty }] in the items' EQ- order. The lookup ignores
- * case and trailing spaces (the column's collation): callers keep only the rows whose `ref` is theirs.
- */
+export async function hasBookingReferences(db, id) {
+  const row = first(
+    await db.query(
+      `SELECT (
+        EXISTS (SELECT 1 FROM reservation_rental_items WHERE item_id = ?) OR
+        EXISTS (SELECT 1 FROM reservation_damage_charges WHERE item_id = ?) OR
+        EXISTS (SELECT 1 FROM rental_dispatches WHERE item_id = ?) OR
+        EXISTS (SELECT 1 FROM inventory_history WHERE item_id = ? AND ref IS NOT NULL)
+      ) AS linked`,
+      [id, id, id, id]
+    )
+  );
+  return Boolean(row.linked);
+}
+
 export async function equipmentOut(db, ref) {
   const [rows] = await db.query(
     `SELECT a.item_id, a.reservation_ref, a.qty FROM inventory_allocations a JOIN inventory_items i ON i.id = a.item_id
@@ -110,7 +94,6 @@ export async function equipmentOut(db, ref) {
   return rows.map((row) => ({ itemId: row.item_id, ref: row.reservation_ref, qty: row.qty }));
 }
 
-/** Durable quantities already sent out; caller holds the availability and booking locks for writes. */
 export async function rentalDispatches(db, ref) {
   const [rows] = await db.query('SELECT item_id, qty FROM rental_dispatches WHERE reservation_ref = ?', [ref]);
   return Object.fromEntries(rows.map((row) => [row.item_id, row.qty]));
@@ -124,7 +107,6 @@ export async function setRentalDispatch(conn, ref, itemId, qty, at) {
   );
 }
 
-/** Only today's confirmed rentals: avoid retroactively dispatching historical bookings on upgrade. */
 export async function dueRentals(db, { date, time }) {
   const [rows] = await db.query(
     `SELECT ref FROM reservations WHERE service_type = 'Equipment rental'
@@ -145,9 +127,12 @@ export async function lastAutomaticNotice(db, ref) {
   return row?.text || '';
 }
 
-/* ============================ Writes (inside a transaction) ============================ */
 
-/** Save a new item. A name already in use (any case or accent) fails with ER_DUP_ENTRY (UNIQUE name). */
+export async function deleteItem(conn, id) {
+  await conn.query('DELETE FROM inventory_history WHERE item_id = ?', [id]);
+  await conn.query('DELETE FROM inventory_items WHERE id = ?', [id]);
+}
+
 export async function insertItem(conn, item) {
   await conn.query(
     `INSERT INTO inventory_items (id, code, name, category, total, low_stock_at, damaged, rentable, rent_price, damage_fee, notes, archived)
@@ -169,7 +154,6 @@ export async function insertItem(conn, item) {
   );
 }
 
-// Record fields updateItem() may change -> column. A fixed list, so a key from anywhere else never becomes SQL.
 const COLUMNS = {
   name: 'name',
   category: 'category',
@@ -200,11 +184,6 @@ export async function setItemPhoto(conn, id, photo) {
   ]);
 }
 
-/**
- * Change some of an item's fields, given in the record's shape, e.g. { damaged: 3 } or { archived: true }.
- * Any other field name is a programming error and throws before anything is saved. A new name already
- * in use fails with ER_DUP_ENTRY (UNIQUE name).
- */
 export async function updateItem(conn, id, changes) {
   const sets = [];
   const params = [];
@@ -217,10 +196,6 @@ export async function updateItem(conn, id, changes) {
   await conn.query(`UPDATE inventory_items SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
 }
 
-/**
- * Set how many pieces of an item are out at one place (a reservation's ref as stored, or 'none'): the
- * row is written when `qty` is above 0 and deleted at 0 (no row means nothing is out there).
- */
 export async function setAllocation(conn, itemId, ref, qty) {
   if (qty > 0) {
     await conn.query(
@@ -232,7 +207,6 @@ export async function setAllocation(conn, itemId, ref, qty) {
   }
 }
 
-/** Add an entry to an item's history; `ref` is the reservation it is about, or null. */
 export async function insertHistory(conn, itemId, { at, actor, text, ref = null }) {
   await conn.query('INSERT INTO inventory_history (item_id, at, actor, text, ref) VALUES (?, ?, ?, ?, ?)', [
     itemId,

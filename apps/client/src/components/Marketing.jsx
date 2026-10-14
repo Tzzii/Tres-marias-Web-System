@@ -17,7 +17,6 @@ import { site } from '../theme/siteTheme.js';
 import { reducedMotionSx, useInView } from './Reveal.jsx';
 import PackageTilt from './PackageTilt.jsx';
 
-// Maps the icon name stored on a package to the icon component that draws it
 export const PACKAGE_ICONS = {
   restaurant: RestaurantOutlinedIcon,
   celebration: CelebrationOutlinedIcon,
@@ -26,24 +25,14 @@ export const PACKAGE_ICONS = {
   chair: ChairOutlinedIcon
 };
 
-// Package illustrations shown instead of the plain icon on the public website, keyed by package slug.
-// Each file in src/assets/packages is named after its package's slug (e.g. premier-full-service.svg) and
-// pictures what that package includes; Vite bundles them and gives back their URLs.
-// A package without a matching file (e.g. a new or renamed one) keeps the icon panel.
 export const PACKAGE_BACKDROPS = Object.fromEntries(
   Object.entries(import.meta.glob('../assets/packages/*.svg', { eager: true, import: 'default' })).map(
     ([file, url]) => [file.split('/').pop().replace('.svg', ''), url]
   )
 );
 
-/**
- * Small label above the title, serif title, description and gold line on the light website background (design system: SectionHead).
- * Every time it scrolls into view, the lines fade up one after another and the gold rule draws
- * itself outward from the centre. It then stays still until it leaves the screen.
- */
 export function SectionHead({ eyebrow, title, description, align = 'center' }) {
   const [ref, shown] = useInView();
-  // Fade-and-rise for one line, `delay` ms after the heading comes into view
   const line = (delay) => ({
     opacity: shown ? 1 : 0,
     transform: shown ? 'none' : 'translateY(14px)',
@@ -72,7 +61,6 @@ export function SectionHead({ eyebrow, title, description, align = 'center' }) {
           {description}
         </Typography>
       )}
-      {/* Gold rule grows from 0 to its full width */}
       <Box
         sx={{
           width: 64,
@@ -91,19 +79,9 @@ export function SectionHead({ eyebrow, title, description, align = 'center' }) {
   );
 }
 
-/**
- * Soft colour background + outlined icon panel used by package cards and the package hero.
- * `light` uses the light website washes (public pages); without it the navy washes are kept (customer portal).
- * On the light website, packages with an illustration in PACKAGE_BACKDROPS show it instead of the icon;
- * the illustration sits in a "tm-mood-art" layer (panel class "tm-has-art") so a parent can zoom it on hover.
- * The icon has the class "tm-mood-icon" so a parent (e.g. PackageCard) can animate it without changing other pages.
- */
 export function MoodPanel({ pkg, height = 150, iconSize = 52, light = false, children, sx }) {
-  // Use the package's icon, or a plate icon if none is set
   const Icon = PACKAGE_ICONS[pkg.icon] || RestaurantOutlinedIcon;
-  // Illustrated backdrop for this package (public website only)
   const backdrop = light ? PACKAGE_BACKDROPS[pkg.slug] : null;
-  // pkg.mood % 4 picks one of the 4 background colours from the light or the navy set
   const mood = (light ? site.moods : tokens.moods)[pkg.mood % 4];
   const texture = light ? site.textureLinen : tokens.textureLinen;
   return (
@@ -141,47 +119,28 @@ export function MoodPanel({ pkg, height = 150, iconSize = 52, light = false, chi
   );
 }
 
-// Package card animations (see PackageCard)
-// The icon slowly bobs up and down while the card is on screen
 const iconFloat = keyframes`
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 `;
-// A soft gold ring that slowly grows and shrinks around the icon
 const iconHalo = keyframes`
   0%, 100% { opacity: 0.25; transform: translate(-50%, -50%) scale(0.85); }
   50% { opacity: 0.55; transform: translate(-50%, -50%) scale(1.05); }
 `;
-// A diagonal band of light that sweeps across the top panel
 const shineSweep = keyframes`
   from { left: -60%; }
   to { left: 130%; }
 `;
 
-/**
- * One package in the public catalog (1a): a white card with a light mood panel, serif name and price.
- * The Equipment Rental package has no single price, so its card says "Per piece" and links to its price list.
- * Animations: the card rises and fades in every time it is scrolled into view (cards in the same row follow
- * one another, using `index`); after revealing, a separate layer tilts gently toward the mouse.
- * On hover it gains a gold glow, a light sweeps across the top
- * panel, the icon grows and tilts (or the package illustration zooms in slowly), the price turns gold,
- * the button fills gold-brown and its arrow slides right.
- * The icon floats gently at all times. Everything is switched off for visitors whose device asks for reduced motion.
- */
 export function PackageCard({ pkg, index = 0, compact = false }) {
   const navigate = useNavigate();
-  // Replays every time the card comes back on screen (see useInView in Reveal.jsx)
   const [ref, shown] = useInView();
-  // true once the entrance animation has finished; hover then reacts immediately and a little faster
   const [settled, setSettled] = useState(false);
-  // When the card leaves the screen, reset so next time the cards in a row appear one after another again
   useEffect(() => {
     if (!shown) setSettled(false);
   }, [shown]);
-  // Open this package's detail page
   const open = () => navigate(`/packages/${pkg.slug}`);
   const rental = isRentalPackage(pkg);
-  // Entrance delay by the card's position in a 3-column row: 0 ms, 110 ms, 220 ms (none after it has settled)
   const delay = settled ? 0 : (index % 3) * 110;
   const duration = settled ? 0.45 : 0.7;
 
@@ -189,7 +148,6 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
     <PackageTilt enabled={shown && settled}>
       <Paper
         ref={ref}
-        // The card's own rise-in finished (ignore animations coming from the button or icon inside it)
         onTransitionEnd={(e) => {
           if (shown && e.target === e.currentTarget && e.propertyName === 'transform') setSettled(true);
         }}
@@ -205,12 +163,10 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           backgroundColor: site.card,
           border: `1px solid ${pkg.featured ? site.borderHover : site.border}`,
           boxShadow: site.shadowCard,
-          // Scroll reveal: hidden and lowered until `shown`, then eased into place
           opacity: shown ? 1 : 0,
           transform: shown ? 'translateY(0) scale(1)' : 'translateY(36px) scale(0.96)',
           transition: `opacity ${duration}s ease ${delay}ms, transform ${duration}s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, border-color 0.3s ease, box-shadow 0.35s ease`,
 
-          // Top panel: a light band waits off to the left, ready to sweep on hover
           '& .tm-mood-panel': { overflow: 'hidden' },
           '& .tm-mood-panel::after': {
             content: '""',
@@ -223,7 +179,6 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
             transform: 'skewX(-18deg)',
             pointerEvents: 'none'
           },
-          // Soft white glow behind the icon
           '& .tm-mood-panel::before': {
             content: '""',
             position: 'absolute',
@@ -236,10 +191,8 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
             animation: `${iconHalo} 4s ease-in-out infinite`,
             pointerEvents: 'none'
           },
-          // Illustrated backdrops have no icon, so no glow; the illustration eases in and out of its hover zoom
           '& .tm-has-art::before': { display: 'none' },
           '& .tm-mood-art': { transition: 'transform 0.9s cubic-bezier(0.22, 1, 0.36, 1)' },
-          // The icon bobs gently; its hover grow/tilt sits on the wrapper transform below
           '& .tm-mood-icon': {
             position: 'relative',
             animation: `${iconFloat} 4s ease-in-out ${(index % 3) * 110}ms infinite`,
@@ -248,7 +201,6 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           '& .tm-card-price': { transition: 'color 0.3s ease' },
           '& .tm-card-arrow': { transition: 'transform 0.3s ease' },
 
-          // Fine-pointer hover: tilt lives on the outer layer so it cannot override the scroll reveal.
           ...(shown && {
             '@media (hover: hover) and (pointer: fine)': {
               '&:hover': {
@@ -268,7 +220,6 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
             }
           }),
 
-          // Visitors who asked their device for less motion get the plain, static card
           '@media (prefers-reduced-motion: reduce)': {
             opacity: 1,
             transform: 'none',
@@ -317,8 +268,6 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
             <GroupsOutlinedIcon sx={{ fontSize: 16, color: site.gold }} />
             {rental ? 'Rent only what you need' : `Default: ${pkg.guests} guests`}
           </Box>
-          {/* Flat package price; food is cooked to the customer's request and quoted separately.
-            A rental is priced item by item instead. */}
           <Box sx={{ mt: 'auto', pt: 1.5 }}>
             <Typography
               className="tm-card-price"
@@ -339,7 +288,6 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
               py: 1.1,
               fontSize: 13.5,
               borderRadius: 999,
-              // Featured package: solid charcoal button; others: outlined. Both fill gold-brown on hover.
               color: pkg.featured ? site.ivory : site.ink,
               backgroundColor: pkg.featured ? site.ink : 'transparent',
               border: `1px solid ${pkg.featured ? site.ink : site.border}`,
@@ -354,7 +302,6 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
   );
 }
 
-/** Input styling for fields on the light website cards (e.g. the availability bar). */
 export const siteFieldSx = {
   '& .MuiOutlinedInput-root': {
     backgroundColor: site.card,
@@ -369,5 +316,4 @@ export const siteFieldSx = {
   '& .MuiFormHelperText-root': { mx: 0 }
 };
 
-/** Small label styling for fields on the light website cards. */
 export const siteLabelSx = { display: 'block', mb: 0.75, fontSize: 12, fontWeight: 600, color: site.inkMuted };

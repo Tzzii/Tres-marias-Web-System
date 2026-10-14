@@ -24,17 +24,11 @@ import { MoodPanel } from '../../components/Marketing.jsx';
 import PackageTilt from '../../components/PackageTilt.jsx';
 import { saveIntent } from '../../lib/booking.js';
 
-/**
- * Available packages, from inside the account. "Book this package" goes straight to the form.
- * The Equipment Rental package is priced per piece, so its card shows how renting works instead of a list of items.
- */
 export default function PackagesPage() {
   useDocumentTitle('Available Packages');
   const navigate = useNavigate();
-  // Load the packages visible to customers
   const { data, loading, error, reload } = useResource(() => catalogApi.listPackages(), []);
 
-  // Remember the chosen package and open the reservation form with it selected
   const book = (pkg) => {
     saveIntent({ packageSlug: pkg.slug, packageName: pkg.name });
     navigate(`/portal/book?package=${pkg.slug}`);
@@ -46,7 +40,6 @@ export default function PackagesPage() {
         title="Available Packages"
         subtitle="Each package is a flat price for the buffet setup, tableware, tables and chairs, and works for any occasion. Food is cooked to your request and priced in your quotation."
       />
-      {/* Error with Retry, loading placeholders, or one card per package */}
       {error ? (
         <DashCard>
           <ErrorState error={error} onRetry={reload} />
@@ -99,7 +92,6 @@ export default function PackagesPage() {
                       ? `Free pick-up in ${RENTAL.pickupAddress} · delivery ${peso(RENTAL.deliveryFee)}`
                       : `Default: ${pkg.guests} guests · food quoted separately`}
                   </Box>
-                  {/* Everything the package includes, with quantities (a rental's items are picked on the form) */}
                   {isRentalPackage(pkg) && (
                     <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>
                       Choose tables, chairs, linens, food warmers, tableware, tents or decor on the form and type how
@@ -125,18 +117,12 @@ export default function PackagesPage() {
   );
 }
 
-// Items a package card lists on a phone before "Show all"
 const PHONE_ITEMS = 5;
 
-/**
- * What a package includes, with quantities. On phones only the first few items show, with a
- * "Show all" button, so each card stays short and the next package is a quick scroll away.
- * Tablets and computers always show the whole list in two columns.
- */
 function IncludedItems({ items }) {
   const isPhone = useMediaQuery('(max-width:599px)');
   const [expanded, setExpanded] = useState(false);
-  const cut = isPhone && !expanded && items.length > PHONE_ITEMS; // list is shortened right now
+  const cut = isPhone && !expanded && items.length > PHONE_ITEMS;
   const shown = cut ? items.slice(0, PHONE_ITEMS) : items;
   return (
     <>
@@ -163,7 +149,6 @@ function IncludedItems({ items }) {
           </Box>
         ))}
       </Box>
-      {/* Phones only: open or close the rest of the list */}
       {isPhone && items.length > PHONE_ITEMS && (
         <Button
           size="small"

@@ -28,18 +28,14 @@ import {
 import { reportAdminRoutes } from './modules/reports/reports.routes.js';
 import { rentalRoutes, reservationAdminRoutes, reservationRoutes } from './modules/reservations/reservations.routes.js';
 
-// Middleware order is intentional: logging and security run first, routes sit behind their guards,
-// and the shared 404/error handlers always run last.
 export function createApp() {
   const app = express();
-  // Production traffic passes through one trusted reverse proxy.
   app.set('trust proxy', 1);
 
   app.use(morgan(config.isProduction ? 'combined' : 'dev'));
   app.use(helmet());
   app.use(
     cors({
-      // Requests without an Origin header are non-browser calls and do not need CORS approval.
       origin: (origin, done) => done(null, !origin || config.corsOrigins.includes(origin)),
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
       allowedHeaders: ['Content-Type', 'Authorization'],
@@ -47,7 +43,6 @@ export function createApp() {
     })
   );
 
-  // Signature verification needs the untouched request body.
   app.post('/api/webhooks/paymongo', express.raw({ type: 'application/json', limit: '1mb' }), paymongoWebhook);
 
   app.use(express.json({ limit: '100kb' }));
@@ -56,7 +51,6 @@ export function createApp() {
 
   app.use('/api', apiLimiter);
 
-  // Successful writes move the change stamp used by both portals.
   app.use('/api', stampWrites);
 
   app.use('/api/auth', authRoutes);
@@ -65,22 +59,18 @@ export function createApp() {
   app.use('/api/reservations', requireAuth, requireRole('customer'), reservationRoutes);
   app.use('/api/threads', requireAuth, requireRole('customer'), threadRoutes);
 
-  // Authenticate before reading payment uploads.
   app.use('/api/payments', requireAuth, requireRole('customer'), paymentRoutes);
   app.use('/api/refunds', requireAuth, requireRole('customer'), refundRoutes);
 
-  // The public review feed must be registered before the guarded customer routes.
   app.use('/api/feedback/published', feedbackPublishedRoutes);
   app.use('/api/feedback', requireAuth, requireRole('customer'), feedbackRoutes);
 
   app.use('/api/rentals', requireAuth, rentalRoutes);
   app.use('/api/changes', requireAuth, changesRoutes);
 
-  // Public catalogue and availability endpoints.
   app.use('/api', catalogRoutes);
   app.use('/api', calendarRoutes);
 
-  // Keep one guard in front of the full admin router so new endpoints are protected by default.
   const admin = express.Router();
   admin.use(requireAuth, requireRole('admin'));
   admin.use('/me', adminAccountRoutes);

@@ -165,7 +165,13 @@ export const MobileField = forwardRef(function MobileField(
       value={numeric ? [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6)].filter(Boolean).join(' ') : digits}
       onChange={handleChange}
       error={error || mobileError}
-      hint={hint ? `${hint} Philippine mobile: 10 digits after +63.` : 'Philippine mobile: 10 digits after +63.'}
+      hint={
+        hint === false
+          ? ''
+          : hint
+            ? `${hint} Philippine mobile: 10 digits after +63.`
+            : 'Philippine mobile: 10 digits after +63.'
+      }
       inputProps={{ ...inputProps, inputMode: 'tel' }}
       InputProps={{
         ...InputProps,

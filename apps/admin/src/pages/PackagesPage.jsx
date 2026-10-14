@@ -49,7 +49,6 @@ import {
   useResource
 } from '@tm/shared';
 
-// Empty form values for a new package (new packages start hidden)
 const blankPackage = () => ({
   name: '',
   price: '',
@@ -60,8 +59,6 @@ const blankPackage = () => ({
   visible: false
 });
 
-// Convert a saved package into form values: numbers become strings, the items become one line
-// each ("100 Porcelain Plates"), and `grows` says, by item name, which counted items grow with the guests
 const toForm = ({ items, ...p }) => ({
   ...p,
   price: String(p.price),
@@ -70,18 +67,9 @@ const toForm = ({ items, ...p }) => ({
   grows: Object.fromEntries(items.filter((item) => item.qty).map((item) => [item.name, itemGrows(item, p)]))
 });
 
-/**
- * Whether a counted item of the form grows with the guest count: the admin's tick when there is one, else
- * the same guess as for a package saved before the ticks (domain/packageItems.js itemGrows): an item counted
- * once per default guest, or a counted table. So a new "300 Chairs" line on a 300-guest package starts ticked.
- */
 const growsInForm = (form, item) =>
   item.name in form.grows ? form.grows[item.name] : itemGrows(item, { guests: Number(form.guests) });
 
-/**
- * Turn the "What's included" text into items, one per line. A number at the start of a line is the quantity:
- * "100 Porcelain Plates" -> { qty: 100, name: 'Porcelain Plates' }, "Buffet Table" -> { qty: null, name: 'Buffet Table' }.
- */
 const parseItems = (text) =>
   text
     .split('\n')
@@ -92,23 +80,9 @@ const parseItems = (text) =>
       return match ? { qty: Number(match[1]), name: match[2].trim() } : { qty: null, name: line };
     });
 
-/**
- * 1u · Catalogue manager. What customers see on the public site and the reservation form.
- * A package is a flat price for equipment and service (never food), with a default guest count.
- * The package is set up and priced for its default guest count, and customers book their own count. Above
- * the default, the items ticked "Grows with the guest count" grow with it and the admin prices the extra
- * guests (and counts the other items) in the quotation (domain/packageItems.js).
- * Additional charges are extras customers can tick, at their own price or priced in each quotation; the
- * charges with packages (Sounds and lights, Photographer and videographer) are listed under them, and
- * customers pick one package of each.
- * Dishes are what a buffet menu is built from, one per category, and the buffet price per person
- * is set here too, because every buffet is charged the same way.
- */
 export default function PackagesPage() {
   useDocumentTitle('Packages', 'Tres Marias Admin');
   const notify = useNotify();
-  // Load packages and additional charges, including hidden and archived ones, and the inventory items
-  // an additional charge or size can take from (its Inventory item)
   const { data, loading, error, reload, setData } = useResource(async () => {
     const [packages, addons, dishes, inventory] = await Promise.all([
       catalogApi.listPackages({ includeHidden: true, includeArchived: true }),
@@ -119,21 +93,18 @@ export default function PackagesPage() {
     return { packages, addons, dishes, inventory, pricePerPlate: catalogApi.pricePerPlate() };
   }, []);
 
-  const [tab, setTab] = useState('packages'); // packages / addons / dishes / archived
-  const [editingId, setEditingId] = useState(null); // package in the editor, or 'new'
-  const [addonDialog, setAddonDialog] = useState(null); // additional charge being edited ({} = new)
-  const [dishDialog, setDishDialog] = useState(null); // dish being edited ({} = new)
-  const [archive, setArchive] = useState(null); // item waiting for archive confirmation
-  const [remove, setRemove] = useState(null); // additional charge or dish waiting for delete confirmation: { type, item }
+  const [tab, setTab] = useState('packages');
+  const [editingId, setEditingId] = useState(null);
+  const [addonDialog, setAddonDialog] = useState(null);
+  const [dishDialog, setDishDialog] = useState(null);
+  const [archive, setArchive] = useState(null);
+  const [remove, setRemove] = useState(null);
 
-  // Active (not archived) items for each tab
   const packages = data ? data.packages.filter((p) => !p.archived) : [];
   const addons = data ? data.addons.filter((a) => !a.archived) : [];
   const dishes = data ? data.dishes.filter((d) => !d.archived) : [];
-  // The Additional Charges tab's two lists: the charges customers tick, and the charges with packages
   const plainAddons = addons.filter((a) => !a.hasPackages);
   const packageAddons = addons.filter((a) => a.hasPackages);
-  // The columns of both lists
   const addonColumns = [
     {
       key: 'name',
@@ -145,8 +116,6 @@ export default function PackagesPage() {
         </Box>
       )
     },
-    // Its own price (of one, when counted by the piece), or "Set in quotation" when it has none; a charge
-    // with sizes lists each size with its price of one, and a charge with packages each package with its price
     {
       key: 'price',
       label: 'Price',
@@ -162,7 +131,6 @@ export default function PackagesPage() {
           <AddonPrice price={a.price} each={a.hasQuantity} />
         )
     },
-    // Archive hides it (and can be undone); Delete removes it for good, so only Delete is red
     {
       key: 'actions',
       label: '',
@@ -186,30 +154,24 @@ export default function PackagesPage() {
       )
     }
   ];
-  // Total archived items across all three types
   const archivedCount = data
     ? data.packages.filter((p) => p.archived).length +
       data.addons.filter((a) => a.archived).length +
       data.dishes.filter((d) => d.archived).length
     : 0;
 
-  // Open the first package in the editor when nothing is selected
   useEffect(() => {
     if (packages.length && editingId === null) setEditingId(packages[0].id);
   }, [packages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The package object being edited (null when creating a new one)
   const editing = editingId === 'new' ? null : packages.find((p) => p.id === editingId) || null;
 
-  // Below extra-large screens the editor sits under the package list instead of beside it, so opening
-  // a package there scrolls down to the editor; otherwise tapping Edit on a phone would seem to do nothing.
   const editorRef = useRef(null);
   const stacked = useMediaQuery((theme) => theme.breakpoints.down('xl'));
-  const scrollPending = useRef(false); // scroll once the newly chosen package's editor has rendered
+  const scrollPending = useRef(false);
   const scrollToEditor = () => {
     if (stacked && editorRef.current) editorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  // Open a package, or 'new', in the editor (from Edit, a package row or New package)
   const openEditor = (id) => {
     if (id === editingId) {
       scrollToEditor();
@@ -231,7 +193,6 @@ export default function PackagesPage() {
       </DashCard>
     );
 
-  // Run an action and show a success or error toast
   const run = async (fn, message) => {
     try {
       await fn();
@@ -293,7 +254,6 @@ export default function PackagesPage() {
           <ListSkeleton rows={5} height={60} />
         </DashCard>
       ) : tab === 'packages' ? (
-        // Packages tab: list on the left, editor on the right (extra-large screens); smaller screens stack them
         <Box
           sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.2fr' }, gap: 2.5, alignItems: 'start' }}
         >
@@ -334,7 +294,6 @@ export default function PackagesPage() {
                         : `${peso(p.price)} · Default: ${p.guests} guests · ${p.items.length} items`}
                     </Typography>
                   </ButtonBase>
-                  {/* Edit and Hide/Show stay together; on a phone they drop under the name, on the right */}
                   <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
                     <Button size="small" onClick={() => openEditor(p.id)}>
                       Edit
@@ -356,10 +315,6 @@ export default function PackagesPage() {
             </Box>
           </DashCard>
 
-          {/* `key` forces a fresh editor (and fresh form) each time a different package is selected, and
-              once more when the selected package first arrives: a package just created is selected before
-              the list reload brings it in, and its form must be filled from it then, not left blank.
-              The wrapper is what openEditor scrolls to; scrollMarginTop keeps it clear of the top bar. */}
           <Box ref={editorRef} sx={{ minWidth: 0, scrollMarginTop: `${tokens.headerHeight + 12}px` }}>
             <PackageEditor
               key={`${editingId || 'none'}:${editing ? 'loaded' : 'waiting'}`}
@@ -381,8 +336,6 @@ export default function PackagesPage() {
           </Box>
         </Box>
       ) : tab === 'addons' ? (
-        // Additional Charges tab: the charges customers tick (some in sizes, like the tent), then below them
-        // the charges with packages, where customers pick one package (like Sounds and lights)
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <DashCard>
             <CardTitle
@@ -440,7 +393,6 @@ export default function PackagesPage() {
           </DashCard>
         </Box>
       ) : tab === 'dishes' ? (
-        // Buffet Menu tab: the price per person, then the dishes grouped by category
         <Box
           sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1.6fr' }, gap: 2.5, alignItems: 'start' }}
         >
@@ -469,7 +421,6 @@ export default function PackagesPage() {
                   <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted, mb: 0.75 }}>
                     {label} · {inCategory.length}
                   </Typography>
-                  {/* A category with nothing in it blocks every new buffet booking, so say so */}
                   {inCategory.length === 0 ? (
                     <AlertBanner tone="info">
                       No suggestions for this line yet. Customers can still book a buffet and write their own{' '}
@@ -520,8 +471,6 @@ export default function PackagesPage() {
           </DashCard>
         </Box>
       ) : (
-        // Archived tab: packages, additional charges and dishes in one list, each with a Restore button;
-        // additional charges and dishes can also be deleted for good from here
         <DashCard>
           {archivedCount === 0 ? (
             <EmptyState
@@ -626,7 +575,6 @@ export default function PackagesPage() {
         }
         confirmLabel="Archive"
         tone="danger"
-        // Archive the item using the API call that matches its type
         onConfirm={async () => {
           const { type, item } = archive;
           if (type === 'package') await catalogApi.setPackageArchived(item.id, true);
@@ -638,8 +586,6 @@ export default function PackagesPage() {
         }}
       />
 
-      {/* Delete for good. A charge already on a reservation is refused (IN_USE): the message shows in the
-          window, which stays open, and the admin can archive it instead */}
       <ConfirmDialog
         open={Boolean(remove)}
         onClose={() => setRemove(null)}
@@ -663,8 +609,6 @@ export default function PackagesPage() {
   );
 }
 
-// The editor input that shows a save error's meta.field, or null for the banner. The API calls the
-// "What's included" list `items`; the form's input for it is `itemsText`.
 const editorField = (field) =>
   field === 'items'
     ? 'itemsText'
@@ -672,13 +616,6 @@ const editorField = (field) =>
       ? field
       : null;
 
-/**
- * Form for creating or editing a package: name, price, default guest count, description, what's included
- * (and which counted items grow with the guest count above the default), setup styles, visibility.
- * The visibility switch follows Show/Hide in the package list while the form is open.
- * The Equipment Rental package only has a name, description and visibility here: its prices are each
- * rentable item's rent price on the Inventory page.
- */
 function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   const rental = isRentalPackage(pkg);
   const [form, setForm] = useState(() => (pkg ? toForm(pkg) : blankPackage()));
@@ -689,18 +626,14 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   const [removePhoto, setRemovePhoto] = useState(false);
   const photoInput = useRef(null);
 
-  // "dirty" = the form differs from the saved package, so Save is enabled
   const original = useMemo(() => (pkg ? JSON.stringify(toForm(pkg)) : null), [pkg]);
   const dirty = isNew || JSON.stringify(form) !== original || Boolean(photoFile) || removePhoto;
 
-  // Show/Hide in the package list saves the visibility at once, outside this form. Follow it here, or a
-  // later Save would send the old value back and undo it; other edits not saved yet stay as typed.
   const savedVisible = pkg ? pkg.visible : undefined;
   useEffect(() => {
     if (savedVisible !== undefined) setForm((f) => (f.visible === savedVisible ? f : { ...f, visible: savedVisible }));
   }, [savedVisible]);
 
-  // Nothing selected yet
   if (!pkg && !isNew) {
     return (
       <DashCard>
@@ -713,19 +646,16 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
     );
   }
 
-  // Returns a change handler for one field. Works with text inputs, switches/checkboxes, and plain values.
   const set = (field) => (e) => {
     const value = e && e.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
     setForm((f) => ({ ...f, [field]: value }));
     setErrors((er) => ({ ...er, [field]: '' }));
   };
 
-  // Check every field and return an object of error messages (empty = valid)
   const validate = () => {
     const e = {};
     if (form.name.trim().length < 3) e.name = 'Enter a package name.';
     if (form.description.trim().length < 10) e.description = 'Describe the package in at least 10 characters.';
-    // The rental package has no price, guests or items of its own
     if (rental) return e;
     const price = Number(form.price);
     if (!price || price < 100) e.price = 'Enter a price of at least ₱100.';
@@ -736,13 +666,9 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
     return e;
   };
 
-  // Tick or untick "grows with the guest count" for one counted item
   const toggleGrows = (item) => setForm((f) => ({ ...f, grows: { ...f.grows, [item.name]: !growsInForm(f, item) } }));
-  // The counted items of the list as typed now, for the ticks under it
   const countedItems = rental ? [] : parseItems(form.itemsText).filter((item) => item.qty);
 
-  // Validate, then save the package: trim text, convert numbers back, turn the lines into items (each
-  // counted one saying whether it grows with the guest count)
   const save = async () => {
     const found = validate();
     setErrors(found);
@@ -766,7 +692,6 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
       setRemovePhoto(false);
       onSaved(saved, isNew);
     } catch (err) {
-      // Under its input, or in the banner above the form when it has none (e.g. a network error)
       const field = editorField(err.meta && err.meta.field);
       setErrors(field ? { [field]: err.message } : { form: err.message });
     } finally {
@@ -917,8 +842,6 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
             sx={{ gridColumn: { sm: '1 / -1' } }}
           />
         )}
-        {/* For bookings above the default guest count: ticked items grow with the guests (200 plates -> 600 at
-            600 guests); the other counted items are set in each quotation, and the customer sees "to confirm" */}
         {countedItems.length > 0 && (
           <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Grows with the guest count</Typography>
@@ -942,8 +865,6 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
         )}
       </Box>
 
-      {/* Every package can be booked either way, so there is nothing to choose here.
-          The rental package is priced from the inventory instead. */}
       <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
         <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
           {rental ? (
@@ -998,10 +919,6 @@ function PackageEditor({ pkg, isNew, onCancelNew, onSaved, onArchive }) {
   );
 }
 
-/**
- * One price in the Additional charges lists: "₱4,500 each" (`each`: counted by the piece), "₱3,500", or
- * "Set in quotation" when there is none; `label` names a size or package.
- */
 function AddonPrice({ label, price, each }) {
   return (
     <Typography
@@ -1022,11 +939,6 @@ function AddonPrice({ label, price, each }) {
   );
 }
 
-/**
- * Read-only line under a charge or size: the inventory item it takes from and how many the business owns,
- * e.g. "Inventory: Tent 10x10 · 2 pcs owned", or that it uses none. How many are left depends on the
- * date, so customers see that on the booking form instead.
- */
 function InventoryLine({ item, error, sx }) {
   return (
     <Box sx={sx}>
@@ -1048,32 +960,13 @@ function InventoryLine({ item, error, sx }) {
   );
 }
 
-/**
- * Dialog to create or edit an additional charge: name, description, price, whether it is counted by the
- * piece, and its sizes. The price is optional: blank means the charge is priced in each quotation.
- * Sizes are optional too, for a charge that comes in sizes such as a tent (10 × 10, 10 × 20): each size
- * has its own price of one, and the customer picks the sizes and how many of each, so a charge with
- * sizes has no price or how-many of its own. A new price applies to bookings made from now on; a
- * booking already made keeps the price it was made at.
- * The charge (when it has no sizes) and each size can take from an inventory item (the 10 × 10 size takes
- * Tent 10x10): an approved booking then holds those pieces on its date, and customers can't book more
- * than are free. The window only shows the item and how many are owned; the link is made on save from
- * the names (linkByName: an item named after the charge and size). `inventory` is the item list.
- * A charge with packages (`addon.hasPackages`, such as Sounds and lights; a new one opens with
- * { hasPackages: true }) has packages instead of sizes: each has its own price and a "What's included"
- * list, the customer picks one, and nothing is counted by the piece, so "Ask how many" is not offered.
- * Until it has a package, the charge is booked on its own at its own price.
- */
 function AddonDialog({ addon, inventory, onClose, onSaved }) {
   const [values, setValues] = useState({ name: '', description: '', price: '', inventoryItemId: '', sizes: [] });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
-  // A React key for each size row: its id, or a number for a size not saved yet
   const nextKey = useRef(0);
-  // A charge with packages (fixed when it is created); its rows are packages, not sizes
   const packages = Boolean(addon && addon.hasPackages);
   const noun = packages ? 'package' : 'size';
-  // When the dialog opens, fill the form with the additional charge (or blanks for a new one)
   useEffect(() => {
     if (addon) {
       setValues({
@@ -1082,8 +975,6 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
         price: addon.price ? String(addon.price) : '',
         hasQuantity: Boolean(addon.hasQuantity),
         inventoryItemId: addon.inventoryItemId || '',
-        // A size's or package's own name (`size`), not the full "Tent 10 × 10"; a package also keeps
-        // what it includes (a size's description is its charge's, so it is not copied)
         sizes: (addon.sizes || []).map((s) => ({
           key: s.id,
           id: s.id,
@@ -1098,9 +989,7 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
   }, [addon]);
 
   const sized = values.sizes.length > 0;
-  // The inventory item a charge or size takes from, by id (null when none)
   const itemOf = (itemId) => (itemId && inventory.find((item) => item.id === itemId)) || null;
-  // Change one size's or package's name, price (digits only) or what it includes; its message clears as the admin types
   const setSize = (index, field, value) => {
     setValues((v) => ({ ...v, sizes: v.sizes.map((s, i) => (i === index ? { ...s, [field]: value } : s)) }));
     setErrors((er) => ({ ...er, [`sizes.${index}.${field}`]: '' }));
@@ -1113,13 +1002,11 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
         { key: `new-${(nextKey.current += 1)}`, id: '', name: '', price: '', description: '', inventoryItemId: '' }
       ]
     }));
-  // Removing a row shifts the rows below it, so the size messages are cleared rather than left on the wrong row
   const removeSize = (index) => {
     setValues((v) => ({ ...v, sizes: v.sizes.filter((_, i) => i !== index) }));
     setErrors((er) => Object.fromEntries(Object.entries(er).filter(([key]) => !key.startsWith('sizes'))));
   };
 
-  // Validate and save; onSaved(true) means a new additional charge was created
   const save = async () => {
     const e = {};
     if (values.name.trim().length < 3) e.name = 'Enter the name.';
@@ -1144,7 +1031,6 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
       });
       onSaved(!addon.id);
     } catch (err) {
-      // Under its input (name, description, price, inventory item or a size or package), or in the banner above the form when it has none (e.g. a network error)
       const field = err.meta && err.meta.field;
       const known =
         field &&
@@ -1201,10 +1087,8 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
           onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
           error={errors.description}
         />
-        {/* A charge with sizes or packages is priced per size or package, so its own price and how-many are hidden */}
         {!sized && (
           <>
-            {/* Optional: whole pesos only, so the box keeps digits and drops anything else typed */}
             <FormField
               id="addon-price"
               label={values.hasQuantity && !packages ? 'Price of one' : 'Price'}
@@ -1222,8 +1106,6 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
               InputProps={pesoSign}
               inputProps={{ inputMode: 'numeric', maxLength: 7 }}
             />
-            {/* Counted by the piece: the booking form asks how many, and the price is that of one.
-                A charge with packages is never counted by the piece. */}
             {!packages && (
               <FormControlLabel
                 control={
@@ -1244,15 +1126,12 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
                 sx={{ alignItems: 'flex-start' }}
               />
             )}
-            {/* Shown only when it takes from the inventory; a charge such as Host never does */}
             {itemOf(values.inventoryItemId) && (
               <InventoryLine item={itemOf(values.inventoryItemId)} error={errors.inventoryItemId} />
             )}
           </>
         )}
 
-        {/* Sizes: one row each, with its own price of one. Packages: one row each, with its own price and
-            what it includes. */}
         <Box sx={{ p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
           <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{packages ? 'Packages' : 'Sizes'}</Typography>
           <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
@@ -1299,7 +1178,6 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
               >
                 <CloseRoundedIcon fontSize="small" />
               </IconButton>
-              {/* What the package includes, one thing per line */}
               {packages && (
                 <FormField
                   id={`addon-size-includes-${i}`}
@@ -1317,7 +1195,6 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
                   sx={{ gridColumn: '1 / -1' }}
                 />
               )}
-              {/* A package rarely takes from the inventory, so its line shows only when it does */}
               {(!packages || itemOf(s.inventoryItemId) || errors[`sizes.${i}.inventoryItemId`]) && (
                 <InventoryLine
                   item={itemOf(s.inventoryItemId)}
@@ -1349,16 +1226,10 @@ function AddonDialog({ addon, inventory, onClose, onSaved }) {
   );
 }
 
-/**
- * The buffet price per person, the one price set here rather than per booking. Changing it applies
- * to new bookings only: every reservation keeps the rate it was made at, so a quotation already
- * sent can never move on its own.
- */
 function PricePerPlateCard({ current, onSaved }) {
   const [value, setValue] = useState(String(current));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // Follow the saved price when it changes elsewhere
   useEffect(() => setValue(String(current)), [current]);
 
   const save = async () => {
@@ -1410,13 +1281,11 @@ function PricePerPlateCard({ current, onSaved }) {
   );
 }
 
-/** Dialog to add or rename a suggested dish in one of the four buffet categories. */
 function DishDialog({ dish, onClose, onSaved }) {
   const [values, setValues] = useState({ name: '', category: DISH_CATEGORIES[0].key });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
-  // Start from the dish being edited, or a blank one in the first category
   useEffect(() => {
     if (dish) setValues({ name: dish.name || '', category: dish.category || DISH_CATEGORIES[0].key });
     setErrors({});

@@ -1,7 +1,6 @@
 import { config } from '../src/config.js';
 import { tx, closePool } from '../src/db.js';
 
-// Targeted, repeatable catalog update. Keeps reservations, dish IDs and configured dessert prices.
 try {
   if (!['localhost', '127.0.0.1', '::1'].includes(config.db.host) && !process.argv.includes('--live'))
     throw new Error('Use --live explicitly for a remote database.');
@@ -16,7 +15,6 @@ try {
     );
     if (dishes.length) {
       await conn.query("UPDATE dishes SET category = 'pork' WHERE id = ?", [dishes[0].id]);
-      // If both catalogs already had it, retain the duplicate as an archived record.
       for (const duplicate of dishes.slice(1))
         await conn.query('UPDATE dishes SET archived = 1 WHERE id = ?', [duplicate.id]);
     }

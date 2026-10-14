@@ -5,18 +5,12 @@ import AllReservationsSection from './reservations/AllReservationsSection.jsx';
 import CalendarSection from './reservations/CalendarSection.jsx';
 import RequestsSection from './reservations/RequestsSection.jsx';
 
-// Tabs of this page as [key, label]
 const TABS = [
   ['requests', 'Reservation Requests'],
   ['all', 'All Reservations'],
   ['calendar', 'Calendar and Blocked Dates']
 ];
 
-/**
- * Reservation & Calendar: one page for reservation requests, all reservations and the calendar.
- * The open tab lives in the URL (?tab=requests|all|calendar) so links and the back button work.
- * With no tab, a search (?q=) opens All reservations; otherwise Reservation requests opens.
- */
 export default function ReservationsCalendarPage() {
   useDocumentTitle('Reservation & Calendar', 'Tres Marias Admin');
   const [params, setParams] = useSearchParams();
@@ -26,7 +20,6 @@ export default function ReservationsCalendarPage() {
   return (
     <>
       <PageHeader title="Reservation & Calendar" />
-      {/* Switching tabs clears the other tab's URL options, e.g. ?q= */}
       <SectionTabs
         ariaLabel="Reservation & Calendar sections"
         value={tab}

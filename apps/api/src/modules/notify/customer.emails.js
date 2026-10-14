@@ -4,104 +4,29 @@ import { formatDate, formatDateTime, formatEventTime, peso, toISODate, todayISO 
 import { statusLabel } from '@tm/shared/src/utils/status.js';
 import { PORTAL_PATHS, emailSubject, oneLine, renderEmail, reservationPath, shorten } from './email.layout.js';
 
-/**
- * The customer email notices (Phase 13A, 2026-10-10; event_completed added in Phase 13B, 2026-10-11): one builder per purpose,
- * builder(data) -> { subject, html, text }. Every email is drawn by renderEmail() (email.layout.js), which
- * escapes every value, and every subject comes from emailSubject() (one line, the event name shortened), so
- * nothing here builds HTML. notify.service.js (queueCustomerEmail) adds `firstName` to `data`; the data
- * shapes below are fixed (the reservations and payments services pass exactly these).
- *
- * `reservation` is the booking record as the reservations repo returns it; the builders read only ref,
- * eventName, date, startTime, endTime, serviceType, createdAt and downpaymentDue. Never in an email: bank
- * account numbers, QR codes, payment reference numbers, receipt photos, mobile numbers, the venue address,
- * admin notes or admin names (the sign-off is the business name, added by the layout). Each email is a short
- * notice in the chat's voice with ONE button to the right portal page and no attachments; the chat message
- * the same action posts is unchanged. Tones: success (green) for approved, payment received and confirmed;
- * attention (red) only for rejected, failed, declined and cancelled; info (gold) for the rest (the
- * thank-you of event_completed included).
- *
- * quotation_ready       { reservation, variant: 'new'|'revised'|'updated', net, note, totalBefore,
- *                         statusBefore, statusAfter, downpaymentStillNeeded, downpaymentDue, overpaid,
- *                         damageLines: [{ name, qty, amount }] }
- *     'new' "Your quotation is ready" / 'revised' (a pending request quoted again) "Your revised quotation is
- *     ready": Event, Date, Reference and Net total; review the charges and tap Accept Quotation, the date is
- *     only held once accepted. 'updated' (re-sent after acceptance) "Your quotation was updated": Previous
- *     total and New total, then what it means: back to Approved -> pay {downpaymentStillNeeded} more by
- *     {downpaymentDue} to reach the minimum downpayment (in the box); another status change -> "Your
- *     reservation is now {status}."; overpaid -> that amount will be returned. A rental's damage lines are
- *     listed under "Damage Charges" (the only email about damage charges). The admin's note is shown in a
- *     "Note from our team" box (as a paragraph instead when the box holds the downpayment step).
- *     Button "Review quotation" -> the reservation's page.
- * reservation_approved  { reservation (approved, with downpaymentDue), total, downpayment, acceptedAt }
- *     "Reservation approved": Event, Date and time, Reference, Total, Minimum downpayment and Pay by (or the
- *     full amount by that date when the downpayment is the whole total), the cancel-deadline sentence
- *     (approvalMessage's rule), a box that payments are made only from the Payments page, and a security line
- *     with when the quotation was accepted. Button "Go to Payments".
- * payment_received      { reservation, payment: { amount, method, receiptNo, verifiedAt }, paidSoFar,
- *                         balance, statusBefore, statusAfter }
- *     "Payment received: ₱3,000 for {event} ({ref})", or "Payment received and booking confirmed" when this
- *     payment confirmed the booking (one email, not two). Amount, Method, Receipt no., Date, Total paid so
- *     far and Remaining balance ("Fully paid" at ₱0); the downpayment-reached line when it moved Approved ->
- *     Downpayment paid; on a cancelled or declined booking, that the payment will be returned (no balance
- *     rows). Never a payment reference number. Button "View receipt" -> Documents.
- * payment_rejected      { reservation, payment: { amount, method, submittedAt }, reason }
- *     "We couldn't verify your payment": Amount, Method, Date submitted, the reason in a box, and to submit
- *     it again from Payments. Button "Go to Payments".
- * qr_payment_failed     { reservation, amount }
- *     "Your QR Ph payment didn't go through": the amount, not charged, try again from Payments (never
- *     PayMongo's own message). Button "Go to Payments".
- * booking_confirmed     { reservation, balance }
- *     "Booking confirmed": Event, Date and time, Reference, Remaining balance (due on the event day) or
- *     "Fully paid", and that the contract is in Documents. Button "View contract" -> Documents.
- * reservation_declined  { reservation, reason }
- *     "Reservation request declined": the reason in a box and that they're welcome to book another date.
- *     Button "View reservation".
- * reservation_cancelled { reservation, by: 'admin'|'customer', reason, paid, at }
- *     by 'admin' "Reservation cancelled": the reason, and when money was paid that we'll return it and say
- *     so in their account. by 'customer' "You cancelled your reservation": the reason they gave, when money
- *     was paid that our team will message them about the refund (never an amount promised), and a security
- *     line. Button "View reservation".
- * payment_reminder      { reservation, dueText }   (dueText = the same sentence the chat reminder uses)
- *     "Payment reminder": the due sentence, Event, Date, Reference and the pay-only-from-Payments box.
- *     Button "Go to Payments".
- * event_completed       { reservation }
- *     "Thank you for celebrating with us" (an equipment rental: "Thank you for renting with us"): the event
- *     (or rental, with every rented item back) is marked completed, Event, Date and Reference, an invitation
- *     to rate the service and leave a short review, and that our team reads every review before anything is
- *     shown on the website. No balance or amount: a balance still owed is collected on site and gets its own
- *     payment_received email when it is recorded. Button "Write a testimonial" -> Testimonials.
- */
 
-// The payment method as an email names it: shorter than PAYMENT_METHODS (status.js)
 const METHOD_NAMES = { qrph: 'QR Ph', bank: 'Bank transfer', cash: 'Cash' };
 
-// The box on every email that asks for money: where to pay, and what we never send
 const PAY_ONLY_HERE =
   'Pay only from the Payments page of your account. We never send bank details, QR codes or payment links by email.';
 
-// Reservation statuses with no way forward: money that arrives on one is returned
 const CLOSED = ['cancelled', 'declined'];
 
-/** 'qrph' -> "QR Ph", 'bank' -> "Bank transfer", 'cash' -> "Cash"; an unknown key is shown as it is. */
 const methodName = (method) => METHOD_NAMES[method] || oneLine(method);
 
-/** True when `value` has text other than spaces. */
 const hasText = (value) => String(value ?? '').trim() !== '';
 
-/** "YYYY-MM-DD" of a timestamp (ms or ISO) on the business's clock, or the value itself when it is already a date. */
 const dayOf = (value) => {
   if (!value) return '';
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   return toISODate(new Date(value));
 };
 
-/** The event day with its time: "14 Mar 2026, 6:00 pm – 10:00 pm" (the day alone when no time is saved). */
 const eventDateTime = (reservation) => {
   const time = formatEventTime(reservation);
   return time === '—' ? formatDate(reservation.date) : `${formatDate(reservation.date)}, ${time}`;
 };
 
-/** The booking's rows for the details card: Event, Date (or "Date and time" with `withTime`) and Reference. */
 const bookingRows = (reservation, { withTime = false } = {}) => [
   { label: 'Event', value: reservation.eventName },
   withTime
@@ -110,23 +35,11 @@ const bookingRows = (reservation, { withTime = false } = {}) => [
   { label: 'Reference', value: reservation.ref }
 ];
 
-/** A box with the given title around a person's text (the admin's note, a reason); null when there is no text. */
 const textBox = (title, value, tone = 'info') => (hasText(value) ? { title, text: String(value).trim(), tone } : null);
 
-/**
- * The payment subject without emailSubject's colon after `what`: "Payment received: ₱3,000 for Santos
- * Wedding (RES-2026-1130-01)". Same safety as emailSubject: one line (no CR/LF), the event name shortened to
- * about 60 characters and the whole line at most 200.
- */
 const subjectWithEvent = (what, eventName, ref) =>
   shorten(`${oneLine(what)} ${shorten(eventName, 60)} (${oneLine(ref)})`, 200);
 
-/**
- * The approved email's cancel-deadline sentence, by the rule of approvalMessage (domain/reservation.js):
- * the deadline is cancelDeadline(reservation); while it is today or ahead, "you can cancel online until
- * {date}", otherwise online cancellation for paid bookings has ended, so message us from the account
- * (the email gives no phone number). '' when the booking has no request or event date to count from.
- */
 function cancelSentence(reservation) {
   if (!reservation.createdAt || !reservation.date) return '';
   const deadline = cancelDeadline(reservation);
@@ -135,13 +48,6 @@ function cancelSentence(reservation) {
     : `Online cancellation for paid bookings ended on ${formatDate(deadline)}, so after you pay, message us from your account to cancel.`;
 }
 
-/**
- * quotation_ready: the quotation was sent. 'new' and 'revised' (a pending request) ask the customer to review
- * it and tap Accept Quotation; 'updated' (re-sent after acceptance) shows the previous and the new total and
- * what the change means: back to Approved with the downpayment still needed and its new due date, another
- * status, or an amount paid above the new total. A rental's damage lines are listed under "Damage Charges".
- * The admin's note goes in a "Note from our team" box, or in a paragraph when the box holds the downpayment.
- */
 function quotationReady({
   reservation,
   variant = 'new',
@@ -182,8 +88,6 @@ function quotationReady({
     };
   }
 
-  // Re-sent after acceptance: what the new total means for the booking. Damage charges (a rental's) are
-  // only ever listed here: a request still pending has had nothing rented out yet.
   const damage = Array.isArray(damageLines) ? damageLines : [];
   const sections = damage.length
     ? [
@@ -207,7 +111,6 @@ function quotationReady({
       : '';
   const overpaidLine =
     Number(overpaid) > 0 ? `${peso(overpaid)} was paid above the new total and will be returned.` : '';
-  // One box only: the downpayment step when there is one, the admin's note otherwise
   const noteBox = textBox('Note from our team', note);
   const noteLine = payBox && noteBox ? `Note from our team: ${noteBox.text}` : '';
 
@@ -242,12 +145,6 @@ function quotationReady({
   };
 }
 
-/**
- * reservation_approved: the customer accepted the quotation, so the reservation is approved. Says how much to
- * pay by when (the minimum downpayment, or the full amount when the downpayment is the whole total), until
- * when a paid booking can be cancelled online, that payments are made only from the Payments page, and when
- * the quotation was accepted (in case it wasn't them).
- */
 function reservationApproved({ reservation, total, downpayment, acceptedAt, firstName }) {
   const { ref, eventName } = reservation;
   const due = reservation.downpaymentDue ? formatDate(reservation.downpaymentDue) : '';
@@ -286,13 +183,6 @@ function reservationApproved({ reservation, total, downpayment, acceptedAt, firs
   };
 }
 
-/**
- * payment_received: a payment was verified (or recorded as cash). One email even when it also confirmed the
- * booking ("Payment received and booking confirmed"). Shows the amount, method, receipt number, date, the
- * total paid so far and the balance left, plus what changed: the minimum downpayment reached (Approved ->
- * Downpayment paid), the booking confirmed, or, on a cancelled or declined booking, that this payment will
- * be returned (then without the balance rows). Never a payment reference number.
- */
 function paymentReceived({ reservation, payment = {}, paidSoFar, balance, statusBefore, statusAfter, firstName }) {
   const { ref, eventName } = reservation;
   const amount = peso(payment.amount);
@@ -322,7 +212,6 @@ function paymentReceived({ reservation, payment = {}, paidSoFar, balance, status
     { label: 'Receipt no.', value: payment.receiptNo || '—' },
     { label: 'Date', value: formatDate(dayOf(payment.verifiedAt)) }
   ];
-  // A closed booking owes nothing more: no balance to show
   if (!closed) {
     details.push(
       { label: 'Total paid so far', value: peso(paidSoFar), strong: true },
@@ -348,10 +237,6 @@ function paymentReceived({ reservation, payment = {}, paidSoFar, balance, status
   };
 }
 
-/**
- * payment_rejected: the admin could not verify a submitted payment. Amount, method and when it was
- * submitted, the admin's reason in a box, and to submit it again from Payments.
- */
 function paymentRejected({ reservation, payment = {}, reason, firstName }) {
   const { ref, eventName } = reservation;
   return {
@@ -375,10 +260,6 @@ function paymentRejected({ reservation, payment = {}, reason, firstName }) {
   };
 }
 
-/**
- * qr_payment_failed: a QR Ph payment failed at PayMongo, so nothing was charged. The amount and that they can
- * try again from Payments; PayMongo's own message is never shown (it isn't passed in).
- */
 function qrPaymentFailed({ reservation, amount, firstName }) {
   const { ref, eventName } = reservation;
   return {
@@ -400,10 +281,6 @@ function qrPaymentFailed({ reservation, amount, firstName }) {
   };
 }
 
-/**
- * booking_confirmed: the admin confirmed the booking. Event, date and time, reference, the remaining balance
- * (due on the event day) or "Fully paid", and that the contract is in Documents.
- */
 function bookingConfirmed({ reservation, balance, firstName }) {
   const { ref, eventName } = reservation;
   const owes = Number(balance) > 0;
@@ -432,7 +309,6 @@ function bookingConfirmed({ reservation, balance, firstName }) {
   };
 }
 
-/** reservation_declined: the admin declined the request. The reason in a box, and that they're welcome to book another date. */
 function reservationDeclined({ reservation, reason, firstName }) {
   const { ref, eventName } = reservation;
   return {
@@ -452,12 +328,6 @@ function reservationDeclined({ reservation, reason, firstName }) {
   };
 }
 
-/**
- * reservation_cancelled: by 'admin', with the admin's reason, and when money was paid, that we'll return it
- * and say so in the account. By 'customer' (online), with the reason they gave, when money was paid that our
- * team will message them about the refund (no amount is promised: what is returned depends on the terms),
- * and a security line in case it wasn't them.
- */
 function reservationCancelled({ reservation, by, reason, paid, at, firstName }) {
   const { ref, eventName } = reservation;
   const byCustomer = by === 'customer';
@@ -493,10 +363,6 @@ function reservationCancelled({ reservation, by, reason, paid, at, firstName }) 
   };
 }
 
-/**
- * payment_reminder: the admin sent a payment reminder. The chat reminder's own due sentence (`dueText`), the
- * booking's rows, and the box that payments are made only from the Payments page.
- */
 function paymentReminder({ reservation, dueText, firstName }) {
   const { ref, eventName } = reservation;
   return {
@@ -515,13 +381,6 @@ function paymentReminder({ reservation, dueText, firstName }) {
   };
 }
 
-/**
- * event_completed: the admin marked the event (or the equipment rental) completed. A thank-you, the
- * booking's rows, and an invitation to leave a testimonial on the Testimonials page (one review per
- * completed booking; it stays hidden until our team publishes it, see feedback.service.js). A rental is
- * thanked for renting, and since it can only be completed once every piece is back, it says so. No amounts:
- * money still owed is collected on site and confirmed by its own payment_received email.
- */
 function eventCompleted({ reservation, firstName }) {
   const { ref, eventName } = reservation;
   const rental = isRental(reservation.serviceType);
@@ -550,7 +409,6 @@ function eventCompleted({ reservation, firstName }) {
   };
 }
 
-/** Every customer email, by purpose (the `purpose` queueCustomerEmail takes). */
 export const CUSTOMER_EMAILS = {
   quotation_ready: quotationReady,
   reservation_approved: reservationApproved,

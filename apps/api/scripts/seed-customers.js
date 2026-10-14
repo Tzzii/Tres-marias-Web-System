@@ -1,4 +1,3 @@
-// config first: seed dates and backups use the same Manila timezone as the API.
 import { config } from '../src/config.js';
 import { mkdir, writeFile, cp } from 'node:fs/promises';
 import path from 'node:path';
@@ -11,7 +10,6 @@ import * as catalog from '../src/modules/catalog/catalog.repo.js';
 import { findItems } from '../src/modules/inventory/inventory.repo.js';
 import { prepareSampleProofs } from '../src/seedData/proofs.js';
 
-// Customer records and their children, in parent-first order. Configuration and admin accounts stay.
 const CUSTOMER_TABLES = [
   'customers',
   'reservations',
@@ -88,7 +86,6 @@ async function currentBusiness() {
     archived: Boolean(a.archived)
   }));
   const { items } = await findItems(pool);
-  // Only retain history unrelated to the customers being replaced.
   const cleanItems = items.map((item) => ({
     ...item,
     allocations: {},
@@ -130,18 +127,14 @@ async function main() {
 
   let backupPath;
   await tx(async (conn) => {
-    // The availability lock also serializes booking/rental writes while customer records are replaced.
     await conn.query('SELECT * FROM calendar_settings WHERE id = 1 FOR UPDATE');
     await conn.query('SELECT id FROM customers FOR UPDATE');
-    backupPath = await backup(conn); // A failed backup aborts before the first DELETE.
-    // Contracts keep string refs rather than FKs; remove those tied to any old customer booking,
-    // including stale demo refs. Standalone purchasing and the supplier list are preserved.
+    backupPath = await backup(conn);
     const oldContracts = "SELECT id FROM outsource_contracts WHERE reservation_ref <> 'none'";
     await conn.query(`DELETE FROM outbox WHERE JSON_UNQUOTE(JSON_EXTRACT(meta, '$.contractId')) IN (${oldContracts})`);
     await conn.query(`DELETE FROM outsource_deliveries WHERE contract_id IN (${oldContracts})`);
     await conn.query(`DELETE FROM outsource_contract_history WHERE contract_id IN (${oldContracts})`);
     await conn.query("DELETE FROM outsource_contracts WHERE reservation_ref <> 'none'");
-    // Notifications for the removed customers, or their booking metadata, must not survive in admin logs.
     await conn.query(`DELETE o FROM outbox o WHERE EXISTS (
       SELECT 1 FROM customers c WHERE LOCATE(c.email, o.to_address) > 0 OR o.to_address = c.mobile)
       OR JSON_UNQUOTE(JSON_EXTRACT(o.meta, '$.ref')) IN (SELECT ref FROM reservations)
@@ -167,7 +160,6 @@ async function main() {
         counter.value
       ]);
     }
-    // A reset is itself a data change, so open admin/customer portals reload their lists.
     await conn.query(
       "INSERT INTO counters (name, value) VALUES ('change', 1) ON DUPLICATE KEY UPDATE value = value + 1"
     );

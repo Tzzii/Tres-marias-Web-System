@@ -25,18 +25,13 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-// Icon for each document type
 const ICONS = { quotation: RequestQuoteOutlinedIcon, contract: GavelOutlinedIcon, receipt: ReceiptLongOutlinedIcon };
 
-/** Documents: quotations, contracts and receipts for every reservation. */
 export default function DocumentsPage() {
   useDocumentTitle('Documents');
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [open, setOpen] = useState(null); // document open in the preview dialog
-  // Load the customer's reservations, keep those that can have documents (any with a quotation,
-  // cancelled ones included so their contract and receipts stay available, plus active requests),
-  // then load the full details of each (needed to build the documents)
+  const [open, setOpen] = useState(null);
   const { data, loading, error, reload } = useResource(async () => {
     const list = await reservationApi.listReservations({ customerId: user.id });
     const relevant = list.filter(
@@ -74,7 +69,6 @@ export default function DocumentsPage() {
         </DashCard>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
-          {/* One card per reservation, latest event date first. slice() copies the array so sort doesn't change the original. */}
           {data
             .slice()
             .sort((a, b) => b.date.localeCompare(a.date))
@@ -87,7 +81,6 @@ export default function DocumentsPage() {
                   {r.eventName}
                 </CardTitle>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {/* Quotation, contract and receipts; ones not ready yet show "Pending" */}
                   {documentsFor(r).map((d) => {
                     const Icon = ICONS[d.kind];
                     return (

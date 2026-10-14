@@ -3,11 +3,6 @@ import ButtonBase from '@mui/material/ButtonBase';
 import Typography from '@mui/material/Typography';
 import { tokens } from '@tm/shared';
 
-/**
- * Underlined tabs on the page background that switch between the sections of one page
- * (e.g. Requests / All reservations / Calendar). Options: { value, label, badge? }.
- * On narrow screens the row can be swiped sideways, but no scrollbar is shown.
- */
 export function SectionTabs({ options, value, onChange, ariaLabel }) {
   return (
     <Box
@@ -17,18 +12,15 @@ export function SectionTabs({ options, value, onChange, ariaLabel }) {
         display: 'flex',
         gap: 0.5,
         mb: 2.5,
-        // Sideways swipe only; never scroll up/down
         overflowX: 'auto',
         overflowY: 'hidden',
-        // Hide the scrollbar (Firefox, then Chrome/Edge/Safari)
         scrollbarWidth: 'none',
         '&::-webkit-scrollbar': { display: 'none' },
-        // Grey line under the tabs, drawn inside the row so the gold underline can sit on it without overflowing
         boxShadow: `inset 0 -1px 0 ${tokens.shellBorder}`
       }}
     >
       {options.map((option) => {
-        const active = option.value === value; // the selected tab is gold with an underline
+        const active = option.value === value;
         return (
           <ButtonBase
             key={option.value}
@@ -49,7 +41,6 @@ export function SectionTabs({ options, value, onChange, ariaLabel }) {
             }}
           >
             {option.label}
-            {/* Red count bubble, only when there is something waiting */}
             {option.badge > 0 && (
               <Box
                 component="span"
@@ -76,7 +67,6 @@ export function SectionTabs({ options, value, onChange, ariaLabel }) {
   );
 }
 
-/** One line under the tabs: a short description of the section on the left, its buttons on the right. */
 export function SectionBar({ text, actions }) {
   return (
     <Box

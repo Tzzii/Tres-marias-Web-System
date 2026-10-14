@@ -367,7 +367,7 @@ html_content = """<!DOCTYPE html>
     Maintains continuous stock visibility across 7 categories (<span class="meta-tag">Total</span>, <span class="meta-tag">In Use</span>, <span class="meta-tag">Available</span>, <span class="meta-tag">Damaged</span>), automatically reserving assets during event approvals and logging returns.
   </li>
   <li><strong>Automated Vendor Outsourcing Dispatch</strong>:
-    Generates formal rental contracts (<span class="meta-tag">OUT-YYYY-####</span>) for external suppliers (lights, sound, tents, vehicles, extra staff) and dispatches them automatically via SMS or Email with status lifecycle monitoring.
+    Generates outsourcing requests (<span class="meta-tag">OUT-YYYY-####</span>) for external suppliers (lights, sound, tents, vehicles, extra staff) and dispatches them automatically via email with status lifecycle monitoring.
   </li>
   <li><strong>Real-Time Data Synchronization Polling</strong>:
     Monitors an atomic write counter (<span class="meta-tag">change</span> stamp), synchronizing data views across open customer and admin tabs every 15 seconds without full page refreshes.
@@ -379,7 +379,7 @@ html_content = """<!DOCTYPE html>
 
 <h2>1.2 Customer Capabilities (Customer Web Portal)</h2>
 <ul>
-  <li><strong>Authentication & Security</strong>: Account registration, secure credential sign-in, SMS OTP password recovery, profile editing, and 15-minute idle timeout protection.</li>
+  <li><strong>Authentication & Security</strong>: Account registration, secure credential sign-in, email OTP password recovery, profile editing, and 15-minute idle timeout protection.</li>
   <li><strong>Catalog Exploration</strong>: Browse packages, examine tableware inclusions, inspect rentable equipment piece prices and replacement damage fees, and check live date availability.</li>
   <li><strong>Step-by-Step Event Reservation</strong>: Complete an interactive booking form with automatic local draft autosaving; select occasion type, event date, time, and guest count (50–2,000 guests).</li>
   <li><strong>Menu & Dietary Customization</strong>: Configure 4-course menus (Pork, Chicken, Fish, Vegetable) with autocomplete suggestions or custom dish names, and input special food preparation notes (allergies, vegetarian portions, senior-friendly food).</li>
@@ -401,7 +401,7 @@ html_content = """<!DOCTYPE html>
   <li><strong>Interactive Calendar & Capacity Management</strong>: Schedule events on a visual monthly calendar, set global daily event limits (1–10/day), and block dates for maintenance or private events.</li>
   <li><strong>Payment Verification & Financial Records</strong>: Examine uploaded payment slips, verify transaction amounts, generate official receipts (<span class="meta-tag">OR-####</span>), reject invalid slips, record physical cash payments, and process customer refunds (<span class="meta-tag">recordRefund</span>).</li>
   <li><strong>Equipment Inventory Lifecycle Management</strong>: Track owned assets, execute event check-outs and returns, report damages, record repairs, dispose of unsalvageable assets, and configure rentable items with damage fees.</li>
-  <li><strong>Outsourced Partner Logistics</strong>: Manage third-party suppliers, build outsourced contracts (<span class="meta-tag">OUT-YYYY-####</span>), dispatch contracts via Email/SMS, and log vendor responses.</li>
+  <li><strong>Outsourced Partner Logistics</strong>: Manage third-party suppliers, build outsourcing requests (<span class="meta-tag">OUT-YYYY-####</span>), dispatch requests via email, and log vendor responses.</li>
   <li><strong>Customer Relationship Management (CRM)</strong>: View customer directory, filter by booking frequency or balances, view customer reservation histories, and initiate direct chats.</li>
   <li><strong>Review Moderation & Marketing Controls</strong>: Moderate customer feedback, publish reviews to the public website, pin top reviews as "Featured" on the homepage, and reply to testimonials.</li>
   <li><strong>Financial Analytics & Exporting</strong>: Generate net sales summaries, revenue breakdown by payment channel, package conversion analytics, and outstanding balance reports with PDF saving and printing.</li>
@@ -486,7 +486,7 @@ html_content = """<!DOCTYPE html>
     </tr>
     <tr>
       <td><strong>REQ 011</strong></td>
-      <td>Send notifications to customers via SMS and email for approvals/rejections, payment verifications, and reminders.</td>
+      <td>Send notifications to customers via email for approvals/rejections, payment verifications, and reminders.</td>
       <td><span class="badge badge-kept">Kept</span></td>
       <td>Retained. Handled via background outbox services with fallback logging, dispatching alerts for approvals, official receipts, payment reminders, and contract notices.</td>
     </tr>
@@ -616,7 +616,7 @@ html_content = """<!DOCTYPE html>
     The system shall require administrators to undergo two-factor authentication, requiring a valid password followed by a temporary 6-digit verification code delivered to their registered email address.
   </li>
   <li><strong>REQ-FR-003: Customer Profile & Credential Recovery</strong><br>
-    The system shall allow customers to manage their profile information, change passwords, and recover forgotten passwords using a 6-digit SMS verification code delivered to their registered mobile phone.
+    The system shall allow customers to manage their profile information, change passwords, and recover forgotten passwords using a 6-digit verification code delivered to their registered email address.
   </li>
   <li><strong>REQ-FR-004: Brute-Force Protection & Session Inactivity</strong><br>
     The system shall automatically lock user accounts for a duration of five (5) minutes following five (5) consecutive failed login attempts, and automatically terminate active user sessions after fifteen (15) minutes of inactivity.
@@ -695,7 +695,7 @@ html_content = """<!DOCTYPE html>
     The system shall maintain a directory of third-party rental partners (lighting, sound, tents, vehicles, extra staff) and enable the creation of digital rental contracts (<span class="meta-tag">OUT-YYYY-####</span>) linked to catering reservations.
   </li>
   <li><strong>REQ-FR-024: Automated Partner Contract Dispatch</strong><br>
-    The system shall dispatch formal outsourcing contracts directly to vendor partners via automated SMS or Email, tracking contract states (<em>Draft</em>, <em>Sent</em>, <em>Accepted</em>, <em>Declined</em>, <em>Completed</em>, <em>Cancelled</em>).
+    The system shall dispatch outsourcing requests directly to vendor partners via automated email, tracking request states (<em>Draft</em>, <em>Sent</em>, <em>Accepted</em>, <em>Declined</em>, <em>Completed</em>, <em>Cancelled</em>).
   </li>
 </ul>
 
@@ -720,7 +720,7 @@ html_content = """<!DOCTYPE html>
     The system shall track outstanding refunds owed to customers resulting from cancellations, declined bookings, or quotation overpayments, and allow administrators to log refund disbursements.
   </li>
   <li><strong>REQ-FR-031: Outstanding Balance Monitoring & Reminders</strong><br>
-    The system shall track outstanding balances across all active bookings and provide administrators with a one-click automated payment reminder feature dispatched via SMS and email.
+    The system shall track outstanding balances across all active bookings and provide administrators with a one-click automated payment reminder feature dispatched via email.
   </li>
 </ul>
 
@@ -805,6 +805,11 @@ html_content = """<!DOCTYPE html>
   <li><strong>REQ-NFR-012: Inclusive Dietary Accommodation</strong><br>
     The system shall support cultural, health, and religious dietary preferences through open-ended dish customization fields and kitchen preparation alert notes.
   </li>
+</ul>
+
+<h2>Recommendations for Future Development</h2>
+<ul>
+  <li><strong>SMS Notifications and Outsourcing Dispatch</strong>: Consider adding SMS in a future version once the client can satisfy the selected provider's business registration and TIN requirements. The current implementation uses email for verification codes, customer notifications, and outsourcing requests; SMS is outside the implemented scope.</li>
 </ul>
 
 <!-- DEFENSE RECOMMENDATIONS -->

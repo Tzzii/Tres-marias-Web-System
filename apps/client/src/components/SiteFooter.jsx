@@ -10,10 +10,7 @@ import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import { BUSINESS, BrandMark } from '@tm/shared';
 import { site, siteContainerSx } from '../theme/siteTheme.js';
 
-// Shared styles for the column headings, the page links and the contact rows
 const headingSx = { fontSize: 12.5, fontWeight: 700, color: site.gold, mb: 2 };
-// On touch screens the links get 6px more above and below (a finger-sized target) and the list gap
-// drops to 0, so the space between two links stays about the same (12px instead of 10px)
 const linkSx = {
   display: 'flex',
   alignItems: 'center',
@@ -25,17 +22,13 @@ const linkSx = {
   '@media (pointer: coarse)': { py: 0.75 }
 };
 const linkListSx = { display: 'flex', flexDirection: 'column', gap: 1.25, '@media (pointer: coarse)': { gap: 0 } };
-// Contact details are plain text, not tel:/mailto: links, so clicking them never asks to open another app
 const contactSx = { display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5, color: site.onEspressoSoft };
 
-/** Public footer on warm espresso (one of the few dark areas of the light website), also the #contact anchor. */
 export default function SiteFooter({ bottomSpace = false }) {
   const navigate = useNavigate();
-  // Current year for the copyright line
   const year = new Date().getFullYear();
 
   return (
-    // bottomSpace adds extra padding on phones so the fixed Log in / Sign up bar doesn't cover the footer
     <Box
       component="footer"
       id="contact"
@@ -84,8 +77,6 @@ export default function SiteFooter({ bottomSpace = false }) {
           <Box>
             <Typography sx={headingSx}>Packages</Typography>
             <Box sx={linkListSx}>
-              {/* [URL slug, display name] for each package page link: the four tiers and both weddings.
-                  The Full Service versions are left out, since each one is its tier with helpers added. */}
               {[
                 ['petite', 'Petite'],
                 ['classic', 'Classic'],

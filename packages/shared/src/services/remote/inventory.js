@@ -57,6 +57,12 @@ export async function moveInventoryStock(id, action, { qty = 0, damagedQty = 0, 
 /** Archive or restore several items (not while pieces are out). Returns { count }. */
 export const setInventoryArchived = (ids, archived) => http.post('/admin/inventory/archive', { ids, archived });
 
+/** Permanently delete an item without checked-out pieces or booking/charge links. Returns { ok: true }. */
+export async function deleteInventoryItem(id) {
+  if (!id) throw itemNotFound();
+  return http.delete(`/admin/inventory/${segment(id)}`);
+}
+
 /** Check out everything an approved rental still needs. Returns { lines }. */
 export async function checkOutRental(ref) {
   if (!ref) throw rentalNotFound();

@@ -46,8 +46,6 @@ import {
 import RefundDialog, { refundRecordedText } from '../../components/RefundDialog.jsx';
 import { SectionBar } from '../../components/SectionTabs.jsx';
 
-// Filter tabs as [key, label]. "Refunds to Send" lists its own rows (listRefundsDue): cancelled bookings are not in the balances.
-// "QR Ph Codes" lists its own rows too (listQrPayments): every QR Ph code a customer opened, paid or not, as the record.
 const FILTERS = [
   ['all', 'All'],
   ['awaiting', 'Awaiting Verification'],
@@ -59,12 +57,6 @@ const FILTERS = [
   ['qr', 'QR Ph Codes']
 ];
 
-/**
- * The receipt the customer uploaded, in the verify panel: the photo itself (click it to open it full
- * size in a new tab) or, for a PDF, a button that opens it. The file is fetched with the admin's token
- * (paymentApi.proofUrl) and its address freed when the panel changes. The sample payments have no
- * file (only a name): they show the name on a placeholder instead.
- */
 function ProofPreview({ payment }) {
   const [proof, setProof] = useState({ url: null, kind: 'loading' });
   useEffect(() => {
@@ -86,7 +78,6 @@ function ProofPreview({ payment }) {
 
   const open = () => window.open(proof.url, '_blank', 'noopener');
   if (proof.kind === 'image') {
-    // A PDF can't show as an image: onError switches to the button
     return (
       <Box
         component="img"
@@ -142,10 +133,8 @@ function ProofPreview({ payment }) {
   );
 }
 
-/** Does a reservation belong in a filter tab? "awaiting" = has a proof to verify; the rest match the balance status. */
 const inFilter = (key, r) => (key === 'all' ? true : key === 'awaiting' ? r.awaitingCount > 0 : r.balanceState === key);
 
-// Why money is owed back, for the "Refunds to Send" rows (listRefundsDue's `why`)
 const REFUND_WHY = {
   customer: 'Cancelled by the customer',
   admin: 'Cancelled by the admin',
@@ -153,7 +142,6 @@ const REFUND_WHY = {
   overpaid: 'Overpaid'
 };
 
-/** The Details cell of a "QR Ph Codes" row: when it was paid (and its receipt), until when it is open, or how it ended. */
 function qrDetail(q) {
   const state = qrState(q);
   if (state === 'paid') return `Paid${q.paidAt ? ` ${formatDateTime(q.paidAt)}` : ''} · ${q.receiptNo}`;
@@ -163,19 +151,10 @@ function qrDetail(q) {
   return `Expired ${formatDateTime(q.expiresAt)}`;
 }
 
-/**
- * 1w · Payments tab of Reports: set the minimum downpayment, verify proofs, record receipts, chase
- * balances, record the refunds owed on cancelled or overpaid bookings ("Refunds to Send"), and look up
- * every QR Ph code customers opened ("QR Ph Codes": waiting, checking, paid, expired or failed; nothing
- * to verify, PayMongo confirms them). A booking whose customer has a QR Ph code open says "Waiting for
- * QR payment" under Standing.
- * Opens straight to a proof with ?verify=ID, or to a filter with ?filter=KEY. The page title and tabs come from ReportsPage.
- */
 export default function PaymentsSection() {
   const navigate = useNavigate();
   const notify = useNotify();
   const [params, setParams] = useSearchParams();
-  // Load every reservation with its total, amount paid, balance and payments, the bookings with money to return, and every QR Ph code
   const { data, loading, error, reload } = useResource(async () => {
     const [balances, refundsDue, qrs] = await Promise.all([
       paymentApi.listBalances(),
@@ -184,29 +163,24 @@ export default function PaymentsSection() {
     ]);
     return { balances, refundsDue, qrs };
   }, []);
-  // Open QR Ph codes turn to Checking payment when their time is up, and are settled after the grace
   useQrWatch(data ? data.qrs : [], reload);
-  // The minimum downpayment setting, read from the catalogue (this also refreshes catalogApi.minDownpayment())
   const setting = useResource(() => catalogApi.getCatalog(), []);
 
-  // Can start from ?filter= (dashboard link); an unknown value falls back to "All"
   const [filter, setFilter] = useState(() =>
     FILTERS.some(([key]) => key === params.get('filter')) ? params.get('filter') : 'all'
   );
   const [query, setQuery] = useState('');
-  const [verifyId, setVerifyId] = useState(params.get('verify')); // payment open in the verify panel
-  const [rejecting, setRejecting] = useState(false); // reject dialog open
+  const [verifyId, setVerifyId] = useState(params.get('verify'));
+  const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [receipt, setReceipt] = useState(null); // receipt shown in the document dialog
-  const [refunding, setRefunding] = useState(null); // "Refunds to Send" row whose refund is being recorded
+  const [receipt, setReceipt] = useState(null);
+  const [refunding, setRefunding] = useState(null);
 
-  // Open the verify panel when a notification link adds ?verify=ID to the URL
   useEffect(() => {
     const fromUrl = params.get('verify');
     if (fromUrl) setVerifyId(fromUrl);
   }, [params]);
 
-  // Bring the verification panel into view when it opens (it sits below the table on smaller screens)
   useEffect(() => {
     if (!verifyId || !data) return undefined;
     const timer = setTimeout(
@@ -219,15 +193,11 @@ export default function PaymentsSection() {
   const rows = data ? data.balances : [];
   const refundsDue = data ? data.refundsDue : [];
   const qrs = data ? data.qrs : [];
-  // Every payment from every reservation in one flat list
   const allPayments = rows.flatMap((r) => r.payments);
-  // The payment being verified and the reservation it belongs to
   const verifying = allPayments.find((p) => p.id === verifyId) || null;
   const verifyingRow = verifying ? rows.find((r) => r.ref === verifying.ref) : null;
 
-  // Summary card figures
   const now = new Date();
-  // Sum of payments verified during the current calendar month
   const collectedThisMonth = allPayments
     .filter(
       (p) =>
@@ -240,7 +210,6 @@ export default function PaymentsSection() {
   const awaitingCount = allPayments.filter((p) => p.status === 'awaiting').length;
   const overdueCount = rows.filter((r) => r.balanceState === 'overdue').length;
 
-  // Number of reservations in each filter tab ("Refunds to Send" and "QR Ph Codes" count their own lists)
   const counts = useMemo(
     () =>
       Object.fromEntries(
@@ -256,12 +225,10 @@ export default function PaymentsSection() {
     [rows, refundsDue, qrs]
   );
 
-  // The search box matches the REF, customer or event in either list
   const matches = (r) => {
     const q = query.trim().toLowerCase();
     return !q || [r.ref, r.customerName, r.eventName].some((v) => v.toLowerCase().includes(q));
   };
-  // Rows to show. Sort order: proofs to verify first, then overdue, then by event date.
   const visible = rows
     .filter((r) => inFilter(filter, r))
     .filter(matches)
@@ -271,12 +238,9 @@ export default function PaymentsSection() {
         (a.balanceState === 'overdue' ? -1 : 0) - (b.balanceState === 'overdue' ? -1 : 0) ||
         a.date.localeCompare(b.date)
     );
-  // "Refunds to Send" rows, oldest event date first (the order listRefundsDue gives)
   const visibleRefunds = refundsDue.filter(matches);
-  // "QR Ph Codes" rows, newest opened first (the order listQrPayments gives)
   const visibleQrs = qrs.filter(matches);
 
-  // Close the verify panel and remove ?verify= from the URL
   const closeVerify = () => {
     setVerifyId(null);
     if (params.get('verify')) {
@@ -286,7 +250,6 @@ export default function PaymentsSection() {
     }
   };
 
-  // Approve the payment proof: issues a receipt and updates the reservation status
   const markReceived = async () => {
     setBusy(true);
     try {
@@ -300,8 +263,6 @@ export default function PaymentsSection() {
     }
   };
 
-  // Send the customer a reminder about their unpaid balance: always in their chat, by email at most once
-  // every 12 hours per booking (the server says whether this one emailed)
   const remind = async (ref) => {
     try {
       const result = await paymentApi.sendPaymentReminder(ref);
@@ -315,7 +276,6 @@ export default function PaymentsSection() {
     }
   };
 
-  // Load the reservation and open the receipt for a verified payment
   const openReceipt = async (payment) => {
     try {
       const detail = await reservationApi.getReservation(payment.ref);
@@ -331,7 +291,6 @@ export default function PaymentsSection() {
       label: 'REF',
       render: (r) => <Typography sx={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.ref}</Typography>
     },
-    // card: 'title' — on phone cards the customer and event are the heading (REF becomes a field)
     {
       key: 'customer',
       label: 'Customer',
@@ -347,7 +306,6 @@ export default function PaymentsSection() {
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'paid', label: 'Paid', align: 'right', render: (r) => peso(r.paid) },
     { key: 'balance', label: 'Balance', align: 'right', render: (r) => <b>{peso(r.balance)}</b> },
-    // A proof to verify comes first; a QR Ph code the customer has open is said next (nothing to do, PayMongo confirms it)
     {
       key: 'state',
       label: 'Standing',
@@ -368,8 +326,6 @@ export default function PaymentsSection() {
       key: 'action',
       label: 'Action',
       align: 'right',
-      // Buttons depend on the row: View proof if one is waiting, Send reminder if money is owed,
-      // Receipt (the most recently verified one) if one exists
       render: (r) => {
         const awaiting = r.payments.find((p) => p.status === 'awaiting');
         const lastReceipt = r.payments
@@ -398,8 +354,6 @@ export default function PaymentsSection() {
     }
   ];
 
-  // "Refunds to Send": one row per booking with money to return. On a phone card the customer and event
-  // are the heading, the status chip sits top right, the amount to return is a field, and the button is at the bottom.
   const refundColumns = [
     {
       key: 'ref',
@@ -436,8 +390,6 @@ export default function PaymentsSection() {
     }
   ];
 
-  // "QR Ph Codes": one row per QR Ph code a customer opened, the record of each try. Nothing to act on
-  // (PayMongo confirms them): a click opens the booking. On a phone card the customer and event are the heading.
   const qrColumns = [
     {
       key: 'opened',
@@ -488,7 +440,6 @@ export default function PaymentsSection() {
         }}
       />
 
-      {/* Summary cards, two per row on phones and tablets */}
       <Box
         sx={{
           display: 'grid',
@@ -605,7 +556,6 @@ export default function PaymentsSection() {
           )}
         </DashCard>
 
-        {/* Verify panel: proof image, payment details, and Mark received / Reject buttons */}
         {verifying && verifyingRow && (
           <DashCard
             id="verify-panel"
@@ -625,7 +575,6 @@ export default function PaymentsSection() {
             >
               Verifying · {verifying.ref}
             </CardTitle>
-            {/* A bank transfer shows its receipt (the typed reference is below, to compare); a QR Ph payment and cash have none */}
             {verifying.proofName ? (
               <ProofPreview payment={verifying} />
             ) : verifying.method === 'qrph' ? (
@@ -686,7 +635,6 @@ export default function PaymentsSection() {
         tone="danger"
         reasonLabel="Reason shown to the customer"
         reasonPlaceholder="e.g. The reference number does not match any transaction on our account."
-        // Reject the payment with the typed reason; the customer is asked to pay again
         onConfirm={async (reason) => {
           await paymentApi.rejectPayment(verifying.id, reason);
           setRejecting(false);
@@ -708,19 +656,11 @@ export default function PaymentsSection() {
   );
 }
 
-/**
- * The minimum downpayment: the least a customer pays first to secure a date (they can pay more, up to
- * the full amount; a booking whose total is below it is paid in full). Built like the buffet price per
- * person on the Packages page: every booking copies the amount in force when it was made, so changing it
- * never changes an existing booking. `setting` is the page's catalogue resource (getCatalog), whose
- * answer carries the current amount.
- */
 function MinDownpaymentCard({ setting, onSaved }) {
   const current = setting.data ? setting.data.minDownpayment : null;
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // Follow the saved amount when it arrives or changes elsewhere
   useEffect(() => {
     if (current !== null) setValue(String(current));
   }, [current]);

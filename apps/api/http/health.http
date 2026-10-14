@@ -1,5 +1,3 @@
-# Phase 0 checks for the API skeleton (VS Code REST Client: click "Send Request" above a block).
-# Start the API first: npm run dev:api
 
 @api = http://localhost:4000/api
 

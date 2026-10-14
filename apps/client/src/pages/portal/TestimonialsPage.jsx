@@ -29,10 +29,6 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 
-/**
- * Where a review stands for the customer. The team's own working states (flagged, archived)
- * are not shown here: to the customer the review is either on the website or still with the team.
- */
 function websiteState(testimonial) {
   if (testimonial.archived || testimonial.flagged || testimonial.status !== 'published') {
     return { label: 'With the Tres Marias team', bg: tokens.surfaceMuted, fg: tokens.textSecondary };
@@ -41,13 +37,11 @@ function websiteState(testimonial) {
   return { label: 'Published on our website', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' };
 }
 
-/** My testimonials: reviews for completed events, and the events still waiting for one. */
 export default function TestimonialsPage() {
   useDocumentTitle('My Testimonials');
   const notify = useNotify();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  // Load the customer's reservations and the reviews they've written
   const { data, loading, error, reload } = useResource(async () => {
     const [reservations, testimonials] = await Promise.all([
       reservationApi.listReservations({ customerId: user.id }),
@@ -56,14 +50,12 @@ export default function TestimonialsPage() {
     return { reservations, testimonials };
   }, [user.id]);
 
-  const [writing, setWriting] = useState(null); // reservation being reviewed in the dialog
+  const [writing, setWriting] = useState(null);
 
-  // Completed events that don't have a review yet
   const reviewable = data
     ? data.reservations.filter((r) => r.status === 'completed' && !data.testimonials.some((t) => t.ref === r.ref))
     : [];
 
-  // Arriving from a reservation's "Write a testimonial" opens the form for it
   const refParam = params.get('ref');
   useEffect(() => {
     if (!data || !refParam) return;
@@ -153,7 +145,6 @@ export default function TestimonialsPage() {
                       <Typography sx={{ mt: 1, fontSize: 13.5, lineHeight: 1.6, color: tokens.textPrimary }}>
                         “{t.body}”
                       </Typography>
-                      {/* What they rated part by part */}
                       <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                         {FEEDBACK_CATEGORIES.filter(({ key }) => t.categories[key]).map(({ key, label }) => (
                           <Typography key={key} sx={{ fontSize: 12, color: tokens.textSecondary }}>
@@ -164,7 +155,6 @@ export default function TestimonialsPage() {
                       <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textMuted }}>
                         {t.eventName} · {formatDate(t.eventDate)}
                       </Typography>
-                      {/* The admin's answer, the same one sent to the customer's chat */}
                       {t.reply && (
                         <Box
                           sx={{
@@ -195,7 +185,6 @@ export default function TestimonialsPage() {
       <WriteDialog
         reservation={writing}
         onClose={() => setWriting(null)}
-        // Save the review for the selected reservation, close the dialog and thank the customer
         onSubmit={async (values) => {
           await feedbackApi.createFeedback(user.id, { ref: writing.ref, ...values });
           setWriting(null);
@@ -206,19 +195,16 @@ export default function TestimonialsPage() {
   );
 }
 
-// A blank category sheet: every part of the service starts unrated
 const noCategories = () => Object.fromEntries(FEEDBACK_CATEGORIES.map(({ key }) => [key, 0]));
 
-/** Dialog with the overall rating, a rating for each part of the service and the review text. */
 function WriteDialog({ reservation, onClose, onSubmit }) {
   const [rating, setRating] = useState(0);
   const [categories, setCategories] = useState(noCategories);
-  const [touched, setTouched] = useState([]); // categories the customer set themselves
+  const [touched, setTouched] = useState([]);
   const [body, setBody] = useState('');
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
-  // Start with a blank review each time the dialog opens
   useEffect(() => {
     if (reservation) {
       setRating(0);
@@ -229,8 +215,6 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
     }
   }, [reservation]);
 
-  // The overall rating fills in the parts the customer has not rated on their own, so the
-  // usual "everything went well" review is one click; changing a part keeps that choice.
   const chooseOverall = (value) => {
     const stars = value || 0;
     setRating(stars);
@@ -246,7 +230,6 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
     setErrors({});
   };
 
-  // Require an overall rating, a rating for every part and at least 20 characters, then submit
   const submit = async () => {
     const found = {};
     if (!rating) found.rating = 'Choose an overall rating.';
@@ -259,7 +242,6 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
     try {
       await onSubmit({ rating, categories, body });
     } catch (e) {
-      // Show the error under the field it refers to (the review box by default)
       setErrors({ [(e.meta && e.meta.field) || 'body']: e.message });
     } finally {
       setBusy(false);
@@ -303,8 +285,6 @@ function WriteDialog({ reservation, onClose, onSubmit }) {
         {FEEDBACK_CATEGORIES.map(({ key, label }) => (
           <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
             <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{label}</Typography>
-            {/* Each part is its own radio group, so MUI needs a name of its own.
-                Touch screens get bigger stars (26px instead of 18px) so the right one is easy to tap. */}
             <Rating
               name={`rating-${key}`}
               aria-label={label}

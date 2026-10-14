@@ -13,7 +13,6 @@ import LoginPage from './pages/public/LoginPage.jsx';
 import SignupPage from './pages/public/SignupPage.jsx';
 import LegalPage from './pages/public/LegalPage.jsx';
 
-// Portal pages load on demand so the public site stays light.
 const DashboardPage = lazy(() => import('./pages/portal/DashboardPage.jsx'));
 const ReservationsPage = lazy(() => import('./pages/portal/ReservationsPage.jsx'));
 const ReservationDetailPage = lazy(() => import('./pages/portal/ReservationDetailPage.jsx'));
@@ -62,7 +61,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/portal" replace />} />
         </Route>
 
-        {/* Keep the old registration link working. */}
         <Route path="/register" element={<Navigate to="/signup" replace />} />
         <Route path="*" element={<NotFoundPage homePath="/" homeLabel="Back to Tres Marias" />} />
       </Routes>

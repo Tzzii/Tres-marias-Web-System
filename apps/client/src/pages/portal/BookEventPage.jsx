@@ -77,10 +77,6 @@ import { useAuth } from '../../auth.js';
 import { clearDraft, clearIntent, readDraft, readIntent, saveDraft } from '../../lib/booking.js';
 import { cleanDraftReferencePhoto } from '@tm/shared/domain/referencePhoto.js';
 
-// Form sections as [key, title, short name], in page order. The short name labels the section chips
-// on phones and tablets. The menu section is skipped for Catering only.
-// An equipment rental has no package, theme and colours, menu or additional charges: it shows
-// "Items to Rent" instead, and its venue section becomes "Pick Up or Delivery".
 const SECTIONS = [
   ['details', 'Event Details', 'Event'],
   ['service', 'What You Are Booking', 'Service'],
@@ -93,7 +89,6 @@ const SECTIONS = [
   ['review', 'Review and Submit', 'Review']
 ];
 
-// Which section each field lives in (used to scroll to the first error)
 const FIELD_SECTION = {
   eventName: 'details',
   occasion: 'details',
@@ -113,10 +108,6 @@ const FIELD_SECTION = {
   city: 'venue'
 };
 
-/**
- * The section an error belongs to. Menu dishes, add-on quantities and rented items have one field per id,
- * and the theme and colours one per part ('styling.themeOther', 'styling.colors', 'styling.notes').
- */
 const sectionForField = (field) => {
   if (field.startsWith('menu.dessert.')) return 'addons';
   if (field.startsWith('menu.')) return 'food';
@@ -126,23 +117,13 @@ const sectionForField = (field) => {
   return FIELD_SECTION[field] || 'details';
 };
 
-// True for an additional charge that comes in sizes (the customer books its sizes, each by the piece) or,
-// for a charge with packages (`hasPackages`), in packages (the customer books one of them, once). Either
-// way the chosen ones are kept in addonQty: a size's count as typed, a picked package as '1'.
 const hasSizes = (addon) => Boolean(addon && addon.sizes && addon.sizes.length);
 
-// The lowest price among a charge's packages, for "From ₱3,500"; null when none has a price yet
 const lowestPackagePrice = (addon) => {
   const prices = addon.sizes.map((s) => s.price).filter((price) => price > 0);
   return prices.length ? Math.min(...prices) : null;
 };
 
-// Blank form values. `serviceType` starts empty, so nothing under "What You Are Booking" is picked
-// until the customer chooses it themselves.
-// `fulfilment` and `rentalQty` ({ itemId: how many, as typed }) are only used by an equipment rental, and
-// `endTime` only by an event (2 to 6 hours after the start; blank until the customer picks it).
-// `styling` is an event's theme, colour motif and design details (section 4, optional; domain/styling.js).
-// `occasionOther` is the "Your occasion" box shown for the occasion "Other" (saved as the occasion itself).
 const EMPTY_STYLING = { theme: '', themeOther: '', colors: [], notes: '' };
 const EMPTY = {
   eventName: '',
@@ -168,8 +149,6 @@ const EMPTY = {
   rentalQty: {}
 };
 
-// The form can be narrow even on a laptop with the sidebar and summary open.
-// Add columns only when the form itself has room for readable controls.
 const FORM_COLUMNS = {
   gridTemplateColumns: 'minmax(0, 1fr)',
   '@container booking-form (min-width: 560px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }
@@ -177,60 +156,25 @@ const FORM_COLUMNS = {
 const SUMMARY_LAYOUT = '@container portal-content (min-width: 980px)';
 const WIDE_LAYOUT = '@container portal-content (min-width: 1280px)';
 
-// A draft's styling in the form's shape: a draft saved before the section existed, or one changed by hand
-// in the browser, still loads (only known themes, real colour codes and text are kept, by cleanStyling)
 const draftStyling = (value) => ({ ...EMPTY_STYLING, ...(cleanStyling(value) || {}) });
 
-// "balloons", "balloons and stage", "balloons, stage and tent"
 const wordList = (words) =>
   words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : words[0];
 
-// Date error while the availability map is still on its way from the API (the date cannot be checked yet)
 const DATES_LOADING = 'The available dates are still loading. Please try again in a moment.';
 
-// Colour and words of a rental item's availability on the chosen date, from how many pieces are left
 const AVAILABILITY = {
   available: { label: (left) => `${left} available`, color: '#047857' },
   limited: { label: (left) => `Only ${left} left`, color: '#b45309' },
   out: { label: () => 'None left on this date', color: '#b91c1c' }
 };
 
-/**
- * 1f / 1o · Reservation form: one long page, sections on the left, live summary on the right.
- *
- * The customer first says what they are booking - a Buffet (our food, four dishes, with up to two in each
- * category, charged per person) or Catering only (the package's equipment on its own).
- * A buffet has a fixed price per person, so the running total on this page is a real figure, not
- * a placeholder; only the additional charges are still priced by the admin in the quotation.
- *
- * A package covers its default guest count. Once a package is picked and the guest count is above it
- * (the owner's rule, 2026-10-09; domain/packageItems.js), "includes" grows with the guests: plates,
- * glasses, cutlery, chairs and tables go up (200 -> 600), and the other counted items (food warmers,
- * pitchers, helpers) say "to confirm". The equipment for the extra guests shows as "To be quoted" in the
- * summary, so the total reads "₱20,000 + quoted": the admin prices it, and sets those counts, in the quotation.
- *
- * The third choice, Equipment rental, books the Equipment Rental package: the customer types how
- * many of each rentable item they need, sees each item's availability on their date, and chooses
- * pick up (free) or delivery (standard fee). Every price is known, so its total is exact.
- *
- * The occasion "Other" opens a "Your occasion" box (2 to 40 characters); the booking saves those words as
- * its occasion ("Baby Shower"), so every page shows the real one (bookingOccasion in the shared config).
- *
- * An event has a start and an end time (2 to 6 hours, maybe past midnight); a rental only the time the
- * items are picked up or delivered. Before sending, the customer ticks "I agree to the Terms of Service",
- * which is not kept in the draft: it is asked again for every request.
- *
- * After the package, an event (not a rental) has "Theme and Colors": an optional theme (the ones popular
- * for the occasion first, "Other" with a text box, or "Not decided yet"), up to five colours from the colour
- * family shade buttons or the metallic buttons, and design details. It never changes the price.
- */
 export default function BookEventPage() {
   useDocumentTitle('Book an Event');
   const navigate = useNavigate();
   const notify = useNotify();
   const { user } = useAuth();
   const [params] = useSearchParams();
-  // Packages and additional charges. live: false = don't reload while the customer is filling the form.
   const catalog = useResource(() => catalogApi.getCatalog(), [], { live: false });
 
   const [form, setForm] = useState(EMPTY);
@@ -238,20 +182,16 @@ export default function BookEventPage() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [agreed, setAgreed] = useState(false); // "I agree to the Terms of Service" (never saved in the draft)
-  const [savedAt, setSavedAt] = useState(null); // time of the last draft autosave
+  const [agreed, setAgreed] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
   const [draftSaveFailed, setDraftSaveFailed] = useState(false);
-  const [active, setActive] = useState('details'); // section currently on screen
-  const chipBar = useRef(null); // phone / tablet row of section chips
-  const touched = useRef(false); // true once the customer changes something (don't autosave before that)
-  const initialised = useRef(false); // true once the form has been pre-filled
-  const occasionBox = useRef(null); // the "Your occasion" box of "Other"
-  const justPickedOther = useRef(false); // focus that box only when "Other" was just chosen, never on load
+  const [active, setActive] = useState('details');
+  const chipBar = useRef(null);
+  const touched = useRef(false);
+  const initialised = useRef(false);
+  const occasionBox = useRef(null);
+  const justPickedOther = useRef(false);
 
-  // Start from the saved draft and/or what was picked while browsing (package, date, start time,
-  // guests, occasion). Picks made after the draft was saved (e.g. "Reserve this date" on another
-  // package) win over the draft's values; the draft's other fields (food, venue, …) are kept.
-  // ?package= / ?date= in the URL win over both.
   useEffect(() => {
     if (!catalog.data || initialised.current) return;
     initialised.current = true;
@@ -260,7 +200,6 @@ export default function BookEventPage() {
     const intent = readIntent();
     const intentIsNewer = Boolean(intent && (!hasDraft || !draft.savedAt || intent.savedAt > draft.savedAt));
 
-    // Only known fields are kept, so a draft saved before the form changed still loads
     const base = hasDraft
       ? { ...EMPTY, ...Object.fromEntries(Object.entries(draft.form).filter(([key]) => key in EMPTY)) }
       : { ...EMPTY };
@@ -268,8 +207,6 @@ export default function BookEventPage() {
     base.referencePhoto = cleanDraftReferencePhoto(base.referencePhoto);
     const picks = intentIsNewer ? intent : {};
     const pkg = catalog.data.packages.find((p) => p.slug === (params.get('package') || picks.packageSlug));
-    // Picking the Equipment Rental package makes the booking a rental; any other package leaves a rental
-    // and clears the choice, so the customer picks Buffet or Catering only again
     const serviceFor =
       pkg && isRentalPackage(pkg)
         ? { serviceType: RENTAL_SERVICE }
@@ -278,7 +215,6 @@ export default function BookEventPage() {
           : {};
     setForm({
       ...base,
-      // An occasion picked while browsing replaces the draft's; the draft's own words stay only with "Other"
       ...(picks.occasion
         ? { occasion: picks.occasion, ...(picks.occasion === OCCASION_OTHER ? {} : { occasionOther: '' }) }
         : {}),
@@ -291,13 +227,11 @@ export default function BookEventPage() {
     if (hasDraft) setSavedAt(draft.savedAt);
   }, [catalog.data, user.id, params]);
 
-  // Put the cursor in "Your occasion" right after "Other" is chosen
   useEffect(() => {
     if (form.occasion === OCCASION_OTHER && justPickedOther.current && occasionBox.current) occasionBox.current.focus();
     justPickedOther.current = false;
   }, [form.occasion]);
 
-  // Autosave the draft shortly after each change
   useEffect(() => {
     if (!touched.current) return undefined;
     const timer = setTimeout(() => {
@@ -308,10 +242,8 @@ export default function BookEventPage() {
     return () => clearTimeout(timer);
   }, [form, user.id]);
 
-  // Highlight the section in view
   useEffect(() => {
     if (!catalog.data) return undefined;
-    // IntersectionObserver tells us which sections are visible; the top-most visible one is marked active
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
@@ -326,12 +258,8 @@ export default function BookEventPage() {
       if (el) observer.observe(el);
     });
     return () => observer.disconnect();
-    // Re-run when the booking type changes (the menu, package, items and additional charges sections
-    // appear or disappear), so the new set of sections is watched
   }, [catalog.data, form.serviceType]);
 
-  // Phones / tablets: slide the chip row sideways so the chip of the section in view sits in the middle,
-  // instead of staying hidden off the edge of the screen
   useEffect(() => {
     const bar = chipBar.current;
     const chip = bar && bar.querySelector(`[data-section="${active}"]`);
@@ -340,30 +268,20 @@ export default function BookEventPage() {
   }, [active]);
 
   const data = catalog.data;
-  // The chosen package object
   const pkg = data ? data.packages.find((p) => p.id === form.packageId) : null;
-  // The Equipment Rental package, when the admin shows it; the rental choice only appears if it exists
   const rentalPkg = data ? data.packages.find(isRentalPackage) || null : null;
-  // The ordinary packages for the package cards (the rental one is chosen under "What You Are Booking")
   const packages = data ? data.packages.filter((p) => !isRentalPackage(p)) : [];
-  // True when this booking is an equipment rental
   const rental = isRental(form.serviceType);
-  // True when the booking includes our food, and so a menu and a per-person charge
   const buffet = includesFood(form.serviceType);
-  // Every additional charge, size and package by id. A charge with sizes stays ticked in addonIds while the
-  // customer fills in its sizes, but only the sizes given a count are booked, never the charge itself; a
-  // charge with packages likewise books only the package picked.
   const addonById = data ? Object.fromEntries(flattenAddons(data.addons).map((a) => [a.id, a])) : {};
   const bookedAddonIds = rental
     ? []
     : form.addonIds.flatMap((id) => {
         const a = addonById[id];
-        if (!a) return []; // archived since the draft was saved
+        if (!a) return [];
         return hasSizes(a) ? a.sizes.filter((s) => Number(form.addonQty[s.id]) > 0).map((s) => s.id) : [id];
       });
-  // The additional charges booked, a size named in full ("Tent 10 × 10"); a rental has none
   const chosenAddons = bookedAddonIds.map((id) => addonById[id]);
-  // The items a rental asks for, with today's price per piece: [{ itemId, name, qty, price }]
   const rentalChosen =
     data && rental
       ? data.rentals
@@ -371,13 +289,8 @@ export default function BookEventPage() {
           .map((i) => ({ itemId: i.id, name: i.name, qty: Number(form.rentalQty[i.id]), price: i.price }))
       : [];
   const delivered = rental && form.fulfilment === 'delivery';
-  // The theme, colours and design details as they will be sent (cleaned, each colour named from its code),
-  // or null when the section is left blank; a rental has none
   const styling = rental ? null : cleanStyling(form.styling);
-  // Decorations the design details mention that are additional charges not ticked yet ("You mentioned balloons…")
   const reminders = data && !rental ? decorReminders(form.styling.notes, data.addons, form.addonIds) : [];
-  // The running total, worked out exactly as the admin's quotation will be. An additional charge with
-  // its own price is counted at it; one without a price comes out as 0 here and shows "To be quoted".
   const quote = computeQuote({
     pkg,
     serviceType: form.serviceType,
@@ -389,23 +302,16 @@ export default function BookEventPage() {
     addonQty: form.addonQty,
     addonPrices: addonPriceMap(chosenAddons)
   });
-  // What is known now: the package, the food for a buffet, and the additional charges that have their
-  // own price; the others are quoted later. A rental is fully priced already: its items plus the delivery fee.
   const knownTotal = quote.net;
-  // The package's items for this guest count (grown above its default, some to confirm); an event only
   const packageItems = pkg && !rental ? packageItemsFor(pkg, Number(form.guests) || 0) : [];
-  // Guests above the package's default: their equipment is priced in the quotation, so the total is "+ quoted"
   const extraGuests = rental ? 0 : quote.extraGuests;
   const extraNote = extraGuests ? ` + equipment for ${extraGuests} extra guests (to be quoted)` : '';
   const plusQuoted = extraGuests ? ' + quoted' : '';
-  // The ticked charges' total that is already known, and a reminder when some are still to be quoted
   const addonNote = quote.addons ? ` + additional charges ${peso(quote.addons)}` : '';
   const quotedNote = chosenAddons.some((a) => !a.price)
     ? ' Charges marked "To be quoted" are priced in your quotation.'
     : '';
 
-  // How many of each item are free on the chosen date, { itemId: { left, status } }: a rental's items,
-  // and the items additional charges book (a tent size), so the form can say how many are left
   const tracksStock = Boolean(data) && flattenAddons(data.addons).some((a) => a.inventoryItemId);
   const [avail, setAvail] = useState({});
   useEffect(() => {
@@ -413,7 +319,7 @@ export default function BookEventPage() {
       setAvail({});
       return undefined;
     }
-    let live = true; // ignore an answer that arrives after the date changed again
+    let live = true;
     reservationApi
       .getRentalAvailability(form.date)
       .then((next) => live && setAvail(next))
@@ -422,12 +328,8 @@ export default function BookEventPage() {
       live = false;
     };
   }, [rental, tracksStock, form.date]);
-  // Pieces still free on the chosen date for a stock-tracked charge or size (a tent size); null when it
-  // isn't tracked, or before a date is chosen and its count has arrived
   const leftFor = (a) =>
     a.inventoryItemId && form.date && avail[a.inventoryItemId] ? avail[a.inventoryItemId].left : null;
-  // A rental line asking for more pieces than are free on the chosen date: said at once, while typing (and
-  // again by submit and by the server), short enough for the narrow box; '' when it fits or the counts haven't arrived
   const stockError = (itemId) => {
     const free = avail[itemId];
     const qty = Number(form.rentalQty[itemId]) || 0;
@@ -435,7 +337,6 @@ export default function BookEventPage() {
     return free.left ? `Only ${free.left} available` : 'None available';
   };
 
-  // Change one or more fields, mark the form as touched, and clear those fields' errors
   const update = (patch) => {
     touched.current = true;
     setForm((f) => ({ ...f, ...patch }));
@@ -446,14 +347,11 @@ export default function BookEventPage() {
     });
   };
 
-  // Choose the occasion. Leaving "Other" empties its box; choosing it puts the cursor there (see the effect above).
   const pickOccasion = (value) => {
     justPickedOther.current = value === OCCASION_OTHER;
     update({ occasion: value, ...(value === OCCASION_OTHER ? {} : { occasionOther: '' }) });
   };
 
-  // Change the theme, the colours or the design details (section 4), and clear those parts' messages;
-  // a new theme also clears the message under the "Other" box
   const updateStyling = (patch) => {
     touched.current = true;
     setForm((f) => ({ ...f, styling: { ...f.styling, ...patch } }));
@@ -474,17 +372,14 @@ export default function BookEventPage() {
     });
   };
 
-  // Buffet, Catering only or Equipment rental. A rental books the Equipment Rental package; leaving
-  // it clears that package so the customer picks a real one.
   const chooseService = (value) => {
     if (isRental(value)) update({ serviceType: value, packageId: rentalPkg.id });
     else update({ serviceType: value, packageId: pkg && isRentalPackage(pkg) ? '' : form.packageId });
   };
 
-  // How many of a rental item: digits only, never above the most one line can ask for
   const updateRentalQty = (id, raw) => {
     const digits = raw.replace(/\D/g, '');
-    if (digits && Number(digits) > RENTAL.maxQty) return; // typing past the cap is ignored
+    if (digits && Number(digits) > RENTAL.maxQty) return;
     update({ rentalQty: { ...form.rentalQty, [id]: digits } });
     setErrors((e) => {
       const next = { ...e };
@@ -494,18 +389,12 @@ export default function BookEventPage() {
     });
   };
 
-  // Guest count: digits only, and never above the largest count the venue takes
   const updateGuests = (raw) => {
     const digits = raw.replace(/\D/g, '');
-    if (digits && Number(digits) > RULES.maxGuests) return; // typing past the cap is ignored
+    if (digits && Number(digits) > RULES.maxGuests) return;
     update({ guests: digits });
   };
 
-  // Add or remove an additional charge. One counted by the piece starts at 1 when it is ticked
-  // and drops its count when it is unticked, so an untouched charge never keeps an old number.
-  // A charge with sizes starts with every size blank (the customer types how many of the sizes they
-  // want) and drops all of its sizes' counts when it is unticked; a charge with packages likewise starts
-  // with no package picked and drops its pick when it is unticked.
   const toggleAddon = (id) => {
     const charge = addonById[id];
     const on = form.addonIds.includes(id);
@@ -517,8 +406,6 @@ export default function BookEventPage() {
     update({ addonIds: on ? form.addonIds.filter((a) => a !== id) : [...form.addonIds, id], addonQty: qty });
   };
 
-  // How many of a by-the-piece charge or of one size: digits only, at most two (1-99). A size's
-  // count also clears its charge's "at least one size" message.
   const updateAddonQty = (id, raw) => {
     const digits = raw.replace(/\D/g, '').slice(0, 2);
     update({ addonQty: { ...form.addonQty, [id]: digits } });
@@ -531,9 +418,6 @@ export default function BookEventPage() {
     });
   };
 
-  // Pick one package of a ticked charge with packages: it is booked once ('1'), and the charge's other
-  // packages are dropped, so a booking never carries two of them (the server refuses that too). Clears
-  // the charge's "Choose one of the packages" message and any package's own message.
   const pickPackage = (charge, id) => {
     const qty = { ...form.addonQty };
     charge.sizes.forEach((s) => delete qty[s.id]);
@@ -547,8 +431,6 @@ export default function BookEventPage() {
     });
   };
 
-  // Write the menu line for one category: a dish picked from the list, or under "Others" the customer's
-  // own words, which may name more than one dish, e.g. "Lechon kawali and pork barbecue" (MenuPicker).
   const setDish = (category, text) => {
     update({ menu: { ...form.menu, [category]: text } });
     setErrors((e) => {
@@ -563,17 +445,14 @@ export default function BookEventPage() {
     });
   };
 
-  // Smooth-scroll to a form section
   const scrollTo = (key) => {
     const el = document.getElementById(`sec-${key}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // Check every required field and return error messages by field name
   const validate = () => {
     const e = {};
     if (form.eventName.trim().length < 3) e.eventName = 'Give your event a name (at least 3 characters).';
-    // An occasion from the list, or for "Other" the customer's own words (the server checks the same)
     const occasionCheck = bookingOccasion(form.occasion, form.occasionOther).problem;
     if (occasionCheck) e[occasionCheck.field] = occasionCheck.message;
     if (!agreed) e.agreeTerms = 'Please read and agree to the Terms of Service before sending your request.';
@@ -581,17 +460,14 @@ export default function BookEventPage() {
     if (!form.date) e.date = 'Choose your event date.';
     else if (calendarApi.availabilitySnapshot().loading) e.date = DATES_LOADING;
     else {
-      // Re-check the date in case it was blocked or filled up since it was picked
       const reason = calendarApi.dateUnavailableReason(form.date, calendarApi.availabilitySnapshot());
       if (reason) e.date = `This date is not available (${reason.toLowerCase()}).`;
     }
     if (!form.startTime) e.startTime = 'Choose a start time.';
     else if (form.date && !e.date) {
-      // Same check as the server: on the hour or half hour, within hours, and not clashing with another event that day
       const reason = calendarApi.timeUnavailableReason(form.date, form.startTime, calendarApi.availabilitySnapshot());
       if (reason) e.startTime = `${reason}.`;
     }
-    // The end: 2 to 6 hours after the start, and the event may not run into the next one that day
     if (!form.endTime) e.endTime = 'Choose an end time.';
     else if (endTimeProblem(form.startTime, form.endTime))
       e.endTime = `${endTimeProblem(form.startTime, form.endTime)}.`;
@@ -610,12 +486,10 @@ export default function BookEventPage() {
       e.guests = `Between ${RULES.minGuests} and ${RULES.maxGuests} guests.`;
     if (!SERVICE_TYPES.includes(form.serviceType)) e.serviceType = 'Choose what you are booking.';
     if (!pkg) e.packageId = 'Choose a package.';
-    // The theme and colours are optional; only "Other" with nothing typed, or text that is too long, is wrong
     const stylingCheck = stylingProblem(styling);
     if (stylingCheck) e[stylingCheck.field] = stylingCheck.message;
     const menuCheck = menuProblem(form.menu, { buffet, dessert: bookedAddonIds.includes(DESSERT_ADDON_ID) });
     if (menuCheck) e[menuCheck.field] = menuCheck.message;
-    // A ticked charge with sizes needs a count for at least one size, and one with packages a package
     form.addonIds.forEach((id) => {
       const charge = addonById[id];
       if (hasSizes(charge) && !charge.sizes.some((s) => Number(form.addonQty[s.id]) > 0)) {
@@ -624,13 +498,11 @@ export default function BookEventPage() {
           : 'Enter how many for at least one size.';
       }
     });
-    // Every by-the-piece charge that was ticked needs a count
     chosenAddons.forEach((a) => {
       if (!a.hasQuantity) return;
       const many = Number(form.addonQty[a.id]);
       if (!Number.isInteger(many) || many < 1 || many > 99) e[`addonQty.${a.id}`] = 'Enter 1 to 99.';
     });
-    // A stock-tracked charge (a tent size) can't ask for more than are free on the date (the server checks again)
     chosenAddons.forEach((a) => {
       const left = leftFor(a);
       const many = a.hasQuantity ? Number(form.addonQty[a.id]) : 1;
@@ -643,8 +515,6 @@ export default function BookEventPage() {
     return e;
   };
 
-  // The rental part of validate(): an open date, a pick-up or delivery time, at least one item with
-  // no more than is free that day, and an address when it is delivered
   const validateRental = () => {
     const e = {};
     if (!form.date) e.date = 'Choose the date you need the items.';
@@ -655,7 +525,6 @@ export default function BookEventPage() {
     }
     if (!form.startTime) e.startTime = 'Choose a time.';
     else {
-      // A rental never clashes with events, so only the hours and the half-hour steps are checked
       const reason = calendarApi.timeUnavailableReason(form.date, form.startTime, {
         ...calendarApi.availabilitySnapshot(),
         events: []
@@ -676,8 +545,6 @@ export default function BookEventPage() {
     return e;
   };
 
-  // Validate; if there are errors, scroll to the first one. Otherwise create the reservation,
-  // clear the draft and saved picks, and go back to the dashboard.
   const submit = async () => {
     if (busy || photoBusy) return;
     const found = validate();
@@ -697,10 +564,6 @@ export default function BookEventPage() {
     }
     setBusy(true);
     try {
-      // Catering only carries no menu, and only by-the-piece charges carry a count. A charge with
-      // sizes is sent as the sizes given a count, and one with packages as the package picked. The theme
-      // and colours go cleaned (null when left blank). A rental sends the items it asks for instead, and
-      // no theme or colours.
       const created = await reservationApi.createReservation(
         user.id,
         rental
@@ -736,7 +599,6 @@ export default function BookEventPage() {
     }
   };
 
-  // Save the draft now and leave the form
   const saveAndExit = () => {
     if (!saveDraft(user.id, form)) {
       notify(
@@ -749,7 +611,6 @@ export default function BookEventPage() {
     navigate('/portal');
   };
 
-  // "Start over": delete the draft and saved picks, empty the form, and reload the catalog to pre-fill again
   const discard = () => {
     clearDraft(user.id);
     clearIntent();
@@ -770,13 +631,8 @@ export default function BookEventPage() {
       </DashCard>
     );
 
-  // Does any field in this section have an error? (turns its nav link red)
   const sectionHasError = (key) => Object.keys(errors).some((f) => sectionForField(f) === key);
-  // Every category has its dish (a Catering only booking has no menu to fill in)
   const menuComplete = !menuProblem(form.menu);
-  // Which sections are complete (shows a green tick in the section nav).
-  // Additional charges and the theme and colours are optional, so those sections are ticked only once
-  // something is chosen (and, for the theme, nothing in it is wrong).
   const sectionDone = {
     details:
       form.eventName &&
@@ -793,8 +649,6 @@ export default function BookEventPage() {
     addons: chosenAddons.length > 0,
     review: false
   };
-  // The menu section is hidden for Catering only, so it drops out of the nav and the numbering.
-  // A rental shows its items instead of the package, theme and colours, menu and additional charges.
   const sections = SECTIONS.filter(([key]) =>
     rental ? !['package', 'styling', 'food', 'addons'].includes(key) : key !== 'items' && (key !== 'food' || buffet)
   ).map(([key, label, short]) => [
@@ -802,7 +656,6 @@ export default function BookEventPage() {
     rental && key === 'venue' ? 'Pick Up or Delivery' : label,
     rental && key === 'venue' ? 'Pick-up / delivery' : short
   ]);
-  // A section's number on the page, which shifts when the menu section is hidden
   const sectionNo = (key) => sections.findIndex(([k]) => k === key) + 1;
 
   return (
@@ -843,8 +696,6 @@ export default function BookEventPage() {
         </AlertBanner>
       )}
 
-      {/* Phone / tablet: section chips (1o), labelled with each section's short name.
-          A finished section shows a tick instead of its number, like the desktop list. */}
       <Box
         ref={chipBar}
         className="tm-scroll"
@@ -913,7 +764,6 @@ export default function BookEventPage() {
             pb: '140px'
           }}
         >
-          {/* ============ Left: on this page ============ */}
           <Box
             component="nav"
             aria-label="Form sections"
@@ -960,7 +810,6 @@ export default function BookEventPage() {
             ))}
           </Box>
 
-          {/* ============ Middle: the form ============ */}
           <Box
             sx={{
               display: 'flex',
@@ -1004,7 +853,6 @@ export default function BookEventPage() {
                   error={errors.occasion}
                   sx={{ gridColumn: { sm: '1 / -1' } }}
                 />
-                {/* "Other": the customer names the occasion, and the booking saves their words as its occasion */}
                 {form.occasion === OCCASION_OTHER && (
                   <FormField
                     ref={occasionBox}
@@ -1019,9 +867,7 @@ export default function BookEventPage() {
                     sx={{ gridColumn: { sm: '1 / -1' } }}
                   />
                 )}
-                {/* Calendar always open across the full row; tapping a date picks it and lists the times already booked */}
                 <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
-                  {/* A rental takes no event slot, so only too-soon and blocked days are greyed out */}
                   <DateField
                     id="f-date"
                     label={rental ? 'Date you need the items' : 'Event date'}
@@ -1033,7 +879,6 @@ export default function BookEventPage() {
                     error={errors.date}
                   />
                 </Box>
-                {/* Moving the start keeps the event's length, so a chosen end time never stops fitting */}
                 <TimeField
                   id="f-startTime"
                   label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start time'}
@@ -1050,7 +895,6 @@ export default function BookEventPage() {
                   max={RULES.latestStart}
                   step={30}
                 />
-                {/* An event's end, 2 to 6 hours after the start (past midnight allowed); a rental has none */}
                 {!rental && (
                   <EndTimeField
                     id="f-endTime"
@@ -1062,8 +906,6 @@ export default function BookEventPage() {
                     hint={`Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`}
                   />
                 )}
-                {/* A rental has no guest count: the customer says how many of each item instead. Above the
-                    package's default, the hint says the package grows and the extra guests are quoted. */}
                 {!rental && (
                   <FormField
                     id="f-guests"
@@ -1083,8 +925,6 @@ export default function BookEventPage() {
               </Box>
             </Section>
 
-            {/* Asked before the package, because it decides whether there is a menu to fill in and
-                how the price is worked out. Every package can be booked either way. */}
             <Section
               id="service"
               index={sectionNo('service')}
@@ -1104,7 +944,6 @@ export default function BookEventPage() {
                     'Equipment and setup only',
                     'Tables, chairs, linens, food warmers and tableware. You provide the food, and there is no per-person charge.'
                   ],
-                  // Only while the admin shows the Equipment Rental package
                   ...(rentalPkg
                     ? [
                         [
@@ -1153,7 +992,6 @@ export default function BookEventPage() {
                   );
                 })}
               </Box>
-              {/* Our buffet is served plated, which customers often ask about before booking */}
               {buffet && (
                 <AlertBanner tone="info" sx={{ mt: 2 }}>
                   Our buffet is served plated by our team. The {peso(data.pricePerPlate)} per person covers the four
@@ -1216,9 +1054,6 @@ export default function BookEventPage() {
                     );
                   })}
                 </Box>
-                {/* What the chosen package includes for the guest count, and how it is booked once "What You Are
-                  Booking" is picked. Above the package's default, the grown counts are in bold and the items
-                  the quotation confirms say "(to confirm)". */}
                 {pkg && (
                   <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                     <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
@@ -1263,9 +1098,6 @@ export default function BookEventPage() {
               </Section>
             )}
 
-            {/* The look of the event (optional): a theme (the ones popular for the chosen occasion first), up to
-                five colours and the design details. It never changes the price; decorations the details mention
-                that are additional charges get a gentle reminder. A rental has none. */}
             {!rental && (
               <Section
                 id="styling"
@@ -1305,8 +1137,6 @@ export default function BookEventPage() {
               </Section>
             )}
 
-            {/* Equipment rental: how many of each item, grouped like the inventory, with each item's
-                availability on the chosen date */}
             {rental && (
               <Section
                 id="items"
@@ -1332,7 +1162,6 @@ export default function BookEventPage() {
                           .map((item) => {
                             const qty = form.rentalQty[item.id] || '';
                             const on = Number(qty) > 0;
-                            // How many are free on the chosen date, and a message as soon as the number typed is more
                             const free = avail[item.id] && AVAILABILITY[avail[item.id].status];
                             const left = avail[item.id] ? avail[item.id].left : null;
                             const tooMany = stockError(item.id);
@@ -1369,7 +1198,6 @@ export default function BookEventPage() {
                                     <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
                                       Damage fee {peso(item.damageFee)} per piece
                                     </Typography>
-                                    {/* "18 available" on the chosen date; before a date is picked there is nothing to count yet */}
                                     <Typography
                                       sx={{
                                         fontSize: 12,
@@ -1391,7 +1219,6 @@ export default function BookEventPage() {
                                   onChange={(e) => updateRentalQty(item.id, e.target.value)}
                                   error={errors[`rental.${item.id}`] || tooMany}
                                   placeholder="0"
-                                  // None left that day: nothing can be asked for (a number typed before the date changed can still be cleared)
                                   disabled={left === 0 && !qty}
                                   inputProps={{
                                     inputMode: 'numeric',
@@ -1412,7 +1239,6 @@ export default function BookEventPage() {
               </Section>
             )}
 
-            {/* Only for a buffet: four dishes in any allowed combination, plus included drinks */}
             {buffet && (
               <Section
                 id="food"
@@ -1420,7 +1246,6 @@ export default function BookEventPage() {
                 title="Your Menu"
                 subtitle={`Pick exactly 4 dishes, with up to 2 from any category, or add your own dish. ${peso(data.pricePerPlate)} per person covers all of it.`}
               >
-                {/* The admin's dishes as individual choices, with boxes for custom dishes */}
                 <MenuPicker
                   idPrefix="f-dish"
                   menu={form.menu}
@@ -1433,7 +1258,6 @@ export default function BookEventPage() {
                   For a dish not on the list, use Add other dish and enter one dish per box. Dessert is selected
                   separately under Additional Charges.
                 </AlertBanner>
-                {/* Fixed for every buffet, so it is shown rather than asked */}
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.25 }}>Drinks</Typography>
                   <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
@@ -1512,7 +1336,6 @@ export default function BookEventPage() {
                     );
                   })}
                 </Box>
-                {/* Where to deliver: the same fields as an event venue */}
                 {delivered && (
                   <Box sx={{ mt: 2, display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
                     <FormField
@@ -1610,7 +1433,6 @@ export default function BookEventPage() {
                 title="Additional Charges"
                 subtitle="Optional. Tick what you need. A charge marked Quoted is priced in your quotation."
               >
-                {/* The charges customers tick, then the charges with packages, where a ticked charge asks for one package */}
                 {[
                   { key: 'plain', list: data.addons.filter((a) => !a.hasPackages) },
                   {
@@ -1631,7 +1453,6 @@ export default function BookEventPage() {
                           <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{group.hint}</Typography>
                         </Box>
                       )}
-                      {/* A charge with packages lists them with what each includes, so it takes the full width */}
                       <Box
                         sx={{
                           display: 'grid',
@@ -1679,8 +1500,6 @@ export default function BookEventPage() {
                               <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
                                   <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{a.name}</Typography>
-                                  {/* Its own price (of one, when counted by the piece), "Quoted" when the admin prices it per event,
-                                    "By size" when each size has its own price, or the cheapest package ("From ₱3,500") */}
                                   <Typography
                                     sx={{
                                       fontSize: 12,
@@ -1715,7 +1534,6 @@ export default function BookEventPage() {
                                     />
                                   </Box>
                                 )}
-                                {/* Charges counted by the piece ask how many; the price is that of one */}
                                 {a.hasQuantity && on && (
                                   <FormField
                                     id={`f-qty-${a.id}`}
@@ -1731,8 +1549,6 @@ export default function BookEventPage() {
                                     sx={{ mt: 1, maxWidth: 150 }}
                                   />
                                 )}
-                                {/* A charge with sizes: how many of each size, blank for a size not wanted. A click on the
-                                  rows (other than in a box) must not untick the charge, which the card's label would do. */}
                                 {sized && on && (
                                   <Box
                                     onClick={(e) => e.stopPropagation()}
@@ -1760,7 +1576,6 @@ export default function BookEventPage() {
                                             >
                                               {s.price ? `${peso(s.price)} each` : 'Quoted'}
                                             </Typography>
-                                            {/* How many are still free on the chosen date, for a size that books from the inventory */}
                                             {left !== null && (
                                               <Typography
                                                 sx={{
@@ -1797,8 +1612,6 @@ export default function BookEventPage() {
                                     )}
                                   </Box>
                                 )}
-                                {/* A charge with packages: pick one, each with its price and what it includes. A click here
-                                  must not untick the charge, which the card's label would do, so the label's action is cancelled. */}
                                 {packaged && on && (
                                   <Box
                                     role="radiogroup"
@@ -1855,7 +1668,6 @@ export default function BookEventPage() {
                                               {s.price ? peso(s.price) : 'Quoted'}
                                             </Typography>
                                           </Box>
-                                          {/* What it includes, one line each as the admin wrote them */}
                                           {s.description
                                             .split('\n')
                                             .map((line) => line.trim())
@@ -1877,7 +1689,6 @@ export default function BookEventPage() {
                                                 {line}
                                               </Typography>
                                             ))}
-                                          {/* How many are still free on the chosen date, for a package that books from the inventory */}
                                           {left !== null && (
                                             <Typography
                                               component="span"
@@ -1939,7 +1750,6 @@ export default function BookEventPage() {
                   addonQty={form.addonQty}
                 />
               )}
-              {/* The look chosen in section 4, as the quotation and contract will print it */}
               {!rental && (!stylingEmpty(styling) || form.referencePhoto) && (
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
                   <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Theme and Colors</Typography>
@@ -1951,7 +1761,6 @@ export default function BookEventPage() {
                   ? 'This is a request, not a confirmed rental. We check the items and send your quotation within 24 hours; accepting it approves your rental.'
                   : `This is a request, not a confirmed booking. We review it and send your quotation with the additional charges${extraGuests ? ` and the equipment for your ${extraGuests} extra guests` : ''} priced within 24 hours; accepting it approves your reservation.`}
               </AlertBanner>
-              {/* Asked for every request; the link opens the full terms in a new tab so the form stays as it is */}
               <Box sx={{ mt: 2 }}>
                 <FormControlLabel
                   sx={{ alignItems: 'flex-start', mr: 0 }}
@@ -1997,11 +1806,9 @@ export default function BookEventPage() {
                   </Typography>
                 )}
               </Box>
-              {/* Submit and Save as draft sit with the total: the summary card on wide screens, the price bar below on phones and tablets */}
             </Section>
           </Box>
 
-          {/* ============ Right: live summary ============ */}
           <Box
             sx={{
               minWidth: 0,
@@ -2027,10 +1834,8 @@ export default function BookEventPage() {
                     ['Time', form.startTime && form.endTime ? formatEventTime(form) : '—'],
                     ['Guests', form.guests ? `${form.guests}${extraGuests ? ` (${extraGuests} extra)` : ''}` : '—'],
                     ['Package', pkg ? pkg.name : '—'],
-                    // Section 4 (optional): the theme's name and how many colours
                     ['Theme', (styling && themeLabel(styling)) || '—'],
                     ['Colors', styling && styling.colors.length ? `${styling.colors.length} chosen` : '—'],
-                    // Only a buffet has a menu to report on
                     ...(buffet ? [['Menu', menuComplete ? 'Chosen' : '—']] : []),
                     ['Additional charges', chosenAddons.length || 'None']
                   ]
@@ -2055,8 +1860,6 @@ export default function BookEventPage() {
                 </Box>
               ))}
               <Divider sx={{ my: 1.5 }} />
-              {/* The package price plus, for a buffet, the food: both are known now, so this is a real figure.
-                  Extra guests add "+ quoted": their equipment is priced in the quotation. */}
               <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted }}>
                 {rental ? 'Rental total' : 'Starting total'}
               </Typography>
@@ -2083,7 +1886,6 @@ export default function BookEventPage() {
                           ? 'Enter your guest count to see the buffet price'
                           : `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
               </Typography>
-              {/* The form's two buttons, next to the price (2026-10-10; before, they were also under Review and Submit) */}
               <BusyButton
                 fullWidth
                 size="large"
@@ -2109,9 +1911,6 @@ export default function BookEventPage() {
         </Box>
       )}
 
-      {/* Phone / tablet sticky price bar (1o), sitting right on top of the phone tab bar
-          (--tm-bottom-nav is its height, set by PortalShell; 0px where there is no tab bar), with the
-          form's two buttons: Save draft and Submit request */}
       {data && (
         <Box
           className="booking-actions"
@@ -2198,7 +1997,6 @@ export default function BookEventPage() {
   );
 }
 
-/** A numbered form section card. Gets a red border and message when it has an error. */
 function Section({ id, index, title, subtitle, error, children }) {
   return (
     <DashCard
@@ -2223,19 +2021,10 @@ function Section({ id, index, title, subtitle, error, children }) {
   );
 }
 
-/**
- * Price breakdown before the quotation. The package price and, for a buffet, the food are both
- * known here, because a buffet is charged per person, and so is each additional charge with its own
- * price. Only the charges without one, and the equipment for guests above the package's default, are
- * still "To be quoted", so the starting total is what the customer can already count on ("+ quoted"
- * when there are extra guests).
- */
 function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
   const rows = [
     [pkg ? `Package · ${pkg.name}` : 'Package', pkg ? peso(quote.packageTotal) : '—'],
-    // Guests above the package's default: the admin prices their equipment in the quotation
     ...(quote.extraGuests ? [[`Extra ${quote.extraGuests} guests (equipment)`, 'To be quoted']] : []),
-    // A buffet line only once the guest count is in; catering only never has one
     ...(includesFood(serviceType)
       ? [
           [
@@ -2296,11 +2085,6 @@ function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
   );
 }
 
-/**
- * Price breakdown of an equipment rental: one line per item (how many x the price per piece), then
- * the delivery fee or free pick-up. Every price is known, so the total is what the quotation will
- * show unless the admin sets a different delivery fee for a large order.
- */
 function RentalQuoteLines({ quote, delivered }) {
   const rows = [
     ...quote.rentalItems.map((line) => [`${line.name} · ${line.qty} × ${peso(line.price)}`, peso(line.total)]),

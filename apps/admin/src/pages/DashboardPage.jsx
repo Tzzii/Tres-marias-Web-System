@@ -49,22 +49,11 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
-/**
- * 1r · Admin dashboard: today's events and what needs attention.
- * Wide screens: bar chart (top left) beside the four KPI cards (top right); Events today and
- * Newest bookings (bottom left) beside a small calendar with the next events (bottom right).
- * Phones: KPIs, chart, calendar, then the lists.
- * The chart card switches between Bookings (completed events per month this year, no pickers) and
- * Earnings (verified payments less refunds, per month, per week or per day). Earnings has MM / DD / YYYY pickers:
- * the year and month choose the range, and a day highlights its bar (or its week's bar).
- */
 export default function DashboardPage() {
   useDocumentTitle('Dashboard', 'Tres Marias Admin');
   const navigate = useNavigate();
   const { user } = useAuth();
-  // Load the dashboard summary: today's events, pending requests, payments, revenue and charts
   const { data, loading, error, reload } = useResource(() => reportApi.getDashboardSummary(), []);
-  // Load reservations, payments, refunds and blocked dates for the charts and the small calendar (separately, so the rest of the dashboard doesn't wait)
   const calendar = useResource(async () => {
     const [reservations, payments, refunds, availability] = await Promise.all([
       reservationApi.listReservations(),
@@ -76,27 +65,20 @@ export default function DashboardPage() {
   }, []);
 
   const today = parseISODate(todayISO());
-  const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() }); // month shown in the small calendar
-  // Which chart is shown: 'bookings' (completed events per month) or 'earnings' (verified payments less refunds)
+  const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [chartMode, setChartMode] = useState('bookings');
-  // Earnings grouping: 'month' (12 bars for the year), 'week' (weeks of the month) or 'day' (days of the month)
   const [period, setPeriod] = useState('month');
-  // Earnings pickers: year and month are always set (month 0–11); day is 'all' or 1–31
   const [chartYear, setChartYear] = useState(today.getFullYear());
   const [chartMonth, setChartMonth] = useState(today.getMonth());
   const [chartDay, setChartDay] = useState('all');
 
   const pad = (n) => String(n).padStart(2, '0');
 
-  // Completed events as "YYYY-MM-DD" dates; the bookings chart counts these
   const completedDates = useMemo(
     () => (calendar.data ? calendar.data.reservations.filter((r) => r.status === 'completed').map((r) => r.date) : []),
     [calendar.data]
   );
 
-  // Verified payments as { date: "YYYY-MM-DD", amount }, dated by when they were verified, and refunds the
-  // same way, dated by when they were sent (same rule as the "Revenue This Month" card); the earnings
-  // chart sums the payments and takes off the refunds
   const verifiedPayments = useMemo(
     () =>
       calendar.data
@@ -111,7 +93,6 @@ export default function DashboardPage() {
     [calendar.data]
   );
 
-  // Bookings chart: completed events per month of the current year (no pickers), current month in gold
   const bookings = useMemo(() => {
     const year = today.getFullYear();
     const bars = MONTH_NAMES.map((name, m) => ({
@@ -127,27 +108,18 @@ export default function DashboardPage() {
     };
   }, [completedDates]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Years in the YYYY picker, newest first: always one year ahead of the present, back to 2021.
-  // The list grows by itself each new year (2026: 2027–2021, 2027: 2028–2021, ...).
   const FIRST_CHART_YEAR = 2021;
   const lastChartYear = today.getFullYear() + 1;
   const chartYears = Array.from({ length: lastChartYear - FIRST_CHART_YEAR + 1 }, (_, i) => lastChartYear - i);
 
-  // Days in the chosen month, for the DD picker and the per-day / per-week bars
   const daysInMonth = new Date(chartYear, chartMonth + 1, 0).getDate();
 
-  // Earnings chart: bars for the chosen period, which bar is gold, and the subtitle. Each bar is the
-  // payments verified in it less the refunds sent in it (a period with more refunds than payments is below 0).
-  // - per month: 12 bars for the year; the chosen month is gold
-  // - per week: weeks of the month (days 1–7, 8–14, 15–21, 22–28, 29–end); the week holding the chosen day (or today) is gold
-  // - per day: one bar per day of the month; the chosen day (or today) is gold
   const earnings = useMemo(() => {
     const total = (list, test) => list.filter((item) => test(item.date)).reduce((sum, item) => sum + item.amount, 0);
     const sumWhere = (test) => total(verifiedPayments, test) - total(refundsSent, test);
     const monthPrefix = `${chartYear}-${pad(chartMonth + 1)}`;
     const monthName = MONTH_NAMES[chartMonth];
     const isThisMonth = chartYear === today.getFullYear() && chartMonth === today.getMonth();
-    // Day that picks the gold bar in week/day view: the chosen DD, else today when viewing this month
     const focusDay = chartDay !== 'all' ? chartDay : isThisMonth ? today.getDate() : null;
 
     let bars;
@@ -182,7 +154,6 @@ export default function DashboardPage() {
       range = `Verified payments less refunds per day in ${monthName} ${chartYear}`;
     }
 
-    // Subtitle: the range and its total, plus the chosen month / week / day's amount when one is picked
     const rangeTotal = bars.reduce((sum, b) => sum + b.value, 0);
     const picked = period === 'month' || chartDay !== 'all' ? bars[highlight] : null;
     const subtitle = `${range} · ${peso(rangeTotal)} total${picked ? ` · ${picked.title}: ${peso(picked.value)}` : ''}`;
@@ -191,7 +162,6 @@ export default function DashboardPage() {
 
   const chart = chartMode === 'bookings' ? bookings : earnings;
 
-  // Changing the year or month keeps the day only if it still exists (e.g. Feb 30 resets to All days)
   const pickYear = (y) => {
     setChartYear(y);
     if (chartDay !== 'all' && chartDay > new Date(y, chartMonth + 1, 0).getDate()) setChartDay('all');
@@ -201,7 +171,6 @@ export default function DashboardPage() {
     if (chartDay !== 'all' && chartDay > new Date(chartYear, m + 1, 0).getDate()) setChartDay('all');
   };
 
-  // Events that hold a date, grouped by date, e.g. { '2026-10-03': [res1, res2] }
   const eventsByDate = useMemo(() => {
     const map = {};
     (calendar.data ? calendar.data.reservations : []).forEach((r) => {
@@ -210,8 +179,6 @@ export default function DashboardPage() {
     return map;
   }, [calendar.data]);
 
-  // Tell the small calendar how to colour each day: blocked > fully booked > has events > open.
-  // "Fully booked" uses the same rule as the Calendar tab and the customer date picker.
   const getDay = (iso) => {
     if (!calendar.data) return { tone: 'open' };
     const blocked = calendar.data.availability.blocked.find((b) => b.date === iso);
@@ -224,7 +191,6 @@ export default function DashboardPage() {
     return { tone: 'open' };
   };
 
-  // If loading failed, show an error with a Retry button instead of the dashboard
   if (error)
     return (
       <DashCard>
@@ -246,7 +212,6 @@ export default function DashboardPage() {
         </Typography>
       </Box>
 
-      {/* Two-column grid on wide screens; the named areas set the order on phones */}
       <Box
         sx={{
           display: 'grid',
@@ -256,8 +221,6 @@ export default function DashboardPage() {
           gridTemplateAreas: { xs: '"kpi" "chart" "calendar" "lists"', lg: '"chart kpi" "lists calendar"' }
         }}
       >
-        {/* Chart card: Bookings (completed events per month, no pickers) or Earnings (verified payments less
-            refunds, per month / week / day, with the MM / DD / YYYY pickers) */}
         <DashCard sx={{ gridArea: 'chart', minWidth: 0 }}>
           <Box
             sx={{
@@ -293,7 +256,6 @@ export default function DashboardPage() {
             </ToggleButtonGroup>
           </Box>
 
-          {/* Earnings controls: grouping on the left, date pickers on the right */}
           {chartMode === 'earnings' && (
             <Box
               sx={{
@@ -337,7 +299,6 @@ export default function DashboardPage() {
                     </MenuItem>
                   ))}
                 </TextField>
-                {/* Day picker is off in per-month view (a day doesn't change the month bars) */}
                 <TextField
                   select
                   size="small"
@@ -377,7 +338,6 @@ export default function DashboardPage() {
           ) : calendar.loading ? (
             <ListSkeleton rows={1} height={220} />
           ) : (
-            // Bookings axis starts at 0–10 (grows past 10 when needed); earnings scale to the amounts
             <BarChart
               data={chart.bars}
               highlightIndex={chart.highlight}
@@ -388,8 +348,6 @@ export default function DashboardPage() {
           )}
         </DashCard>
 
-        {/* Four summary cards beside the chart; clicking one opens the related page */}
-        {/* Two cards per row on every screen; on phones they switch to their narrow layout (icon above the text) */}
         <Box
           sx={{
             gridArea: 'kpi',
@@ -407,7 +365,6 @@ export default function DashboardPage() {
             loading={loading}
             onClick={() => navigate('/reservations?tab=calendar')}
           />
-          {/* Requests needing a quotation (or a revised one); those sent wait for the customer to accept them */}
           <StatCard
             icon={MarkEmailUnreadOutlinedIcon}
             tone="amber"
@@ -448,7 +405,6 @@ export default function DashboardPage() {
           />
         </Box>
 
-        {/* Events today and Newest bookings, side by side under the chart */}
         <Box
           sx={{
             gridArea: 'lists',
@@ -459,7 +415,6 @@ export default function DashboardPage() {
             minWidth: 0
           }}
         >
-          {/* Today's events with payment status */}
           <DashCard>
             <CardTitle
               action={
@@ -533,7 +488,6 @@ export default function DashboardPage() {
             )}
           </DashCard>
 
-          {/* The 5 newest reservation requests waiting for the admin's quotation */}
           <DashCard>
             <CardTitle
               action={
@@ -587,7 +541,6 @@ export default function DashboardPage() {
           </DashCard>
         </Box>
 
-        {/* Small calendar under the KPI cards, then the next approved events. Clicking a day opens that date in the Calendar tab. */}
         <DashCard sx={{ gridArea: 'calendar', minWidth: 0 }}>
           <CardTitle
             action={

@@ -44,7 +44,6 @@ import {
 } from '@tm/shared';
 
 const PAGE_SIZE = 10;
-// Filter tabs as [key, label, test function that decides if a customer belongs in the tab]
 const FILTERS = [
   ['all', 'All', () => true],
   ['upcoming', 'With Upcoming Events', (c) => c.upcomingCount > 0],
@@ -52,28 +51,21 @@ const FILTERS = [
   ['repeat', 'Repeat Customers', (c) => c.completedCount >= 2]
 ];
 
-/** 1x · Customer list and drawer. A read-mostly directory. */
 export default function CustomersPage() {
   useDocumentTitle('Customers', 'Tres Marias Admin');
   const navigate = useNavigate();
   const notify = useNotify();
   const [params, setParams] = useSearchParams();
-  // Load all customers with their booking totals
   const { data, loading, error, reload } = useResource(() => customerApi.listCustomers(), []);
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  // Customer shown in the side drawer (?open=ID in the URL)
   const openId = params.get('open');
 
-  // Back to page 1 when the filter or search changes
   useEffect(() => setPage(1), [filter, query]);
 
   const rows = data || [];
-  // Number of customers in each filter tab
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(([k, , t]) => [k, rows.filter(t).length])), [rows]);
-  // Apply the filter tab and search. Spaces are removed so "0917 123" matches "0917123", and the mobile number
-  // is also searched as shown ("+63 917 123 4567"), so "+63917" finds it too.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     const test = FILTERS.find(([k]) => k === filter)[2];
@@ -88,10 +80,8 @@ export default function CustomersPage() {
       );
   }, [rows, filter, query]);
 
-  // Keep the page in range when customers leave the list (e.g. a balance was paid off under "With balance")
   const current = Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
 
-  // Go to the Messages page on the customer's conversation (their one conversation, created if they have none)
   const message = async (customerId) => {
     try {
       const { id } = await messageApi.openThread({ customerId });
@@ -126,7 +116,6 @@ export default function CustomersPage() {
         </Box>
       )
     },
-    // card: 'wide' — on phone cards the email gets a whole line instead of breaking mid-word
     {
       key: 'contact',
       label: 'Contact',
@@ -191,7 +180,6 @@ export default function CustomersPage() {
                 placeholder="Search name, email or mobile"
               />
             </Box>
-            {/* Empty table: "No customers yet" until the first sign-up, then "No customers match" for a filter or search that finds no one */}
             <DataTable
               loading={loading}
               columns={columns}
@@ -228,36 +216,27 @@ export default function CustomersPage() {
   );
 }
 
-/**
- * Side panel (bottom sheet on phones) with one customer's details, contact info
- * that the admin can correct, and their reservation history.
- */
 function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
   const notify = useNotify();
   const isPhone = useMediaQuery('(max-width:599px)');
-  // Load the selected customer's full profile; reloads when a different customer is opened
   const { data, loading, error } = useResource(
     () => (customerId ? customerApi.getCustomer(customerId) : Promise.resolve(null)),
     [customerId]
   );
-  const [editing, setEditing] = useState(false); // true while the contact form is open
-  const [values, setValues] = useState({ email: '', mobile: '' }); // contact form values
+  const [editing, setEditing] = useState(false);
+  const [values, setValues] = useState({ email: '', mobile: '' });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
-  // Opening a different customer closes any edit in progress
   useEffect(() => {
     setEditing(false);
     setErrors({});
   }, [customerId]);
 
-  // Fill the contact form with the loaded customer's details. The mobile number stays as stored, so saving
-  // only the email keeps it the way it was; MobileField shows it after "+63".
   useEffect(() => {
     if (data) setValues({ email: data.email, mobile: data.mobile });
   }, [data]);
 
-  // Validate and save corrected email/mobile
   const save = async () => {
     const found = {};
     const e1 = validateEmail(values.email);
@@ -272,7 +251,6 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
       notify('Contact details corrected.');
       setEditing(false);
     } catch (err) {
-      // Show the server error under the field it refers to (defaults to email)
       setErrors({ [(err.meta && err.meta.field) || 'email']: err.message });
     } finally {
       setBusy(false);

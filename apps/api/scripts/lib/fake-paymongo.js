@@ -1,19 +1,9 @@
 import crypto from 'node:crypto';
 
-/**
- * TEST ONLY. Loaded into the security tests' own API process with `node --import` (never into the real
- * API): it answers the API's calls to PayMongo (integrations/paymongo/index.js uses fetch) without the
- * network, so test #19 can send a signed webhook for a GCash QR twice and see it recorded once.
- *   POST /payment_intents            a new intent for the amount asked
- *   POST /payment_methods            a qrph method
- *   POST /payment_intents/:id/attach the QR (a 1x1 image), its code id (qr_…) and when it expires
- *   GET  /payment_intents/:id        "succeeded", paid in full: what PayMongo says once a QR is paid
- * Any other address goes to the real fetch. The API's own rules (signature, amount, dedupe) are untouched.
- */
 
 const realFetch = globalThis.fetch;
 const BASE = 'https://api.paymongo.com/v1';
-const intents = new Map(); // intent id -> { amount in centavos, payment id }
+const intents = new Map();
 const random = () => crypto.randomBytes(10).toString('hex');
 const answer = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });

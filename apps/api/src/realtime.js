@@ -8,12 +8,6 @@ import { onChange } from './modules/changes/changes.events.js';
 export const REALTIME_PATH = '/api/realtime';
 const AUTH_CODES = new Set(['UNAUTHENTICATED', 'SESSION_REPLACED']);
 
-/**
- * Read-only change notifications. Data and mutations ALWAYS go through guarded HTTP routes.
- * Authentication is shared with HTTP, checked on connection, before each notification and every
- * 15 seconds while idle. There are no client-controlled rooms or client-to-server app handlers.
- * Dependency overrides let the security tests exercise real sockets without modifying a database.
- */
 export function createRealtimeServer(
   server,
   {
@@ -36,8 +30,6 @@ export function createRealtimeServer(
 
   function clientAddress(req) {
     const peer = req.socket.remoteAddress || '';
-    // Only our local production proxy is trusted. Ignore spoofed forwarded headers in development
-    // or from non-loopback peers. Nginx appends the actual caller as the last forwarded address.
     const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer);
     const forwarded =
       config.isProduction && local
@@ -57,7 +49,6 @@ export function createRealtimeServer(
     maxHttpBufferSize: 4096,
     perMessageDeflate: false,
     cors: { origin: origins, methods: ['GET', 'POST'], credentials: false },
-    // WebSockets do not enforce browser CORS. Explicitly check Origin for both transports.
     allowRequest(req, done) {
       if (!origins.includes(req.headers.origin) || closed || io.engine.clientsCount >= maxConnections)
         return done(null, false);
@@ -74,7 +65,6 @@ export function createRealtimeServer(
     }
   });
 
-  // Enforce the allowlist on subsequent Engine.IO polling and upgrade requests too.
   io.engine.use((req, res, next) => {
     if (!origins.includes(req.headers.origin)) {
       res.writeHead(403);
@@ -86,7 +76,7 @@ export function createRealtimeServer(
 
   function authError(code) {
     const err = new Error('Connection refused.');
-    err.data = { code }; // no database errors or token contents exposed
+    err.data = { code };
     return err;
   }
 
@@ -101,7 +91,6 @@ export function createRealtimeServer(
       const key = `${user.role}:${user.id}`;
       if ((counts.get(key) || 0) >= maxPerAccount) return next(authError('RATE_LIMITED'));
       counts.set(key, (counts.get(key) || 0) + 1);
-      // Reserve synchronously after validation, and release even if the handshake is abandoned.
       socket.conn.once('close', () => {
         const count = (counts.get(key) || 1) - 1;
         if (count) counts.set(key, count);
@@ -111,7 +100,7 @@ export function createRealtimeServer(
       socket.data.exp = user.exp;
       next();
     } catch {
-      next(authError('SERVER_ERROR')); // fail closed on database errors; the browser can retry
+      next(authError('SERVER_ERROR'));
     }
   });
 
@@ -122,7 +111,6 @@ export function createRealtimeServer(
   }
 
   io.on('connection', (socket) => {
-    // Even a quiet connection ends at JWT expiry. The chunked timer supports long remember-me TTLs.
     let expiryTimer;
     function watchExpiry() {
       const remaining = socket.data.exp * 1000 - Date.now();
@@ -132,7 +120,6 @@ export function createRealtimeServer(
     }
     watchExpiry();
     socket.once('disconnect', () => clearTimeout(expiryTimer));
-    // A client cannot trigger broadcasts, impersonate an account, join a room or mutate data.
     socket.onAny(() => socket.disconnect(true));
   });
 
@@ -149,7 +136,6 @@ export function createRealtimeServer(
     if (closed || checking) return;
     checking = true;
     if (notify) pendingChange = false;
-    // One lookup per token, even when the same signed-in account has multiple tabs.
     const groups = new Map();
     for (const socket of io.of('/').sockets.values()) {
       const group = groups.get(socket.data.token) || [];
@@ -157,7 +143,6 @@ export function createRealtimeServer(
       groups.set(socket.data.token, group);
     }
     try {
-      // Sequential lookups keep bursts bounded by the existing database connection pool.
       for (const [token, sockets] of groups) {
         try {
           const { user, replaced } = await authenticate(token);
@@ -166,7 +151,7 @@ export function createRealtimeServer(
             if (!user || replaced || user.exp * 1000 <= Date.now()) {
               endSession(socket, replaced ? 'SESSION_REPLACED' : 'UNAUTHENTICATED');
             } else if (notify) {
-              socket.emit('change'); // deliberately NO payload: HTTP guards decide what can be read
+              socket.emit('change');
             }
           }
         } catch {

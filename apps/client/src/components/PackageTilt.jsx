@@ -5,7 +5,6 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 const TILT_MEDIA =
   '(min-width: 600px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)';
 
-/** A stationary hit area around a moving package card, independent of its reveal animation. */
 export default function PackageTilt({ children, enabled = true, borderRadius = 3 }) {
   const canTilt = useMediaQuery(TILT_MEDIA);
   const surfaceRef = useRef(null);
@@ -50,7 +49,6 @@ export default function PackageTilt({ children, enabled = true, borderRadius = 3
 
   const onPointerMove = (event) => {
     if (!enabled || !canTilt || event.pointerType !== 'mouse' || event.buttons) return;
-    // Keep action buttons steady while the pointer is over them.
     if (event.target.closest('button, a, input, select, textarea')) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;

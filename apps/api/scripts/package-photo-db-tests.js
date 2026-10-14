@@ -13,7 +13,6 @@ import {
   tokenFor
 } from './lib/harness.js';
 
-// Creates only its own temporary packages; every one and its photos is cleaned up in finally.
 requireWriteConsent({ writesOk: process.argv.includes('--writes-test-data') }, 'Package photo integration check');
 const uploadDir = path.join(runDir(), 'package-photos');
 const PNG = Buffer.from(
@@ -141,7 +140,6 @@ try {
 } finally {
   if (api) await api.stop();
   for (const id of ids) await pool.query('DELETE FROM packages WHERE id = ? AND name LIKE ?', [id, `${values.name}%`]);
-  // Remove only files inside this check's dedicated storage directory.
   for (const file of files()) fs.unlinkSync(path.join(uploadDir, 'packages', file));
   await closePool();
   console.log('Temporary test packages and photos cleaned up. Existing packages unchanged.');

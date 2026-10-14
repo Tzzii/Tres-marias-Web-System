@@ -15,20 +15,15 @@ import { photoCount } from '../lib/gallery.js';
 import { site } from '../theme/siteTheme.js';
 import { reducedMotionSx } from './Reveal.jsx';
 
-// The large-photo view fades in over the grid
 const viewerIn = keyframes`
   from { opacity: 0; }
   to { opacity: 1; }
 `;
 
-// For this long after the pop-up opens (ms), a click outside it is ignored: the second click of a
-// double-click on a gallery box lands outside the pop-up and would otherwise close it straight away
 const OPEN_GRACE_MS = 400;
 
-// A sideways swipe on the large photo must move at least this far (px) to change the photo
 const SWIPE_PX = 50;
 
-// The large photo and its small copy fill the stage and keep their shape (letterboxed, never cropped)
 const stagePhotoSx = {
   position: 'absolute',
   inset: 0,
@@ -39,7 +34,6 @@ const stagePhotoSx = {
   WebkitUserDrag: 'none'
 };
 
-// Round previous / next buttons over the sides of the large photo (side: 'left' or 'right')
 const arrowSx = (side) => ({
   position: 'absolute',
   top: '50%',
@@ -53,49 +47,23 @@ const arrowSx = (side) => ({
   '&:hover': { backgroundColor: 'rgba(23, 19, 17, 0.85)', borderColor: site.gold }
 });
 
-// Light buttons on the dark large-photo view
 const onDarkButtonSx = { color: site.onEspresso, '&:hover': { backgroundColor: 'rgba(245, 239, 230, 0.08)' } };
 
-/**
- * Pop-up with one event's photos, opened from a box in the Gallery section of the home page.
- *
- * `event` is a GALLERY entry from lib/gallery.js ({ key, label, photos }), or null when the pop-up is
- * closed. `photo` is the index of the photo shown large, or null for the grid of all the event's photos.
- * The home page keeps both in the browser history and is told what the visitor does:
- * onShowPhoto(index) when a grid photo is picked, onStep(index) for the previous or next photo,
- * onBack() to go from a large photo back to the grid ("All photos", Esc) and onClose() to close the
- * pop-up (X, a click outside it).
- *
- * Grid: the small copies, 2 columns on phones, 3 on tablets and 4 on wider screens; each fades in once
- * it has loaded. It stays in place (hidden) while a photo is shown large, so coming back keeps the scroll
- * position and puts the focus on the photo that was last shown.
- * Large photo: the full-size file on a dark background, with arrows, the ← → keys and a sideways swipe
- * on phones (the last photo wraps round to the first). The small copy shows until the full one has
- * loaded, and the photos before and after it load ahead.
- * An event with a single photo opens straight on it, with no grid, arrows or "All photos".
- * Phones get the pop-up full screen, clear of the notch and the home bar. When the visitor asks for
- * reduced motion, nothing fades.
- */
 export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBack, onClose }) {
   const fullScreen = useMediaQuery((theme) => theme.breakpoints.down('sm'));
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const open = Boolean(event);
 
-  // While the pop-up fades out, the home page has already cleared `event`; keep showing the last one until it is gone
   const last = useRef({ event: null, photo: null });
   if (event) last.current = { event, photo };
   const shown = last.current;
   const photos = shown.event ? shown.event.photos : [];
   const count = photos.length;
   const several = count > 1;
-  // Index of the photo shown large, or null for the grid (an index that no longer exists shows the grid)
   const index = Number.isInteger(shown.photo) && shown.photo >= 0 && shown.photo < count ? shown.photo : null;
   const current = index === null ? null : photos[index];
 
-  // The large photo whose full-size file has finished loading (its small copy shows until then)
   const [loadedSrc, setLoadedSrc] = useState(null);
-  // When the pop-up opened (see OPEN_GRACE_MS), where a swipe started, the grid photos' buttons and
-  // the photo last shown large (to put the focus back on it in the grid)
   const openedAt = useRef(0);
   const touchStart = useRef(null);
   const tileRefs = useRef([]);
@@ -109,7 +77,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
     if (index !== null) lastShown.current = index;
   }, [index]);
 
-  // Back on the grid after a large photo: focus that photo's button, which also scrolls the grid to it
   const viewing = index !== null;
   useEffect(() => {
     if (!open) {
@@ -123,12 +90,10 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
     }
   }, [open, viewing]);
 
-  // The large view takes the focus as soon as it appears, so ← →, Esc and screen readers start there
   const focusOnMount = useCallback((el) => {
     if (el) el.focus({ preventScroll: true });
   }, []);
 
-  // Load the photos before and after the large one, so stepping to them is instant
   useEffect(() => {
     if (index === null || !several) return;
     [index + 1, index - 1].forEach((i) => {
@@ -137,10 +102,8 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
     });
   }, [index, photos, count, several]);
 
-  // Previous (-1) or next (+1) photo, wrapping round at either end
   const step = (by) => onStep((index + by + count) % count);
 
-  // ← → step through the photos while one is shown large
   const handleKeyDown = (e) => {
     if (index === null || !several) return;
     if (e.key === 'ArrowRight') {
@@ -152,16 +115,12 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
     }
   };
 
-  // Esc goes from a large photo back to the grid (a single-photo pop-up just closes); a click outside
-  // the pop-up closes it, except right after it opened (see OPEN_GRACE_MS)
   const handleClose = (e, reason) => {
     if (reason === 'backdropClick' && Date.now() - openedAt.current < OPEN_GRACE_MS) return;
     if (reason === 'escapeKeyDown' && index !== null && several) onBack();
     else onClose();
   };
 
-  // A mostly sideways one-finger swipe on the large photo: to the left shows the next photo, to the right
-  // the previous one. A second finger (pinch to zoom) cancels it.
   const handleTouchStart = (e) => {
     touchStart.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
   };
@@ -174,10 +133,8 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
     if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
   };
 
-  // Nothing to show until the first box is opened
   if (!shown.event) return null;
 
-  // Full screen on phones: keep the bars clear of the notch and the home bar (viewport-fit=cover in index.html)
   const safeArea = fullScreen
     ? {
         pt: 'env(safe-area-inset-top)',
@@ -207,7 +164,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
         }
       }}
     >
-      {/* ===== Grid of all the event's photos (hidden, not removed, while a photo is shown large) ===== */}
       <Box
         sx={{
           display: 'flex',
@@ -256,7 +212,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
               gap: { xs: 1, sm: 1.5 }
             }}
           >
-            {/* Each photo is a button that shows it large; on hover the photo zooms in slightly */}
             {photos.map((item, i) => (
               <ButtonBase
                 key={item.src}
@@ -284,7 +239,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
         </Box>
       </Box>
 
-      {/* ===== One photo, large, over the grid ===== */}
       {current && (
         <Box
           ref={focusOnMount}
@@ -301,7 +255,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
             ...safeArea
           }}
         >
-          {/* Top bar: back to the grid (or the event's name when it has one photo), the position, and close */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 56, px: { xs: 1, sm: 2 } }}>
             {several ? (
               <Button
@@ -338,7 +291,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
             </IconButton>
           </Box>
 
-          {/* The photo. Sideways swipes are read here, so the page itself only pans up and down or pinch-zooms. */}
           <Box
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
@@ -352,7 +304,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
             }}
           >
             <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-              {/* The small copy shows at once (the grid has usually loaded it); the full photo fades in over it */}
               <Box component="img" key={`${current.thumb}#small`} src={current.thumb} alt="" sx={stagePhotoSx} />
               <Box
                 component="img"
@@ -385,7 +336,6 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
   );
 }
 
-/** One grid photo: the sand background shows until its small copy has loaded, then the photo fades in. */
 function GridPhoto({ src }) {
   const [ready, setReady] = useState(false);
   return (

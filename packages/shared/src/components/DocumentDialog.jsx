@@ -31,6 +31,7 @@ import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
 import { StylingSummary } from './Styling.jsx';
 import { LightSurface } from './Surface.jsx';
+import adminSignature from '../assets/admin-signature.png';
 
 // The booking's own minimum downpayment (copied when it was made; older bookings use the starting amount)
 const minimumOf = (detail) => detail.minDownpayment ?? DEFAULT_MIN_DOWNPAYMENT;
@@ -529,13 +530,39 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                       </li>
                     </Box>
                   )}
-                  <Box data-pdf-keep sx={{ mt: 5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                    {[detail.customerName, `For ${BUSINESS.shortName}`].map((who) => (
-                      <Box key={who} sx={{ pt: 1, borderTop: `1px solid ${tokens.textPrimary}` }}>
-                        <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{who}</Typography>
-                        <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
-                          Signature over printed name
-                        </Typography>
+                  <Box
+                    data-pdf-keep
+                    sx={{
+                      mt: 3,
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                      gap: { xs: 2, sm: 4 },
+                      breakInside: 'avoid'
+                    }}
+                  >
+                    {[
+                      { name: detail.customerName, role: 'Client' },
+                      { name: `For ${BUSINESS.shortName}`, role: 'Admin' }
+                    ].map(({ name, role }) => (
+                      <Box key={role}>
+                        <Box
+                          sx={{ height: 112, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', pb: 1 }}
+                        >
+                          {role === 'Admin' && (
+                            <Box
+                              component="img"
+                              src={adminSignature}
+                              alt="Admin signature"
+                              sx={{ display: 'block', width: 160, maxWidth: '100%', height: 104, objectFit: 'contain' }}
+                            />
+                          )}
+                        </Box>
+                        <Box sx={{ pt: 1, borderTop: `1px solid ${tokens.textPrimary}` }}>
+                          <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{name}</Typography>
+                          <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
+                            {role === 'Admin' ? 'Admin signature' : 'Signature over printed name'}
+                          </Typography>
+                        </Box>
                       </Box>
                     ))}
                   </Box>

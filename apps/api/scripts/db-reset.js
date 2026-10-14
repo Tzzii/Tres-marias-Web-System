@@ -4,19 +4,6 @@ import mysql from 'mysql2/promise';
 import { config } from '../src/config.js';
 import { SESSION_SETUP, dbErrorHint } from '../src/db.js';
 
-/**
- * `npm run db:reset` — drop every table and create the schema again from apps/api/schema.sql.
- * All data in the database named by DB_NAME is lost, so it refuses to run when NODE_ENV is
- * production unless --force is given. Prints where it is connecting (never the password).
- * Afterwards only the starter rows at the end of schema.sql remain: the catalog_settings and
- * calendar_settings rows and the four counters at 0.
- *
- * schema.sql is many statements in one file, so this script opens its own single connection with
- * multipleStatements on. The app pool (src/db.js) never allows that: it would let one harmful
- * string run extra statements. That connection first gets the pool's session setup (SESSION_SETUP:
- * time zone, collation, strict mode), so the schema and its starter rows are created under the same
- * rules as the app's writes, even on a server that runs non-strict.
- */
 async function main() {
   if (config.isProduction && !process.argv.includes('--force')) {
     console.error(

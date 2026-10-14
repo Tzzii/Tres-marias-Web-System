@@ -7,7 +7,7 @@ import { http } from '../http.js';
  *
  * - Every write is one request, which emits one change event (http.js), so the page and the sidebar's
  *   "awaiting reply" badge reload.
- * - sendContract really sends: the server emails and texts the partner (integrations/mailer and sms). Its
+ * - sendContract really sends: the server emails the partner (integrations/mailer). Its
  *   answer carries `deliveryNote` when a channel did not really go out (no provider connected yet, or the
  *   provider refused it); the page shows it.
  * - Without a contract id there is nothing to send: those calls answer as the server would (the
@@ -34,6 +34,9 @@ export const savePartner = (id, values) =>
 
 /** Archive or restore partners (not while a sent contract waits for their answer). Returns { count }. */
 export const setPartnerArchived = (ids, archived) => http.post('/admin/outsource/partners/archive', { ids, archived });
+
+/** Permanently delete a partner; past requests are kept. Ongoing requests must be closed first. */
+export const deletePartner = (id) => http.delete(`/admin/outsource/partners/${segment(id)}`);
 
 /** Save a contract as a draft: a new one (`id` null) or changes to a draft. Returns the contract. */
 export const saveContract = (id, values) =>

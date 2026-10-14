@@ -1,7 +1,6 @@
 import { PHOTO_TYPES, photoProblem } from '@tm/shared/src/domain/photos.js';
 import { ApiError } from './ApiError.js';
 
-/** Detect supported raster photos by their signature, never by their file name. */
 export function readPhoto(file) {
   const buffer = file?.buffer;
   const problem = photoProblem({ type: file?.mimetype, size: buffer?.length || 0 });

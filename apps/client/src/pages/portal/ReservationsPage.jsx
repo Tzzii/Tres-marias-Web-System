@@ -31,7 +31,6 @@ import {
 import { useAuth } from '../../auth.js';
 
 const PAGE_SIZE = 8;
-// Filter tabs as [key, label, test function]. "Approved" also includes downpayment paid.
 const FILTERS = [
   ['all', 'All', () => true],
   ['pending', 'Pending', (r) => r.status === 'pending'],
@@ -41,43 +40,35 @@ const FILTERS = [
   ['closed', 'Declined / Cancelled', (r) => ['declined', 'cancelled'].includes(r.status)]
 ];
 
-/** 1h · My reservations list. */
 export default function ReservationsPage() {
   useDocumentTitle('My Reservations');
   const navigate = useNavigate();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  // Phones and portrait tablets (below 900px) get cards: the seven-column table would need side-scrolling there
   const showCards = useMediaQuery('(max-width:899px)');
-  // Load only this customer's reservations
   const { data, loading, error, reload } = useResource(
     () => reservationApi.listReservations({ customerId: user.id }),
     [user.id]
   );
 
-  // The filter can start from ?status= in the URL; an unknown value falls back to "All"
   const [filter, setFilter] = useState(() =>
     FILTERS.some(([key]) => key === params.get('status')) ? params.get('status') : 'all'
   );
   const [query, setQuery] = useState(params.get('q') || '');
   const [page, setPage] = useState(1);
 
-  // A search submitted from the top bar arrives as ?q=
   const qParam = params.get('q');
   useEffect(() => {
     if (qParam !== null) setQuery(qParam);
   }, [qParam]);
-  // Back to page 1 when the filter or search changes
   useEffect(() => setPage(1), [filter, query]);
 
   const rows = data || [];
-  // Number of reservations per tab
   const counts = useMemo(
     () => Object.fromEntries(FILTERS.map(([key, , test]) => [key, rows.filter(test).length])),
     [rows]
   );
 
-  // Apply the tab and search, newest event date first
   const filtered = useMemo(() => {
     const test = FILTERS.find(([key]) => key === filter)[2];
     const q = query.trim().toLowerCase();
@@ -93,7 +84,6 @@ export default function ReservationsPage() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [rows, filter, query]);
 
-  // Rows for the current page only; the page stays in range when rows leave the list (e.g. a cancellation)
   const current = Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
   const pageRows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
@@ -112,11 +102,9 @@ export default function ReservationsPage() {
     },
     { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
-    // An equipment rental has no guest count
     { key: 'guests', label: 'Guests', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },
     { key: 'status', label: 'Status', render: (r) => <StatusChip status={r.status} /> },
-    // A quotation waiting for the customer to accept it gets its own button: accepting approves the request
     {
       key: 'action',
       label: '',
@@ -163,7 +151,6 @@ export default function ReservationsPage() {
               <FilterTabs
                 ariaLabel="Filter reservations by status"
                 value={filter}
-                // Change the tab and keep ?status= in the URL in sync (so refresh/back keeps the filter)
                 onChange={(value) => {
                   setFilter(value);
                   setParams(
@@ -176,7 +163,6 @@ export default function ReservationsPage() {
                     { replace: true }
                   );
                 }}
-                // The "Declined / Cancelled" tab only appears if there are any
                 options={FILTERS.filter(([key]) => key !== 'closed' || counts.closed).map(([value, label]) => ({
                   value,
                   label,
@@ -211,7 +197,6 @@ export default function ReservationsPage() {
                 }
               />
             ) : showCards ? (
-              // Phones and tablets: tappable cards instead of a wide table
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {pageRows.map((r) => (
                   <ButtonBase

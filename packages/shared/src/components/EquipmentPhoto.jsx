@@ -49,11 +49,9 @@ export function EquipmentPhoto({ item, file, removePhoto = false, admin = false,
     ? 'Loading photo…'
     : !src
       ? 'Photo coming soon'
-      : sample
-        ? 'Mock photo'
-        : file
-          ? 'New photo preview'
-          : 'Equipment photo';
+      : file
+        ? 'New photo preview'
+        : 'Equipment photo';
   const alt = `${item?.name || 'Equipment'} · ${label}`;
   return (
     <Box sx={{ minWidth: 0 }}>
@@ -85,28 +83,11 @@ export function EquipmentPhoto({ item, file, removePhoto = false, admin = false,
           />
         )}
         {!src && <Typography sx={{ fontSize: 11, color: '#665e51', p: 1 }}>{label}</Typography>}
-        {src && compact && (
-          <Box
-            component="span"
-            sx={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              bgcolor: 'rgba(250,248,243,0.9)',
-              color: '#665e51',
-              fontSize: 9,
-              lineHeight: 1.6
-            }}
-          >
-            {label}
-          </Box>
-        )}
       </ButtonBase>
-      {!compact && (
+      {!compact && (loading || file) && (
         <Typography sx={{ mt: 0.75, fontSize: 12, color: '#665e51' }}>
           {label}
-          {sample && src ? ' · Appearance reference only' : file ? ' · Save changes to publish' : ''}
+          {file ? ' · Save changes to publish' : ''}
         </Typography>
       )}
       {open && (
@@ -120,7 +101,7 @@ export function EquipmentPhoto({ item, file, removePhoto = false, admin = false,
         >
           <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, gap: 1 }}>
             <Typography id="equipment-photo-title" component="h2" sx={{ flex: 1, fontWeight: 600, fontSize: 16 }}>
-              {item?.name} · {label}
+              {item?.name}
             </Typography>
             <IconButton aria-label="Close photo" onClick={() => setOpen(false)}>
               <CloseRoundedIcon />
@@ -133,9 +114,7 @@ export function EquipmentPhoto({ item, file, removePhoto = false, admin = false,
             sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', bgcolor: '#f3f0e9' }}
           />
           <Typography sx={{ px: 2, py: 1.5, fontSize: 12, color: '#665e51' }}>
-            {sample
-              ? 'Mock photo for appearance reference. Your rental quantity is selected separately.'
-              : 'Equipment appearance reference. Your rental quantity is selected separately.'}
+            Your rental quantity is selected separately.
           </Typography>
         </Dialog>
       )}

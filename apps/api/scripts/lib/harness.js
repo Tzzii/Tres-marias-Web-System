@@ -5,34 +5,16 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-// config.js first: it loads apps/api/.env (the database, JWT_SECRET) and fixes the time zone
 import { config } from '../../src/config.js';
 import { closePool, pool } from '../../src/db.js';
 import { newId } from '../../src/lib/ids.js';
 import { hashSecret } from '../../src/lib/passwords.js';
 import { signToken } from '../../src/lib/tokens.js';
 
-/**
- * What the two security scripts share (Phase 12): scripts/route-audit.js and scripts/security-tests.js.
- *
- * - They test a real API process. By default each starts its own (startApi: `node src/server.js` from
- *   apps/api on a free port, with test-only settings), so nothing else has to be running and the API you
- *   use day to day is not touched. route-audit.js can also be pointed at a running API with --base, e.g.
- *   the live one in Phase 13.
- * - Sessions are made the way the API makes them: signed with JWT_SECRET from apps/api/.env (tokenFor),
- *   so the scripts never type a password or read an emailed code. Against --base that means running the
- *   script on the server itself, where its .env is. An admin token carries the admin's current sign-in
- *   (session id, newest sign-in wins), so a browser signed in as that admin stays signed in.
- * - Test customers are written straight into the database named in apps/api/.env (createTestCustomer),
- *   with addresses @example.test that can never receive mail. The scripts write test records (bookings,
- *   payments, messages), so they refuse to run without --writes-test-data: run them on a database you will
- *   reset afterwards (your local copy, after a backup; the live server before `npm run seed:starter`).
- */
 
 export const API_DIR = config.apiRoot;
 export const REPO_DIR = path.resolve(API_DIR, '..', '..');
 
-/** Command-line options: --base <url>, --out <file>, --writes-test-data, --help. */
 export function parseArgs(argv) {
   const args = { base: null, out: null, writesOk: false, help: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -46,7 +28,6 @@ export function parseArgs(argv) {
   return args;
 }
 
-/** Stop unless --writes-test-data was given: the scripts add test records to the database in apps/api/.env. */
 export function requireWriteConsent(args, what) {
   if (args.writesOk) return;
   const { host, port, database } = config.db;
@@ -58,14 +39,12 @@ export function requireWriteConsent(args, what) {
   process.exit(1);
 }
 
-// One folder per run in the system's temp directory: the API's log, and its uploads (test receipts)
 let runFolder = null;
 export function runDir() {
   if (!runFolder) runFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-security-'));
   return runFolder;
 }
 
-/** A TCP port nothing listens on right now. */
 export function freePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -79,12 +58,6 @@ export function freePort() {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Start an API process: `node [--import preload] src/server.js` in apps/api, with `env` on top of this
- * process's environment (which already holds apps/api/.env; settings given here win, as in the shell).
- * Its output goes to <run folder>/<label>.log. Resolves once /api/health answers, with
- * { base: 'http://127.0.0.1:<port>/api', logFile, stop() }; rejects with the log's end if it exits first.
- */
 export async function startApi({ env = {}, preload = null, label = 'api' } = {}) {
   const port = await freePort();
   const logFile = path.join(runDir(), `${label}.log`);
@@ -104,7 +77,6 @@ export async function startApi({ env = {}, preload = null, label = 'api' } = {})
       const res = await fetch(`${base}/health`);
       if (res.ok) break;
     } catch {
-      /* not listening yet */
     }
     await wait(200);
   }
@@ -127,11 +99,6 @@ export async function startApi({ env = {}, preload = null, label = 'api' } = {})
   };
 }
 
-/**
- * Run the API once with `env` and capture what it prints, for start-up checks: resolves with
- * { started: false, code, output } when it exits on its own within `ms`, or { started: true, output }
- * when it was still running (it is then stopped).
- */
 export async function runApiBriefly(env, ms = 8000) {
   const port = await freePort();
   const child = spawn(process.execPath, ['src/server.js'], {
@@ -152,13 +119,6 @@ export async function runApiBriefly(env, ms = 8000) {
   return { started: true, output };
 }
 
-/**
- * A small HTTP client for one API base. call(method, path, options) resolves with { status, body
- * (parsed JSON or null), text, headers }. Options: token (Bearer), body (sent as JSON), form (FormData),
- * raw (a string sent as it is), headers, and ip: sent as X-Forwarded-For, which the API trusts from its one
- * proxy, so each test can have its own rate-limit count (only an API reached directly takes it; behind
- * Nginx the real address wins).
- */
 export function client(base) {
   return async function call(method, url, { token, body, form, raw, headers = {}, ip } = {}) {
     const sent = { ...headers };
@@ -177,25 +137,17 @@ export function client(base) {
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
-      /* not JSON (e.g. a receipt image) */
     }
     return { status: res.status, body: json, text, headers: res.headers };
   };
 }
 
-// A different made-up client address for each call that asks, 10.200.x.y (see client's `ip`)
 let ipCount = 0;
 export const nextIp = () => {
   ipCount += 1;
   return `10.200.${Math.floor(ipCount / 250) % 250}.${(ipCount % 250) + 1}`;
 };
 
-/**
- * A session token for an account, signed like the API signs one (lib/tokens.js). `account` is
- * { id, name, passwordChangedAt, sessionId (admins: the sign-in allowed now, from adminAccount) };
- * `role` 'customer' or 'admin'. `expiresAt` (seconds) instead of the one-hour default makes, e.g., a
- * token that has already expired.
- */
 export const tokenFor = (account, role, { expiresAt } = {}) =>
   signToken(
     {
@@ -208,12 +160,6 @@ export const tokenFor = (account, role, { expiresAt } = {}) =>
     expiresAt ? { expiresAt } : { ttl: '1h' }
   );
 
-/**
- * The first admin account: { id, name, email, passwordChangedAt, sessionId }. An admin token is good only
- * for the account's current sign-in (session_id), so tokenFor uses that one: a browser signed in as this
- * admin is not signed out by the tests. When nobody has signed in yet (session_id empty), the account is
- * given a session id the way a sign-in gives one.
- */
 export async function adminAccount() {
   const read = async () =>
     (await pool.query('SELECT id, name, email, password_changed_at, session_id FROM admins ORDER BY id LIMIT 1'))[0][0];
@@ -232,14 +178,8 @@ export async function adminAccount() {
   };
 }
 
-/** A strong random password for a test account (upper and lower case, digits and a hyphen, so every password rule passes). */
 export const randomPassword = () => `Test-${crypto.randomBytes(9).toString('base64url')}9a`;
 
-/**
- * A test customer written straight into the database: "Security Test <label>", an @example.test address
- * (that domain never receives mail), a made-up mobile number and `password` (hashed like a sign-up).
- * Returns { id, name, email, mobile, password, passwordChangedAt: null }.
- */
 export async function createTestCustomer(label, password = randomPassword()) {
   const stamp = `${Date.now().toString(36)}${crypto.randomBytes(2).toString('hex')}`;
   const customer = {
@@ -266,13 +206,6 @@ export async function createTestCustomer(label, password = randomPassword()) {
   return customer;
 }
 
-/**
- * A test admin written straight into the database, for signing in through the API with the password and
- * the emailed code (newest sign-in wins, security test #20): "Security Test Admin", an @example.test address
- * and `password`. Its id starts with "adm-sectest-", so it sorts after the real admin (adminAccount).
- * Remove it with removeTestAdmin when done: it is a working admin account.
- * Returns { id, name, email, password, passwordChangedAt: null }.
- */
 export async function createTestAdmin(password = randomPassword()) {
   const admin = {
     id: `adm-sectest-${crypto.randomBytes(8).toString('hex')}`,
@@ -289,7 +222,6 @@ export async function createTestAdmin(password = randomPassword()) {
   return admin;
 }
 
-/** Delete a test admin from createTestAdmin, with its code requests, sign-in counters and kept emails. */
 export async function removeTestAdmin(admin) {
   await pool.query('DELETE FROM auth_challenges WHERE admin_id = ?', [admin.id]);
   await pool.query('DELETE FROM login_attempts WHERE identifier IN (?, ?)', [admin.email, admin.id]);
@@ -297,7 +229,6 @@ export async function removeTestAdmin(admin) {
   await pool.query('DELETE FROM admins WHERE id = ?', [admin.id]);
 }
 
-/** The newest email the log mail driver kept for an address (dev only: an smtp driver keeps none), or null. */
 export async function lastEmailTo(address) {
   const [rows] = await pool.query(
     "SELECT subject, body, created_at FROM outbox WHERE channel = 'email' AND to_address = ? ORDER BY created_at DESC, id DESC LIMIT 1",
@@ -306,27 +237,23 @@ export async function lastEmailTo(address) {
   return rows[0] || null;
 }
 
-/** The 6-digit code in an email's body, or null. */
 export const codeIn = (email) => {
   const match = email && /^\s*(\d{6})\s*$/m.exec(email.body);
   return match ? match[1] : null;
 };
 
-/** Write a text file, creating its folder; returns the path. */
 export function writeFile(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text);
   return file;
 }
 
-/** "2026-10-01 23:40" in Manila time (config.js fixes the process time zone). */
 export function stampNow() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Escape a value for a Markdown table cell. */
 export const cell = (value) =>
   String(value ?? '')
     .replace(/\|/g, '\\|')

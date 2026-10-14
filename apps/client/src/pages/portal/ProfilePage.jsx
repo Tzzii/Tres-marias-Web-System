@@ -34,25 +34,16 @@ import { useAuth } from '../../auth.js';
 import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
 
-/**
- * My profile: contact details and password. Changing the password takes the current one and a code
- * emailed to the account (Phase 12); "Forgot your current password?" resets it with an emailed code
- * instead. Either way this device stays signed in (the server renews its token) and every other one
- * is signed out.
- */
 export default function ProfilePage() {
   useDocumentTitle('My Profile');
   const notify = useNotify();
   const navigate = useNavigate();
   const { user, updateUser, signOut } = useAuth();
 
-  // Profile form. The mobile number is kept as stored ("09171234567"); MobileField shows it after "+63".
   const [profile, setProfile] = useState({ name: user.name, mobile: user.mobile, company: user.company || '' });
   const [profileErrors, setProfileErrors] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Email changes are separate from the ordinary profile save: the current password is checked,
-  // then ownership of the new address is confirmed with a code sent there.
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailForm, setEmailForm] = useState({ email: '', password: '' });
   const [emailErrors, setEmailErrors] = useState({});
@@ -60,14 +51,12 @@ export default function ProfilePage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailChallenge, setEmailChallenge] = useState(null);
 
-  // Change password form, its emailed-code step (open while `challenge` is set) and the forgot-password dialog
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
   const [pwErrors, setPwErrors] = useState({});
   const [savingPw, setSavingPw] = useState(false);
   const [challenge, setChallenge] = useState(null);
   const [resetOpen, setResetOpen] = useState(false);
 
-  // Pick up the latest details (in case they changed elsewhere)
   useEffect(() => {
     authApi
       .getCustomerProfile(user.id)
@@ -77,14 +66,11 @@ export default function ProfilePage() {
       .catch(() => {});
   }, [user.id]);
 
-  // True when the form differs from the saved profile (the mobile number is compared by its digits after +63,
-  // so "09171234567" and "+639171234567" count as the same number)
   const dirty =
     profile.name.trim() !== user.name ||
     nationalMobile(profile.mobile) !== nationalMobile(user.mobile) ||
     (profile.company || '') !== (user.company || '');
 
-  // Validate name and mobile, save, and update the signed-in user so the new name shows everywhere
   const saveProfile = async (e) => {
     e.preventDefault();
     const found = collectErrors(profile, {
@@ -113,8 +99,6 @@ export default function ProfilePage() {
     setEmailOpen(true);
   };
 
-  // First step of an email change: validate locally, then have the server check the current password
-  // and send a code to the new address. The login email is not changed yet.
   const startEmailChange = async (e) => {
     e.preventDefault();
     const found = {};
@@ -152,7 +136,6 @@ export default function ProfilePage() {
     notify(`Email updated. Sign in with ${saved.email} from now on.`);
   };
 
-  // Validate the three password fields, then ask the server to check the current password and email a code
   const savePassword = async (e) => {
     e.preventDefault();
     const found = collectErrors(pw, {
@@ -167,7 +150,6 @@ export default function ProfilePage() {
     try {
       setChallenge(await authApi.startPasswordChange({ current: pw.current, next: pw.next }));
     } catch (err) {
-      // A wrong current password says how many tries are left before a 5-minute pause
       const left =
         err.code === 'INVALID_CREDENTIALS' && err.meta.remaining
           ? ` ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.`
@@ -179,7 +161,6 @@ export default function ProfilePage() {
     }
   };
 
-  // The emailed code was right: the new password is saved and this device stays signed in
   const confirmCode = async (code) => {
     await authApi.confirmPasswordChange({ challengeId: challenge.challengeId, code });
     setChallenge(null);
@@ -308,7 +289,6 @@ export default function ProfilePage() {
                   }}
                   error={pwErrors.next}
                 />
-                {/* What the new password still needs, ticked live */}
                 <PasswordChecklist value={pw.next} />
               </Box>
               <PasswordField
@@ -336,7 +316,6 @@ export default function ProfilePage() {
           <DashCard>
             <CardTitle>Session</CardTitle>
             <AlertBanner tone="info">For your security you are signed out after 15 minutes of inactivity.</AlertBanner>
-            {/* Log out: go to the home page, then end the session */}
             <Button
               color="error"
               variant="outlined"
@@ -352,7 +331,6 @@ export default function ProfilePage() {
         </Box>
       </Box>
 
-      {/* Step 2 of the email change: prove ownership of the new address */}
       <EmailCodeDialog
         challenge={emailChallenge}
         title="Confirm Your New Email"
@@ -429,7 +407,6 @@ export default function ProfilePage() {
         </Box>
       </AppDialog>
 
-      {/* Step 2 of the password change: the code emailed to the account */}
       <EmailCodeDialog
         challenge={challenge}
         title="Confirm Your New Password"
@@ -443,7 +420,6 @@ export default function ProfilePage() {
         onClose={() => setChallenge(null)}
       />
 
-      {/* Forgot the current password: a reset by emailed code, without signing out */}
       <PasswordResetDialog
         open={resetOpen}
         accountEmail={user.email}

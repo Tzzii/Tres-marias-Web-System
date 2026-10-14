@@ -44,7 +44,6 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
 
-// Timestamp as "Today, 9:14 am", "Yesterday, 5:02 pm" or "14 Sep 2026, 5:02 pm"; `fallback` when missing
 const formatWhen = (ms, fallback = 'Not recorded yet') => {
   if (!ms) return fallback;
   const day = toISODate(new Date(ms));
@@ -55,25 +54,15 @@ const formatWhen = (ms, fallback = 'Not recorded yet') => {
   return formatDateTime(ms);
 };
 
-// Date only, e.g. "15 Sep 2026", from a timestamp
 const formatDay = (ms) => (ms ? formatDate(toISODate(new Date(ms))) : '');
 
-/**
- * My account: profile, password, two-step verification and sign-in activity.
- * Details come from the account record (not the session copy), and the mobile number
- * is always masked. Sign-in codes are emailed. Changing the password or the
- * email / mobile needs the current password; email / mobile also need a code.
- */
 export default function AccountPage() {
   useDocumentTitle('My Account', 'Tres Marias Admin');
   const navigate = useNavigate();
   const notify = useNotify();
   const { user, session, signOut, updateUser } = useAuth();
-  // Latest account record; refreshes by itself whenever the data changes
   const profile = useResource(() => authApi.getAdminProfile(user.id), [user.id]);
-  // Which dialog is open: null, 'name', 'password', 'contact' or 'logout'
   const [dialog, setDialog] = useState(null);
-  // Field the contact dialog changes; kept after closing so the title doesn't switch during the close animation
   const [contactField, setContactField] = useState('email');
   const close = () => setDialog(null);
   const openContact = (field) => {
@@ -81,7 +70,6 @@ export default function AccountPage() {
     setDialog('contact');
   };
 
-  // Go to the login page (with an optional ?reason=), then end the session
   const endSession = (reason) => {
     navigate(reason ? `/login?reason=${reason}` : '/login', { replace: true });
     signOut();
@@ -104,7 +92,6 @@ export default function AccountPage() {
           <ListSkeleton rows={4} />
         </DashCard>
       ) : (
-        // Desktop: profile | activity on top, password | two-step below. Phone: one column in that reading order.
         <Box
           sx={{
             display: 'grid',
@@ -144,7 +131,6 @@ export default function AccountPage() {
             open={dialog === 'password'}
             onClose={close}
             adminId={p.id}
-            // A new password ends this session so the admin signs in with it straight away
             onSaved={() => {
               close();
               endSession('password');
@@ -168,7 +154,6 @@ export default function AccountPage() {
         </>
       )}
 
-      {/* Same confirmation as Log out in the top-right profile menu */}
       <ConfirmDialog
         open={dialog === 'logout'}
         onClose={close}
@@ -185,7 +170,6 @@ export default function AccountPage() {
   );
 }
 
-/** One label / value line with an optional action link on the right, separated by a divider. */
 function InfoRow({ label, hint, children, action }) {
   return (
     <Box
@@ -214,7 +198,6 @@ function InfoRow({ label, hint, children, action }) {
   );
 }
 
-/** Profile: avatar, name, role and the email / mobile used to sign in. */
 function ProfileCard({ profile, onEditName, onChangeEmail, onChangeMobile }) {
   return (
     <DashCard sx={{ gridArea: 'profile' }}>
@@ -264,14 +247,8 @@ function ProfileCard({ profile, onEditName, onChangeEmail, onChangeMobile }) {
   );
 }
 
-/**
- * Sign-in activity: this session, the sign-in before it, and failed attempts.
- * Only the newest sign-in of an account works (2026-10-09): a sign-in on another device or tab ends
- * this session at once, so this page never shows a session that a newer one has replaced.
- */
 function ActivityCard({ profile, session, onLogout }) {
   const mine = session && session.user;
-  // Sessions started before sign-in tracking existed have no signedInAt; fall back to the latest record
   const signedInAt = (mine && mine.signedInAt) || profile.lastSignInAt;
   const device = (mine && mine.device) || profile.lastSignInDevice || 'This browser';
 
@@ -283,7 +260,6 @@ function ActivityCard({ profile, session, onLogout }) {
           <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>This session</Typography>
           <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{device}</Typography>
           <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
-            {/* "Signed in today, 9:14 am": lowercase the Today / Yesterday that starts the time label */}
             Signed in{' '}
             {signedInAt ? formatWhen(signedInAt).replace(/^(Today|Yesterday)/, (w) => w.toLowerCase()) : 'earlier'}
           </Typography>
@@ -327,7 +303,6 @@ function ActivityCard({ profile, session, onLogout }) {
   );
 }
 
-/** Password: masked placeholder, when it last changed, and the Change password button. */
 function PasswordCard({ profile, onChange }) {
   return (
     <DashCard sx={{ gridArea: 'password', display: 'flex', flexDirection: 'column' }}>
@@ -351,7 +326,6 @@ function PasswordCard({ profile, onChange }) {
   );
 }
 
-/** Two-step verification: always on for admins; shows where codes are sent. */
 function TwoStepCard({ profile }) {
   return (
     <DashCard sx={{ gridArea: 'twostep' }}>
@@ -366,13 +340,11 @@ function TwoStepCard({ profile }) {
   );
 }
 
-/** Edit the display name (first and last name). */
 function EditNameDialog({ open, onClose, profile, onSaved }) {
   const [name, setName] = useState(profile.name);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Start from the saved name each time the dialog opens
   useEffect(() => {
     if (open) {
       setName(profile.name);
@@ -381,7 +353,6 @@ function EditNameDialog({ open, onClose, profile, onSaved }) {
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check the name, save it, and hand the updated profile back
   const save = async (e) => {
     e.preventDefault();
     const clean = name.trim().replace(/\s+/g, ' ');
@@ -441,7 +412,6 @@ function EditNameDialog({ open, onClose, profile, onSaved }) {
   );
 }
 
-/** Change password: current password, new password with a live checklist and strength bar, and confirmation. */
 function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
   const empty = { current: '', next: '', confirm: '' };
   const [values, setValues] = useState(empty);
@@ -449,7 +419,6 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Clear every field each time the dialog opens, so no password stays in memory
   useEffect(() => {
     if (open) {
       setValues(empty);
@@ -465,7 +434,6 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
     setFormError('');
   };
 
-  // Check all three fields, then ask the service to change the password
   const save = async (e) => {
     e.preventDefault();
     const found = {};
@@ -542,7 +510,6 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
             error={errors.next}
             disabled={busy}
           />
-          {/* Live strength bar and checklist: every check is required (the same rule as the customers') */}
           <PasswordChecklist value={values.next} />
         </Box>
         <PasswordField
@@ -559,11 +526,6 @@ function ChangePasswordDialog({ open, onClose, adminId, onSaved }) {
   );
 }
 
-/**
- * Change email or mobile in two steps.
- * Step 1: the new value and the current password. Step 2: the emailed code
- * (to the new address, or to the address on file for a mobile change).
- */
 function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
   const isEmail = field === 'email';
   const [step, setStep] = useState(1);
@@ -572,13 +534,11 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
-  // Step 2 state
-  const [challenge, setChallenge] = useState(null); // { challengeId, sentTo, expiresAt, resendAt }
+  const [challenge, setChallenge] = useState(null);
   const [code, setCode] = useState('');
   const [codeState, setCodeState] = useState('idle');
   const resendSeconds = useCountdown(challenge ? challenge.resendAt : null);
 
-  // Start over every time the dialog opens
   useEffect(() => {
     if (open) {
       setStep(1);
@@ -595,7 +555,6 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
 
   const label = isEmail ? 'email' : 'mobile number';
 
-  // Step 1: check the fields locally, then ask the service to verify the password and send a code
   const sendCode = async (e) => {
     e.preventDefault();
     const found = {};
@@ -629,7 +588,6 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
     }
   };
 
-  // Step 2: check the code and save the new value
   const verify = async (entered = code) => {
     if (entered.length !== RULES.codeLength) {
       setFormError(`Enter all ${RULES.codeLength} digits.`);
@@ -650,7 +608,6 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
           `That code is incorrect. ${err.meta.remaining} ${err.meta.remaining === 1 ? 'attempt' : 'attempts'} left.`
         );
       } else if (err.code === 'LOCKED' || err.code === 'CHALLENGE_EXPIRED') {
-        // The request can't be used any more: back to step 1 with the reason
         setStep(1);
         setChallenge(null);
         setCodeState('idle');
@@ -659,7 +616,6 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
     }
   };
 
-  // Ask for a new code once the resend timer has run out
   const resend = async () => {
     setBusy(true);
     setFormError('');
@@ -735,7 +691,6 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
           onSubmit={sendCode}
           sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
         >
-          {/* A mobile number goes in MobileField ("+63" in front), which hands back the stored form ("09171234567") */}
           {isEmail ? (
             <FormField
               id="contact-value"

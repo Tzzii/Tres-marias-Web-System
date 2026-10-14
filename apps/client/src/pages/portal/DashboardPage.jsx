@@ -39,15 +39,12 @@ import {
 import { useAuth } from '../../auth.js';
 import { readDraft } from '../../lib/booking.js';
 
-// Statuses of bookings that are still in progress
 const ACTIVE = ['pending', 'approved', 'downpayment_paid', 'confirmed'];
 
-/** 1g / 1p · Customer dashboard. */
 export default function DashboardPage() {
   useDocumentTitle('Dashboard');
   const navigate = useNavigate();
   const { user } = useAuth();
-  // Load the customer's reservations and chat threads
   const { data, loading, error, reload } = useResource(async () => {
     const [reservations, threads] = await Promise.all([
       reservationApi.listReservations({ customerId: user.id }),
@@ -56,7 +53,6 @@ export default function DashboardPage() {
     return { reservations, threads };
   }, [user.id]);
 
-  // Unfinished reservation form saved on this device, if any
   const draft = readDraft(user.id);
 
   if (error)
@@ -66,34 +62,26 @@ export default function DashboardPage() {
       </DashCard>
     );
 
-  // Numbers and items for the dashboard cards
   const reservations = data ? data.reservations : [];
-  // Active events from today on, soonest first
   const upcoming = reservations
     .filter((r) => ACTIVE.includes(r.status) && daysFromToday(r.date) >= 0)
     .sort((a, b) => a.date.localeCompare(b.date));
-  const next = upcoming[0]; // the very next event
-  // A quotation waiting for the customer to accept it (that approves the request), and the requests still waiting on us
+  const next = upcoming[0];
   const toAccept = reservations.find((r) => pendingStep(r) === 'accept');
   const pending = reservations.filter((r) => r.status === 'pending' && pendingStep(r) !== 'accept').length;
-  // Total still owed across approved and confirmed bookings
   const balanceDue = reservations
     .filter((r) => ['approved', 'downpayment_paid', 'confirmed'].includes(r.status))
     .reduce((sum, r) => sum + r.balance, 0);
-  // First approved booking with no downpayment and no proof uploaded yet
   const needsDownpayment = reservations.find((r) => r.status === 'approved' && !r.downpaymentPaid && !r.awaitingCount);
   const unread = data ? data.threads.reduce((sum, t) => sum + t.unread, 0) : 0;
   const latestUnread = data ? data.threads.find((t) => t.unread) : null;
-  // Reservation shown in the status progress card: the next event, or any active one
   const focus = next || reservations.find((r) => ACTIVE.includes(r.status));
 
-  // Greeting based on the current hour
   const greeting = (() => {
     const h = new Date().getHours();
     return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
   })();
 
-  // One-line summary under the greeting, picking the most important message first
   const subline = loading
     ? 'Loading your reservations…'
     : toAccept
@@ -106,7 +94,6 @@ export default function DashboardPage() {
             ? `Your next event is ${daysFromToday(next.date) === 0 ? 'today' : `in ${pluralize(daysFromToday(next.date), 'day')}`}.`
             : 'Everything is up to date.';
 
-  // New customer with no reservations: show a welcome card instead of the stats
   const brandNew = !loading && reservations.length === 0;
 
   return (
@@ -118,7 +105,6 @@ export default function DashboardPage() {
         <Typography sx={{ mt: 0.5, fontSize: 14, color: tokens.textOnDarkSoft }}>{subline}</Typography>
       </Box>
 
-      {/* "Continue" banner for an unfinished reservation form */}
       {draft && (
         <DashCard
           sx={{
@@ -280,7 +266,6 @@ export default function DashboardPage() {
                 >
                   New reservation
                 </Button>
-                {/* Enabled only when a downpayment is due */}
                 <Button
                   variant="outlined"
                   startIcon={<PaymentsOutlinedIcon />}
@@ -288,7 +273,6 @@ export default function DashboardPage() {
                   onClick={() => navigate(`/portal/payments?ref=${needsDownpayment.ref}`)}
                   sx={{ justifyContent: 'flex-start', py: 1.2 }}
                 >
-                  {/* What is still owed on the downpayment (part may already be paid) */}
                   {needsDownpayment
                     ? `Pay downpayment · ${peso(needsDownpayment.downpayment - needsDownpayment.paid)}`
                     : 'No downpayment due'}

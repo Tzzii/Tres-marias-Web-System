@@ -26,14 +26,7 @@ import { readIntent, saveIntent } from '../lib/booking.js';
 import { site } from '../theme/siteTheme.js';
 import { siteFieldSx, siteLabelSx } from './Marketing.jsx';
 
-/**
- * Availability card with an always-visible calendar beside the event details. Checks the date against blocked
- * days and capacity, and the start and end time against other events that day (an event runs 2 to 6
- * hours), then saves the picks so they carry into the reservation. A blocked date shows the reason,
- * with our note when there is one.
- */
 export default function BookingBar({ onAvailable }) {
-  // Pre-fill with anything the visitor picked earlier
   const saved = readIntent() || {};
   const [date, setDate] = useState(saved.date || '');
   const [startTime, setStartTime] = useState(saved.startTime || '');
@@ -41,19 +34,16 @@ export default function BookingBar({ onAvailable }) {
   const [occasion, setOccasion] = useState(saved.occasion || '');
   const [guests, setGuests] = useState(saved.guests ? String(saved.guests) : '');
   const [errors, setErrors] = useState({});
-  const [checking, setChecking] = useState(false); // true while checking the date
-  const [result, setResult] = useState(null); // availability answer shown under the bar, or { failed, message } when the check could not run
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState(null);
 
-  // Guest count is typed only (no up/down arrows): digits only, and never above the largest count the business serves
   const updateGuests = (raw) => {
     const digits = raw.replace(/\D/g, '');
-    if (digits && Number(digits) > RULES.maxGuests) return; // typing past the cap is ignored
+    if (digits && Number(digits) > RULES.maxGuests) return;
     setGuests(digits);
     setErrors((er) => ({ ...er, guests: '' }));
   };
 
-  // Validate the five fields, then ask the calendar whether the date and the start-to-end time are free.
-  // The check itself can fail (no connection, too many requests): its message is shown instead.
   const submit = async (event) => {
     event.preventDefault();
     const next = {};
@@ -71,7 +61,6 @@ export default function BookingBar({ onAvailable }) {
     try {
       const availability = await calendarApi.checkAvailability(date, startTime, endTime);
       setResult(availability);
-      // Date and time are open: remember the picks for the reservation form and let the page react (e.g. scroll to packages)
       if (availability.available) {
         saveIntent({ date, startTime, endTime, occasion, guests: Number(guests) });
         if (onAvailable) onAvailable();
@@ -98,7 +87,6 @@ export default function BookingBar({ onAvailable }) {
         boxShadow: site.shadowPanel
       }}
     >
-      {/* Calendar and event details sit side by side when there is room, and stack on phones. */}
       <Box
         component="form"
         noValidate
@@ -158,8 +146,6 @@ export default function BookingBar({ onAvailable }) {
               gap: 3
             }}
           >
-            {/* Start time: the same hour : minute : AM/PM picker as the reservation form (30-minute steps only);
-                checked against other events booked that day */}
             <Box>
               <Typography component="label" htmlFor="bar-time-hour" sx={siteLabelSx}>
                 Start time
@@ -181,8 +167,6 @@ export default function BookingBar({ onAvailable }) {
               />
             </Box>
 
-            {/* End time: the same hour : minute : AM/PM picker, offering only 2 to 6 hours after the start;
-                the line under it says how long the event runs, and "next day" past midnight */}
             <Box>
               <Typography component="label" htmlFor="bar-end-hour" sx={siteLabelSx}>
                 End time
@@ -265,8 +249,6 @@ export default function BookingBar({ onAvailable }) {
         </Box>
       </Box>
 
-      {/* Green "open" or red "not available" message that slides in after checking.
-          Red has three cases: the whole date is unavailable, only the chosen time is taken, or the check itself failed. */}
       <Collapse in={Boolean(result)} unmountOnExit>
         {result && (
           <Box
