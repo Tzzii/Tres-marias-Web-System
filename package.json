@@ -1,6 +1,6 @@
 {
   "name": "tres-marias",
-  "version": "1.0.0",
+  "version": "1.24.0",
   "private": true,
   "description": "Tres Marias Catering Services - Customer Portal and Admin Dashboard (React + Vite + MUI monorepo).",
   "workspaces": [

@@ -1,5 +1,7 @@
 # Tres Marias Catering Services Web System
 
+**System version: 1.24.0**
+
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
 A web-based catering reservation and management system with a **Customer Portal**, an **Admin Dashboard**, and a shared **Express + MySQL API**. Customers can explore services, request event bookings, review quotations, track payments, and communicate with the business. Administrators manage reservations, schedules, packages, equipment, customer records, outsourcing, and reports.
