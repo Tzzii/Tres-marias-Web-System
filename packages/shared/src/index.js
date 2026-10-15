@@ -172,6 +172,7 @@ export {
 } from './domain/messages.js';
 // The theme list, colour names and checks of the booking's "Theme and Colors" (the services check the same)
 export {
+  MIN_MOTIF_COLORS,
   MAX_MOTIF_COLORS,
   STYLING_THEMES,
   THEME_OTHER,

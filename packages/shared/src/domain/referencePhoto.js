@@ -1,8 +1,18 @@
 import { RULES } from '../services/config.js';
 
 export const REFERENCE_PHOTO_MAX_MB = RULES.photoMaxMb;
+export const REFERENCE_PHOTO_MAX_COUNT = 5;
 export const REFERENCE_PHOTO_MAX_BYTES = REFERENCE_PHOTO_MAX_MB * 1024 * 1024;
 export const REFERENCE_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+// Accept the original single-photo shape when reading older bookings and drafts.
+export const referencePhotoList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+
+export const cleanDraftReferencePhotos = (value) =>
+  referencePhotoList(value).slice(0, REFERENCE_PHOTO_MAX_COUNT).map(cleanDraftReferencePhoto).filter(Boolean);
+
+export const cleanReferencePhotos = (value) =>
+  referencePhotoList(value).slice(0, REFERENCE_PHOTO_MAX_COUNT).map(cleanReferencePhoto).filter(Boolean);
 
 export function referencePhotoProblem({ size, type } = {}) {
   if (!REFERENCE_PHOTO_TYPES.includes(type)) return 'Choose a JPG, PNG or WebP reference photo.';

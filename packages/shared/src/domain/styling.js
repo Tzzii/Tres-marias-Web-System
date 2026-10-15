@@ -1,8 +1,8 @@
-import { cleanReferencePhoto } from './referencePhoto.js';
+import { cleanReferencePhoto, cleanReferencePhotos } from './referencePhoto.js';
 
 /**
  * The booking form's "Theme and Colors" section (added 2026-10-08): the themes a customer picks from,
- * the colour motif (up to five colours from the colour picker or the metallic buttons) and the design
+ * the optional colour motif (two to five colours from the colour picker or metallic buttons) and the design
  * details they write. Stored on the booking as `styling`:
  *
  *   { theme: 'Royal', themeOther: '', colors: [{ hex: '#9CAF88', name: 'Sage Green' },
@@ -22,6 +22,8 @@ import { cleanReferencePhoto } from './referencePhoto.js';
 export const THEME_OTHER = 'Other';
 /** The theme chip for a customer who hasn't decided yet; the admin sees "To Discuss". */
 export const THEME_UNDECIDED = 'Not decided yet';
+/** Fewest colours in a chosen motif; leaving the motif empty is allowed. */
+export const MIN_MOTIF_COLORS = 2;
 /** Most colours in one motif. */
 export const MAX_MOTIF_COLORS = 5;
 /** Shortest and longest theme typed under "Other". */
@@ -286,7 +288,12 @@ export const themeLabel = (styling) =>
 
 /** True when the booking has nothing in its styling (no theme, colour or details), e.g. a booking made before 2026-10-08. */
 export const stylingEmpty = (styling) =>
-  !styling || (!styling.theme && !(styling.colors || []).length && !styling.notes && !styling.referencePhoto);
+  !styling ||
+  (!styling.theme &&
+    !(styling.colors || []).length &&
+    !styling.notes &&
+    !styling.referencePhoto &&
+    !styling.referencePhotos?.length);
 
 /** True when the customer chose "Not decided yet", or gave no theme and no colour: the admin follows it up ("To Discuss"). */
 export const stylingToDiscuss = (styling) =>
@@ -323,8 +330,13 @@ export function cleanStyling(value) {
     colors,
     notes: text(value.notes)
   };
-  const referencePhoto = cleanReferencePhoto(value.referencePhoto);
-  if (referencePhoto) styling.referencePhoto = referencePhoto;
+  if (Array.isArray(value.referencePhotos)) {
+    const photos = cleanReferencePhotos(value.referencePhotos);
+    if (photos.length) styling.referencePhotos = photos;
+  } else {
+    const referencePhoto = cleanReferencePhoto(value.referencePhoto);
+    if (referencePhoto) styling.referencePhoto = referencePhoto;
+  }
   return stylingEmpty(styling) ? null : styling;
 }
 
@@ -341,6 +353,11 @@ export function stylingProblem(styling) {
     if (styling.themeOther.length > max)
       return { field: 'styling.themeOther', message: `Keep your theme to ${max} characters.` };
   }
+  if (styling.colors.length > 0 && styling.colors.length < MIN_MOTIF_COLORS)
+    return {
+      field: 'styling.colors',
+      message: `Choose at least ${MIN_MOTIF_COLORS} colors for your motif, or remove all colors to leave it blank.`
+    };
   if (styling.colors.length > MAX_MOTIF_COLORS)
     return { field: 'styling.colors', message: `Pick up to ${MAX_MOTIF_COLORS} colors.` };
   if (styling.notes.length > STYLING_NOTES_MAX)

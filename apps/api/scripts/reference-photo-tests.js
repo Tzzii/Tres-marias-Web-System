@@ -6,8 +6,10 @@ import path from 'node:path';
 import { cleanStyling, stylingEmpty } from '@tm/shared/src/domain/styling.js';
 import {
   REFERENCE_PHOTO_MAX_BYTES,
+  REFERENCE_PHOTO_MAX_COUNT,
   referencePhotoProblem,
-  cleanDraftReferencePhoto
+  cleanDraftReferencePhoto,
+  cleanDraftReferencePhotos
 } from '@tm/shared/src/domain/referencePhoto.js';
 import { createReservation as submitBooking } from '@tm/shared/src/services/remote/reservation.js';
 import { http } from '@tm/shared/src/services/http.js';
@@ -74,6 +76,36 @@ test('optional reference photos keep old styling blank and accept only supported
   assert.match(referencePhotoProblem({ size: 20, type: 'image/svg+xml' }), /JPG, PNG or WebP/);
 });
 
+test('client accepts zero to five photos, preserves file order and refuses six or an invalid selection', async () => {
+  const original = http.post;
+  http.post = async (url, body) => ({ url, body });
+  try {
+    const photos = Array.from({ length: REFERENCE_PHOTO_MAX_COUNT }, (_, i) => ({
+      ...draft,
+      name: `reference-${i}.png`
+    }));
+    const result = await submitBooking('qa', { eventName: 'Five photos', referencePhotos: photos });
+    assert.deepEqual(
+      result.body.getAll('referencePhoto').map((file) => file.name),
+      photos.map((photo) => photo.name)
+    );
+    assert.deepEqual(JSON.parse(result.body.get('booking')), { eventName: 'Five photos' });
+    assert.deepEqual((await submitBooking('qa', { eventName: 'Optional', referencePhotos: [] })).body, {
+      eventName: 'Optional'
+    });
+    await assert.rejects(submitBooking('qa', { referencePhotos: [...photos, draft] }), /up to 5/);
+    await assert.rejects(
+      submitBooking('qa', { referencePhotos: [draft, { name: 'bad', dataUrl: 'bad' }] }),
+      /JPG, PNG or WebP/
+    );
+    assert.deepEqual(cleanDraftReferencePhotos(draft), [draft]);
+    assert.deepEqual(cleanDraftReferencePhotos(JSON.parse(JSON.stringify(photos))), photos);
+    assert.deepEqual(cleanDraftReferencePhotos(null), []);
+  } finally {
+    http.post = original;
+  }
+});
+
 test('server verifies file signatures and rejects renamed files, MIME mismatches and oversized photos', () => {
   assert.equal(inspectReferencePhoto(file).mime, 'image/png');
   for (const bad of [
@@ -109,7 +141,7 @@ test('failed booking cleans up its uploaded photo', async () => {
       { id: 'qa', name: 'QA' },
       {},
       {
-        referencePhoto: file,
+        referencePhotos: Array(5).fill(file),
         transact: async () => {
           throw new Error('QA transaction failure');
         }
@@ -117,6 +149,31 @@ test('failed booking cleans up its uploaded photo', async () => {
     ),
     /QA transaction failure/
   );
+  assert.deepEqual(await readdir(dir).catch(() => []), before);
+});
+
+test('server rejects six files and invalid batches before storing anything; partial storage failures clean up', async () => {
+  const dir = path.join(config.storage.uploadDir, 'styling');
+  const before = await readdir(dir).catch(() => []);
+  const transact = async () => {
+    throw new Error('Transaction must not run');
+  };
+  await assert.rejects(createReservation({}, {}, { referencePhotos: Array(6).fill(file), transact }), /up to 5/);
+  await assert.rejects(
+    createReservation({}, {}, { referencePhotos: [file, { ...file, mimetype: 'image/jpeg' }], transact }),
+    /valid JPG/
+  );
+  const original = storage.put;
+  let writes = 0;
+  storage.put = async (...args) => {
+    if (++writes === 2) throw new Error('QA disk failure');
+    return original(...args);
+  };
+  try {
+    await assert.rejects(createReservation({}, {}, { referencePhotos: [file, file], transact }), /QA disk failure/);
+  } finally {
+    storage.put = original;
+  }
   assert.deepEqual(await readdir(dir).catch(() => []), before);
 });
 
@@ -159,12 +216,51 @@ test('customer/admin photo routes and upload require authentication before readi
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    for (const path of ['/reservations/QA/reference-photo', '/admin/reservations/QA/reference-photo'])
+    for (const path of [
+      '/reservations/QA/reference-photo',
+      '/admin/reservations/QA/reference-photo',
+      '/reservations/QA/reference-photo/4',
+      '/admin/reservations/QA/reference-photo/4'
+    ])
       assert.equal((await fetch(base + path)).status, 401);
     const body = new FormData();
     body.append('booking', '{bad');
     body.append('referencePhoto', new Blob([buffer], { type: 'image/png' }), 'reference.png');
     assert.equal((await fetch(base + '/reservations', { method: 'POST', body })).status, 401);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('multipart accepts five files through parsing and refuses a sixth; photo indexes are bounded', async () => {
+  const app = express();
+  app.use((req, res, next) => {
+    req.user = { id: 'qa', role: 'customer' };
+    next();
+  });
+  app.use('/reservations', reservationRoutes);
+  app.use('/admin/reservations', reservationAdminRoutes);
+  app.use(errorHandler);
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    for (const count of [5, 6]) {
+      const body = new FormData();
+      body.append('booking', '{bad');
+      for (let i = 0; i < count; i++)
+        body.append('referencePhoto', new Blob([buffer], { type: 'image/png' }), `${i}.png`);
+      const response = await fetch(base + '/reservations', { method: 'POST', body });
+      assert.equal(response.status, 400);
+      const error = await response.json();
+      assert.match(error.message, count === 5 ? /booking details/ : /up to 5/);
+    }
+    for (const prefix of ['/reservations', '/admin/reservations']) {
+      for (const index of ['-1', '5', '1.5', 'abc']) {
+        const response = await fetch(`${base}${prefix}/QA/reference-photo/${index}`);
+        assert.equal(response.status, 400);
+      }
+    }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

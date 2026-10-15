@@ -75,7 +75,7 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import { clearDraft, clearIntent, readDraft, readIntent, saveDraft } from '../../lib/booking.js';
-import { cleanDraftReferencePhoto } from '@tm/shared/domain/referencePhoto.js';
+import { cleanDraftReferencePhotos } from '@tm/shared/domain/referencePhoto.js';
 
 const SECTIONS = [
   ['details', 'Event Details', 'Event'],
@@ -138,7 +138,7 @@ const EMPTY = {
   menu: {},
   foodNotes: '',
   styling: EMPTY_STYLING,
-  referencePhoto: null,
+  referencePhotos: [],
   venueName: '',
   venueAddress: '',
   city: '',
@@ -204,7 +204,7 @@ export default function BookEventPage() {
       ? { ...EMPTY, ...Object.fromEntries(Object.entries(draft.form).filter(([key]) => key in EMPTY)) }
       : { ...EMPTY };
     base.styling = draftStyling(base.styling);
-    base.referencePhoto = cleanDraftReferencePhoto(base.referencePhoto);
+    base.referencePhotos = cleanDraftReferencePhotos(draft?.form?.referencePhotos ?? draft?.form?.referencePhoto);
     const picks = intentIsNewer ? intent : {};
     const pkg = catalog.data.packages.find((p) => p.slug === (params.get('package') || picks.packageSlug));
     const serviceFor =
@@ -364,7 +364,7 @@ export default function BookEventPage() {
   };
 
   const updateReferencePhoto = (photo) => {
-    update({ referencePhoto: photo });
+    update({ referencePhotos: photo });
     setErrors((current) => {
       const next = { ...current };
       delete next['styling.referencePhoto'];
@@ -571,7 +571,7 @@ export default function BookEventPage() {
               ...form,
               endTime: undefined,
               styling: undefined,
-              referencePhoto: null,
+              referencePhotos: [],
               agreeTerms: agreed,
               rentalItems: rentalChosen.map(({ itemId, qty }) => ({ itemId, qty }))
             }
@@ -602,7 +602,7 @@ export default function BookEventPage() {
   const saveAndExit = () => {
     if (!saveDraft(user.id, form)) {
       notify(
-        'Your draft could not be saved. Free some browser storage or remove the reference photo and try again.',
+        'Your draft could not be saved. Free some browser storage or remove some reference photos and try again.',
         'error'
       );
       return;
@@ -642,7 +642,7 @@ export default function BookEventPage() {
       (rental || (form.endTime && form.guests)),
     service: Boolean(form.serviceType),
     package: Boolean(pkg),
-    styling: (!stylingEmpty(styling) || Boolean(form.referencePhoto)) && !stylingProblem(styling),
+    styling: (!stylingEmpty(styling) || Boolean(form.referencePhotos.length)) && !stylingProblem(styling),
     items: rentalChosen.length > 0,
     food: menuComplete,
     venue: rental && !delivered ? true : form.venueName && form.venueAddress && form.city,
@@ -691,8 +691,8 @@ export default function BookEventPage() {
 
       {draftSaveFailed && (
         <AlertBanner tone="warning" sx={{ mb: 2 }}>
-          Your latest changes could not be saved as a draft. Free some browser storage or remove the reference photo and
-          try again before leaving this page.
+          Your latest changes could not be saved as a draft. Free some browser storage or remove some reference photos
+          and try again before leaving this page.
         </AlertBanner>
       )}
 
@@ -1112,7 +1112,7 @@ export default function BookEventPage() {
                   occasion={form.occasion}
                   errors={errors}
                   forCustomer
-                  referencePhoto={form.referencePhoto}
+                  referencePhotos={form.referencePhotos}
                   onPhotoBusyChange={setPhotoBusy}
                   onReferencePhotoChange={updateReferencePhoto}
                 >
@@ -1750,10 +1750,10 @@ export default function BookEventPage() {
                   addonQty={form.addonQty}
                 />
               )}
-              {!rental && (!stylingEmpty(styling) || form.referencePhoto) && (
+              {!rental && (!stylingEmpty(styling) || form.referencePhotos.length > 0) && (
                 <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
                   <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Theme and Colors</Typography>
-                  <StylingSummary styling={styling} referencePhoto={form.referencePhoto} compact />
+                  <StylingSummary styling={styling} referencePhotos={form.referencePhotos} compact />
                 </Box>
               )}
               <AlertBanner tone="info" sx={{ mt: 2 }}>

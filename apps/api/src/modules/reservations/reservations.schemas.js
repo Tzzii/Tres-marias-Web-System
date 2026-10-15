@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { REFERENCE_PHOTO_MAX_COUNT } from '@tm/shared/src/domain/referencePhoto.js';
 
 const text = (max) =>
   z
@@ -9,6 +10,20 @@ const text = (max) =>
 const passThrough = z.unknown().optional();
 
 export const refParams = z.object({ ref: z.string() });
+export const photoParams = z.object({
+  ref: z.string(),
+  photoIndex: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .pipe(
+      z
+        .number()
+        .int()
+        .min(0)
+        .max(REFERENCE_PHOTO_MAX_COUNT - 1)
+    )
+});
 
 export const createBody = z.object({
   packageId: passThrough,

@@ -49,9 +49,9 @@ import { postAdminMessage, postCustomerMessage } from '../messages/messages.repo
 import { queueCustomerEmail } from '../notify/notify.service.js';
 import { openQrError, openQrIn } from '../payments/payments.service.js';
 import * as repo from './reservations.repo.js';
-import { storeReferencePhoto } from './referencePhoto.js';
+import { inspectReferencePhoto, storeReferencePhoto } from './referencePhoto.js';
 import { storage } from '../../integrations/storage/index.js';
-import { cleanReferencePhoto } from '@tm/shared/src/domain/referencePhoto.js';
+import { cleanReferencePhotos, REFERENCE_PHOTO_MAX_COUNT } from '@tm/shared/src/domain/referencePhoto.js';
 
 const MAX_REF_ATTEMPTS = 3;
 
@@ -396,17 +396,17 @@ const isRefTaken = (err) =>
   err.code === 'ER_DUP_ENTRY' &&
   String(err.sqlMessage || '').includes("for key 'reservations.PRIMARY'");
 
-async function book(conn, customer, form, referencePhoto) {
+async function book(conn, customer, form, referencePhotos) {
   await lockAvailability(conn);
   if (form.agreeTerms !== true)
     throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');
   const pkg = typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null;
   if (!pkg || !pkg.visible || pkg.archived) throw invalid('Please choose an available package.', 'packageId');
   const booking = pkg.kind === 'rental' ? await rentalBooking(conn, pkg, form) : await eventBooking(conn, pkg, form);
-  if (referencePhoto) {
+  if (referencePhotos.length) {
     if (pkg.kind === 'rental')
       throw invalid(
-        'Reference photos are for event styling. Remove the photo for an equipment rental.',
+        'Reference photos are for event styling. Remove the photos for an equipment rental.',
         'styling.referencePhoto'
       );
     booking.fields.styling = {
@@ -415,7 +415,7 @@ async function book(conn, customer, form, referencePhoto) {
       colors: [],
       notes: '',
       ...booking.fields.styling,
-      referencePhoto
+      referencePhotos
     };
   }
 
@@ -447,31 +447,45 @@ async function book(conn, customer, form, referencePhoto) {
   return withoutNotes(summarize(row));
 }
 
-export async function createReservation(customer, form, { transact = tx, referencePhoto: file } = {}) {
-  const safeForm = { ...form, styling: { ...plainObject(form.styling), referencePhoto: null } };
-  const referencePhoto = file ? await storeReferencePhoto(file) : null;
+export async function createReservation(
+  customer,
+  form,
+  { transact = tx, referencePhoto: file, referencePhotos: files = file ? [file] : [] } = {}
+) {
+  const safeForm = { ...form, styling: { ...plainObject(form.styling), referencePhoto: null, referencePhotos: [] } };
+  if (!Array.isArray(files) || files.length > REFERENCE_PHOTO_MAX_COUNT)
+    throw invalid(`Upload up to ${REFERENCE_PHOTO_MAX_COUNT} reference photos.`, 'styling.referencePhoto');
+  // Validate all files before writing any of them; clean up partial writes on failure.
+  files.forEach(inspectReferencePhoto);
+  const referencePhotos = [];
   try {
+    for (const photo of files) referencePhotos.push(await storeReferencePhoto(photo));
     for (let attempt = 1; ; attempt += 1) {
       try {
-        return await transact((conn) => book(conn, customer, safeForm, referencePhoto));
+        return await transact((conn) => book(conn, customer, safeForm, referencePhotos));
       } catch (err) {
         if (attempt >= MAX_REF_ATTEMPTS || !isRefTaken(err)) throw err;
       }
     }
   } catch (err) {
-    if (referencePhoto)
-      await storage
-        .remove(referencePhoto.key)
-        .catch((cleanupError) => console.error('[reference-photo] Cleanup failed:', cleanupError.message));
+    await Promise.all(
+      referencePhotos.map((photo) =>
+        storage
+          .remove(photo.key)
+          .catch((cleanupError) => console.error('[reference-photo] Cleanup failed:', cleanupError.message))
+      )
+    );
     throw err;
   }
 }
 
-export async function getReferencePhoto(ref, { customerId, transact = tx } = {}) {
+export async function getReferencePhoto(ref, { customerId, photoIndex = 0, transact = tx } = {}) {
   return transact(async (conn) => {
     const [row] = await repo.findReservations(conn, { customerId, ref });
     if (!row || !sameRef(row.reservation, ref)) throw notFound();
-    const photo = cleanReferencePhoto(row.reservation.styling?.referencePhoto);
+    const styling = row.reservation.styling;
+    const photos = cleanReferencePhotos(styling?.referencePhotos ?? styling?.referencePhoto);
+    const photo = Number.isInteger(photoIndex) && photoIndex >= 0 ? photos[photoIndex] : null;
     if (!photo) throw new ApiError('NOT_FOUND', 'No reference photo was attached to this reservation.');
     return photo;
   });
@@ -1258,7 +1272,11 @@ export async function updateStyling(ref, body, admin, { transact = tx } = {}) {
     async (conn, { reservation }) => {
       if (CLOSED.includes(reservation.status)) throw closedError();
       if (isRental(reservation.serviceType)) throw invalid('An equipment rental has no theme or colors.');
-      const styling = stylingOf({ ...plainObject(body), referencePhoto: reservation.styling?.referencePhoto });
+      const styling = stylingOf({
+        ...plainObject(body),
+        referencePhoto: reservation.styling?.referencePhoto,
+        referencePhotos: reservation.styling?.referencePhotos
+      });
       if (stylingKey(styling) === stylingKey(reservation.styling)) return { ok: true };
       await repo.updateReservation(conn, ref, { styling });
       await logAdmin(

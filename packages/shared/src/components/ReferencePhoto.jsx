@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import ButtonBase from '@mui/material/ButtonBase';
 import Typography from '@mui/material/Typography';
-import AddPhotoAlternateRoundedIcon from '@mui/icons-material/AddPhotoAlternateRounded';
-import { REFERENCE_PHOTO_MAX_MB, REFERENCE_PHOTO_TYPES, referencePhotoProblem } from '../domain/referencePhoto.js';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
+import {
+  REFERENCE_PHOTO_MAX_COUNT,
+  REFERENCE_PHOTO_MAX_MB,
+  REFERENCE_PHOTO_TYPES,
+  referencePhotoList,
+  referencePhotoProblem
+} from '../domain/referencePhoto.js';
 import { referencePhotoUrl } from '../services/remote/reservation.js';
 import { tokens } from '../theme/tokens.js';
 
@@ -19,17 +26,31 @@ const imageSx = {
 };
 
 export function ReferencePhotoPicker({ id, value, onChange, onBusyChange, error }) {
+  const photos = referencePhotoList(value);
   const input = useRef(null);
   const reader = useRef(null);
+  const active = useRef(true);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
-  useEffect(() => () => reader.current?.abort(), []);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+      reader.current?.abort();
+    };
+  }, []);
 
   const choose = async (event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = '';
-    if (!file) return;
-    const invalid = referencePhotoProblem({ size: file.size, type: file.type });
+    if (!files.length || busy) return;
+    if (photos.length + files.length > REFERENCE_PHOTO_MAX_COUNT) {
+      setProblem(
+        `Upload up to ${REFERENCE_PHOTO_MAX_COUNT} reference photos. You can add ${Math.max(0, REFERENCE_PHOTO_MAX_COUNT - photos.length)} more.`
+      );
+      return;
+    }
+    const invalid = files.map((file) => referencePhotoProblem({ size: file.size, type: file.type })).find(Boolean);
     if (invalid) {
       setProblem(invalid);
       return;
@@ -38,80 +59,137 @@ export function ReferencePhotoPicker({ id, value, onChange, onBusyChange, error 
     setBusy(true);
     onBusyChange?.(true);
     try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const current = new FileReader();
-        reader.current = current;
-        current.onload = () => resolve(current.result);
-        current.onerror = () => reject(new Error('The photo could not be read. Choose it again.'));
-        current.onabort = () => reject(new Error('Photo selection cancelled.'));
-        current.readAsDataURL(file);
-      });
-      // Decode it before accepting it, so a renamed or damaged file gets a useful message.
-      const preview = new Image();
-      preview.src = dataUrl;
-      await preview.decode();
-      onChange({ name: file.name, dataUrl });
+      const added = [];
+      for (const file of files) {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const current = new FileReader();
+          reader.current = current;
+          current.onload = () => resolve(current.result);
+          current.onerror = () => reject(new Error('The photo could not be read. Choose it again.'));
+          current.onabort = () => reject(new Error('Photo selection cancelled.'));
+          current.readAsDataURL(file);
+        });
+        // Decode every photo before accepting the selection.
+        const preview = new Image();
+        preview.src = dataUrl;
+        await preview.decode();
+        if (!active.current) return;
+        added.push({ name: file.name, dataUrl });
+      }
+      onChange([...photos, ...added]);
     } catch {
-      setProblem('The photo could not be opened. Choose a valid JPG, PNG or WebP photo.');
+      if (active.current) setProblem('A photo could not be opened. Choose valid JPG, PNG or WebP photos.');
     } finally {
-      setBusy(false);
-      onBusyChange?.(false);
+      if (active.current) {
+        setBusy(false);
+        onBusyChange?.(false);
+      }
     }
   };
 
   return (
     <Box id={id}>
       <Typography component="h3" sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>
-        Reference photo{' '}
+        Reference photos{' '}
         <Box component="span" sx={{ ml: 0.75, fontWeight: 500, fontSize: 12.5, color: tokens.textSecondary }}>
           Optional
         </Box>
       </Typography>
       <Typography id={`${id}-hint`} sx={{ mt: 0.5, mb: 1.5, fontSize: 12.5, color: tokens.textSecondary }}>
-        Share a photo of the backdrop, table setup or overall look you have in mind. JPG, PNG or WebP, up to{' '}
-        {REFERENCE_PHOTO_MAX_MB} MB.
+        Share up to {REFERENCE_PHOTO_MAX_COUNT} photos of the backdrop, table setup or overall look you have in mind.
+        JPG, PNG or WebP, up to {REFERENCE_PHOTO_MAX_MB} MB each. No photos are required.
       </Typography>
-      {value?.dataUrl && (
-        <>
-          <Box component="img" src={value.dataUrl} alt="Your event design reference" sx={imageSx} />
-          <Typography sx={{ mt: 0.75, mb: 1, fontSize: 12.5, color: tokens.textSecondary, overflowWrap: 'anywhere' }}>
-            {value.name}
-          </Typography>
-        </>
+      <Typography role="status" sx={{ mb: 1, fontSize: 12, color: tokens.textMuted }}>
+        {photos.length} / {REFERENCE_PHOTO_MAX_COUNT} photos selected
+      </Typography>
+      {photos.length > 0 && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
+            gap: 1.5,
+            mb: 1.5
+          }}
+        >
+          {photos.map((photo, index) => (
+            <Box key={index} sx={{ minWidth: 0 }}>
+              <Box
+                component="img"
+                src={photo.dataUrl}
+                alt={`Your event design reference ${index + 1}`}
+                sx={{ ...imageSx, height: 150 }}
+              />
+              <Typography sx={{ mt: 0.75, fontSize: 12.5, color: tokens.textSecondary, overflowWrap: 'anywhere' }}>
+                {photo.name}
+              </Typography>
+              <Button
+                type="button"
+                size="small"
+                disabled={busy}
+                aria-label={`Remove reference photo ${index + 1}: ${photo.name}`}
+                onClick={() => {
+                  setProblem('');
+                  onChange(photos.filter((_, photoIndex) => photoIndex !== index));
+                }}
+              >
+                Remove photo
+              </Button>
+            </Box>
+          ))}
+        </Box>
       )}
       <input
         ref={input}
         id={`${id}-input`}
         type="file"
+        multiple
         accept={REFERENCE_PHOTO_TYPES.join(',')}
         hidden
         onChange={choose}
-        aria-label="Choose a reference photo"
+        aria-label="Choose reference photos"
         aria-describedby={`${id}-hint`}
       />
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-        <Button
+        <ButtonBase
           type="button"
-          variant="outlined"
-          startIcon={<AddPhotoAlternateRoundedIcon />}
-          disabled={busy}
+          disabled={busy || photos.length >= REFERENCE_PHOTO_MAX_COUNT}
           onClick={() => input.current?.click()}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            choose({ target: { files: event.dataTransfer.files, value: '' } });
+          }}
           aria-describedby={`${id}-hint`}
+          sx={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.75,
+            py: 3,
+            px: 2,
+            fontFamily: 'inherit',
+            borderRadius: 1.5,
+            border: `2px dashed ${problem || error ? tokens.red : tokens.borderInput}`,
+            backgroundColor: tokens.surfaceSubtle,
+            '&.Mui-disabled': { opacity: 0.6 },
+            '&:hover': { borderColor: tokens.ink },
+            '&.Mui-focusVisible': { outline: `2px solid ${tokens.ink}`, outlineOffset: 3 }
+          }}
         >
-          {busy ? 'Reading photo…' : value ? 'Replace photo' : 'Upload reference photo'}
-        </Button>
-        {value && (
-          <Button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setProblem('');
-              onChange(null);
-            }}
-          >
-            Remove photo
-          </Button>
-        )}
+          <CloudUploadOutlinedIcon sx={{ fontSize: 30, color: tokens.textMuted }} />
+          <Typography component="span" sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>
+            {busy
+              ? 'Reading photos…'
+              : photos.length >= REFERENCE_PHOTO_MAX_COUNT
+                ? 'Maximum of 5 photos selected'
+                : photos.length
+                  ? 'Add reference photos'
+                  : 'Upload reference photos'}
+          </Typography>
+          <Typography component="span" sx={{ fontSize: 12, color: tokens.textMuted }}>
+            JPG, PNG or WebP · up to {REFERENCE_PHOTO_MAX_MB} MB each
+          </Typography>
+        </ButtonBase>
       </Box>
       {(problem || error) && (
         <Typography role="alert" sx={{ mt: 1, fontSize: 12.5, color: tokens.redPress }}>
@@ -119,13 +197,25 @@ export function ReferencePhotoPicker({ id, value, onChange, onBusyChange, error 
         </Typography>
       )}
       <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textMuted }}>
-        This photo guides our design discussion. You can submit your reservation without one.
+        These photos guide our design discussion. You can submit your reservation without any photos.
       </Typography>
     </Box>
   );
 }
 
-export function ReferencePhotoPreview({ photo, reservationRef, forAdmin = false, compact = false }) {
+export function ReferencePhotoPreview({ photo, ...props }) {
+  const photos = referencePhotoList(photo);
+  if (!photos.length) return null;
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {photos.map((item, index) => (
+        <SingleReferencePhotoPreview key={item.key || index} photo={item} photoIndex={index} {...props} />
+      ))}
+    </Box>
+  );
+}
+
+function SingleReferencePhotoPreview({ photo, photoIndex, reservationRef, forAdmin = false, compact = false }) {
   const [state, setState] = useState({ url: '', error: '' });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -133,7 +223,7 @@ export function ReferencePhotoPreview({ photo, reservationRef, forAdmin = false,
     let active = true;
     let objectUrl;
     setState({ url: '', error: '' });
-    referencePhotoUrl(reservationRef, { forAdmin })
+    referencePhotoUrl(reservationRef, { forAdmin, photoIndex })
       .then((url) => {
         objectUrl = url;
         if (active) setState({ url, error: '' });
@@ -146,7 +236,7 @@ export function ReferencePhotoPreview({ photo, reservationRef, forAdmin = false,
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [photo?.key, reservationRef, forAdmin, compact, attempt]);
+  }, [photo?.key, photoIndex, reservationRef, forAdmin, compact, attempt]);
   if (!photo) return null;
   if (compact)
     return (

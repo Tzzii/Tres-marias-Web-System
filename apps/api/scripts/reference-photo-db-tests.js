@@ -48,15 +48,34 @@ test('reference photo booking, ownership and admin edits round trip; fixtures ro
       'base64'
     );
     const file = { buffer, mimetype: 'image/png', originalname: 'reference.png' };
-    const saved = await createReservation(customer, form, { transact, referencePhoto: file });
-    const photo = saved.styling.referencePhoto;
-    keys.push(photo.key);
+    const saved = await createReservation(customer, form, {
+      transact,
+      referencePhotos: Array.from({ length: 5 }, (_, i) => ({ ...file, originalname: `reference-${i}.png` }))
+    });
+    const photos = saved.styling.referencePhotos;
+    const photo = photos[0];
+    keys.push(...photos.map((photo) => photo.key));
+    assert.equal(photos.length, 5);
     await t.test('photo alone creates styling and persists its metadata', async () => {
       const [row] = await repo.findReservations(conn, { ref: saved.ref });
-      assert.deepEqual(row.reservation.styling.referencePhoto, photo);
+      assert.deepEqual(row.reservation.styling.referencePhotos, photos);
       assert.equal(row.reservation.styling.theme, '');
       assert.deepEqual(await getReferencePhoto(saved.ref, { customerId: id, transact }), photo);
       assert.deepEqual(await getReferencePhoto(saved.ref, { transact }), photo);
+    });
+    await t.test('all five photos are readable in order by the owner and admin', async () => {
+      for (let photoIndex = 0; photoIndex < 5; photoIndex++) {
+        assert.deepEqual(
+          await getReferencePhoto(saved.ref, { customerId: id, photoIndex, transact }),
+          photos[photoIndex]
+        );
+        assert.deepEqual(await getReferencePhoto(saved.ref, { photoIndex, transact }), photos[photoIndex]);
+        await assert.rejects(
+          getReferencePhoto(saved.ref, { customerId: 'another-customer', photoIndex, transact }),
+          (e) => e.code === 'NOT_FOUND'
+        );
+      }
+      await assert.rejects(getReferencePhoto(saved.ref, { photoIndex: 5, transact }), (e) => e.code === 'NOT_FOUND');
     });
     await t.test('another customer and a differently spelled reference cannot read the photo', async () => {
       for (const [ref, customerId] of [
@@ -74,14 +93,27 @@ test('reference photo booking, ownership and admin edits round trip; fixtures ro
       );
       let [row] = await repo.findReservations(conn, { ref: saved.ref });
       assert.equal(row.reservation.styling.theme, 'Royal');
-      assert.deepEqual(row.reservation.styling.referencePhoto, photo);
+      assert.deepEqual(row.reservation.styling.referencePhotos, photos);
       await updateStyling(saved.ref, {}, { name: 'Photo QA Admin' }, { transact });
       [row] = await repo.findReservations(conn, { ref: saved.ref });
       assert.equal(row.reservation.styling.notes, '');
-      assert.deepEqual(row.reservation.styling.referencePhoto, photo);
+      assert.deepEqual(row.reservation.styling.referencePhotos, photos);
+    });
+    await t.test('legacy single-photo metadata remains readable', async () => {
+      await repo.updateReservation(conn, saved.ref, {
+        styling: { theme: '', themeOther: '', colors: [], notes: '', referencePhoto: photo }
+      });
+      assert.deepEqual(await getReferencePhoto(saved.ref, { customerId: id, transact }), photo);
+      await repo.updateReservation(conn, saved.ref, {
+        styling: { theme: '', themeOther: '', colors: [], notes: '', referencePhotos: photos }
+      });
     });
     await t.test('a booking without an upload cannot attach another booking photo through JSON', async () => {
-      const other = await createReservation(customer, { ...form, styling: { referencePhoto: photo } }, { transact });
+      const other = await createReservation(
+        customer,
+        { ...form, styling: { referencePhoto: photo, referencePhotos: photos } },
+        { transact }
+      );
       assert.equal(other.styling, null);
       await assert.rejects(getReferencePhoto(other.ref, { customerId: id, transact }), (e) => e.code === 'NOT_FOUND');
     });

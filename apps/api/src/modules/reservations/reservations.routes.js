@@ -1,20 +1,28 @@
 import express from 'express';
 import multer from 'multer';
-import { REFERENCE_PHOTO_MAX_BYTES, REFERENCE_PHOTO_MAX_MB } from '@tm/shared/src/domain/referencePhoto.js';
+import {
+  REFERENCE_PHOTO_MAX_BYTES,
+  REFERENCE_PHOTO_MAX_MB,
+  REFERENCE_PHOTO_MAX_COUNT
+} from '@tm/shared/src/domain/referencePhoto.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { sendReferencePhoto } from './referencePhoto.js';
 import { validate } from '../../middleware/validate.js';
 import * as schemas from './reservations.schemas.js';
 import * as reservations from './reservations.service.js';
 
-
-
 export const reservationRoutes = express.Router();
 
 const photoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: REFERENCE_PHOTO_MAX_BYTES + 1, files: 1, fields: 1, parts: 2, fieldSize: 256 * 1024 }
-}).single('referencePhoto');
+  limits: {
+    fileSize: REFERENCE_PHOTO_MAX_BYTES + 1,
+    files: REFERENCE_PHOTO_MAX_COUNT,
+    fields: 1,
+    parts: REFERENCE_PHOTO_MAX_COUNT + 1,
+    fieldSize: 256 * 1024
+  }
+}).array('referencePhoto', REFERENCE_PHOTO_MAX_COUNT);
 
 function readBooking(req, res, next) {
   if (!req.is('multipart/form-data')) return next();
@@ -25,11 +33,13 @@ function readBooking(req, res, next) {
           'INVALID',
           error.code === 'LIMIT_FILE_SIZE'
             ? `Choose a reference photo up to ${REFERENCE_PHOTO_MAX_MB} MB.`
-            : 'The reference photo could not be accepted.',
+            : ['LIMIT_FILE_COUNT', 'LIMIT_PART_COUNT'].includes(error.code)
+              ? `Upload up to ${REFERENCE_PHOTO_MAX_COUNT} reference photos.`
+              : 'The reference photos could not be accepted.',
           { field: 'styling.referencePhoto' }
         )
       );
-    if (req.file?.buffer.length > REFERENCE_PHOTO_MAX_BYTES)
+    if (req.files?.some((file) => file.buffer.length > REFERENCE_PHOTO_MAX_BYTES))
       return next(
         new ApiError('INVALID', `Choose a reference photo up to ${REFERENCE_PHOTO_MAX_MB} MB.`, {
           field: 'styling.referencePhoto'
@@ -48,8 +58,21 @@ reservationRoutes.get('/', async (req, res) => {
   res.json(await reservations.listReservations({ customerId: req.user.id }));
 });
 reservationRoutes.post('/', readBooking, validate({ body: schemas.createBody }), async (req, res) => {
-  res.status(201).json(await reservations.createReservation(req.user, req.valid.body, { referencePhoto: req.file }));
+  res.status(201).json(await reservations.createReservation(req.user, req.valid.body, { referencePhotos: req.files }));
 });
+reservationRoutes.get(
+  '/:ref/reference-photo/:photoIndex',
+  validate({ params: schemas.photoParams }),
+  async (req, res) => {
+    await sendReferencePhoto(
+      res,
+      await reservations.getReferencePhoto(req.valid.params.ref, {
+        customerId: req.user.id,
+        photoIndex: req.valid.params.photoIndex
+      })
+    );
+  }
+);
 reservationRoutes.get('/:ref/reference-photo', validate({ params: schemas.refParams }), async (req, res) => {
   await sendReferencePhoto(
     res,
@@ -81,7 +104,6 @@ reservationRoutes.post(
   }
 );
 
-
 export const rentalRoutes = express.Router();
 
 rentalRoutes.get('/availability', validate({ query: schemas.availabilityQuery }), async (req, res) => {
@@ -91,8 +113,18 @@ rentalRoutes.get('/availability', validate({ query: schemas.availabilityQuery })
   );
 });
 
-
 export const reservationAdminRoutes = express.Router();
+
+reservationAdminRoutes.get(
+  '/:ref/reference-photo/:photoIndex',
+  validate({ params: schemas.photoParams }),
+  async (req, res) => {
+    await sendReferencePhoto(
+      res,
+      await reservations.getReferencePhoto(req.valid.params.ref, { photoIndex: req.valid.params.photoIndex })
+    );
+  }
+);
 
 reservationAdminRoutes.get('/:ref/reference-photo', validate({ params: schemas.refParams }), async (req, res) => {
   await sendReferencePhoto(res, await reservations.getReferencePhoto(req.valid.params.ref));

@@ -8,6 +8,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { RAINBOW_COLORS, themeColorSchemes } from '../domain/themeColors.js';
 import {
+  MIN_MOTIF_COLORS,
   MAX_MOTIF_COLORS,
   METALLICS,
   STYLING_NOTES_MAX,
@@ -25,6 +26,7 @@ import { AlertBanner } from './Feedback.jsx';
 import { FormField } from './FormField.jsx';
 import { Pill } from './Pill.jsx';
 import { ReferencePhotoPicker, ReferencePhotoPreview } from './ReferencePhoto.jsx';
+import { referencePhotoList } from '../domain/referencePhoto.js';
 
 // Browsers normally omit background colors when printing.
 const keepOnPrint = { printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' };
@@ -64,93 +66,243 @@ export function ColorMotifPicker({ id, colors, onChange, error }) {
     setProblem('');
     onChange([...colors, color]);
   };
-  const renderSwatchButton = (color) => (
-    <Button
-      key={color.hex}
-      size="small"
-      variant="outlined"
-      onClick={() => add(color)}
-      startIcon={<ColorSwatch color={color} size={18} />}
-      sx={{ textTransform: 'none' }}
-    >
-      {color.name}
-    </Button>
-  );
+  const swatchGridSx = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 112px), 1fr))',
+    gap: 1
+  };
+  const renderSwatchButton = (color) => {
+    const picked = hasColor(colors, color);
+    return (
+      <ButtonBase
+        key={color.hex}
+        onClick={() => add(color)}
+        aria-label={`Add ${color.name} to motif`}
+        title={picked ? 'Already in your palette' : `Add ${color.name}`}
+        sx={{
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: 0.75,
+          p: 0.75,
+          borderRadius: 1.5,
+          position: 'relative',
+          textAlign: 'left',
+          border: `1px solid ${picked ? tokens.goldDark : tokens.cardLightBorder}`,
+          backgroundColor: picked ? tokens.goldWash : tokens.cardLight,
+          '&:hover': { borderColor: tokens.goldDark },
+          '&.Mui-focusVisible': { outline: `2px solid ${tokens.goldDark}`, outlineOffset: 3 }
+        }}
+      >
+        <ColorSwatch color={color} sx={{ width: '100%', height: 38, borderRadius: 1 }} />
+        <Typography
+          component="span"
+          sx={{
+            px: 0.25,
+            fontSize: 12.5,
+            fontWeight: 600,
+            lineHeight: 1.4,
+            color: tokens.textPrimary,
+            overflowWrap: 'anywhere'
+          }}
+        >
+          {color.name}
+        </Typography>
+        {picked && (
+          <Box
+            component="span"
+            aria-hidden="true"
+            sx={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              width: 20,
+              height: 20,
+              display: 'grid',
+              placeItems: 'center',
+              borderRadius: '50%',
+              backgroundColor: tokens.cardLight,
+              border: `1px solid ${tokens.goldDark}`,
+              color: tokens.goldDark
+            }}
+          >
+            <CheckRoundedIcon sx={{ fontSize: 15 }} />
+          </Box>
+        )}
+      </ButtonBase>
+    );
+  };
   const selectedFamily = RAINBOW_COLORS.find((colorFamily) => colorFamily.name === family);
   return (
-    <Box id={id}>
-      <Typography sx={{ mb: 1, fontSize: 13, color: tokens.textSecondary }}>
-        Pick a ROYGBIV color to see its shades, then add the shade you want.
+    <Box
+      id={id}
+      sx={{
+        containerType: 'inline-size',
+        minWidth: 0,
+        p: { xs: 1.5, sm: 2 },
+        borderRadius: 2,
+        border: `1px solid ${tokens.cardLightBorder}`,
+        backgroundColor: tokens.cardLight
+      }}
+    >
+      <Typography sx={{ mb: 1.5, fontSize: 13, color: tokens.textSecondary }}>
+        Choose a color family, then add the shades you like.
       </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      <Box
+        role="group"
+        aria-label="Color families"
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gap: 0.75,
+          '@container (min-width: 600px)': { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' },
+          '@container (max-width: 249px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }
+        }}
+      >
         {RAINBOW_COLORS.map((colorFamily) => (
-          <Button
+          <ButtonBase
             key={colorFamily.name}
-            variant={family === colorFamily.name ? 'contained' : 'outlined'}
+            aria-label={`Show ${colorFamily.name} shades`}
             aria-pressed={family === colorFamily.name}
             aria-controls={`${id}-shades`}
             onClick={() => {
               setFamily(colorFamily.name);
               setProblem('');
             }}
-            startIcon={<ColorSwatch color={colorFamily} size={18} />}
+            sx={{
+              minWidth: 0,
+              minHeight: 78,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              p: 1,
+              borderRadius: 1.5,
+              border: `1px solid ${family === colorFamily.name ? tokens.goldDark : 'transparent'}`,
+              backgroundColor: family === colorFamily.name ? tokens.goldWash : 'transparent',
+              '&:hover': { backgroundColor: tokens.goldWash },
+              '&.Mui-focusVisible': { outline: `2px solid ${tokens.goldDark}`, outlineOffset: 3 }
+            }}
           >
-            {colorFamily.name}
-          </Button>
+            <ColorSwatch color={colorFamily} size={32} sx={{ borderRadius: '50%' }} />
+            <Typography component="span" sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textPrimary }}>
+              {colorFamily.name}
+            </Typography>
+          </ButtonBase>
         ))}
       </Box>
-      {selectedFamily && (
-        <Box id={`${id}-shades`} sx={{ mt: 2 }}>
-          <Typography sx={{ mb: 1, fontWeight: 700 }}>{selectedFamily.name} shades</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>{selectedFamily.shades.map(renderSwatchButton)}</Box>
-        </Box>
-      )}
-      <Typography sx={{ mt: 2, mb: 1, fontWeight: 700 }}>Metallics</Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      <Box
+        id={`${id}-shades`}
+        role="region"
+        aria-labelledby={`${id}-shade-heading`}
+        sx={{
+          mt: 1.5,
+          p: 1.5,
+          borderRadius: 1.5,
+          border: `1px solid ${tokens.cardLightBorder}`,
+          backgroundColor: tokens.surfaceSubtle
+        }}
+      >
+        <Typography
+          id={`${id}-shade-heading`}
+          component="h4"
+          sx={{ mb: 0.5, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}
+        >
+          {selectedFamily ? `${selectedFamily.name} shades` : 'Explore the shades'}
+        </Typography>
+        <Typography
+          aria-live="polite"
+          sx={{ mb: selectedFamily ? 1.25 : 0, fontSize: 12, lineHeight: 1.6, color: tokens.textSecondary }}
+        >
+          {selectedFamily
+            ? 'Select a shade to add it to your palette.'
+            : 'Pick a color family above to see its available shades here.'}
+        </Typography>
+        {selectedFamily && <Box sx={swatchGridSx}>{selectedFamily.shades.map(renderSwatchButton)}</Box>}
+      </Box>
+      <Typography component="h4" sx={{ mt: 2, mb: 1, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
+        Metallic accents
+      </Typography>
+      <Box role="group" aria-label="Metallic accents" sx={swatchGridSx}>
         {METALLICS.map((metallic) => renderSwatchButton({ hex: metallic.hex, name: metallic.name, metallic: true }))}
       </Box>
       {(problem || error) && (
-        <Typography role="alert" sx={{ mt: 1, color: tokens.redPress }}>
+        <Typography role="alert" sx={{ mt: 1, fontSize: 12.5, color: tokens.redPress }}>
           {problem || error}
         </Typography>
       )}
-      <Typography sx={{ mt: 2, mb: 1, fontWeight: 700 }}>
-        {colors.length} of {MAX_MOTIF_COLORS} colors · first is your main color
-      </Typography>
-      <Box
-        component="ul"
-        aria-label="Your color motif"
-        sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: 1 }}
-      >
-        {colors.map((color, index) => (
-          <Box
-            component="li"
-            key={color.hex + color.name}
+      <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${tokens.cardLightBorder}` }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.25 }}>
+          <Typography component="h4" sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
+            Your palette
+          </Typography>
+          <Typography
+            role="status"
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              border: `1px solid ${tokens.cardLightBorder}`,
-              borderRadius: 1,
-              pl: 1
+              px: 1,
+              py: 0.25,
+              borderRadius: 999,
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: tokens.textSecondary,
+              backgroundColor: tokens.surfaceMuted
             }}
           >
-            <ColorSwatch color={color} />
-            <Typography sx={{ fontSize: 13 }}>
-              {color.name}
-              {index === 0 ? ' (Main)' : ''}
-            </Typography>
-            <IconButton
-              aria-label={`Remove ${color.name}`}
-              onClick={() => {
-                setProblem('');
-                onChange(colors.filter((_, colorIndex) => colorIndex !== index));
+            {colors.length} / {MAX_MOTIF_COLORS} colors
+          </Typography>
+        </Box>
+        {colors.length === 0 && (
+          <Typography sx={{ py: 1, fontSize: 12.5, color: tokens.textMuted }}>
+            Your chosen colors will appear here. The first one is your main color.
+          </Typography>
+        )}
+        {colors.length > 0 && colors.length < MIN_MOTIF_COLORS && (
+          <Typography role="status" sx={{ mb: 1.25, fontSize: 12.5, color: tokens.textSecondary }}>
+            Add {MIN_MOTIF_COLORS - colors.length} more color to complete your motif.
+          </Typography>
+        )}
+        <Box
+          component="ul"
+          aria-label="Your color motif"
+          sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: 1 }}
+        >
+          {colors.map((color, index) => (
+            <Box
+              component="li"
+              key={color.hex + color.name}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                border: `1px solid ${index === 0 ? tokens.goldDark : tokens.cardLightBorder}`,
+                backgroundColor: index === 0 ? tokens.goldWash : tokens.cardLight,
+                borderRadius: 1.5,
+                pl: 1,
+                minWidth: 0,
+                maxWidth: '100%'
               }}
             >
-              <CloseRoundedIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        ))}
+              <ColorSwatch color={color} size={24} />
+              <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.textPrimary, overflowWrap: 'anywhere' }}>
+                {color.name}
+                {index === 0 && (
+                  <Box component="span" sx={{ ml: 0.75, fontSize: 10.5, fontWeight: 700, color: tokens.goldDark }}>
+                    MAIN
+                  </Box>
+                )}
+              </Typography>
+              <IconButton
+                aria-label={`Remove ${color.name}`}
+                onClick={() => {
+                  setProblem('');
+                  onChange(colors.filter((_, colorIndex) => colorIndex !== index));
+                }}
+              >
+                <CloseRoundedIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          ))}
+        </Box>
       </Box>
     </Box>
   );
@@ -161,30 +313,67 @@ function ThemeChip({ label, picked, dashed, onClick }) {
     <ButtonBase
       onClick={onClick}
       aria-pressed={picked}
+      aria-label={label}
       sx={{
-        display: 'inline-flex',
+        display: 'flex',
+        width: '100%',
+        minWidth: 0,
+        minHeight: 54,
+        height: '100%',
         alignItems: 'center',
-        gap: 0.5,
+        justifyContent: 'space-between',
+        gap: 1,
         px: 1.5,
-        py: 0.75,
-        borderRadius: 999,
+        py: 1.25,
+        borderRadius: 1.5,
         fontFamily: 'inherit',
         fontSize: 13,
-        fontWeight: picked ? 700 : 500,
-        color: picked ? tokens.textPrimary : dashed ? tokens.textSecondary : tokens.textPrimary,
-        border: picked ? `2px solid ${tokens.ink}` : `1px ${dashed ? 'dashed' : 'solid'} ${tokens.borderInput}`,
-        m: picked ? 0 : '1px',
-        backgroundColor: picked ? tokens.surfaceSubtle : tokens.cardLight,
-        transition: 'border-color 0.15s ease',
-        '&:hover': { borderColor: picked ? tokens.ink : tokens.placeholder },
-        '@media (pointer: coarse)': { py: 1 }
+        fontWeight: 600,
+        lineHeight: 1.45,
+        textAlign: 'left',
+        color: dashed && !picked ? tokens.textSecondary : tokens.textPrimary,
+        border: `1px ${dashed ? 'dashed' : 'solid'} ${picked ? tokens.goldDark : tokens.borderInput}`,
+        boxShadow: picked ? `inset 0 0 0 1px ${tokens.goldDark}` : 'none',
+        backgroundColor: picked ? tokens.goldWash : tokens.cardLight,
+        transition: 'border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease',
+        '&:hover': { borderColor: tokens.goldDark, backgroundColor: tokens.goldWash },
+        '&.Mui-focusVisible': { outline: `2px solid ${tokens.goldDark}`, outlineOffset: 3 }
       }}
     >
-      {picked && <CheckRoundedIcon sx={{ fontSize: 16 }} />}
-      {label}
+      <Box component="span" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+        {label}
+      </Box>
+      <Box
+        component="span"
+        aria-hidden="true"
+        sx={{
+          width: 18,
+          height: 18,
+          flexShrink: 0,
+          borderRadius: '50%',
+          display: 'grid',
+          placeItems: 'center',
+          border: `1px solid ${picked ? tokens.goldDark : tokens.borderInput}`,
+          backgroundColor: picked ? tokens.goldDark : 'transparent',
+          color: '#fff'
+        }}
+      >
+        {picked && <CheckRoundedIcon sx={{ fontSize: 13 }} />}
+      </Box>
     </ButtonBase>
   );
 }
+
+// The section's own width controls the columns, including inside narrow admin dialogs.
+const themeGridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gridAutoRows: '1fr',
+  gap: 1,
+  '@container (min-width: 600px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+  '@container (min-width: 860px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+  '@container (max-width: 279px)': { gridTemplateColumns: 'minmax(0, 1fr)' }
+};
 
 const Heading = ({ children, hint, sx }) => (
   <Typography component="h3" sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary, ...sx }}>
@@ -204,7 +393,7 @@ export function StylingFields({
   occasion,
   errors = {},
   forCustomer = false,
-  referencePhoto,
+  referencePhotos,
   onReferencePhotoChange,
   onPhotoBusyChange,
   children
@@ -231,21 +420,29 @@ export function StylingFields({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      <Box>
-        <Heading sx={{ mb: 1 }}>Theme</Heading>
+      <Box sx={{ minWidth: 0, containerType: 'inline-size' }}>
+        <Heading sx={{ mb: 1.5 }}>Theme</Heading>
         {popular.length > 0 && (
           <>
             <Typography sx={{ mb: 0.75, fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>
               Popular for {occasion}
             </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>{chips(popular)}</Box>
+            <Box role="group" aria-label={`Popular themes for ${occasion}`} sx={{ ...themeGridSx, mb: 2 }}>
+              {chips(popular)}
+            </Box>
             <Typography sx={{ mb: 0.75, fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>
               More Themes
             </Typography>
           </>
         )}
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+        <Box role="group" aria-label={popular.length ? 'More themes' : 'Event themes'} sx={themeGridSx}>
           {chips(others)}
+        </Box>
+        <Box
+          role="group"
+          aria-label="Other theme options"
+          sx={{ ...themeGridSx, mt: 2, pt: 2, borderTop: `1px solid ${tokens.cardLightBorder}` }}
+        >
           <ThemeChip
             label={THEME_OTHER}
             dashed
@@ -306,7 +503,10 @@ export function StylingFields({
       </Box>
 
       <Box>
-        <Heading hint={`Optional. Up to ${MAX_MOTIF_COLORS} colors, your main color first.`} sx={{ mb: 1 }}>
+        <Heading
+          hint={`Optional. Choose ${MIN_MOTIF_COLORS}–${MAX_MOTIF_COLORS} colors, your main color first.`}
+          sx={{ mb: 1 }}
+        >
           Color Motif
         </Heading>
         <ColorMotifPicker
@@ -326,7 +526,7 @@ export function StylingFields({
       {forCustomer && onReferencePhotoChange && (
         <ReferencePhotoPicker
           id={`${idPrefix}-referencePhoto`}
-          value={referencePhoto}
+          value={referencePhotos}
           onChange={onReferencePhotoChange}
           onBusyChange={onPhotoBusyChange}
           error={errors['styling.referencePhoto']}
@@ -364,10 +564,10 @@ export function StylingSummary({
   styling,
   forAdmin = false,
   compact = false,
-  referencePhoto = styling?.referencePhoto,
+  referencePhotos = styling?.referencePhotos ?? styling?.referencePhoto,
   reservationRef
 }) {
-  if (stylingEmpty(styling) && !referencePhoto) {
+  if (stylingEmpty(styling) && !referencePhotoList(referencePhotos).length) {
     return (
       <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
         {forAdmin ? 'Not given. The customer booked before this section existed, or left it blank.' : 'Not given.'}
@@ -400,7 +600,7 @@ export function StylingSummary({
             Design: {styling.notes}
           </Typography>
         )}
-        <ReferencePhotoPreview photo={referencePhoto} compact />
+        <ReferencePhotoPreview photo={referencePhotos} compact />
       </Box>
     );
   }
@@ -464,7 +664,7 @@ export function StylingSummary({
           </Typography>
         )}
       </Box>
-      <ReferencePhotoPreview photo={referencePhoto} reservationRef={reservationRef} forAdmin={forAdmin} />
+      <ReferencePhotoPreview photo={referencePhotos} reservationRef={reservationRef} forAdmin={forAdmin} />
       {styling?.notes && (
         <Box>
           <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted }}>Design Details</Typography>

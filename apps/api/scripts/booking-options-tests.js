@@ -9,7 +9,7 @@ import {
   DESSERT_ADDON_ID
 } from '@tm/shared/src/domain/menu.js';
 import { menuDishes } from '@tm/shared/src/domain/reservation.js';
-import { cleanStyling, STYLING_THEMES } from '@tm/shared/src/domain/styling.js';
+import { cleanStyling, stylingProblem, STYLING_THEMES, METALLICS } from '@tm/shared/src/domain/styling.js';
 import { themeColorSchemes, RAINBOW_COLORS } from '@tm/shared/src/domain/themeColors.js';
 import { computeQuote } from '@tm/shared/src/services/pricing.js';
 const menu = {
@@ -84,4 +84,37 @@ test('only ROYGBIV families are exposed; shades keep their saved names', () => {
   );
   for (const family of RAINBOW_COLORS)
     for (const color of family.shades) assert.deepEqual(cleanStyling({ colors: [color] }).colors[0], color);
+});
+
+test('an optional color motif accepts no colors or two to five distinct colors', () => {
+  const colors = RAINBOW_COLORS.slice(0, 6).map((family) => family.shades[0]);
+  const check = (picked) => stylingProblem(cleanStyling({ theme: 'Royal', colors: picked }));
+  assert.equal(stylingProblem(null), null);
+  assert.equal(check([]), null);
+  assert.equal(check(colors.slice(0, 1)).field, 'styling.colors');
+  assert.match(check(colors.slice(0, 1)).message, /at least 2 colors/);
+  for (const count of [2, 3, 4, 5]) assert.equal(check(colors.slice(0, count)), null);
+  assert.equal(check(colors).field, 'styling.colors');
+});
+
+test('metallics count toward the motif minimum and duplicate colors cannot satisfy it', () => {
+  const color = RAINBOW_COLORS[0].shades[0];
+  const metal = { ...METALLICS[0], metallic: true };
+  const check = (colors) => stylingProblem(cleanStyling({ colors }));
+  assert.equal(check([color, metal]), null);
+  assert.equal(check(METALLICS.slice(0, 2).map((entry) => ({ ...entry, metallic: true }))), null);
+  assert.equal(check([color, { ...color, hex: color.hex.toLowerCase() }]).field, 'styling.colors');
+  assert.equal(check([metal, metal]).field, 'styling.colors');
+  assert.equal(check([color, { hex: 'invalid' }]).field, 'styling.colors');
+});
+
+test('removing colors validates the remaining motif without changing its main color order', () => {
+  const colors = RAINBOW_COLORS.slice(0, 3).map((family) => family.shades[0]);
+  for (const removed of [0, 1]) {
+    const saved = cleanStyling({ colors: colors.slice(removed) });
+    assert.equal(stylingProblem(saved), null);
+    assert.deepEqual(saved.colors[0], colors[removed]);
+  }
+  assert.equal(stylingProblem(cleanStyling({ colors: colors.slice(2) })).field, 'styling.colors');
+  assert.equal(stylingProblem(cleanStyling({ colors: [] })), null);
 });

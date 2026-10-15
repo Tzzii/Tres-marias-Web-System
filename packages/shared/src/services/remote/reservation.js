@@ -1,7 +1,12 @@
 import { ApiError } from '../errors.js';
 import { emitChange } from '../events.js';
 import { fetchFileUrl, http } from '../http.js';
-import { cleanDraftReferencePhoto, REFERENCE_PHOTO_MAX_MB } from '../../domain/referencePhoto.js';
+import {
+  cleanDraftReferencePhoto,
+  referencePhotoList,
+  REFERENCE_PHOTO_MAX_COUNT,
+  REFERENCE_PHOTO_MAX_MB
+} from '../../domain/referencePhoto.js';
 import { getCalendar } from './calendar.js';
 
 /**
@@ -99,24 +104,35 @@ export async function createReservation(customerId, form = {}) {
   const body = Object.fromEntries(
     BOOKING_FIELDS.filter((field) => form[field] !== undefined).map((field) => [field, form[field]])
   );
-  if (form.referencePhoto) {
-    const photo = cleanDraftReferencePhoto(form.referencePhoto);
-    if (!photo)
+  const selected = referencePhotoList(form.referencePhotos ?? form.referencePhoto);
+  if (selected.length > REFERENCE_PHOTO_MAX_COUNT)
+    throw new ApiError('INVALID', `Upload up to ${REFERENCE_PHOTO_MAX_COUNT} reference photos.`, {
+      field: 'styling.referencePhoto'
+    });
+  if (selected.length) {
+    const photos = selected.map(cleanDraftReferencePhoto);
+    if (photos.some((photo) => !photo))
       throw new ApiError('INVALID', `Choose a JPG, PNG or WebP reference photo up to ${REFERENCE_PHOTO_MAX_MB} MB.`, {
         field: 'styling.referencePhoto'
       });
-    const [header, encoded] = photo.dataUrl.split(',');
-    const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
     const upload = new FormData();
     upload.append('booking', JSON.stringify(body));
-    upload.append('referencePhoto', new Blob([bytes], { type: header.slice(5, -7) }), photo.name || 'Reference photo');
+    for (const photo of photos) {
+      const [header, encoded] = photo.dataUrl.split(',');
+      const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+      upload.append(
+        'referencePhoto',
+        new Blob([bytes], { type: header.slice(5, -7) }),
+        photo.name || 'Reference photo'
+      );
+    }
     return http.post('/reservations', upload);
   }
   return http.post('/reservations', body);
 }
 
-export const referencePhotoUrl = (ref, { forAdmin = false } = {}) =>
-  fetchFileUrl(`${forAdmin ? '/admin' : ''}/reservations/${segment(ref)}/reference-photo`);
+export const referencePhotoUrl = (ref, { forAdmin = false, photoIndex = 0 } = {}) =>
+  fetchFileUrl(`${forAdmin ? '/admin' : ''}/reservations/${segment(ref)}/reference-photo/${segment(photoIndex)}`);
 
 /**
  * Cancel the customer's own reservation online, with a reason, when the rules allow it (the summary's
