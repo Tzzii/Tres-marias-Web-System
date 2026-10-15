@@ -5,7 +5,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 const TILT_MEDIA =
   '(min-width: 600px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)';
 
-export default function PackageTilt({ children, enabled = true, borderRadius = 3 }) {
+export default function PackageTilt({ children, enabled = true, borderRadius = 3, observeRef }) {
   const canTilt = useMediaQuery(TILT_MEDIA);
   const surfaceRef = useRef(null);
   const frameRef = useRef(null);
@@ -73,6 +73,7 @@ export default function PackageTilt({ children, enabled = true, borderRadius = 3
 
   return (
     <Box
+      ref={observeRef}
       className="tm-package-tilt"
       onPointerMove={onPointerMove}
       onPointerLeave={reset}

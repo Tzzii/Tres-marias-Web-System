@@ -76,6 +76,13 @@ export function pageBreaks(total, pageHeight, blocked, repeats = []) {
   return ends;
 }
 
+/** Receipts fit one A4 page with proportional scaling; other documents keep normal page breaks. */
+export function pdfPageLayout(total, pageHeight, blocked = [], repeats = [], fitOnePage = false) {
+  return fitOnePage
+    ? { ends: [total], scale: Math.min(1, pageHeight / Math.max(total, 1)) }
+    : { ends: pageBreaks(total, pageHeight, blocked, repeats), scale: 1 };
+}
+
 /**
  * Save `element` as an A4 PDF called `fileName`, no print window.
  * - First, right after the click, the computer's "Save as" window opens where the browser allows it, so the
@@ -86,6 +93,7 @@ export function pageBreaks(total, pageHeight, blocked, repeats = []) {
  *   'landscape'`) as on a computer screen, whatever the device; its own padding is dropped, because the page
  *   margins (15 mm) take its place.
  * - Pages break between lines, never through one; a block marked `data-pdf-keep` stays on one page when it fits.
+ * - With `fitOnePage: true`, the full document is reduced proportionally to fit one page (receipts).
  * - A table head marked `data-pdf-repeat` (a <thead>) is drawn again at the top of every page its table runs
  *   onto, as a printed table repeats it, and never ends a page without the first row under it.
  * - Every page has a footer: `footer` on the left (e.g. "Tres Marias Catering Services · Quotation-RES-1024")
@@ -93,7 +101,11 @@ export function pageBreaks(total, pageHeight, blocked, repeats = []) {
  * - Both libraries load on the first save, so they never slow down opening the portals.
  * Throws when the browser can't draw the picture; the caller then points the user to Print.
  */
-export async function saveElementAsPdf(element, fileName, { title, footer = '', orientation = 'portrait' } = {}) {
+export async function saveElementAsPdf(
+  element,
+  fileName,
+  { title, footer = '', orientation = 'portrait', fitOnePage = false } = {}
+) {
   // Ask where to save before the slow part: the browser only opens its window right after a click
   const target = await askWhereToSave(fileName);
   if (!target) return false;
@@ -175,9 +187,10 @@ export async function saveElementAsPdf(element, fileName, { title, footer = '', 
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation, compress: true });
   if (title) pdf.setProperties({ title });
-  const width = page.contentPx * MM_PER_PX;
+  const layout = pdfPageLayout(canvas.height / scale, page.pagePx, blocked, repeats, fitOnePage);
+  const width = page.contentPx * MM_PER_PX * layout.scale;
   const left = (page.width - width) / 2;
-  const ends = pageBreaks(canvas.height / scale, page.pagePx, blocked, repeats);
+  const ends = layout.ends;
   ends.forEach((end, i) => {
     // This page's strip of the picture on white: the repeated table head first, when the page starts inside a table
     const start = i ? ends[i - 1] : 0;
@@ -201,7 +214,7 @@ export async function saveElementAsPdf(element, fileName, { title, footer = '', 
       left,
       MARGIN.top,
       width,
-      (strip.height / scale) * MM_PER_PX
+      (strip.height / scale) * MM_PER_PX * layout.scale
     );
 
     // Footer: a hairline, then the footer text on the left and the page number on the right

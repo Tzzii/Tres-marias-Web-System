@@ -4,7 +4,8 @@
  * the one that counts (docs §3 rule 3). Settings the admin changes in the app (the buffet price per
  * person, the minimum downpayment, the daily capacity) live in the database instead.
  */
-// Company contact and payment details shown on the site, footer and payment page. There is no GCash
+// Company contact details shown on the site and footer. Bank transfer details are stored in the database.
+// There is no GCash
 // number: customers pay GCash through the PayMongo QR only (Phase 8B); the bank account is for transfers.
 export const BUSINESS = {
   name: 'Tres Marias Catering Services',
@@ -13,10 +14,7 @@ export const BUSINESS = {
   email: 'emmamariaobet@gmail.com',
   serviceArea: 'Malvar, Batangas and nearby towns',
   address: 'Magapi, Malvar, Batangas',
-  hours: 'Open 24/7 · Monday to Sunday',
-  bankName: 'BPI',
-  bankAccountName: 'Tres Marias Catering Services',
-  bankAccountNumber: '4471 0839 26'
+  hours: 'Open 24/7 · Monday to Sunday'
 };
 
 // One limit for every photo upload, including receipts and package setup photos.
@@ -208,9 +206,10 @@ export const MIN_DOWNPAYMENT_RANGE = { min: 1000, max: 100000 };
 export const ADDON_PRICE_RANGE = { min: 1, max: 1000000 };
 
 // Reasons an admin can pick when blocking dates. "Holiday" is not one: catering is allowed on holidays.
-// The admin may add a short note for customers too (BLOCK_NOTE_MAX characters), e.g. "Staff outing";
+// Others requires a short explanation; the preset reasons may include an optional note.
+// Notes allow BLOCK_NOTE_MAX characters, e.g. "Staff outing";
 // customers see the reason and the note when they tap the date.
-export const BLOCK_REASONS = ['Fully booked', 'Private event', 'Maintenance'];
+export const BLOCK_REASONS = ['Fully booked', 'Private event', 'Maintenance', 'Others'];
 export const BLOCK_NOTE_MAX = 120;
 
 // Equipment inventory categories, in display order. Lights and sound are not owned: they come

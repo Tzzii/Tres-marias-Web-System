@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Tres Marias Customer Portal - public browsing, reservations and the customer account.",
+  "scripts": {
+    "test:animations": "node --test tests/animation.test.js"
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",

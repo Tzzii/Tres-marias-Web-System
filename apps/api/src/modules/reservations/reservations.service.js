@@ -53,7 +53,6 @@ import { storeReferencePhoto } from './referencePhoto.js';
 import { storage } from '../../integrations/storage/index.js';
 import { cleanReferencePhoto } from '@tm/shared/src/domain/referencePhoto.js';
 
-
 const MAX_REF_ATTEMPTS = 3;
 
 const notFound = () => new ApiError('NOT_FOUND', 'We could not find this reservation.');
@@ -104,7 +103,6 @@ function summarize({
   };
 }
 
-
 export async function listReservations({ customerId } = {}) {
   const rows = await tx((conn) => repo.findReservations(conn, { customerId }));
   return rows.map((row) => viewFor(customerId)(summarize(row)));
@@ -150,7 +148,6 @@ export async function getRentalAvailability(date, { excludeRef } = {}) {
   const stockData = await tx((conn) => repo.rentalStockInputs(conn, date));
   return rentalAvailability(stockData, date, typeof excludeRef === 'string' ? excludeRef : undefined);
 }
-
 
 function startTimeOf(form) {
   const value = form.startTime ?? '';
@@ -480,7 +477,6 @@ export async function getReferencePhoto(ref, { customerId, transact = tx } = {})
   });
 }
 
-
 export async function cancelReservation(ref, customer, reason) {
   const text = clean(reason);
   if (!text) throw invalid('Tell us why you are cancelling.', 'reason');
@@ -602,7 +598,6 @@ export async function acceptQuotation(ref, customer, sentAt) {
     return withoutNotes(summarize(updated));
   });
 }
-
 
 const CLOSED = ['completed', 'declined', 'cancelled'];
 const MAX_AMOUNT = 10000000;
@@ -747,6 +742,10 @@ export async function sendQuotation(ref, values, admin) {
       ])
     );
     const otherCharges = quotationAmount(values.otherCharges, 'otherCharges');
+    const otherChargeItems = values.otherChargeItems?.map((line, index) => ({
+      amount: quotationAmount(line.amount, `otherChargeItems.${index}.amount`),
+      label: clean(line.label)
+    })) ?? [{ amount: otherCharges, label: clean(values.otherLabel) }];
     const discount = quotationAmount(values.discount, 'discount');
     const note = clean(values.note);
     const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
@@ -766,13 +765,14 @@ export async function sendQuotation(ref, values, admin) {
       addonPrices,
       extraGuestsCharge,
       otherCharges,
+      otherChargeItems,
       discount
     });
     const quotation = {
       ...quote,
       itemCounts,
       ...(rental ? { fulfilment: reservation.fulfilment } : {}),
-      otherLabel: quote.otherCharges ? clean(values.otherLabel) : '',
+      otherLabel: quote.otherChargeItems.length === 1 ? quote.otherChargeItems[0].label : '',
       sentAt: now(),
       note
     };

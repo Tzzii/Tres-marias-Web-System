@@ -141,7 +141,7 @@ export const acceptQuotation = (ref, sentAt) =>
 // An admin action on one booking, e.g. adminPath('RES-2026-1020-01', 'confirm') -> "/admin/reservations/RES-2026-1020-01/confirm"
 const adminPath = (ref, action) => `/admin/reservations/${segment(ref)}/${action}`;
 
-/** Price and send the quotation: { addonPrices, otherCharges, otherLabel, discount, deliveryFee, note }. Returns the summary. */
+/** Price and send the quotation: { addonPrices, otherChargeItems: [{ amount, label }], discount, deliveryFee, note }. Returns the summary. */
 export const sendQuotation = (ref, values) => http.post(adminPath(ref, 'quotation'), values);
 
 /** Decline a pending request with a reason shown to the customer. Returns the summary. */

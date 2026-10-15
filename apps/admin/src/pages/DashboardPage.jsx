@@ -363,7 +363,7 @@ export default function DashboardPage() {
             value={data ? data.eventsToday.length : 0}
             meta="Confirmed and in progress"
             loading={loading}
-            onClick={() => navigate('/reservations?tab=calendar')}
+            onClick={() => navigate('/calendar')}
           />
           <StatCard
             icon={MarkEmailUnreadOutlinedIcon}
@@ -392,7 +392,7 @@ export default function DashboardPage() {
             value={data ? data.unverifiedPayments : 0}
             meta="Proofs waiting for review"
             loading={loading}
-            onClick={() => navigate('/reports?tab=payments&filter=awaiting')}
+            onClick={() => navigate('/payments?filter=awaiting')}
           />
           <StatCard
             icon={PaymentsOutlinedIcon}
@@ -544,7 +544,7 @@ export default function DashboardPage() {
         <DashCard sx={{ gridArea: 'calendar', minWidth: 0 }}>
           <CardTitle
             action={
-              <Button size="small" onClick={() => navigate('/reservations?tab=calendar')}>
+              <Button size="small" onClick={() => navigate('/calendar')}>
                 Open calendar
               </Button>
             }
@@ -562,7 +562,7 @@ export default function DashboardPage() {
               month={view.month}
               onMonthChange={(year, month) => setView({ year, month })}
               getDay={getDay}
-              onSelect={(iso) => navigate(`/reservations?tab=calendar&date=${iso}`)}
+              onSelect={(iso) => navigate(`/calendar?date=${iso}`)}
               legend={[
                 { tone: 'event', label: 'Booked' },
                 { tone: 'full', label: 'Fully booked' },

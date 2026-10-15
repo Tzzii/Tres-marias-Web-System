@@ -19,7 +19,6 @@ import {
   ListSkeleton,
   MobileField,
   OtpInput,
-  PageHeader,
   PasswordChecklist,
   PasswordField,
   Pill,
@@ -35,7 +34,6 @@ import {
   toISODate,
   tokens,
   useCountdown,
-  useDocumentTitle,
   useNotify,
   useResource,
   validateAdminPassword,
@@ -57,7 +55,6 @@ const formatWhen = (ms, fallback = 'Not recorded yet') => {
 const formatDay = (ms) => (ms ? formatDate(toISODate(new Date(ms))) : '');
 
 export default function AccountPage() {
-  useDocumentTitle('My Account', 'Tres Marias Admin');
   const navigate = useNavigate();
   const notify = useNotify();
   const { user, session, signOut, updateUser } = useAuth();
@@ -86,7 +83,6 @@ export default function AccountPage() {
 
   return (
     <>
-      <PageHeader title="My Account" subtitle="Manage your profile, password and sign-in." />
       {!p ? (
         <DashCard>
           <ListSkeleton rows={4} />

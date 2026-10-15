@@ -28,16 +28,12 @@ import { PackageCard, SectionHead } from '../../components/Marketing.jsx';
 import SiteFooter from '../../components/SiteFooter.jsx';
 import SiteNav from '../../components/SiteNav.jsx';
 import MobileAuthBar from '../../components/MobileAuthBar.jsx';
-import { Reveal, reducedMotionSx, useInView } from '../../components/Reveal.jsx';
+import { Reveal } from '../../components/Reveal.jsx';
 import { GALLERY, photoCount } from '../../lib/gallery.js';
 import { site, siteContainerSx } from '../../theme/siteTheme.js';
+import { AlertBanner, EmptyState, appearanceApi } from '@tm/shared';
+import HeroScene from '../../components/HeroScene.jsx';
 
-const heroLine = (shown, delay) => ({
-  opacity: shown ? 1 : 0,
-  transform: shown ? 'none' : 'translateY(18px)',
-  transition: `opacity 0.8s ease ${delay}ms, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
-  ...reducedMotionSx
-});
 
 const reviewRoll = keyframes`
   from { transform: translateX(0); }
@@ -45,7 +41,7 @@ const reviewRoll = keyframes`
 `;
 
 const servicesList = (minimum) => [
-  [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick four dishes from our menu, with up to two per category, with unlimited water and juice for every guest. Served plated by our team, at one price per person.'],
+  [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick exactly four dishes from our menu, with a maximum of two per category. You may skip any category. Unlimited water and juice are included for every guest. Served plated by our team, at one price per person.'],
   [AutoAwesomeOutlinedIcon, 'Event styling', 'Themed table setups, floral centrepieces, backdrops and mood lighting designed around your motif.'],
   [EventAvailableOutlinedIcon, 'Online reservations', 'Check open dates, reserve online and follow every step, from approval to the final headcount.'],
   [CreditCardOutlinedIcon, 'Flexible payments', `Secure your date with a downpayment${minimum ? ` of at least ${peso(minimum)}` : ''} by QR Ph (GCash, Maya or your bank app) or bank transfer, then pay the rest in parts or in cash on the day.`],
@@ -68,7 +64,7 @@ const faqList = (minimum) => [
   ],
   ['Where do you cater?', `We serve ${BUSINESS.serviceArea}. For venues farther away, send us a message and we will let you know if we can accommodate your event.`],
   ['Is food included in a package?', 'A package covers the equipment: buffet setup, tableware, tables and chairs, and some include helpers. When you reserve, you choose a buffet, where we cook for you and charge per person on top of the package, or catering only, where you get the equipment alone and cook the food yourself.'],
-  ['What is on the buffet?', `One pork dish, one chicken dish, one fish dish and one vegetable dish, all picked by you from our menu, with unlimited water and juice for every guest. It is served plated by our team and charged per person, so you know your food cost the moment you enter your guest count.`],
+  ['What is on the buffet?', `Choose exactly four dishes in total, with a maximum of two dishes per category. You do not have to choose from every category. For example, you can choose two pork dishes, one vegetable dish and one chicken dish, with no fish. Unlimited water and juice are included for every guest. It is served plated by our team and charged per person, so you know your food cost the moment you enter your guest count.`],
   ['What time can our event start?', `Any time, any day. We run 24 hours a day, Monday to Sunday, so an event can start at six in the morning or at midnight. Pick the hour that suits your celebration and that is when our team arrives.`],
   ['Can I use any package for my event?', 'Yes. Packages are not tied to an occasion, so you can book any package for a wedding, birthday, corporate event or anything else.'],
   ['How many guests can you serve?', `From ${RULES.minGuests} up to ${RULES.maxGuests.toLocaleString('en-PH')} guests. Each package shows its default guest count, so you can pick the one closest to yours, and we follow the guest count you give us.`]
@@ -95,7 +91,7 @@ export default function HomePage() {
   const { user } = useAuth();
   const packages = useResource(() => catalogApi.listPackages(), []);
   const testimonials = useResource(() => feedbackApi.listPublished({ limit: 3 }), []);
-  const [heroRef, heroShown] = useInView();
+  const appearance = useResource(appearanceApi.getAppearance, []);
   const minimum = packages.data ? catalogApi.minDownpayment() : null;
   const services = servicesList(minimum);
   const faqs = faqList(minimum);
@@ -152,45 +148,61 @@ export default function HomePage() {
         sx={{
           position: 'relative',
           overflow: 'hidden',
-          textAlign: 'center',
-          px: 3,
-          pt: { xs: 8, md: 11 },
-          pb: { xs: 8, md: 11 },
+          pt: { xs: 5, md: 8 },
+          pb: { xs: 6, md: 8 },
           background: site.gradientHero,
           '&::before': { content: '""', position: 'absolute', inset: '-40%', background: 'radial-gradient(circle at 50% 50%, rgba(197, 160, 89, 0.16) 0%, transparent 45%)', animation: 'tmHeroDrift 18s ease-in-out infinite alternate', pointerEvents: 'none' },
-          '&::after': { content: '""', position: 'absolute', inset: 0, backgroundImage: site.textureLinen, maskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', pointerEvents: 'none' }
+          '&::after': { content: '""', position: 'absolute', inset: 0, backgroundImage: site.textureLinen, maskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', pointerEvents: 'none' },
+          '@media (prefers-reduced-motion: reduce)': { '&::before': { animation: 'none' } }
         }}
       >
-        <Box ref={heroRef} sx={{ position: 'relative', zIndex: 2, maxWidth: 860, mx: 'auto' }}>
-          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 2.25, py: 0.875, mb: 3.25, borderRadius: 999, border: `1px solid ${site.borderHover}`, backgroundColor: 'rgba(255, 255, 255, 0.6)', fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: site.goldText, ...heroLine(heroShown, 100) }}>
-            <Box sx={{ display: 'flex', color: site.gold }}>
-              {Array.from({ length: 5 }, (_, i) => (
-                <StarRoundedIcon key={i} sx={{ fontSize: 14 }} />
-              ))}
+        <Container maxWidth={false} sx={{ ...siteContainerSx, position: 'relative', zIndex: 2 }}>
+          <Box sx={{ maxWidth: 1440, mx: 'auto', display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 0.95fr) minmax(0, 1.05fr)' }, alignItems: 'center', gap: { xs: 4, md: 5, lg: 7 } }}>
+            <Box sx={{ minWidth: 0, maxWidth: { xs: 640, md: 'none' }, mx: { xs: 'auto', md: 0 }, textAlign: { xs: 'center', md: 'left' } }}>
+              <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 2, py: 0.875, mb: 3, borderRadius: 999, border: `1px solid ${site.borderHover}`, backgroundColor: 'rgba(255, 255, 255, 0.6)', fontSize: { xs: 10, sm: 12 }, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: site.goldText }}>
+                <AutoAwesomeOutlinedIcon aria-hidden="true" sx={{ fontSize: 16, color: site.goldText }} />
+                Full-service event catering
+              </Box>
+              <Typography component="h1" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 40, sm: 56, md: 58, lg: 68 }, fontWeight: 600, lineHeight: 1.08, letterSpacing: '-0.025em', textWrap: 'balance', color: site.ink }}>
+                Celebrations Worth Savouring
+              </Typography>
+              <Typography sx={{ mt: 2.5, maxWidth: 520, mx: { xs: 'auto', md: 0 }, fontSize: { xs: 15, md: 16 }, lineHeight: 1.8, color: site.inkSoft }}>
+                Thoughtful setups, Filipino flavours and a warm welcome for every guest. Find the right package for your next celebration.
+              </Typography>
+              <Box sx={{ mt: 3.5, display: 'flex', gap: 1.5, justifyContent: { xs: 'center', md: 'flex-start' }, flexWrap: 'wrap' }}>
+                <Button variant="contained" onClick={() => scrollToId('packages')} sx={{ px: 3, py: 1.5, fontSize: 14, borderRadius: 999 }}>
+                  See our packages
+                </Button>
+                <Button onClick={() => scrollToId('availability')} sx={{ px: 3, py: 1.5, fontSize: 14, borderRadius: 999, color: site.ink, backgroundColor: 'rgba(255, 255, 255, 0.55)', border: `1px solid ${site.border}`, '&:hover': { color: site.goldText, borderColor: site.gold, backgroundColor: '#fff' } }}>
+                  Check availability
+                </Button>
+              </Box>
+              <Typography sx={{ mt: 2, fontSize: 12.5, lineHeight: 1.7, color: site.inkSoft }}>
+                Explore without an account. Food is priced separately from setup packages.
+              </Typography>
             </Box>
-            Full-service event catering
+            <HeroScene settings={appearance.data} />
           </Box>
-          <Typography component="h1" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 40, sm: 56, md: 70 }, fontWeight: 600, lineHeight: 1.08, color: site.ink, ...heroLine(heroShown, 250) }}>
-            Celebrations Worth Savouring
-          </Typography>
-          <Typography sx={{ mt: 3, mx: 'auto', maxWidth: 640, fontSize: { xs: 15, md: 17 }, lineHeight: 1.75, color: site.inkSoft, ...heroLine(heroShown, 400) }}>
-            Browse every package, price and open date. No account needed to look around. When you are ready, reserve your date in minutes.
-          </Typography>
-          <Box sx={{ mt: 4.5, display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', ...heroLine(heroShown, 550) }}>
-            <Button variant="contained" onClick={() => scrollToId('packages')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999 }}>
-              See our packages
-            </Button>
-            <Button onClick={() => scrollToId('availability')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.ink, backgroundColor: 'rgba(255, 255, 255, 0.55)', border: `1px solid ${site.border}`, '&:hover': { color: site.goldText, borderColor: site.gold, backgroundColor: '#fff' } }}>
-              Check availability
-            </Button>
-          </Box>
-        </Box>
+        </Container>
       </Box>
 
       <Box component="section" id="packages" sx={{ py: { xs: 10, md: 12 }, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={siteContainerSx}>
           <SectionHead eyebrow="Our Packages" title="Pick the Package That Fits Your Guest Count" description={`${packages.data ? packages.data.filter((p) => !isRentalPackage(p)).length : 'Our'} packages, each a flat price for the buffet setup, tableware, tables and chairs. Any package works for any occasion, as a buffet we cook for you or as catering only. Need only a few things? Rent them by the piece.`} />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 4 }}>
+          {packages.error && (
+            <AlertBanner
+              tone="error"
+              title="Packages could not be refreshed"
+              action={<Button onClick={packages.reload}>Try again</Button>}
+              sx={{ mb: 3 }}
+            >
+              {packages.data?.length ? 'Showing the last loaded packages. Please try again for the latest details.' : 'We could not load our packages. Please try again.'}
+            </AlertBanner>
+          )}
+          {!packages.loading && !packages.error && packages.data?.length === 0 && (
+            <EmptyState title="No packages available yet" description="Please check back soon or contact us to discuss your event." />
+          )}
+          <Box aria-busy={packages.loading} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 4 }}>
             {packages.loading
               ? Array.from({ length: 3 }, (_, i) => <Skeleton key={i} variant="rounded" height={420} sx={{ borderRadius: 3, bgcolor: site.sand }} />)
               : (packages.data || []).map((pkg, index) => <PackageCard key={pkg.id} pkg={pkg} index={index} />)}
@@ -215,6 +227,7 @@ export default function HomePage() {
                 <ButtonBase
                   onClick={() => openGallery(event)}
                   aria-haspopup="dialog"
+
                   sx={{
                     position: 'relative',
                     display: 'flex',
@@ -229,8 +242,15 @@ export default function HomePage() {
                     background: GALLERY_WASH[event.key],
                     border: `1px solid ${site.border}`,
                     transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease',
-                    '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover },
-                    '&:hover .tm-gallery-cover': { transform: 'scale(1.06)' },
+                    '@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)': {
+                      '&:hover': { borderColor: site.borderHover, transform: 'translateY(-4px)', boxShadow: site.shadowCardHover },
+                      '&:hover .tm-gallery-cover': { transform: 'scale(1.06)' }
+                    },
+                    '@media (prefers-reduced-motion: reduce)': {
+                      transition: 'none',
+                      '&:hover, &:active': { transform: 'none' },
+                      '& .tm-gallery-cover': { transition: 'none', transform: 'none' }
+                    },
                     '&.Mui-focusVisible': { outline: `2px solid ${site.gold}`, outlineOffset: 3 }
                   }}
                 >

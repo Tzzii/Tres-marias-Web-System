@@ -27,6 +27,8 @@
     "test:mobile": "npm run test:mobile -w apps/api",
     "test:inventory": "npm run test:inventory -w apps/api",
     "test:labels": "npm run test:labels -w apps/api",
+    "test:appearance": "npm run test:appearance -w apps/api",
+    "test:animations": "npm run test:animations -w apps/client",
     "test:inventory:db": "npm run test:inventory:db -w apps/api",
     "test:equipment-photos:db": "npm run test:equipment-photos:db -w apps/api --",
     "email:preview": "npm run email:preview -w apps/api",

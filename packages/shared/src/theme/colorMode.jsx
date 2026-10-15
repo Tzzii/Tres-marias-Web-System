@@ -6,7 +6,7 @@ import { PALETTES, cssVarName } from './palettes.js';
  * Dark / light mode for the customer portal and the admin dashboard.
  *
  * Light (the warm ivory and gold of the public website) is the default; dark is
- * the navy shell, used only after someone presses the toggle in the top bar.
+ * the navy shell, used only after someone presses the toggle in Settings.
  * That press is remembered per browser and is shared by every page of that
  * portal (including its sign-in screen). Nothing is saved until the toggle is
  * pressed, so a browser that never pressed it always opens in light mode.

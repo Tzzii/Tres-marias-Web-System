@@ -5,7 +5,6 @@ import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
 import {
-  CardTitle,
   ConfirmDialog,
   DashCard,
   DataTable,
@@ -267,23 +266,6 @@ export default function RequestsSection() {
           </>
         )}
       </DashCard>
-
-      <Box sx={{ mt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5 }}>
-        <DashCard>
-          <CardTitle>Quotation — What Happens</CardTitle>
-          <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>
-            Open the reservation to price the additional charges and send the quotation. The customer accepts it in
-            their portal, which moves the status to Approved and gives them a payment instruction: at least the minimum
-            downpayment (or more, up to the full amount) by a due date. The date is held only once they accept.
-          </Typography>
-        </DashCard>
-        <DashCard>
-          <CardTitle>Decline — What Happens</CardTitle>
-          <Typography sx={{ fontSize: 13.5, lineHeight: 1.65, color: tokens.textSecondary }}>
-            A reason is required and shown to the customer. The date stays open for other bookings.
-          </Typography>
-        </DashCard>
-      </Box>
 
       <ConfirmDialog
         open={confirm?.type === 'decline'}

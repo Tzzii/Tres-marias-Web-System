@@ -15,8 +15,8 @@ export function MenuPicker({ idPrefix, menu, dishes, onChange, errors = {} }) {
         {total} of 4 dishes selected
       </Typography>
       <Typography sx={{ mb: 2, fontSize: 13, color: tokens.textSecondary }}>
-        Choose up to 2 dishes per category. You may skip a category and use its choice in another category. Exactly 4
-        dishes are required.
+        Choose exactly 4 dishes in total, with a maximum of 2 per category. You may skip any category. For example,
+        choose 2 pork dishes, 1 vegetable dish and 1 chicken dish, with no fish.
       </Typography>
       {errors['menu.total'] && (
         <Typography role="alert" sx={{ mb: 1, color: tokens.redPress }}>

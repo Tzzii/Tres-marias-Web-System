@@ -184,6 +184,24 @@ img {
     overflow: visible !important;
     box-shadow: none !important;
   }
+
+  .tm-receipt-document .MuiDialog-container::after {
+    display: none !important;
+  }
+  .tm-receipt-document .MuiDialog-paper {
+    display: block !important;
+    break-inside: avoid;
+  }
+  .tm-receipt-sheet {
+    width: 180mm !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    break-inside: avoid;
+  }
+  .tm-receipt-sheet > .MuiBox-root {
+    gap: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

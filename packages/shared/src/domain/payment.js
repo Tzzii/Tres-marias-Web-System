@@ -9,6 +9,34 @@
 // "₱1,200"
 const pesoText = (value) => `₱${Number(value).toLocaleString('en-PH')}`;
 
+export const BANK_DETAILS_LIMITS = { bankName: 80, bankAccountName: 120, bankAccountNumber: 40 };
+
+export const cleanBankDetails = (values = {}) =>
+  Object.fromEntries(
+    Object.keys(BANK_DETAILS_LIMITS).map((key) => [
+      key,
+      typeof values?.[key] === 'string' ? values[key].replace(/\s+/g, ' ').trim() : ''
+    ])
+  );
+
+/** Bank transfer instructions keep account numbers as text, including leading zeros. */
+export function bankDetailsProblem(values = {}) {
+  const cleaned = cleanBankDetails(values);
+  const labels = { bankName: 'bank name', bankAccountName: 'account name', bankAccountNumber: 'account number' };
+  for (const [field, max] of Object.entries(BANK_DETAILS_LIMITS)) {
+    if (typeof values?.[field] !== 'string' || !cleaned[field])
+      return { field, message: `Enter the ${labels[field]}.` };
+    if (cleaned[field].length > max)
+      return { field, message: `Keep the ${labels[field]} to ${max} characters or fewer.` };
+  }
+  if (!/^[0-9]+(?:[ -][0-9]+)*$/.test(cleaned.bankAccountNumber))
+    return {
+      field: 'bankAccountNumber',
+      message: 'Use digits, with optional spaces or hyphens, for the account number.'
+    };
+  return null;
+}
+
 /**
  * What a payment of `amount` is for, from what was paid before it: "full" when it is the first payment
  * and covers the total, "downpayment" while the booking's minimum downpayment isn't reached yet, and

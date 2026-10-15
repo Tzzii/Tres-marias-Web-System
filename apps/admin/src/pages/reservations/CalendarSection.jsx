@@ -121,6 +121,7 @@ export default function CalendarSection() {
     if (!block.from) found.from = 'Choose the first date.';
     if (!block.to) found.to = 'Choose the last date.';
     if (block.from && block.to && block.to < block.from) found.to = 'Must be on or after the first date.';
+    if (block.reason === 'Others' && !block.note.trim()) found.note = 'Specify why these dates are blocked.';
     setBlockErrors(found);
     if (Object.keys(found).length) return;
     const conflicts = Object.keys(byDate).filter(
@@ -138,6 +139,7 @@ export default function CalendarSection() {
       );
       setBlock({ from: '', to: '', reason: block.reason, note: '' });
     } catch (e) {
+      if (e.meta?.field) setBlockErrors({ [e.meta.field]: e.message });
       notify(e.message, 'error');
     } finally {
       setBlocking(false);
@@ -371,10 +373,7 @@ export default function CalendarSection() {
                   </Button>
                 ) : (
                   selected >= todayISO() && (
-                    <Button
-                      variant="outlined"
-                      onClick={() => setBlock((b) => ({ ...b, from: selected, to: selected }))}
-                    >
+                    <Button variant="outlined" onClick={() => setBlock((b) => ({ ...b, from: selected, to: '' }))}>
                       Block this date
                     </Button>
                   )
@@ -395,7 +394,7 @@ export default function CalendarSection() {
                   mode="any"
                   value={block.from}
                   onChange={(v) => {
-                    setBlock((b) => ({ ...b, from: v, to: b.to && b.to >= v ? b.to : v }));
+                    setBlock((b) => ({ ...b, from: v }));
                     setBlockErrors({});
                   }}
                   error={blockErrors.from}
@@ -416,15 +415,23 @@ export default function CalendarSection() {
                 id="block-reason"
                 label="Reason shown to customers"
                 value={block.reason}
-                onChange={(e) => setBlock((b) => ({ ...b, reason: e.target.value }))}
+                onChange={(e) => {
+                  setBlock((b) => ({ ...b, reason: e.target.value }));
+                  setBlockErrors({});
+                }}
                 options={BLOCK_REASONS}
               />
               <FormField
                 id="block-note"
-                label="Note for customers"
-                optional
+                label={block.reason === 'Others' ? 'Specify reason' : 'Note for customers'}
+                required={block.reason === 'Others'}
+                optional={block.reason !== 'Others'}
                 value={block.note}
-                onChange={(e) => setBlock((b) => ({ ...b, note: e.target.value }))}
+                onChange={(e) => {
+                  setBlock((b) => ({ ...b, note: e.target.value }));
+                  setBlockErrors((errors) => ({ ...errors, note: undefined }));
+                }}
+                error={blockErrors.note}
                 placeholder="e.g. Our team has a company outing that day."
                 hint={`${block.note.length}/${BLOCK_NOTE_MAX} characters. Customers see it when they tap the date.`}
                 inputProps={{ maxLength: BLOCK_NOTE_MAX }}

@@ -30,12 +30,20 @@ GET {{api}}/calendar/check?date={{$datetime "YYYY-MM-DD" 30 d}}&time=6pm
 ### ---------------------------------------------------------------- Admin: blocked dates
 
 ### Block a range (both ends included, at most 60 days): { added, total }. Blocking it again only changes the reason (added 0).
-### reason is one of "Fully booked", "Private event", "Maintenance"; anything else is 400 INVALID, meta.field "reason"
+### reason is one of "Fully booked", "Private event", "Maintenance", "Others"; anything else is 400 INVALID, meta.field "reason"
+### Others requires a nonblank note (up to 120 characters), shown to customers alongside the reason.
 POST {{api}}/admin/calendar/blocks
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 { "from": "{{$datetime "YYYY-MM-DD" 40 d}}", "to": "{{$datetime "YYYY-MM-DD" 42 d}}", "reason": "Private event" }
+
+### A custom reason: blank or missing note is 400 INVALID, meta.field "note"
+POST {{api}}/admin/calendar/blocks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "from": "{{$datetime "YYYY-MM-DD" 40 d}}", "to": "{{$datetime "YYYY-MM-DD" 42 d}}", "reason": "Others", "note": "Our team has a company outing that day." }
 
 ### 61 days: 400 INVALID "Block at most 60 days at a time."
 POST {{api}}/admin/calendar/blocks

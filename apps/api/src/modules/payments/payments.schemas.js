@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-
 const text = (max) =>
   z
     .string({ error: 'This field is required.' })
@@ -29,6 +28,12 @@ export const qrListQuery = z.object({ ref: z.string().max(40, { error: 'Use 40 c
 export const rejectBody = z.object({ reason: text(1000) });
 
 export const cashBody = z.object({ amount: passThrough });
+
+export const bankDetailsBody = z.object({
+  bankName: passThrough,
+  bankAccountName: passThrough,
+  bankAccountNumber: passThrough
+});
 
 export const refundBody = z.object({
   amount: passThrough,

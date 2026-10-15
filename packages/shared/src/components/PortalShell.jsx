@@ -30,7 +30,6 @@ import { tokens } from '../theme/tokens.js';
 import { formatRelative, initials } from '../utils/format.js';
 import { ConfirmDialog } from './AppDialog.jsx';
 import { BrandMark } from './Brand.jsx';
-import { ThemeModeToggle } from './ThemeModeToggle.jsx';
 
 // Shared animation timing for the sidebar and nav items
 const EASE = `all 0.25s ${tokens.easeStandard}`;
@@ -394,7 +393,6 @@ export default function PortalShell({
                 </Badge>
               </IconButton>
             </Tooltip>
-            <ThemeModeToggle />
             {headerActions}
 
             <Button

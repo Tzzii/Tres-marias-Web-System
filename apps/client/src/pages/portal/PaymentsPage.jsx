@@ -20,7 +20,6 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import {
   AlertBanner,
-  BUSINESS,
   BusyButton,
   CardTitle,
   DashCard,
@@ -99,8 +98,7 @@ function QrPanel({ qr, customerId, onUpdate, onNew }) {
       try {
         const fresh = await paymentApi.getQrPayment(customerId, qr.id);
         if (alive && fresh.status !== 'pending') onUpdate(fresh);
-      } catch (e) {
-      }
+      } catch (e) {}
     }, QR_POLL_MS);
     return () => {
       alive = false;
@@ -600,37 +598,7 @@ export default function PaymentsPage() {
                             <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>
                               Send {peso(amount)} to
                             </Typography>
-                            {[
-                              ['Bank', BUSINESS.bankName],
-                              ['Account name', BUSINESS.bankAccountName],
-                              ['Account number', BUSINESS.bankAccountNumber]
-                            ].map(([label, value]) => (
-                              <Box
-                                key={label}
-                                sx={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                  py: 0.25
-                                }}
-                              >
-                                <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{value}</Typography>
-                                  {/number/i.test(label) && (
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => copy(value)}
-                                      aria-label={`Copy ${label}`}
-                                      sx={{ '@media (pointer: coarse)': { width: 40, height: 40 } }}
-                                    >
-                                      <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
-                                    </IconButton>
-                                  )}
-                                </Box>
-                              </Box>
-                            ))}
+                            <BankTransferAccount onCopy={copy} />
                             <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textMuted }}>
                               Include {selected.ref} in the message or remarks.
                             </Typography>
@@ -888,4 +856,32 @@ export default function PaymentsPage() {
       {receipt && <DocumentDialog open onClose={() => setReceipt(null)} detail={receipt.detail} doc={receipt.doc} />}
     </>
   );
+}
+
+function BankTransferAccount({ onCopy }) {
+  const { data, error, reload } = useResource(paymentApi.getBankDetails, []);
+  if (error) return <ErrorState error={error} onRetry={reload} />;
+  if (!data) return <ListSkeleton rows={3} height={28} />;
+  return [
+    ['Bank', data.bankName],
+    ['Account name', data.bankAccountName],
+    ['Account number', data.bankAccountNumber]
+  ].map(([label, value]) => (
+    <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, py: 0.25 }}>
+      <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 13.5, fontWeight: 700, overflowWrap: 'anywhere' }}>{value}</Typography>
+        {label === 'Account number' && (
+          <IconButton
+            size="small"
+            onClick={() => onCopy(value)}
+            aria-label={`Copy ${label}`}
+            sx={{ '@media (pointer: coarse)': { width: 40, height: 40 } }}
+          >
+            <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        )}
+      </Box>
+    </Box>
+  ));
 }

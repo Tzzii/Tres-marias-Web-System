@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
@@ -35,15 +34,8 @@ import {
   useNotify,
   useResource
 } from '@tm/shared';
-import { SectionTabs } from '../components/SectionTabs.jsx';
 import { usePdfDocument } from '../components/PdfDocument.jsx';
-import PaymentsSection from './reports/PaymentsSection.jsx';
 import ReportSheet from './reports/ReportSheet.jsx';
-
-const TABS = [
-  ['overview', 'Overview'],
-  ['payments', 'Payments and Balances']
-];
 
 const RANGES = [
   ['this_year', 'This year'],
@@ -68,13 +60,6 @@ const shortPeso = (v) =>
 
 export default function ReportsPage() {
   useDocumentTitle('Reports', 'Tres Marias Admin');
-  const [params, setParams] = useSearchParams();
-  const requested = params.get('tab');
-  const tab = TABS.some(([key]) => key === requested)
-    ? requested
-    : params.get('verify') || params.get('filter')
-      ? 'payments'
-      : 'overview';
   const notify = useNotify();
   const { savePdfDocument, savingPdfDocument, pdfDocument } = usePdfDocument();
   const [range, setRange] = useState('this_year');
@@ -138,66 +123,49 @@ export default function ReportsPage() {
     <>
       <PageHeader
         title="Reports"
-        subtitle={
-          tab === 'overview'
-            ? `${rangeLabel} · updates automatically as bookings are completed and payments verified`
-            : undefined
-        }
+        subtitle={`${rangeLabel} · updates automatically as bookings are completed and payments verified`}
         actions={
-          tab === 'overview' && (
-            <Box className="tm-no-print" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <TextField
-                select
-                size="small"
-                value={range}
-                onChange={(e) => setRange(e.target.value)}
-                inputProps={{ 'aria-label': 'Report range' }}
-                sx={{
-                  minWidth: 160,
-                  '& .MuiOutlinedInput-root': { backgroundColor: '#fff', color: tokens.textPrimary },
-                  '& .MuiSvgIcon-root': { color: tokens.textMuted }
-                }}
-              >
-                {RANGES.map(([value, label]) => (
-                  <MenuItem key={value} value={value}>
-                    {label}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Button
-                variant="outlined"
-                startIcon={<PrintOutlinedIcon />}
-                onClick={() => window.print()}
-                disabled={!data || loading}
-                sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
-              >
-                Print
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<PictureAsPdfOutlinedIcon />}
-                onClick={savePdf}
-                disabled={!data || loading || savingPdf}
-                sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
-              >
-                {savingPdf ? 'Saving…' : 'Save PDF'}
-              </Button>
-            </Box>
-          )
+          <Box className="tm-no-print" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <TextField
+              select
+              size="small"
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+              inputProps={{ 'aria-label': 'Report range' }}
+              sx={{
+                minWidth: 160,
+                '& .MuiOutlinedInput-root': { backgroundColor: '#fff', color: tokens.textPrimary },
+                '& .MuiSvgIcon-root': { color: tokens.textMuted }
+              }}
+            >
+              {RANGES.map(([value, label]) => (
+                <MenuItem key={value} value={value}>
+                  {label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Button
+              variant="outlined"
+              startIcon={<PrintOutlinedIcon />}
+              onClick={() => window.print()}
+              disabled={!data || loading}
+              sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
+            >
+              Print
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<PictureAsPdfOutlinedIcon />}
+              onClick={savePdf}
+              disabled={!data || loading || savingPdf}
+              sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
+            >
+              {savingPdf ? 'Saving…' : 'Save PDF'}
+            </Button>
+          </Box>
         }
       />
-      <Box className="tm-no-print">
-        <SectionTabs
-          ariaLabel="Report sections"
-          value={tab}
-          onChange={(next) => setParams({ tab: next })}
-          options={TABS.map(([value, label]) => ({ value, label }))}
-        />
-      </Box>
-
-      {tab === 'payments' && <PaymentsSection />}
-
-      {tab === 'overview' && data && (
+      {data && (
         <ReportSheet
           data={data}
           rangeLabel={RANGES.find(([k]) => k === data.range)?.[1] || rangeLabel}
@@ -207,13 +175,13 @@ export default function ReportsPage() {
         />
       )}
 
-      {tab === 'overview' && error && (
+      {error && (
         <DashCard>
           <ErrorState error={error} onRetry={reload} />
         </DashCard>
       )}
 
-      {tab === 'overview' && !error && (
+      {!error && (
         <>
           <Box
             sx={{

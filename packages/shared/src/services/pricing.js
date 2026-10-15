@@ -15,6 +15,19 @@ export const extraGuestsFor = (pkg, guests) => {
   return base > 0 ? Math.max(0, Math.floor(Number(guests) || 0) - base) : 0;
 };
 
+/** Itemized charges, with a fallback for quotations saved with a single amount and label. */
+export function otherChargeItemsFor(quote) {
+  const lines = Array.isArray(quote?.otherChargeItems)
+    ? quote.otherChargeItems
+    : [{ amount: quote?.otherCharges, label: quote?.otherLabel }];
+  return lines
+    .map((line) => ({
+      amount: Number.isFinite(Number(line.amount)) ? Math.max(0, Number(line.amount)) : 0,
+      label: typeof line.label === 'string' ? line.label.trim() : ''
+    }))
+    .filter((line) => line.amount > 0 || line.label);
+}
+
 /**
  * Quotation maths shared by the customer form's summary, the admin quotation
  * panel and the printed documents, so all of them show the same figures.
@@ -44,6 +57,8 @@ export const extraGuestsFor = (pkg, guests) => {
  *   rentalItems   [{ itemId, name, qty, price }]  what the customer rents, e.g. 80 Monobloc chair at ₱15
  *   deliveryFee   amount for delivering a rental (0 when the customer picks it up)
  *   damageCharges [{ itemId, name, qty, fee }]    pieces charged after the return
+ *   otherChargeItems [{ amount, label }]       extra charges entered individually by the admin;
+ *                                             their sum is also kept as `otherCharges` for totals
  *
  * Besides the amounts, the result keeps `packageGuests` (the package's default guest count when it was
  * worked out) and `extraGuests` (how many guests above it), so a saved quotation says which guest count
@@ -61,6 +76,8 @@ export function computeQuote({
   addonQty = {},
   addonPrices = {},
   otherCharges = 0,
+  otherLabel = '',
+  otherChargeItems,
   extraGuestsCharge = 0,
   discount = 0
 }) {
@@ -111,7 +128,8 @@ export function computeQuote({
     .map((line) => ({ ...line, total: line.qty * line.fee }));
   const damageTotal = damageLines.reduce((sum, line) => sum + line.total, 0);
 
-  const other = amount(otherCharges);
+  const otherLines = otherChargeItemsFor({ otherChargeItems, otherCharges, otherLabel });
+  const other = otherLines.reduce((sum, line) => sum + line.amount, 0);
   const cleanDiscount = amount(discount);
   // The total can't go below 0
   const net = Math.max(
@@ -138,6 +156,7 @@ export function computeQuote({
     addonTotals: totals,
     addons: addonsTotal,
     otherCharges: other,
+    otherChargeItems: otherLines,
     discount: cleanDiscount,
     net
   };

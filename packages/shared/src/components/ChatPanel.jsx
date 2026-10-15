@@ -51,6 +51,7 @@ import {
  * On a page (not embedded), phones and small tablets fit the card between its top edge and the
  * bottom tab bar, so the text box is always on screen without scrolling the page.
  * `compact` always uses the one-pane phone layout, for narrow windows on any screen size.
+ * `hideHeader` lets an embedded window supply its own persistent title and controls.
  *
  * Editing and deleting (2026-10-10), when the page passes `onEdit(messageId, body)` and `onDelete(messageId)`:
  * a message this side typed has a ⋮ button (on hover with a mouse, always on touch screens) with Edit and
@@ -79,6 +80,7 @@ export function ChatPanel({
   onClearComposeTag,
   embedded = false,
   compact = false,
+  hideHeader = false,
   single = false
 }) {
   const [text, setText] = useState(''); // message being typed
@@ -374,7 +376,7 @@ export function ChatPanel({
             <>
               <Box
                 sx={{
-                  display: 'flex',
+                  display: hideHeader ? 'none' : 'flex',
                   alignItems: 'center',
                   gap: 1.25,
                   px: 2,
@@ -539,7 +541,11 @@ export function ChatPanel({
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                       e.preventDefault();
                                       saveEdit();
-                                    } else if (e.key === 'Escape') setEditing(null);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setEditing(null);
+                                    }
                                   }}
                                   inputProps={{ 'aria-label': 'Edit your message', maxLength: 2000 }}
                                   sx={{

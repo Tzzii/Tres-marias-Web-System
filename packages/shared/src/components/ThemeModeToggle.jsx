@@ -15,7 +15,7 @@ const iconSx = {
 };
 
 /**
- * The dark / light switch in the portal top bar (both portals, via PortalShell).
+ * The dark / light switch in Settings > Appearance for both portals.
  *
  * It shows the mode it will switch to: a sun while the navy shell is on, a moon
  * while the warm ivory one is. Clicking passes the middle of the button to

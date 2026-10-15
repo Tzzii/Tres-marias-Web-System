@@ -1,7 +1,27 @@
 import { toPayment, toRefund } from '../reservations/reservations.repo.js';
 
-
 const first = ([rows]) => rows[0] || null;
+
+export async function getBankDetails(db) {
+  const row = first(
+    await db.query('SELECT bank_name, bank_account_name, bank_account_number FROM catalog_settings WHERE id = 1')
+  );
+  if (!row) throw new Error('The catalog_settings row is missing. Run the database migration and seed setup.');
+  return {
+    bankName: row.bank_name,
+    bankAccountName: row.bank_account_name,
+    bankAccountNumber: row.bank_account_number
+  };
+}
+
+export async function saveBankDetails(db, details, at) {
+  const [result] = await db.query(
+    'UPDATE catalog_settings SET bank_name = ?, bank_account_name = ?, bank_account_number = ?, updated_at = ? WHERE id = 1',
+    [details.bankName, details.bankAccountName, details.bankAccountNumber, at]
+  );
+  if (!result.affectedRows)
+    throw new Error('The catalog_settings row is missing. Run the database migration and seed setup.');
+}
 
 const PAYMENT_COLUMNS = `pay.id, pay.ref, pay.customer_id, pay.amount, pay.kind, pay.method, pay.reference_no, pay.proof_name, pay.status,
        pay.submitted_at, pay.verified_at, pay.receipt_no, pay.reject_reason,
@@ -113,7 +133,6 @@ export async function findProof(db, id) {
   );
 }
 
-
 export async function findRefunds(db, { customerId } = {}) {
   const [rows] = await db.query(
     `SELECT f.*, a.name AS admin_name, r.event_name, r.date AS event_date, c.name AS customer_name
@@ -153,7 +172,6 @@ export async function insertRefund(conn, f, recordedBy) {
     ]
   );
 }
-
 
 const toQr = (row) => ({
   id: row.id,

@@ -23,7 +23,7 @@ const DocumentsPage = lazy(() => import('./pages/portal/DocumentsPage.jsx'));
 const MessagesPage = lazy(() => import('./pages/portal/MessagesPage.jsx'));
 const PackagesPage = lazy(() => import('./pages/portal/PackagesPage.jsx'));
 const TestimonialsPage = lazy(() => import('./pages/portal/TestimonialsPage.jsx'));
-const ProfilePage = lazy(() => import('./pages/portal/ProfilePage.jsx'));
+const SettingsPage = lazy(() => import('./pages/portal/SettingsPage.jsx'));
 
 export default function App() {
   return (
@@ -57,7 +57,8 @@ export default function App() {
           <Route path="messages" element={<Lazy page={MessagesPage} />} />
           <Route path="packages" element={<Lazy page={PackagesPage} />} />
           <Route path="testimonials" element={<Lazy page={TestimonialsPage} />} />
-          <Route path="profile" element={<Lazy page={ProfilePage} />} />
+          <Route path="settings" element={<Lazy page={SettingsPage} />} />
+          <Route path="profile" element={<Navigate to="/portal/settings?tab=account" replace />} />
           <Route path="*" element={<Navigate to="/portal" replace />} />
         </Route>
 

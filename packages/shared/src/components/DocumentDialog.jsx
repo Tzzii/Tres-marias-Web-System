@@ -14,7 +14,9 @@ import { bookingExtraGuests, bookingItems, formatBookingItem } from '../domain/p
 import { stylingEmpty } from '../domain/styling.js';
 import { buffetDrinks, dessertSummary } from '../domain/menu.js';
 import { BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
+import { otherChargeItemsFor } from '../services/pricing.js';
 import { useNotify } from '../hooks/useNotify.jsx';
+import { useReceiptProof } from '../hooks/useReceiptProof.js';
 import { tokens } from '../theme/tokens.js';
 import {
   formatDate,
@@ -31,6 +33,7 @@ import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
 import { StylingSummary } from './Styling.jsx';
 import { LightSurface } from './Surface.jsx';
+import { ReceiptProof } from './ReceiptProof.jsx';
 import adminSignature from '../assets/admin-signature.png';
 
 // The booking's own minimum downpayment (copied when it was made; older bookings use the starting amount)
@@ -139,7 +142,11 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   const notify = useNotify();
   const sheetRef = useRef(null); // the document itself (everything below the top bar), drawn into the PDF
   const [saving, setSaving] = useState(false); // true while the PDF is being made
-  if (!detail || !doc) return null;
+  const payment = doc?.paymentId ? detail?.payments.find((p) => p.id === doc.paymentId) : null;
+  const bankReceipt = open && doc?.kind === 'receipt' && payment?.method === 'bank';
+  const proof = useReceiptProof(bankReceipt ? payment.id : null);
+  const proofPending = bankReceipt && (proof.status === 'loading' || proof.status === 'error');
+  if (!detail || !doc || (doc.kind === 'receipt' && !payment)) return null;
 
   // Save the document as a PDF (the "Save as" window first, where the browser has one; Cancel saves nothing).
   // If the browser can't make one, Print still can ("Save as PDF" in the print window).
@@ -148,7 +155,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
     try {
       const saved = await saveElementAsPdf(sheetRef.current, doc.name, {
         title: doc.name.replace(/\.pdf$/, ''),
-        footer: `${BUSINESS.name} · ${doc.name.replace(/\.pdf$/, '')}`
+        footer: `${BUSINESS.name} · ${doc.name.replace(/\.pdf$/, '')}`,
+        fitOnePage: doc.kind === 'receipt'
       });
       if (saved) notify(`${doc.name} saved.`);
     } catch (e) {
@@ -163,8 +171,6 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   const delivered = rental && detail.fulfilment === 'delivery';
   // The least to pay first: the booking's minimum, or the whole total when that is lower
   const minimum = minimumOf(detail);
-  // For receipts: the payment the receipt is for
-  const payment = doc.paymentId ? detail.payments.find((p) => p.id === doc.paymentId) : null;
   // For quotations: the verified payments, oldest first, listed in the payment record
   const verifiedPayments = detail.payments
     .filter((p) => p.status === 'verified')
@@ -188,11 +194,11 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
     <LightSurface>
       <Dialog
         open={open}
-        onClose={onClose}
+        onClose={saving ? undefined : onClose}
         fullWidth
         maxWidth="md"
         fullScreen={isPhone}
-        className="tm-print-root"
+        className={doc.kind === 'receipt' ? 'tm-print-root tm-receipt-document' : 'tm-print-root'}
         scroll="body"
       >
         {/* Top bar. Sticky, so on a phone the close button is always in reach; a long file name ends in "…" */}
@@ -217,26 +223,36 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             {/* Print opens the browser's print window; Save PDF downloads the file without it */}
-            <Button size="small" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<PrintOutlinedIcon />}
+              disabled={saving || proofPending}
+              onClick={() => window.print()}
+            >
               Print
             </Button>
             <Button
               size="small"
               variant="contained"
               startIcon={<PictureAsPdfOutlinedIcon />}
-              disabled={saving}
+              disabled={saving || proofPending}
               onClick={savePdf}
             >
               {saving ? 'Saving…' : 'Save PDF'}
             </Button>
-            <IconButton size="small" onClick={onClose} aria-label="Close document">
+            <IconButton size="small" onClick={onClose} disabled={saving} aria-label="Close document">
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
           </Box>
         </Box>
 
         {/* The document. Save PDF draws this box; in the PDF the page margins replace its padding. */}
-        <Box ref={sheetRef} sx={{ p: { xs: 2.5, sm: 5 }, color: tokens.textPrimary }}>
+        <Box
+          ref={sheetRef}
+          className={doc.kind === 'receipt' ? 'tm-receipt-sheet' : undefined}
+          sx={{ p: { xs: 2.5, sm: doc.kind === 'receipt' ? 3 : 5 }, color: tokens.textPrimary }}
+        >
           {/* Letterhead */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -271,7 +287,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
             </Box>
           </Box>
 
-          <Divider sx={{ my: 3, borderColor: tokens.gold, borderBottomWidth: 2 }} />
+          <Divider sx={{ my: doc.kind === 'receipt' ? 2 : 3, borderColor: tokens.gold, borderBottomWidth: 2 }} />
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
             <Box>
@@ -307,8 +323,8 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
             <Box
               data-pdf-keep
               sx={{
-                mt: 4,
-                p: 3,
+                mt: 2,
+                p: 2,
                 borderRadius: 2,
                 border: `1px solid ${tokens.cardLightBorder}`,
                 backgroundColor: tokens.surfaceSubtle
@@ -437,9 +453,11 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     value={peso(addonPrice(a.id))}
                   />
                 ))}
-                {quote.otherCharges > 0 && (
-                  <Line label={quote.otherLabel || 'Other charges'} value={peso(quote.otherCharges)} />
-                )}
+                {otherChargeItemsFor(quote)
+                  .filter((line) => line.amount > 0)
+                  .map((line, index) => (
+                    <Line key={`other-${index}`} label={line.label || 'Other charges'} value={peso(line.amount)} />
+                  ))}
                 {quote.discount > 0 && <Line label="Discount" value={`− ${peso(quote.discount)}`} />}
                 <Divider sx={{ my: 1 }} />
                 <Line label="Net total" value={peso(quote.net)} strong />
@@ -666,9 +684,12 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
             </>
           )}
 
-          <Typography sx={{ mt: 5, fontSize: 11.5, textAlign: 'center', color: tokens.textMuted }}>
+          <Typography
+            sx={{ mt: doc.kind === 'receipt' ? 2 : 5, fontSize: 11.5, textAlign: 'center', color: tokens.textMuted }}
+          >
             Thank you for choosing {BUSINESS.name}.
           </Typography>
+          {bankReceipt && <ReceiptProof payment={payment} proof={proof} />}
         </Box>
       </Dialog>
     </LightSurface>

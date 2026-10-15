@@ -15,6 +15,21 @@ Authorization: Bearer {{customerToken}}
 GET {{api}}/payments/options
 Authorization: Bearer {{customerToken}}
 
+### Current bank transfer instructions, as saved by the admin (authenticated, no browser cache)
+GET {{api}}/payments/bank-details
+Authorization: Bearer {{customerToken}}
+
+### Admin: read and update the bank transfer instructions shown to customers.
+GET {{api}}/admin/payments/bank-details
+Authorization: Bearer {{adminToken}}
+
+### All fields are required; account number stays text to preserve leading zeros. Customer tokens get 403.
+PUT {{api}}/admin/payments/bank-details
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "bankName": "BPI", "bankAccountName": "Tres Marias Catering Services", "bankAccountNumber": "4471 0839 26" }
+
 ### Bank transfer with the receipt photo (multipart, the file field is "proof"; put a receipt.png next to this
 ### file first): 201 with the payment, status "awaiting". Only one payment can wait at a time (409 PENDING_PAYMENT);
 ### a file that is not really a JPG, PNG, WebP or PDF: 400 (meta.field "proof"); another customer's booking: 404

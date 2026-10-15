@@ -13,7 +13,6 @@ import { ApiError } from '../../lib/ApiError.js';
 import { isClockTime, isISODate, now } from '../../lib/time.js';
 import * as repo from './calendar.repo.js';
 
-
 const MAX_BLOCK_DAYS = 60;
 
 const invalid = (message, field) => new ApiError('INVALID', message, { field });
@@ -79,6 +78,7 @@ export async function blockDates({ from, to, reason, note }) {
   if (!BLOCK_REASONS.includes(reason)) throw invalid('Choose a reason from the list.', 'reason');
   if (note !== undefined && note !== null && typeof note !== 'string') throw invalid('Write the note as text.', 'note');
   const cleanNote = (note || '').replace(/\s+/g, ' ').trim();
+  if (reason === 'Others' && !cleanNote) throw invalid('Specify why these dates are blocked.', 'note');
   if (cleanNote.length > BLOCK_NOTE_MAX)
     throw invalid(`Keep the note to ${BLOCK_NOTE_MAX} characters or fewer.`, 'note');
 

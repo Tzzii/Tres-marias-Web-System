@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { financials, statusForPayments } from '@tm/shared/src/domain/money.js';
 import {
   QR_GRACE_MS,
+  bankDetailsProblem,
+  cleanBankDetails,
   kindOf,
   paymentAmountProblem,
   proofFileName,
@@ -22,7 +24,6 @@ import { postAdminMessage } from '../messages/messages.repo.js';
 import { emailedRecently, queueCustomerEmail } from '../notify/notify.service.js';
 import * as reservationsRepo from '../reservations/reservations.repo.js';
 import * as repo from './payments.repo.js';
-
 
 const PAYABLE = ['approved', 'downpayment_paid', 'confirmed', 'completed'];
 const CUSTOMER_PAYABLE = ['approved', 'downpayment_paid', 'confirmed'];
@@ -79,9 +80,18 @@ function detectProof(buffer) {
   return null;
 }
 
-
 export async function listPayments({ customerId } = {}) {
   return (await repo.findPayments(pool, { customerId })).map(enrich);
+}
+
+export const getBankDetails = () => repo.getBankDetails(pool);
+
+export async function saveBankDetails(values) {
+  const problem = bankDetailsProblem(values);
+  if (problem) throw invalid(problem.message, problem.field);
+  const details = cleanBankDetails(values);
+  await repo.saveBankDetails(pool, details, now());
+  return details;
 }
 
 export async function listBalances() {
@@ -119,7 +129,6 @@ export async function getProof(id, { customerId } = {}) {
   if (!proof.key) throw new ApiError('NOT_FOUND', 'No file was uploaded for this payment.');
   return { key: proof.key, mime: proof.mime, name: proof.name };
 }
-
 
 export async function submitPayment(customer, { ref, method, amount, referenceNo, proofName }, file) {
   let savedKey = null;
@@ -195,7 +204,6 @@ export async function submitPayment(customer, { ref, method, amount, referenceNo
     throw err;
   }
 }
-
 
 async function applyVerifiedPayment(conn, row, payment, actorName, senderName = actorName) {
   const reservation = row.reservation;
@@ -433,7 +441,6 @@ export async function sendPaymentReminder(ref, admin) {
   });
 }
 
-
 export async function recordRefund(ref, { amount, method, referenceNo = '', sentOn, reason = '' }, admin) {
   return tx(async (conn) => {
     const row = await lockedReservation(conn, ref, 'Reservation not found.');
@@ -540,7 +547,6 @@ export async function listRefundsDue() {
       };
     });
 }
-
 
 const isOpen = (qr, at = now()) => qr.status === 'pending' && at < qr.expiresAt + QR_GRACE_MS;
 

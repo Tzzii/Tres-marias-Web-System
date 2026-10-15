@@ -195,6 +195,7 @@ export function rentalQuote(
     deliveryFee: delivery,
     damageCharges: reservation.damageCharges || [],
     otherCharges: quote ? quote.otherCharges : 0,
+    otherChargeItems: quote?.otherChargeItems,
     discount: quote ? quote.discount : 0
   });
 }

@@ -28,6 +28,10 @@ export const listBalances = () => http.get('/admin/balances');
 /** What the Payments page can offer: { qr } is whether the QR Ph code (GCash, Maya or a bank app) can be used (true once PayMongo's keys are set on the server). */
 export const paymentOptions = () => http.get('/payments/options');
 
+/** Current bank transfer instructions; only admins may change them. */
+export const getBankDetails = () => http.get(`${isAdmin() ? '/admin/payments' : '/payments'}/bank-details`);
+export const saveBankDetails = (details) => http.put('/admin/payments/bank-details', details);
+
 /**
  * Customer opens a QR Ph code (GCash, Maya or a bank app) for { ref, amount } (Phase 8B): { id, ref, amount, expiresAt,
  * status, receiptNo, qrImage }. The same amount again, while it is open, gives the same QR back.

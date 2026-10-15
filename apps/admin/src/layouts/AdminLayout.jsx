@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
@@ -12,6 +13,7 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   PortalShell,
   authApi,
@@ -86,7 +88,7 @@ export default function AdminLayout() {
         title: 'Payment to Verify',
         body: `${p.customerName} sent ${peso(p.amount)} via ${p.methodLabel} for ${p.eventName}.`,
         at: p.submittedAt,
-        to: `/reports?tab=payments&verify=${p.id}`
+        to: `/payments?verify=${p.id}`
       })
     );
     const reservationOf = new Map(data.reservations.map((r) => [r.ref, r]));
@@ -160,17 +162,19 @@ export default function AdminLayout() {
     { key: 'dashboard', label: 'Dashboard', icon: DashboardOutlinedIcon, to: '/dashboard' },
     {
       key: 'reservations',
-      label: 'Reservation & Calendar',
+      label: 'Reservations',
       icon: EventNoteOutlinedIcon,
       to: '/reservations',
       badge: pending
     },
+    { key: 'calendar', label: 'Calendar', icon: CalendarMonthOutlinedIcon, to: '/calendar' },
     { key: 'packages', label: 'Packages', icon: RestaurantMenuOutlinedIcon, to: '/packages' },
     { key: 'inventory', label: 'Inventory', icon: Inventory2OutlinedIcon, to: '/inventory' },
     { key: 'outsource', label: 'Outsource', icon: HandshakeOutlinedIcon, to: '/outsource', badge: awaitingReply },
     { key: 'customers', label: 'Customers', icon: GroupsOutlinedIcon, to: '/customers' },
     { key: 'messages', label: 'Messages', icon: ChatBubbleOutlineRoundedIcon, to: '/messages', badge: unread },
-    { key: 'reports', label: 'Reports', icon: AssessmentOutlinedIcon, to: '/reports', badge: awaiting },
+    { key: 'payments', label: 'Payments', icon: PaymentsOutlinedIcon, to: '/payments', badge: awaiting },
+    { key: 'reports', label: 'Reports', icon: AssessmentOutlinedIcon, to: '/reports' },
     { key: 'feedbacks', label: 'Feedbacks', icon: RateReviewOutlinedIcon, to: '/feedbacks', badge: newFeedback }
   ];
 
@@ -181,8 +185,7 @@ export default function AdminLayout() {
       key: 'payments',
       label: 'Payments',
       icon: PaymentsOutlinedIcon,
-      to: '/reports?tab=payments',
-      match: ['/reports'],
+      to: '/payments',
       badge: awaiting
     },
     { key: 'messages', label: 'Messages', icon: ChatBubbleOutlineRoundedIcon, to: '/messages', badge: unread },
@@ -194,9 +197,11 @@ export default function AdminLayout() {
       portalKey={`admin.${user.id}`}
       navItems={navItems}
       bottomNav={bottomNav}
-      secondaryNavItems={[{ key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
+      secondaryNavItems={[{ key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/settings' }]}
       user={user}
-      profileItems={[{ key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/account' }]}
+      profileItems={[
+        { key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/settings?tab=account' }
+      ]}
       search={{
         placeholder: 'Search reservations or customers',
         onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`)

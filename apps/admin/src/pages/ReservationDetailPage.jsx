@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
 import InputAdornment from '@mui/material/InputAdornment';
 import Typography from '@mui/material/Typography';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import {
   AlertBanner,
   AppDialog,
@@ -70,6 +73,7 @@ import {
   paymentApi,
   paymentKindLabel,
   pendingStep,
+  otherChargeItemsFor,
   peso,
   qrState,
   reservationApi,
@@ -98,7 +102,7 @@ export default function ReservationDetailPage() {
 
   const [dialog, setDialog] = useState(null);
   const [doc, setDoc] = useState(null);
-  const crumbs = [{ label: 'Reservation & Calendar', to: '/reservations?tab=all' }, { label: ref }];
+  const crumbs = [{ label: 'Reservations', to: '/reservations?tab=all' }, { label: ref }];
 
   if (error) {
     return (
@@ -433,7 +437,7 @@ export default function ReservationDetailPage() {
                         <Button
                           size="small"
                           sx={{ mt: 0.5, px: 0 }}
-                          onClick={() => navigate(`/reports?tab=payments&verify=${p.id}`)}
+                          onClick={() => navigate(`/payments?verify=${p.id}`)}
                         >
                           Review proof
                         </Button>
@@ -1046,12 +1050,19 @@ function LogisticsCard({ r, closed, onSave }) {
 }
 
 function QuotationCard({ r, closed, onSend }) {
+  const nextOtherChargeId = useRef(0);
+  const newOtherCharge = () => ({
+    id: `new-${nextOtherChargeId.current++}`,
+    amount: '',
+    label: ''
+  });
   const rental = isRental(r.serviceType);
   const delivered = rental && r.fulfilment === 'delivery';
   const extraGuests = rental ? 0 : extraGuestsFor(r.package, r.guests);
   const confirmItems = rental ? [] : itemsToConfirm(r.package, r.guests);
   const initial = () => {
     const q = r.quotation;
+    const otherLines = otherChargeItemsFor(q);
     const amount = (value) => (q && value ? String(value) : '');
     const startPrice = (id) => {
       const booked = r.estimate && r.estimate.addonPrices && r.estimate.addonPrices[id];
@@ -1071,8 +1082,11 @@ function QuotationCard({ r, closed, onSend }) {
         ])
       ),
       deliveryFee: String(q && q.fulfilment === 'delivery' ? q.deliveryFee : RENTAL.deliveryFee),
-      otherCharges: amount(q && q.otherCharges),
-      otherLabel: q ? q.otherLabel || '' : '',
+      otherChargeItems: (otherLines.length ? otherLines : [{ amount: '', label: '' }]).map((line, index) => ({
+        id: `saved-${index}`,
+        amount: String(line.amount),
+        label: line.label
+      })),
       discount: amount(q && q.discount),
       note: q ? q.note : ''
     };
@@ -1087,6 +1101,19 @@ function QuotationCard({ r, closed, onSend }) {
   const setItemCount = (name) => (e) =>
     setValues((v) => ({ ...v, itemCounts: { ...v.itemCounts, [name]: e.target.value } }));
   const itemCount = (name) => (values.itemCounts || {})[name] ?? '';
+  const setOtherCharge = (id, key) => (e) => {
+    const value = e.target.value;
+    setValues((v) => ({
+      ...v,
+      otherChargeItems: v.otherChargeItems.map((line) => (line.id === id ? { ...line, [key]: value } : line))
+    }));
+  };
+  const removeOtherCharge = (id) =>
+    setValues((v) => ({
+      ...v,
+      otherChargeItems:
+        v.otherChargeItems.length === 1 ? [newOtherCharge()] : v.otherChargeItems.filter((line) => line.id !== id)
+    }));
 
   const preview = computeQuote({
     pkg: r.package,
@@ -1100,19 +1127,23 @@ function QuotationCard({ r, closed, onSend }) {
     addonQty: r.addonQty,
     addonPrices: values.addonPrices,
     extraGuestsCharge: values.extraGuestsCharge,
-    otherCharges: values.otherCharges,
+    otherChargeItems: values.otherChargeItems,
     discount: values.discount
   });
   const addonLabel = (a) => (a.hasQuantity ? `${a.name} × ${(r.addonQty || {})[a.id] || 1}` : a.name);
   const invalid = (value) => value !== '' && (Number.isNaN(Number(value)) || Number(value) < 0);
   const amountError = (value) => (invalid(value) ? 'Enter a valid amount.' : '');
-  const anyInvalid = [
-    values.otherCharges,
-    values.discount,
-    ...(delivered ? [values.deliveryFee] : []),
-    ...(extraGuests ? [values.extraGuestsCharge] : []),
-    ...Object.values(values.addonPrices)
-  ].some(invalid);
+  const otherAmountError = (value) =>
+    value !== '' && (!Number.isInteger(Number(value)) || Number(value) < 0 || Number(value) > 10000000)
+      ? 'Enter an amount in whole pesos, from 0 to 10,000,000.'
+      : '';
+  const anyInvalid =
+    [
+      values.discount,
+      ...(delivered ? [values.deliveryFee] : []),
+      ...(extraGuests ? [values.extraGuestsCharge] : []),
+      ...Object.values(values.addonPrices)
+    ].some(invalid) || values.otherChargeItems.some((line) => otherAmountError(line.amount));
   const countError = (value) =>
     value !== '' && !(Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= ITEM_COUNT_MAX)
       ? `Enter a whole number from 1 to ${ITEM_COUNT_MAX.toLocaleString('en-PH')}.`
@@ -1145,8 +1176,7 @@ function QuotationCard({ r, closed, onSend }) {
         }
       : {}),
     deliveryFee: Number(v.deliveryFee) || 0,
-    otherCharges: Number(v.otherCharges) || 0,
-    otherLabel: v.otherLabel,
+    otherChargeItems: otherChargeItemsFor({ otherChargeItems: v.otherChargeItems }),
     discount: Number(v.discount) || 0,
     note: v.note
   });
@@ -1213,9 +1243,13 @@ function QuotationCard({ r, closed, onSend }) {
               {peso(preview.addonTotals[a.id])}
             </DetailRow>
           ))}
-          {preview.otherCharges > 0 && (
-            <DetailRow label={values.otherLabel || 'Other charges'}>{peso(preview.otherCharges)}</DetailRow>
-          )}
+          {preview.otherChargeItems
+            .filter((line) => line.amount > 0)
+            .map((line, index) => (
+              <DetailRow key={`other-${index}`} label={line.label || 'Other charges'}>
+                {peso(line.amount)}
+              </DetailRow>
+            ))}
           <DetailRow label="Discount">— {peso(preview.discount)}</DetailRow>
         </>
       ) : (
@@ -1293,27 +1327,60 @@ function QuotationCard({ r, closed, onSend }) {
               inputProps={{ min: 0, step: 500 }}
             />
           ))}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
-            <FormField
-              id="q-other"
-              label="Other charges"
-              optional
-              type="number"
-              value={values.otherCharges}
-              onChange={set('otherCharges')}
-              error={amountError(values.otherCharges)}
-              InputProps={peso0}
-              inputProps={{ min: 0, step: 500 }}
-            />
-            <FormField
-              id="q-other-label"
-              label="What for"
-              optional
-              value={values.otherLabel}
-              onChange={set('otherLabel')}
-              placeholder="e.g. 2 extra hours"
-              inputProps={{ maxLength: 60 }}
-            />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {values.otherChargeItems.map((line, index) => (
+              <Box key={line.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                <Box
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                    gap: 1
+                  }}
+                >
+                  <FormField
+                    id={`q-other-${line.id}`}
+                    label={index === 0 ? 'Other charges' : `Other charge ${index + 1}`}
+                    optional
+                    type="number"
+                    value={line.amount}
+                    onChange={setOtherCharge(line.id, 'amount')}
+                    error={otherAmountError(line.amount)}
+                    InputProps={peso0}
+                    inputProps={{ min: 0, max: 10000000, step: 1 }}
+                  />
+                  <FormField
+                    id={`q-other-label-${line.id}`}
+                    label="What for"
+                    optional
+                    value={line.label}
+                    onChange={setOtherCharge(line.id, 'label')}
+                    placeholder="e.g. Extra waiter or 2 extra hours"
+                    inputProps={{ maxLength: 60, 'aria-label': `What for other charge ${index + 1}` }}
+                  />
+                </Box>
+                <IconButton
+                  aria-label={`Remove other charge ${index + 1}`}
+                  onClick={() => removeOtherCharge(line.id)}
+                  sx={{ mt: 3.25, color: tokens.textMuted }}
+                >
+                  <DeleteOutlineRoundedIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            ))}
+            <Button
+              startIcon={<AddRoundedIcon />}
+              onClick={() =>
+                setValues((v) => ({
+                  ...v,
+                  otherChargeItems: [...v.otherChargeItems, newOtherCharge()]
+                }))
+              }
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Add other charge
+            </Button>
           </Box>
           <FormField
             id="q-discount"

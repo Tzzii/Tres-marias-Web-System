@@ -10,6 +10,7 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   PortalShell,
   TERMS_VERSION,
@@ -24,6 +25,7 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
 import TermsUpdateDialog from '../components/TermsUpdateDialog.jsx';
+import FloatingChat from '../components/FloatingChat.jsx';
 
 export default function PortalLayout() {
   const navigate = useNavigate();
@@ -162,20 +164,18 @@ export default function PortalLayout() {
       to: '/portal/messages',
       badge: unreadMessages
     },
-    { key: 'profile', label: 'Profile', icon: AccountCircleOutlinedIcon, to: '/portal/profile' }
+    { key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/portal/settings' }
   ];
 
   return (
     <PortalShell
       portalKey={`client.${user.id}`}
       navItems={navItems}
-      secondaryNavItems={[
-        { key: 'profile', label: 'My Profile', icon: AccountCircleOutlinedIcon, to: '/portal/profile' }
-      ]}
+      secondaryNavItems={[{ key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/portal/settings' }]}
       bottomNav={bottomNav}
       user={{ ...user, role: 'Customer' }}
       profileItems={[
-        { key: 'profile', label: 'My Profile', icon: AccountCircleOutlinedIcon, to: '/portal/profile' },
+        { key: 'profile', label: 'My Profile', icon: AccountCircleOutlinedIcon, to: '/portal/settings?tab=account' },
         { key: 'site', label: 'Browse Packages', icon: HomeOutlinedIcon, to: '/' }
       ]}
       search={{
@@ -189,6 +189,7 @@ export default function PortalLayout() {
       }}
     >
       <Outlet />
+      <FloatingChat key={user.id} user={user} unread={unreadMessages} />
       <TermsUpdateDialog
         open={termsDue}
         firstTime={Boolean(fresh) && !fresh.termsVersion}

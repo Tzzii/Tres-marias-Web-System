@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -14,7 +13,7 @@ import RestaurantOutlinedIcon from '@mui/icons-material/RestaurantOutlined';
 import WorkOutlineRoundedIcon from '@mui/icons-material/WorkOutlineRounded';
 import { isRentalPackage, peso, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
-import { reducedMotionSx, useInView } from './Reveal.jsx';
+import { reducedMotionSx, revealEnter, useInView } from './Reveal.jsx';
 import PackageTilt from './PackageTilt.jsx';
 
 export const PACKAGE_ICONS = {
@@ -31,16 +30,23 @@ export const PACKAGE_BACKDROPS = Object.fromEntries(
   )
 );
 
+const ruleEnter = keyframes`
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+`;
+
 export function SectionHead({ eyebrow, title, description, align = 'center' }) {
   const [ref, shown] = useInView();
   const line = (delay) => ({
-    opacity: shown ? 1 : 0,
-    transform: shown ? 'none' : 'translateY(14px)',
-    transition: `opacity 0.7s ease ${delay}ms, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
+    animation: shown ? `${revealEnter} 0.8s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms backwards` : 'none',
     ...reducedMotionSx
   });
   return (
-    <Box ref={ref} sx={{ textAlign: align, maxWidth: 720, mx: align === 'center' ? 'auto' : 0, mb: { xs: 4, md: 6 } }}>
+    <Box
+      ref={ref}
+      data-reveal-state={shown ? 'entered' : 'outside'}
+      sx={{ textAlign: align, maxWidth: 720, mx: align === 'center' ? 'auto' : 0, mb: { xs: 4, md: 6 } }}
+    >
       <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: site.goldText, ...line(0) }}>{eyebrow}</Typography>
       <Typography
         component="h2"
@@ -69,9 +75,8 @@ export function SectionHead({ eyebrow, title, description, align = 'center' }) {
           mt: 3,
           borderRadius: 999,
           background: tokens.gradientGoldRule,
-          transform: shown ? 'scaleX(1)' : 'scaleX(0)',
           transformOrigin: align === 'center' ? 'center' : 'left',
-          transition: 'transform 0.9s cubic-bezier(0.22, 1, 0.36, 1) 380ms',
+          animation: shown ? `${ruleEnter} 0.9s cubic-bezier(0.22, 1, 0.36, 1) 380ms backwards` : 'none',
           ...reducedMotionSx
         }}
       />
@@ -135,22 +140,14 @@ const shineSweep = keyframes`
 export function PackageCard({ pkg, index = 0, compact = false }) {
   const navigate = useNavigate();
   const [ref, shown] = useInView();
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    if (!shown) setSettled(false);
-  }, [shown]);
   const open = () => navigate(`/packages/${pkg.slug}`);
   const rental = isRentalPackage(pkg);
-  const delay = settled ? 0 : (index % 3) * 110;
-  const duration = settled ? 0.45 : 0.7;
+  const delay = (index % 3) * 110;
 
   return (
-    <PackageTilt enabled={shown && settled}>
+    <PackageTilt enabled={shown} observeRef={ref}>
       <Paper
-        ref={ref}
-        onTransitionEnd={(e) => {
-          if (shown && e.target === e.currentTarget && e.propertyName === 'transform') setSettled(true);
-        }}
+        data-reveal-state={shown ? 'entered' : 'outside'}
         component="article"
         elevation={0}
         sx={{
@@ -163,9 +160,10 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           backgroundColor: site.card,
           border: `1px solid ${pkg.featured ? site.borderHover : site.border}`,
           boxShadow: site.shadowCard,
-          opacity: shown ? 1 : 0,
-          transform: shown ? 'translateY(0) scale(1)' : 'translateY(36px) scale(0.96)',
-          transition: `opacity ${duration}s ease ${delay}ms, transform ${duration}s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, border-color 0.3s ease, box-shadow 0.35s ease`,
+          '--tm-reveal-y': '36px',
+          '--tm-reveal-scale': 0.96,
+          animation: shown ? `${revealEnter} 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms backwards` : 'none',
+          transition: 'border-color 0.3s ease, box-shadow 0.35s ease',
 
           '& .tm-mood-panel': { overflow: 'hidden' },
           '& .tm-mood-panel::after': {
@@ -221,6 +219,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           }),
 
           '@media (prefers-reduced-motion: reduce)': {
+            animation: 'none',
             opacity: 1,
             transform: 'none',
             transition: 'border-color 0.25s ease',

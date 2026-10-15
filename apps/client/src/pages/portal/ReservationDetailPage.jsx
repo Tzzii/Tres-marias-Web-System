@@ -49,6 +49,7 @@ import {
   includesFood,
   isRental,
   pendingStep,
+  otherChargeItemsFor,
   peso,
   reservationApi,
   stylingEmpty,
@@ -757,8 +758,11 @@ function ChargeLines({ r, rental, delivered }) {
           };
         })
       ];
-  if (quote.otherCharges > 0)
-    lines.push({ key: 'other', label: quote.otherLabel || 'Other charges', value: peso(quote.otherCharges) });
+  otherChargeItemsFor(quote)
+    .filter((line) => line.amount > 0)
+    .forEach((line, index) => {
+      lines.push({ key: `other-${index}`, label: line.label || 'Other charges', value: peso(line.amount) });
+    });
   if (quote.discount > 0) lines.push({ key: 'discount', label: 'Discount', value: `− ${peso(quote.discount)}` });
   const toQuote = lines.some((line) => line.toQuote);
 

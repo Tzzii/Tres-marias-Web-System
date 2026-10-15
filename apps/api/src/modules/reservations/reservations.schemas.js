@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-
 const text = (max) =>
   z
     .string({ error: 'This field is required.' })
@@ -48,6 +47,7 @@ export const quotationBody = z.object({
   extraGuestsCharge: passThrough,
   itemCounts: passThrough,
   otherCharges: passThrough,
+  otherChargeItems: z.array(z.object({ amount: z.number().int().min(0).max(10000000), label: text(60) })).optional(),
   otherLabel: text(60),
   discount: passThrough,
   deliveryFee: passThrough,

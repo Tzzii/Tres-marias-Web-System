@@ -27,6 +27,7 @@ import {
 } from './modules/payments/payments.routes.js';
 import { reportAdminRoutes } from './modules/reports/reports.routes.js';
 import { rentalRoutes, reservationAdminRoutes, reservationRoutes } from './modules/reservations/reservations.routes.js';
+import { appearanceAdminRoutes, appearanceRoutes } from './modules/appearance/appearance.routes.js';
 
 export function createApp() {
   const app = express();
@@ -70,10 +71,12 @@ export function createApp() {
 
   app.use('/api', catalogRoutes);
   app.use('/api', calendarRoutes);
+  app.use('/api/appearance', appearanceRoutes);
 
   const admin = express.Router();
   admin.use(requireAuth, requireRole('admin'));
   admin.use('/me', adminAccountRoutes);
+  admin.use('/appearance', appearanceAdminRoutes);
   admin.use(catalogAdminRoutes);
   admin.use('/calendar', calendarAdminRoutes);
   admin.use('/reservations', reservationAdminRoutes);

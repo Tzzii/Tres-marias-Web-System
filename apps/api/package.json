@@ -22,6 +22,7 @@
     "test:mobile": "node --test scripts/mobile-tests.js",
     "test:inventory": "node --test scripts/inventory-tests.js",
     "test:labels": "node --test scripts/helper-label-tests.js",
+    "test:appearance": "node --test scripts/hero-photo-tests.js",
     "test:inventory:db": "node --test scripts/inventory-db-tests.js",
     "test:equipment-photos:db": "node scripts/equipment-photo-db-tests.js",
     "email:preview": "node scripts/email-preview.js",

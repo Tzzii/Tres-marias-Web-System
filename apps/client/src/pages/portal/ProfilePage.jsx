@@ -13,7 +13,6 @@ import {
   DashCard,
   FormField,
   MobileField,
-  PageHeader,
   PasswordChecklist,
   PasswordField,
   authApi,
@@ -24,7 +23,6 @@ import {
   required,
   toISODate,
   tokens,
-  useDocumentTitle,
   useNotify,
   validateEmail,
   validateMobile,
@@ -35,7 +33,6 @@ import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
 
 export default function ProfilePage() {
-  useDocumentTitle('My Profile');
   const notify = useNotify();
   const navigate = useNavigate();
   const { user, updateUser, signOut } = useAuth();
@@ -170,10 +167,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader
-        title="My Profile"
-        subtitle="Keep your contact details current so our team can reach you about your events."
-      />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2.5, alignItems: 'start' }}>
         <DashCard component="form" noValidate onSubmit={saveProfile}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>

@@ -15,6 +15,9 @@ export { darkPalette, lightPalette } from './theme/palettes.js';
 export { darkTheme, lightTheme, warmTheme, themeForMode, surfaceThemeForMode } from './theme/createTheme.js';
 export { ColorModeProvider, useColorMode, applyColorMode, readColorMode } from './theme/colorMode.jsx';
 export { ThemeModeToggle } from './components/ThemeModeToggle.jsx';
+export { SettingsPanel } from './components/SettingsPanel.jsx';
+export { HeroPhoto } from './components/HeroPhoto.jsx';
+export * as appearanceApi from './services/remote/appearance.js';
 
 export { LightSurface, DarkSurface } from './components/Surface.jsx';
 export { DashCard, CardTitle, StatCard, DetailRow, Field } from './components/DashCard.jsx';
@@ -109,7 +112,7 @@ export {
   OUTSOURCE_OTHER_RANGE,
   FEEDBACK_CATEGORIES
 } from './services/config.js';
-export { computeQuote, extraGuestsFor, isRentalPackage } from './services/pricing.js';
+export { computeQuote, extraGuestsFor, isRentalPackage, otherChargeItemsFor } from './services/pricing.js';
 // A package's items for the guest count (plates and chairs grow, warmers and helpers are confirmed in the quotation)
 export {
   ITEM_COUNT_MAX,
@@ -139,7 +142,13 @@ export { downpaymentDueFor } from './domain/money.js';
 // When a customer may cancel online (pages read the answer from each reservation's summary; the window in words is for texts)
 export { cancelDeadline, onlineCancellation, cancelWindowText } from './domain/cancellation.js';
 // The reference-number rule of the payment and refund forms, the same one the services check, and where a QR Ph code stands (waiting, checking, paid …)
-export { qrState, referenceProblem } from './domain/payment.js';
+export {
+  qrState,
+  referenceProblem,
+  BANK_DETAILS_LIMITS,
+  bankDetailsProblem,
+  cleanBankDetails
+} from './domain/payment.js';
 export { PHOTO_ACCEPT, PHOTO_TYPES, photoProblem } from './domain/photos.js';
 export { samplePackagePhoto } from './domain/packagePhotos.js';
 export { PackagePhoto } from './components/PackagePhoto.jsx';

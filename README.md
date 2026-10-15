@@ -83,6 +83,7 @@ Guests can browse the public website. Customers sign in to manage their own reco
 | Messages | View and respond to customer conversations |
 | Feedbacks | Publish, feature, flag, archive, and reply to customer reviews |
 | Account | Manage the administrator account, email-code sign-in, and idle screen lock |
+| Settings → Appearance | Upload and preview the public homepage hero photo, or restore the default photo (JPG, PNG or WebP, up to 20 MB) |
 
 Signed-in portals receive change notifications through Socket.IO and refresh records through the HTTP API. A 15-second polling fallback helps recover missed updates.
 

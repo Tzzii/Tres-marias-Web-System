@@ -6,7 +6,6 @@ import { photoUpload } from '../../middleware/photoUpload.js';
 import * as schemas from './payments.schemas.js';
 import * as payments from './payments.service.js';
 
-
 const upload = photoUpload('proof');
 
 async function sendProof(res, { key, mime, name }) {
@@ -26,8 +25,12 @@ async function sendProof(res, { key, mime, name }) {
   stream.pipe(res);
 }
 
-
 export const paymentRoutes = express.Router();
+
+paymentRoutes.get('/bank-details', async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  res.json(await payments.getBankDetails());
+});
 
 paymentRoutes.get('/', async (req, res) => {
   res.json(await payments.listPayments({ customerId: req.user.id }));
@@ -57,8 +60,15 @@ refundRoutes.get('/', async (req, res) => {
   res.json(await payments.listRefunds({ customerId: req.user.id }));
 });
 
-
 export const paymentAdminRoutes = express.Router();
+
+paymentAdminRoutes.get('/bank-details', async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  res.json(await payments.getBankDetails());
+});
+paymentAdminRoutes.put('/bank-details', validate({ body: schemas.bankDetailsBody }), async (req, res) => {
+  res.json(await payments.saveBankDetails(req.valid.body));
+});
 
 paymentAdminRoutes.get('/', async (req, res) => {
   res.json(await payments.listPayments());

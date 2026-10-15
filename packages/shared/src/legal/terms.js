@@ -106,7 +106,7 @@ export function termsOfService({ minDownpayment } = {}) {
       [
         `To secure your date, pay at least ${minimum}, or the full amount when your total is lower. You choose how much to pay, up to the full amount. The downpayment is due on the date shown on your reservation (about ${RULES.downpaymentDueDays} days after you accept the quotation); the balance is due on or before the event day and can be paid in parts.`,
         'QR Ph: scan the QR code on the Payments page with GCash, Maya or your bank app. The payment is processed by our payment provider, PayMongo, and confirmed automatically. We do not add a fee for it.',
-        `Bank transfer: send the amount to our ${BUSINESS.bankName} account shown on the Payments page, then enter the reference number and upload a photo or screenshot of the receipt. Our team checks it, usually within a day.`,
+        'Bank transfer: send the amount to our bank account shown on the Payments page, then enter the reference number and upload a photo or screenshot of the receipt. Our team checks it, usually within a day.',
         'Cash: the balance can be paid in cash to our event coordinator on the event day, who records it and gives you an official receipt.',
         'Every verified payment gets a receipt in your Documents.',
         'Payment proof must be real and your own. A receipt that is edited, belongs to someone else or reuses a reference number is rejected, and the reservation may be cancelled.'
