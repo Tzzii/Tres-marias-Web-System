@@ -38,6 +38,7 @@ import {
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import { readDraft } from '../../lib/booking.js';
+import FirstReservationWelcome from '../../components/FirstReservationWelcome.jsx';
 
 const ACTIVE = ['pending', 'approved', 'downpayment_paid', 'confirmed'];
 
@@ -92,12 +93,14 @@ export default function DashboardPage() {
           ? `${needsDownpayment.eventName} is approved. Pay the downpayment to secure your date.`
           : next
             ? `Your next event is ${daysFromToday(next.date) === 0 ? 'today' : `in ${pluralize(daysFromToday(next.date), 'day')}`}.`
-            : 'Everything is up to date.';
+            : !reservations.length
+              ? 'Welcome to your planning space. Let’s bring your next celebration to life.'
+              : 'Everything is up to date.';
 
   const brandNew = !loading && reservations.length === 0;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, ...(brandNew && { maxWidth: 1440, mx: 'auto' }) }}>
       <Box>
         <Typography component="h1" sx={{ fontSize: { xs: 22, md: 26 }, fontWeight: 700, color: tokens.textLight }}>
           {greeting}, {firstName(user.name)}
@@ -130,17 +133,7 @@ export default function DashboardPage() {
       )}
 
       {brandNew ? (
-        <DashCard>
-          <EmptyState
-            title="Your Home page is empty for now"
-            description="Start your first reservation. Pick a package and your date, tell us the food you want, and we will send your quotation within 24 hours."
-            action={
-              <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/portal/book')}>
-                New reservation
-              </Button>
-            }
-          />
-        </DashCard>
+        <FirstReservationWelcome draft={draft} />
       ) : (
         <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2.5 }}>

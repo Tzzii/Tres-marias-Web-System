@@ -1,6 +1,6 @@
 # Tres Marias Catering Services Web System
 
-**System version: 1.24.0**
+**System version: 1.25.0**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
