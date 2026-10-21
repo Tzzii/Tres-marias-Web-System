@@ -153,7 +153,13 @@ export default function RequestsSection() {
           render: (r) => (
             <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', alignItems: 'center' }}>
               {pendingStep(r) === 'accept' ? (
-                <Pill size="sm" label="Waiting for customer" bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" dot={false} />
+                <Pill
+                  size="sm"
+                  label="Waiting for customer"
+                  bg="rgba(59, 130, 246, 0.12)"
+                  fg={tokens.infoText}
+                  dot={false}
+                />
               ) : (
                 <Button size="small" variant="contained" onClick={() => navigate(`/reservations/${r.ref}`)}>
                   {pendingStep(r) === 'revise' ? 'Re-send quotation' : 'Send quotation'}

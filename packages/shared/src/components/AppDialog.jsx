@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -24,19 +24,42 @@ export function AppDialog({
   actions,
   maxWidth = 'sm',
   fullScreenOnMobile = false,
-  busy = false
+  busy = false,
+  protectChanges = true
 }) {
   const isPhone = useMediaQuery('(max-width:599px)');
+  const titleId = useId();
+  const discardId = useId();
+  const [changed, setChanged] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  useEffect(() => {
+    setChanged(false);
+    setDiscardOpen(false);
+  }, [open]);
+  useEffect(() => {
+    if (!open || !changed || !protectChanges) return undefined;
+    const warn = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [open, changed, protectChanges]);
+  const close = () => {
+    if (busy) return;
+    if (changed && protectChanges) setDiscardOpen(true);
+    else onClose?.();
+  };
   return (
     <LightSurface>
       <Dialog
         open={open}
         // Can't be closed (Esc / clicking outside) while a request is running
-        onClose={busy ? undefined : onClose}
+        onClose={busy ? undefined : close}
         fullWidth
         maxWidth={maxWidth}
         fullScreen={fullScreenOnMobile && isPhone}
-        aria-labelledby="app-dialog-title"
+        aria-labelledby={titleId}
       >
         <Box
           sx={{
@@ -49,11 +72,7 @@ export function AppDialog({
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography
-              id="app-dialog-title"
-              component="h2"
-              sx={{ fontSize: 18, fontWeight: 700, color: tokens.textPrimary }}
-            >
+            <Typography id={titleId} component="h2" sx={{ fontSize: 18, fontWeight: 700, color: tokens.textPrimary }}>
               {title}
             </Typography>
             {description && (
@@ -63,7 +82,7 @@ export function AppDialog({
             )}
           </Box>
           <IconButton
-            onClick={onClose}
+            onClick={close}
             disabled={busy}
             aria-label="Close"
             size="small"
@@ -74,6 +93,7 @@ export function AppDialog({
         </Box>
         {children && (
           <Box
+            onChangeCapture={() => setChanged(true)}
             sx={{
               px: { xs: 1.5, sm: 3 },
               py: 1.5,
@@ -102,6 +122,35 @@ export function AppDialog({
             {actions}
           </Box>
         )}
+      </Dialog>
+      <Dialog
+        open={open && discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        aria-labelledby={discardId}
+        maxWidth="xs"
+        fullWidth
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography id={discardId} component="h2" sx={{ fontSize: 18, fontWeight: 600 }}>
+            Discard your changes?
+          </Typography>
+          <Typography sx={{ mt: 1, fontSize: 13, color: tokens.textSecondary }}>
+            Your edits in this window have not been saved.
+          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 3 }}>
+            <Button onClick={() => setDiscardOpen(false)}>Keep editing</Button>
+            <Button
+              color="error"
+              onClick={() => {
+                setChanged(false);
+                setDiscardOpen(false);
+                onClose?.();
+              }}
+            >
+              Discard changes
+            </Button>
+          </Box>
+        </Box>
       </Dialog>
     </LightSurface>
   );

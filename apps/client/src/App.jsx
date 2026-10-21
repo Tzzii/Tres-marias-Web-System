@@ -2,9 +2,10 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import GlobalStyles from '@mui/material/GlobalStyles';
 import { ThemeProvider } from '@mui/material/styles';
-import { NotFoundPage, ScrollToTop, Spinner } from '@tm/shared';
+import { LightModeScope, NotFoundPage, ScrollToTop, Spinner, paperSurfaceSx } from '@tm/shared';
 import { RequireAuth } from './auth.js';
 import PortalLayout from './layouts/PortalLayout.jsx';
+import AuthLayout from './components/AuthLayout.jsx';
 import { site, siteTheme } from './theme/siteTheme.js';
 
 import HomePage from './pages/public/HomePage.jsx';
@@ -33,8 +34,10 @@ export default function App() {
         <Route element={<PublicSite />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/packages/:slug" element={<PackageDetailPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+          </Route>
           <Route path="/terms" element={<LegalPage kind="terms" />} />
           <Route path="/privacy" element={<LegalPage kind="privacy" />} />
         </Route>
@@ -79,14 +82,16 @@ function Lazy({ page: Page }) {
 
 function PublicSite() {
   return (
-    <ThemeProvider theme={siteTheme}>
-      <GlobalStyles
-        styles={{
-          body: { backgroundColor: site.ivory, color: site.ink },
-          '::selection': { background: 'rgba(197, 160, 89, 0.3)' }
-        }}
-      />
-      <Outlet />
-    </ThemeProvider>
+    <LightModeScope>
+      <ThemeProvider theme={siteTheme}>
+        <GlobalStyles
+          styles={{
+            body: { ...paperSurfaceSx, backgroundColor: site.ivory, color: site.ink },
+            '::selection': { background: 'rgba(197, 160, 89, 0.3)' }
+          }}
+        />
+        <Outlet />
+      </ThemeProvider>
+    </LightModeScope>
   );
 }

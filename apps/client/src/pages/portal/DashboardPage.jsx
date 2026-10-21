@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -14,19 +14,15 @@ import {
   DashCard,
   EmptyState,
   ErrorState,
-  Field,
+  EventWorkspace,
   ListSkeleton,
   StatCard,
   StatusChip,
-  StatusPipeline,
-  ThemeIcon,
   daysFromToday,
   firstName,
   formatDate,
   formatDateLong,
-  formatEventTime,
   formatRelative,
-  headcount,
   messageApi,
   pendingStep,
   peso,
@@ -76,7 +72,6 @@ export default function DashboardPage() {
   const needsDownpayment = reservations.find((r) => r.status === 'approved' && !r.downpaymentPaid && !r.awaitingCount);
   const unread = data ? data.threads.reduce((sum, t) => sum + t.unread, 0) : 0;
   const latestUnread = data ? data.threads.find((t) => t.unread) : null;
-  const focus = next || reservations.find((r) => ACTIVE.includes(r.status));
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -107,6 +102,28 @@ export default function DashboardPage() {
         </Typography>
         <Typography sx={{ mt: 0.5, fontSize: 14, color: tokens.textOnDarkSoft }}>{subline}</Typography>
       </Box>
+
+      {!loading && (toAccept || needsDownpayment || next) && (
+        <EventWorkspace
+          event={toAccept || needsDownpayment || next}
+          action={
+            <Button
+              variant="contained"
+              onClick={() =>
+                navigate(
+                  toAccept
+                    ? `/portal/reservations/${toAccept.ref}`
+                    : needsDownpayment
+                      ? `/portal/payments?ref=${needsDownpayment.ref}`
+                      : `/portal/reservations/${next.ref}`
+                )
+              }
+            >
+              {toAccept ? 'Review your quotation' : needsDownpayment ? 'Pay your downpayment' : 'View your event'}
+            </Button>
+          }
+        />
+      )}
 
       {draft && (
         <DashCard
@@ -172,21 +189,6 @@ export default function DashboardPage() {
             />
           </Box>
 
-          {loading ? (
-            <DashCard>
-              <ListSkeleton rows={3} height={60} />
-            </DashCard>
-          ) : (
-            focus && (
-              <DashCard>
-                <CardTitle subtitle={`${focus.eventName} · ${focus.ref}`} action={<StatusChip status={focus.status} />}>
-                  Reservation Status
-                </CardTitle>
-                <StatusPipeline status={focus.status} />
-              </DashCard>
-            )
-          )}
-
           <Box
             sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'start' }}
           >
@@ -198,46 +200,47 @@ export default function DashboardPage() {
                   </Button>
                 }
               >
-                Upcoming Event Preview
+                Upcoming celebrations
               </CardTitle>
               {loading ? (
                 <ListSkeleton rows={2} height={70} />
-              ) : next ? (
-                <Box>
-                  <Box
-                    sx={{ display: 'flex', gap: 2.5, alignItems: 'flex-start', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
-                  >
-                    <ThemeIcon occasion={next.occasion} size={92} />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        <Typography sx={{ fontSize: 18, fontWeight: 700 }}>{next.eventName}</Typography>
-                        <StatusChip status={next.status} size="sm" />
-                      </Box>
-                      <Typography sx={{ mt: 0.5, fontSize: 13.5, color: tokens.textSecondary }}>
-                        {formatDateLong(next.date)} · {formatEventTime(next)} · {headcount(next)}
-                      </Typography>
-                      <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>
-                        {next.venue.name}, {next.venue.city}
-                      </Typography>
-                      <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.5 }}>
-                        <Field label="Package">{next.packageName}</Field>
-                        <Field label="Total">{peso(next.total)}</Field>
-                        <Field label="Balance">{peso(next.balance)}</Field>
-                      </Box>
-                    </Box>
-                  </Box>
-                  <Box sx={{ mt: 2.5, display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>
-                    <Button variant="contained" onClick={() => navigate(`/portal/reservations/${next.ref}`)}>
-                      View details
-                    </Button>
+              ) : upcoming.length ? (
+                <Box sx={{ display: 'grid', gap: 1 }}>
+                  {upcoming.slice(0, 3).map((event) => (
                     <Button
-                      variant="outlined"
-                      startIcon={<ChatBubbleOutlineRoundedIcon />}
-                      onClick={() => navigate(`/portal/messages?ref=${next.ref}`)}
+                      key={event.ref}
+                      component={RouterLink}
+                      to={`/portal/reservations/${event.ref}`}
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        textAlign: 'left',
+                        gap: 2,
+                        p: 1.5,
+                        borderRadius: 2,
+                        border: `1px solid ${tokens.cardLightBorder}`
+                      }}
                     >
-                      Message us
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: tokens.textPrimary }}>
+                          {event.eventName}
+                        </Typography>
+                        <Typography sx={{ mt: 0.5, fontSize: 12, fontWeight: 400, color: tokens.textSecondary }}>
+                          {formatDateLong(event.date)} · {event.packageName}
+                        </Typography>
+                      </Box>
+                      <StatusChip status={event.status} size="sm" />
                     </Button>
-                  </Box>
+                  ))}
+                  <Button
+                    component={RouterLink}
+                    to="/portal/messages"
+                    variant="text"
+                    startIcon={<ChatBubbleOutlineRoundedIcon />}
+                    sx={{ justifySelf: 'start', mt: 1 }}
+                  >
+                    Message our team
+                  </Button>
                 </Box>
               ) : (
                 <EmptyState

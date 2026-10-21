@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -12,6 +12,7 @@ import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import {
   AlertBanner,
+  ActivityTimeline,
   AppDialog,
   buffetDrinks,
   dessertSummary,
@@ -24,6 +25,7 @@ import {
   DetailRow,
   DocumentDialog,
   ErrorState,
+  EventWorkspace,
   FEEDBACK_CATEGORIES,
   Field,
   FormField,
@@ -151,6 +153,7 @@ export default function ReservationDetailPage() {
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        <EventWorkspace event={r} />
         <DashCard>
           <StatusPipeline status={r.status} />
           {step === 'accept' && (
@@ -535,37 +538,7 @@ export default function ReservationDetailPage() {
               </DashCard>
             )}
 
-            <DashCard>
-              <CardTitle>Activity</CardTitle>
-              <Box
-                component="ol"
-                sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 1.75 }}
-              >
-                {r.activity
-                  .slice()
-                  .reverse()
-                  .map((a, i) => (
-                    <Box component="li" key={`${a.at}-${i}`} sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box
-                        sx={{
-                          mt: 0.75,
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          flexShrink: 0,
-                          backgroundColor: i === 0 ? tokens.gold : tokens.cardLightBorder
-                        }}
-                      />
-                      <Box>
-                        <Typography sx={{ fontSize: 13, color: tokens.textPrimary }}>{a.text}</Typography>
-                        <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
-                          {a.actor} · {formatDateTime(a.at)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
-              </Box>
-            </DashCard>
+            <ActivityTimeline entries={r.activity} />
           </Box>
         </Box>
       </Box>
@@ -631,6 +604,12 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) {
+      setMessage('');
+      setError('');
+    }
+  }, [open]);
 
   const send = async () => {
     if (message.trim().length < 10) {

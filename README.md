@@ -1,6 +1,12 @@
 # Tres Marias Catering Services Web System
 
-**System version: 1.25.0**
+The local premium experience adds package comparison, a four-stage planning guide, curated review cards, customer event milestones, admin attention queues, financial comparisons, workspace search, and sortable tables. Both portals share typography, form feedback, upload progress, and dialog protection. Administrator access remains limited to the existing admin account.
+
+Bookings, quotations, payments, notes, inventory and activity continue to use the existing API and database. Optional public gallery story details can be supplied in `apps/client/src/content/eventStories.js`; omitted event facts stay hidden.
+
+Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
+
+**System version: 1.26.0**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
@@ -325,8 +331,9 @@ Tres-marias-Web-System/
 |   `-- api/                    # Express API
 |       |-- schema.sql          # Table definitions
 |       |-- db-setup.sql        # Database and MySQL account setup
-|       |-- http/               # Saved API requests for VS Code REST Client
-|       |-- scripts/            # Database maintenance and verification scripts
+|       |-- README.md           # API layout, verification and operational notes
+|       |-- scripts/            # Database maintenance and diagnostic tools
+|       |-- tests/              # Automated checks and test helpers
 |       `-- src/
 |           |-- modules/        # Authentication and business service modules
 |           |-- integrations/   # Mail, storage, and PayMongo
@@ -381,7 +388,7 @@ npm run db:migrate
 
 The migration preserves existing rows. It adds missing tables and columns and widens supported `VARCHAR` columns; it does not perform arbitrary renames, removals, or every possible schema alteration. Current schema additions include package photos, booking styling, message history, and the rental dispatch ledger.
 
-For the menu and separately quoted dessert catalogue change, use `npm run catalog:update`. Fresh seed data already contains this change. Details are in [Booking Options](apps/api/BOOKING_OPTIONS.md).
+For the menu and separately quoted dessert catalogue change, use `npm run catalog:update`. Fresh seed data already contains this change. Details are in [Booking Options](apps/api/README.md#reservation-options).
 
 ### Reset and Seed Commands
 
@@ -454,8 +461,8 @@ npm run test:mobile
 npm run test:labels
 npm run test:outsource
 npm run test:realtime
-node --test apps/api/scripts/package-photo-tests.js
-node --test apps/api/scripts/reference-photo-tests.js
+node --test apps/api/tests/package-photo-tests.js
+node --test apps/api/tests/reference-photo-tests.js
 npm run build
 ```
 
@@ -466,8 +473,8 @@ Database-backed checks require a prepared, local, non-production test database:
 ```bash
 npm run test:booking:db
 npm run test:inventory:db
-node apps/api/scripts/package-photo-db-tests.js --writes-test-data
-node --test apps/api/scripts/reference-photo-db-tests.js
+node apps/api/tests/package-photo-db-tests.js --writes-test-data
+node --test apps/api/tests/reference-photo-db-tests.js
 ```
 
 Read each script's fixture requirements before running it. For example, inventory database tests require an existing local customer and package. Integration scripts roll back or clean up their test fixtures as documented in their source.
@@ -524,7 +531,7 @@ Current limitations and configuration-dependent behavior:
 - File storage currently uses the API server's local filesystem.
 - QR payment availability and payment mode depend on PayMongo configuration.
 - Instant socket notifications currently cover one API process. Multiple workers need a shared adapter for immediate cross-worker delivery; polling remains a fallback.
-- The automatic equipment scheduler applies to equipment rentals. Returns still require actual returned and damaged quantities. See [Automatic Equipment Rental Checkout](apps/api/AUTOMATIC_CHECKOUT.md).
+- The automatic equipment scheduler applies to equipment rentals. Returns still require actual returned and damaged quantities. See [Automatic Equipment Rental Checkout](apps/api/README.md#automatic-equipment-rental-checkout).
 - Venue addresses are entered as text and reviewed during booking; address search and map-pin selection are not included in the current implementation.
 - Sample customer records and local capstone documents are not included in a fresh GitHub clone.
 - README screenshots and academic team details still need to be supplied.
@@ -551,12 +558,12 @@ Academic team details have not yet been added to this README. Replace the entrie
 
 Repository guides:
 
-- [Booking Options](apps/api/BOOKING_OPTIONS.md) — menu selections, dessert charges, theme colors, and catalogue updates.
-- [Automatic Equipment Rental Checkout](apps/api/AUTOMATIC_CHECKOUT.md) — checkout scheduling, rental dispatch tracking, and deployment requirements.
+- [Booking Options](apps/api/README.md#reservation-options) — menu selections, dessert charges, theme colors, and catalogue updates.
+- [Automatic Equipment Rental Checkout](apps/api/README.md#automatic-equipment-rental-checkout) — checkout scheduling, rental dispatch tracking, and deployment requirements.
 - [Gallery Photo Guide](apps/client/src/assets/gallery/README.md) — event gallery folders, photo naming, and thumbnails.
 - [API Environment Example](apps/api/.env.example) — supported backend settings.
 - [Database Schema](apps/api/schema.sql) — current table definitions.
-- `apps/api/http/` — saved API requests for VS Code REST Client.
+- [API layout and verification](apps/api/README.md) — maintenance tools, automated tests, and operational notes.
 
 Additional capstone materials are kept locally under `docs/`, including the backend development plan, Hostinger go-live guide, architecture files, chapters, user guides, and test reports. That folder is ignored by Git, so those documents are not linked here as publicly available repository files.
 

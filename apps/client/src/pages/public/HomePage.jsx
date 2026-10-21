@@ -10,7 +10,7 @@ import Container from '@mui/material/Container';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Typography from '@mui/material/Typography';
-import { keyframes } from '@mui/material/styles';
+
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
@@ -33,12 +33,10 @@ import { GALLERY, photoCount } from '../../lib/gallery.js';
 import { site, siteContainerSx } from '../../theme/siteTheme.js';
 import { AlertBanner, EmptyState, appearanceApi } from '@tm/shared';
 import HeroScene from '../../components/HeroScene.jsx';
+import PackageComparison from '../../components/PackageComparison.jsx';
+import BookingJourney from '../../components/BookingJourney.jsx';
+import CustomerReviews from '../../components/CustomerReviews.jsx';
 
-
-const reviewRoll = keyframes`
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-`;
 
 const servicesList = (minimum) => [
   [RestaurantMenuOutlinedIcon, 'A buffet you choose yourself', 'Pick exactly four dishes from our menu, with a maximum of two per category. You may skip any category. Unlimited water and juice are included for every guest. Served plated by our team, at one price per person.'],
@@ -136,7 +134,6 @@ export default function HomePage() {
   };
 
   const reviews = testimonials.data || [];
-  const reviewRun = reviews.length ? Array.from({ length: Math.ceil(6 / reviews.length) }, () => reviews).flat() : [];
   const noReviews = !testimonials.loading && !testimonials.error && reviews.length === 0;
 
   return (
@@ -180,6 +177,7 @@ export default function HomePage() {
               <Typography sx={{ mt: 2, fontSize: 12.5, lineHeight: 1.7, color: site.inkSoft }}>
                 Explore without an account. Food is priced separately from setup packages.
               </Typography>
+              <Typography sx={{ mt: 1, fontSize: 12, color: site.goldText }}>Serving {BUSINESS.serviceArea}</Typography>
             </Box>
             <HeroScene settings={appearance.data} />
           </Box>
@@ -207,6 +205,8 @@ export default function HomePage() {
               ? Array.from({ length: 3 }, (_, i) => <Skeleton key={i} variant="rounded" height={420} sx={{ borderRadius: 3, bgcolor: site.sand }} />)
               : (packages.data || []).map((pkg, index) => <PackageCard key={pkg.id} pkg={pkg} index={index} />)}
           </Box>
+          {!packages.loading && <PackageComparison packages={packages.data || []} />}
+          <BookingJourney />
         </Container>
       </Box>
 
@@ -223,7 +223,7 @@ export default function HomePage() {
           <SectionHead eyebrow="Gallery" title="Moments We Have Served" description="A glimpse of the celebrations our team has had the honour of catering." />
           <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 3 }}>
             {GALLERY.map((event, i) => (
-              <Reveal key={event.key} delay={(i % 3) * 100} sx={{ width: { xs: 'calc((100% - 24px) / 2)', lg: 'calc((100% - 48px) / 3)' } }}>
+              <Reveal key={event.key} delay={(i % 3) * 100} sx={{ width: { xs: '100%', sm: 'calc((100% - 24px) / 2)', lg: 'calc((100% - 48px) / 3)' } }}>
                 <ButtonBase
                   onClick={() => openGallery(event)}
                   aria-haspopup="dialog"
@@ -232,7 +232,7 @@ export default function HomePage() {
                     position: 'relative',
                     display: 'flex',
                     width: '100%',
-                    height: { xs: 150, md: 200 },
+                    height: { xs: 240, md: 300 },
                     alignItems: 'flex-end',
                     justifyContent: 'flex-start',
                     p: 2.5,
@@ -254,11 +254,11 @@ export default function HomePage() {
                     '&.Mui-focusVisible': { outline: `2px solid ${site.gold}`, outlineOffset: 3 }
                   }}
                 >
-                  <Box component="img" className="tm-gallery-cover" src={event.photos[0].thumb} alt="" loading="lazy" decoding="async" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease' }} />
+                  <Box component="img" className="tm-gallery-cover" src={event.photos[0].thumb} alt="" width={640} height={420} loading="lazy" decoding="async" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease' }} />
                   <Box component="span" sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(23, 19, 17, 0) 38%, rgba(23, 19, 17, 0.74) 100%)' }} />
                   <Box component="span" sx={{ position: 'relative', display: 'block' }}>
                     <Typography component="span" sx={{ display: 'block', fontFamily: site.fontSerif, fontSize: { xs: 16, md: 20 }, fontWeight: 600, lineHeight: 1.25, color: '#fff' }}>
-                      {event.label}
+                      {event.story?.headline || event.label}
                     </Typography>
                     <Typography component="span" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.75, fontSize: { xs: 12, md: 13 }, color: 'rgba(255, 255, 255, 0.85)' }}>
                       <PhotoLibraryOutlinedIcon sx={{ fontSize: 15 }} />
@@ -281,49 +281,7 @@ export default function HomePage() {
             </Paper>
           )}
 
-          {reviews.length > 0 && (
-            <Box
-              sx={{
-                mt: 6,
-                overflow: 'hidden',
-                maskImage: 'linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%)',
-                '&:hover .tm-review-track': { animationPlayState: 'paused' },
-                '@media (prefers-reduced-motion: reduce)': { overflowX: 'auto', maskImage: 'none', WebkitMaskImage: 'none' }
-              }}
-            >
-              <Box
-                className="tm-review-track"
-                sx={{
-                  display: 'flex',
-                  width: 'max-content',
-                  animation: `${reviewRoll} ${reviewRun.length * 7}s linear infinite`,
-                  '@media (prefers-reduced-motion: reduce)': { animation: 'none' }
-                }}
-              >
-                {[...reviewRun, ...reviewRun].map((review, i) => (
-                  <Box key={i} aria-hidden={i >= reviewRun.length} sx={{ flex: '0 0 auto', display: 'flex', width: { xs: 268, sm: 320, md: 364 }, pr: 2.5 }}>
-                    <Paper component="figure" elevation={0} sx={{ width: '100%', m: 0, p: 3.5, borderRadius: 3, backgroundColor: site.card, border: `1px solid ${site.border}`, boxShadow: site.shadowCard }}>
-                      <Box sx={{ display: 'flex', color: site.gold, mb: 1.5 }} aria-label={`${review.rating} out of 5 stars`}>
-                        {Array.from({ length: review.rating }, (_, star) => (
-                          <StarRoundedIcon key={star} sx={{ fontSize: 17 }} />
-                        ))}
-                      </Box>
-                      <Typography component="blockquote" sx={{ m: 0, fontFamily: site.fontSerif, fontSize: 16.5, fontStyle: 'italic', lineHeight: 1.65, color: site.ink }}>
-                        “{review.body}”
-                      </Typography>
-                      <Typography component="figcaption" sx={{ mt: 2, fontSize: 13, fontWeight: 600, color: site.ink }}>
-                        {review.customerName}
-                        <Box component="span" sx={{ display: 'block', fontSize: 12, fontWeight: 400, color: site.inkMuted }}>
-                          {review.eventName}
-                        </Box>
-                      </Typography>
-                    </Paper>
-                  </Box>
-                ))}
-              </Box>
-            </Box>
-          )}
+          <CustomerReviews reviews={reviews} />
         </Container>
       </Box>
 

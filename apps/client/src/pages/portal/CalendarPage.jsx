@@ -205,7 +205,7 @@ export default function CalendarPage() {
                             fontFamily: 'inherit',
                             borderRadius: 1.5,
                             border: `1px solid ${tokens.cardLightBorder}`,
-                            '&:hover': { borderColor: '#94a3b8' }
+                            '&:hover': { borderColor: tokens.placeholder }
                           }}
                         >
                           <ThemeIcon occasion={r.occasion} size={52} />

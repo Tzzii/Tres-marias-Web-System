@@ -196,9 +196,26 @@ export default function GalleryDialog({ event, photo, onShowPhoto, onStep, onBac
                 color: site.ink
               }}
             >
-              {shown.event.label}
+              {shown.event.story?.headline || shown.event.label}
             </Typography>
             <Typography sx={{ mt: 0.25, fontSize: 13, color: site.inkMuted }}>{photoCount(count)}</Typography>
+            {shown.event.story?.summary && (
+              <Typography sx={{ mt: 1.5, fontSize: 13, lineHeight: 1.8, color: site.inkSoft }}>
+                {shown.event.story.summary}
+              </Typography>
+            )}
+            {shown.event.story && (
+              <Typography sx={{ mt: 1, fontSize: 12, color: site.goldText }}>
+                {[
+                  shown.event.story.occasion,
+                  shown.event.story.guests ? `${shown.event.story.guests} guests` : '',
+                  shown.event.story.packageName,
+                  shown.event.story.motif
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Typography>
+            )}
           </Box>
           <IconButton onClick={onClose} aria-label="Close gallery" sx={{ color: site.ink }}>
             <CloseRoundedIcon />

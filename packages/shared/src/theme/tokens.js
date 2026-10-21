@@ -39,7 +39,15 @@ export const tokens = {
   easeStandard: 'cubic-bezier(0.4, 0, 0.2, 1)',
   easeOutExpo: 'cubic-bezier(0.16, 1, 0.3, 1)',
 
-  fontSans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+  fontSans: '"Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+};
+
+/** Scope exported paper documents to a light palette, independent of portal mode. */
+export const paperSurfaceSx = {
+  ...Object.fromEntries(Object.entries(lightPalette).map(([key, value]) => [cssVarName(key), value])),
+  colorScheme: 'light',
+  backgroundColor: '#fff',
+  color: lightPalette.textPrimary
 };
 
 /** Style for the small label above a title or field, used in both portals. Shown as written, not in capitals. */

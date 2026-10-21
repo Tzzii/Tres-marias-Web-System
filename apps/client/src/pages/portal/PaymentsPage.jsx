@@ -773,7 +773,7 @@ export default function PaymentsPage() {
                           <Pill
                             label={r.amount > 0 ? 'Refunded' : 'Kept'}
                             bg="rgba(59, 130, 246, 0.12)"
-                            fg="#1d4ed8"
+                            fg={tokens.infoText}
                             size="sm"
                           />
                         </Box>

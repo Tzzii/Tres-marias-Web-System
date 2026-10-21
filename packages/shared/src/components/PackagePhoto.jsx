@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { tokens } from '../theme/tokens.js';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
 import Dialog from '@mui/material/Dialog';
@@ -9,7 +10,7 @@ import ZoomInRoundedIcon from '@mui/icons-material/ZoomInRounded';
 import { samplePackagePhoto } from '../domain/packagePhotos.js';
 import { adminPackagePhotoUrl, packagePhotoUrl } from '../services/remote/catalog.js';
 
-/** Detail-page image and protected admin preview; landing cards keep their illustrations. */
+/** Shared package image for landing cards, detail pages and protected admin previews. */
 export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, height = 320 }) {
   const [preview, setPreview] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -59,16 +60,28 @@ export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, he
   return (
     <Box>
       <ButtonBase
+        className="tm-package-photo-surface"
         onClick={() => setOpen(true)}
         disabled={!src || loading}
         aria-label={`Enlarge ${alt}`}
-        sx={{ display: 'block', width: '100%', height, position: 'relative', bgcolor: '#eee9df', overflow: 'hidden' }}
+        sx={{
+          display: 'block',
+          width: '100%',
+          height,
+          position: 'relative',
+          bgcolor: tokens.surfaceSubtle,
+          overflow: 'hidden'
+        }}
       >
         {src && (
           <Box
             component="img"
             src={src}
             alt={alt}
+            loading="lazy"
+            decoding="async"
+            width={640}
+            height={400}
             onError={() => setFailed(true)}
             sx={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }}
           />
@@ -94,7 +107,9 @@ export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, he
           </Box>
         )}
       </ButtonBase>
-      <Typography sx={{ px: 2, py: 1, fontSize: 12, color: '#665e51', bgcolor: '#faf8f3' }}>{caption}</Typography>
+      <Typography sx={{ px: 2, py: 1, fontSize: 12, color: tokens.textSecondary, bgcolor: tokens.surfaceSubtle }}>
+        {caption}
+      </Typography>
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="lg" fullWidth aria-labelledby="package-photo-title">
         <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, gap: 1 }}>
           <Typography id="package-photo-title" component="h2" sx={{ flex: 1, fontWeight: 600, fontSize: 16 }}>
@@ -108,7 +123,7 @@ export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, he
           component="img"
           src={src || undefined}
           alt={alt}
-          sx={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', bgcolor: '#f3f0ea' }}
+          sx={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', bgcolor: tokens.surfaceSubtle }}
         />
       </Dialog>
     </Box>

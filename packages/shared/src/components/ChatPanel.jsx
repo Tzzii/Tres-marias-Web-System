@@ -222,7 +222,7 @@ export function ChatPanel({
           display: 'grid',
           gridTemplateColumns: compact || single ? fill : { xs: fill, md: `320px ${fill}` },
           overflow: 'hidden',
-          backgroundColor: '#fff',
+          backgroundColor: tokens.cardLight,
           ...sizeSx
         }}
       >
@@ -274,7 +274,7 @@ export function ChatPanel({
                     textAlign: 'left',
                     fontFamily: 'inherit',
                     borderBottom: `1px solid ${tokens.cardLightBorder}`,
-                    backgroundColor: on ? tokens.surfaceMuted : '#fff',
+                    backgroundColor: on ? tokens.surfaceMuted : tokens.cardLight,
                     borderLeft: `3px solid ${on ? tokens.gold : 'transparent'}`
                   }}
                 >
@@ -336,7 +336,7 @@ export function ChatPanel({
                             placeItems: 'center',
                             fontSize: 10.5,
                             fontWeight: 700,
-                            color: '#fff',
+                            color: tokens.onStatus,
                             backgroundColor: tokens.red
                           }}
                         >
@@ -525,7 +525,7 @@ export function ChatPanel({
                                   p: 1,
                                   borderRadius: 2,
                                   border: `1px solid ${tokens.borderFocus}`,
-                                  backgroundColor: '#fff'
+                                  backgroundColor: tokens.cardLight
                                 }}
                               >
                                 <InputBase

@@ -1,63 +1,50 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import ButtonBase from '@mui/material/ButtonBase';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import useMediaQuery from '@mui/material/useMediaQuery';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import ViewColumnOutlinedIcon from '@mui/icons-material/ViewColumnOutlined';
 import {
-  AlertBanner,
-  AppDialog,
-  BusyButton,
   ConfirmDialog,
   DashCard,
   DataTable,
   EmptyState,
   EquipmentPhoto,
   ErrorState,
-  Field,
-  FormField,
   INVENTORY_CATEGORIES,
   PageHeader,
-  PHOTO_ACCEPT,
   Pager,
   Pill,
   SearchField,
-  SelectField,
   StatCard,
-  formatDate,
-  formatDateTime,
   inventoryApi,
   peso,
-  photoProblem,
   tokens,
   useDocumentTitle,
   useNotify,
   useResource
 } from '@tm/shared';
 import { useColumnChoice } from '../lib/columns.js';
+import AddItemsDialog from './inventory/AddItemsDialog.jsx';
+import EditItemDialog from './inventory/EditItemDialog.jsx';
+import StockDialog from './inventory/StockDialog.jsx';
+import DetailsDialog from './inventory/DetailsDialog.jsx';
 
 const PAGE_SIZE = 10;
-const NO_EVENT = inventoryApi.NO_EVENT;
 
 const STATUSES = [
   ['all', 'All', () => true],
@@ -80,34 +67,6 @@ const OPTIONAL_COLUMNS = [
 ];
 const COLUMNS_KEY = 'tm.admin.inventory.columns';
 
-const ACTIONS = {
-  checkout: {
-    title: 'Check Out',
-    description: 'Take available pieces out for an event. They count as In use until returned.',
-    button: 'Check out'
-  },
-  return: {
-    title: 'Return',
-    description: 'Record pieces coming back. Damaged pieces go to Damaged instead of Available.',
-    button: 'Record return'
-  },
-  damage: {
-    title: 'Report Damage',
-    description: 'Move available pieces to Damaged so they are not checked out.',
-    button: 'Report damage'
-  },
-  repair: {
-    title: 'Mark Repaired',
-    description: 'Move repaired pieces from Damaged back to Available.',
-    button: 'Mark repaired'
-  },
-  dispose: {
-    title: 'Dispose of Damaged',
-    description: 'Remove damaged pieces that cannot be repaired. The total goes down.',
-    button: 'Dispose'
-  }
-};
-
 export default function InventoryPage() {
   useDocumentTitle('Inventory', 'Tres Marias Admin');
   const navigate = useNavigate();
@@ -120,7 +79,9 @@ export default function InventoryPage() {
     return { items, events };
   }, []);
 
-  const [query, setQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get('q') || '');
+  useEffect(() => setQuery(searchParams.get('q') || ''), [searchParams]);
   const [category, setCategory] = useState('all');
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
@@ -244,14 +205,16 @@ export default function InventoryPage() {
                 : i.stock === 'out'
                   ? tokens.redPress
                   : i.stock === 'low'
-                    ? '#b45309'
+                    ? tokens.warningText
                     : tokens.textPrimary
             }}
           >
             {i.available}
           </Typography>
           {!i.archived && i.stock !== 'ok' && (
-            <Typography sx={{ fontSize: 11, fontWeight: 700, color: i.stock === 'out' ? tokens.redPress : '#b45309' }}>
+            <Typography
+              sx={{ fontSize: 11, fontWeight: 700, color: i.stock === 'out' ? tokens.redPress : tokens.warningText }}
+            >
               {i.stock === 'out' ? 'Out of stock' : 'Low stock'}
             </Typography>
           )}
@@ -284,9 +247,9 @@ export default function InventoryPage() {
         i.archived ? (
           <Pill size="sm" label="Archived" bg={tokens.surfaceMuted} fg={tokens.textMuted} dot={false} />
         ) : i.damaged > 0 ? (
-          <Pill size="sm" label={`${i.damaged} damaged`} bg="rgba(245,158,11,0.14)" fg="#b45309" />
+          <Pill size="sm" label={`${i.damaged} damaged`} bg="rgba(245,158,11,0.14)" fg={tokens.warningText} />
         ) : (
-          <Pill size="sm" label="Good" bg="rgba(16,185,129,0.12)" fg="#047857" />
+          <Pill size="sm" label="Good" bg="rgba(16,185,129,0.12)" fg={tokens.successText} />
         )
     },
     {
@@ -653,819 +616,5 @@ export default function InventoryPage() {
         }}
       />
     </>
-  );
-}
-
-const blankRow = () => ({ name: '', category: '', total: '', lowStockAt: '', rentPrice: '', damageFee: '' });
-
-function AddItemsDialog({ open, onClose, onSaved }) {
-  const isPhone = useMediaQuery('(max-width:599px)');
-  const [rows, setRows] = useState([blankRow()]);
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setRows([blankRow()]);
-      setError(null);
-    }
-  }, [open]);
-
-  const set = (index, field) => (e) => {
-    setRows((r) => r.map((row, i) => (i === index ? { ...row, [field]: e.target.value } : row)));
-    setError(null);
-  };
-  const errorFor = (index, field) =>
-    error && error.row === index && error.field === field ? error.message : undefined;
-
-  const save = async () => {
-    const items = rows.map((row) => {
-      const total = Number(row.total);
-      const rentable = row.rentPrice !== '';
-      return {
-        name: row.name,
-        category: row.category,
-        total,
-        lowStockAt: row.lowStockAt === '' ? Math.floor(total * 0.1) : Number(row.lowStockAt),
-        rentable,
-        rentPrice: rentable ? Number(row.rentPrice) : 0,
-        damageFee: rentable ? Number(row.damageFee) || 0 : 0
-      };
-    });
-    setBusy(true);
-    try {
-      onSaved(await inventoryApi.addInventoryItems(items));
-    } catch (e) {
-      setError({
-        row: e.meta && e.meta.row !== undefined ? e.meta.row : 0,
-        field: (e.meta && e.meta.field) || 'name',
-        message: e.message
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <AppDialog
-      open={open}
-      onClose={onClose}
-      busy={busy}
-      maxWidth="md"
-      fullScreenOnMobile
-      title="Add Item(s)"
-      description="New items start fully available with no damage. Leave the alert level blank to use 10% of the quantity, and the rent price blank for items customers can't rent."
-      actions={
-        <>
-          <Button onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <BusyButton busy={busy} onClick={save}>
-            {rows.length === 1 ? 'Add item' : `Add ${rows.length} items`}
-          </BusyButton>
-        </>
-      }
-    >
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {rows.map((row, index) => (
-          <Box
-            key={index}
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr 1fr', sm: '2fr 1.4fr 0.9fr 0.9fr 0.9fr 0.9fr auto' },
-              gap: 1,
-              alignItems: 'start',
-              pb: { xs: 1.5, sm: 0 },
-              borderBottom: { xs: `1px solid ${tokens.cardLightBorder}`, sm: 0 }
-            }}
-          >
-            <FormField
-              id={`add-name-${index}`}
-              label={isPhone || index === 0 ? 'Item name' : undefined}
-              required={isPhone || index === 0}
-              value={row.name}
-              onChange={set(index, 'name')}
-              error={errorFor(index, 'name')}
-              inputProps={{ 'aria-label': 'Item name', maxLength: 80 }}
-              sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }}
-            />
-            <SelectField
-              id={`add-cat-${index}`}
-              label={isPhone || index === 0 ? 'Category' : undefined}
-              required={isPhone || index === 0}
-              placeholder="Choose"
-              value={row.category}
-              onChange={set(index, 'category')}
-              options={INVENTORY_CATEGORIES}
-              error={errorFor(index, 'category')}
-              sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }}
-            />
-            <FormField
-              id={`add-total-${index}`}
-              label={isPhone || index === 0 ? 'Quantity' : undefined}
-              required={isPhone || index === 0}
-              type="number"
-              value={row.total}
-              onChange={set(index, 'total')}
-              error={errorFor(index, 'total')}
-              inputProps={{ min: 1, 'aria-label': 'Quantity' }}
-            />
-            <FormField
-              id={`add-low-${index}`}
-              label={isPhone || index === 0 ? 'Alert at' : undefined}
-              type="number"
-              value={row.lowStockAt}
-              onChange={set(index, 'lowStockAt')}
-              error={errorFor(index, 'lowStockAt')}
-              inputProps={{ min: 0, 'aria-label': 'Low-stock alert level' }}
-            />
-            <FormField
-              id={`add-rent-${index}`}
-              label={isPhone || index === 0 ? 'Rent ₱' : undefined}
-              type="number"
-              value={row.rentPrice}
-              onChange={set(index, 'rentPrice')}
-              error={errorFor(index, 'rentPrice')}
-              inputProps={{ min: 1, 'aria-label': 'Rent price per piece' }}
-            />
-            <FormField
-              id={`add-fee-${index}`}
-              label={isPhone || index === 0 ? 'Damage ₱' : undefined}
-              type="number"
-              value={row.damageFee}
-              onChange={set(index, 'damageFee')}
-              error={errorFor(index, 'damageFee')}
-              disabled={row.rentPrice === ''}
-              inputProps={{ min: 0, 'aria-label': 'Damage fee per piece' }}
-            />
-            <IconButton
-              aria-label="Remove row"
-              disabled={rows.length === 1 || busy}
-              onClick={() => {
-                setRows((r) => r.filter((_, i) => i !== index));
-                setError(null);
-              }}
-              sx={{ mt: { sm: index === 0 ? 3.25 : 0 }, justifySelf: { xs: 'start', sm: 'center' } }}
-            >
-              <CloseRoundedIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        ))}
-        <Button
-          startIcon={<AddRoundedIcon />}
-          disabled={rows.length >= 20 || busy}
-          onClick={() => setRows((r) => [...r, blankRow()])}
-          sx={{ alignSelf: 'flex-start' }}
-        >
-          Add another row
-        </Button>
-      </Box>
-    </AppDialog>
-  );
-}
-
-function EditItemDialog({ item, onClose, onSaved }) {
-  const [photo, setPhoto] = useState(null);
-  const [removePhoto, setRemovePhoto] = useState(false);
-  const [values, setValues] = useState({
-    name: '',
-    category: '',
-    total: '',
-    lowStockAt: '',
-    rentable: false,
-    rentPrice: '',
-    damageFee: '',
-    notes: ''
-  });
-  const [errors, setErrors] = useState({});
-  const [busy, setBusy] = useState(false);
-  const id = item && item.id;
-
-  useEffect(() => {
-    if (item) {
-      setPhoto(null);
-      setRemovePhoto(false);
-      setValues({
-        name: item.name,
-        category: item.category,
-        total: String(item.total),
-        lowStockAt: String(item.lowStockAt),
-        rentable: Boolean(item.rentable),
-        rentPrice: item.rentPrice ? String(item.rentPrice) : '',
-        damageFee: item.damageFee ? String(item.damageFee) : '',
-        notes: item.notes
-      });
-      setErrors({});
-    }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const set = (field) => (e) => {
-    setValues((v) => ({ ...v, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
-    setErrors({});
-  };
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      await inventoryApi.updateInventoryItem(
-        id,
-        {
-          ...values,
-          removePhoto,
-          total: Number(values.total),
-          lowStockAt: Number(values.lowStockAt),
-          rentPrice: Number(values.rentPrice),
-          damageFee: Number(values.damageFee) || 0
-        },
-        { photo }
-      );
-      onSaved();
-    } catch (e) {
-      setErrors({ [(e.meta && e.meta.field) || 'name']: e.message });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const minimum = item ? item.inUse + item.damaged : 0;
-  return (
-    <AppDialog
-      open={Boolean(item)}
-      onClose={onClose}
-      busy={busy}
-      maxWidth="sm"
-      title={item ? `Edit ${item.code}` : ''}
-      actions={
-        <>
-          <Button onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <BusyButton busy={busy} onClick={save}>
-            Save changes
-          </BusyButton>
-        </>
-      }
-    >
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-        <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
-          <EquipmentPhoto item={item} file={photo} removePhoto={removePhoto} admin />
-          <Typography sx={{ mt: 1, fontSize: 12.5, color: tokens.textSecondary }}>
-            Show one item or one complete rental unit. This same photo appears in Equipment Rental after you save.
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-            <Button component="label" variant="outlined" disabled={busy}>
-              Change photo
-              <input
-                hidden
-                type="file"
-                accept={PHOTO_ACCEPT}
-                disabled={busy}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!file) return;
-                  const problem = photoProblem(file);
-                  if (problem) {
-                    setErrors((v) => ({ ...v, photo: problem }));
-                    return;
-                  }
-                  setPhoto(file);
-                  setRemovePhoto(false);
-                  setErrors({});
-                }}
-              />
-            </Button>
-            {photo && (
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  setPhoto(null);
-                  setErrors({});
-                }}
-              >
-                Cancel new photo
-              </Button>
-            )}
-            {item?.photoVersion && !removePhoto && (
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  setPhoto(null);
-                  setRemovePhoto(true);
-                  setErrors({});
-                }}
-              >
-                Use default photo
-              </Button>
-            )}
-            {removePhoto && (
-              <Button disabled={busy} onClick={() => setRemovePhoto(false)}>
-                Keep current photo
-              </Button>
-            )}
-          </Box>
-          {errors.photo && (
-            <Typography role="alert" sx={{ mt: 0.75, fontSize: 12, color: tokens.redPress }}>
-              {errors.photo}
-            </Typography>
-          )}
-          <Typography sx={{ mt: 0.75, fontSize: 11.5, color: tokens.textMuted }}>
-            JPG, PNG or WebP · Up to 20 MB
-          </Typography>
-        </Box>
-        <FormField
-          id="edit-name"
-          label="Item name"
-          required
-          value={values.name}
-          onChange={set('name')}
-          error={errors.name}
-          inputProps={{ maxLength: 80 }}
-          sx={{ gridColumn: { sm: '1 / -1' } }}
-        />
-        <SelectField
-          id="edit-category"
-          label="Category"
-          required
-          value={values.category}
-          onChange={set('category')}
-          options={INVENTORY_CATEGORIES}
-          error={errors.category}
-          sx={{ gridColumn: { sm: '1 / -1' } }}
-        />
-        <FormField
-          id="edit-total"
-          label="Total owned"
-          required
-          type="number"
-          value={values.total}
-          onChange={set('total')}
-          error={errors.total}
-          hint={minimum ? `At least ${minimum} (in use + damaged)` : undefined}
-          inputProps={{ min: Math.max(1, minimum) }}
-        />
-        <FormField
-          id="edit-low"
-          label="Low-stock alert at"
-          required
-          type="number"
-          value={values.lowStockAt}
-          onChange={set('lowStockAt')}
-          error={errors.lowStockAt}
-          hint="Flagged when available is at or below this"
-          inputProps={{ min: 0 }}
-        />
-        <FormControlLabel
-          sx={{ gridColumn: { sm: '1 / -1' } }}
-          control={<Switch checked={values.rentable} onChange={set('rentable')} />}
-          label={<Typography sx={{ fontSize: 13.5 }}>Customers can rent this item</Typography>}
-        />
-        {values.rentable && (
-          <>
-            <FormField
-              id="edit-rent"
-              label="Rent price per piece"
-              required
-              type="number"
-              value={values.rentPrice}
-              onChange={set('rentPrice')}
-              error={errors.rentPrice}
-              hint="Applies to rentals booked from now on"
-              InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
-              inputProps={{ min: 1 }}
-            />
-            <FormField
-              id="edit-fee"
-              label="Damage fee per piece"
-              type="number"
-              value={values.damageFee}
-              onChange={set('damageFee')}
-              error={errors.damageFee}
-              hint="Charged for each piece that comes back damaged or missing"
-              InputProps={{ startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
-              inputProps={{ min: 0 }}
-            />
-          </>
-        )}
-        <FormField
-          id="edit-notes"
-          label="Notes"
-          optional
-          multiline
-          minRows={2}
-          value={values.notes}
-          onChange={set('notes')}
-          inputProps={{ maxLength: 300 }}
-          placeholder="Supplier, storage place, care instructions…"
-          sx={{ gridColumn: { sm: '1 / -1' } }}
-        />
-      </Box>
-    </AppDialog>
-  );
-}
-
-function StockDialog({ action, item, events, onClose, onDone }) {
-  const [values, setValues] = useState({ ref: NO_EVENT, qty: '', damagedQty: '0', note: '' });
-  const [errors, setErrors] = useState({});
-  const [busy, setBusy] = useState(false);
-  const open = Boolean(action && item);
-  const id = item && item.id;
-
-  useEffect(() => {
-    if (!open) return;
-    const firstOut = item.out[0];
-    setValues({
-      ref: action === 'return' && firstOut ? firstOut.ref : NO_EVENT,
-      qty: action === 'return' && firstOut ? String(firstOut.qty) : action === 'repair' ? String(item.damaged) : '',
-      damagedQty: '0',
-      note: ''
-    });
-    setErrors({});
-  }, [open, action, id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!open) return <AppDialog open={false} onClose={onClose} title="" />;
-
-  const outAt = (ref) => (item.out.find((o) => o.ref === ref) || { qty: 0 }).qty;
-
-  const maxFor = (field, v) => {
-    if (action === 'return') return Math.max(0, outAt(v.ref) - (Number(field === 'qty' ? v.damagedQty : v.qty) || 0));
-    return action === 'repair' || action === 'dispose' ? item.damaged : item.available;
-  };
-
-  const set = (field) => (e) => {
-    const value = e.target.value;
-    setValues((v) => {
-      const next = { ...v, [field]: value };
-      if (action === 'return' && field === 'ref') next.qty = String(outAt(value));
-      if ((field === 'qty' || field === 'damagedQty') && value !== '' && Number(value) > maxFor(field, next)) {
-        next[field] = String(maxFor(field, next));
-      }
-      return next;
-    });
-    setErrors({});
-  };
-
-  const outAtRef = outAt(values.ref);
-  const needsNote = action === 'damage' || action === 'dispose';
-
-  const submit = async () => {
-    setBusy(true);
-    try {
-      await inventoryApi.moveInventoryStock(item.id, action, {
-        ref: values.ref,
-        qty: Number(values.qty),
-        damagedQty: Number(values.damagedQty) || 0,
-        note: values.note
-      });
-      const qty = Number(values.qty) + (action === 'return' ? Number(values.damagedQty) || 0 : 0);
-      onDone(`${ACTIONS[action].title}: ${qty} ${item.name}.`);
-    } catch (e) {
-      setErrors({ [(e.meta && e.meta.field) || 'qty']: e.message });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const placeLabel = (o) =>
-    o.ref === NO_EVENT
-      ? `No event linked · ${o.qty} out`
-      : `${o.eventName || o.ref} · ${formatDate(o.eventDate)} · ${o.qty} out`;
-
-  return (
-    <AppDialog
-      open
-      onClose={onClose}
-      busy={busy}
-      maxWidth="xs"
-      title={`${ACTIONS[action].title} · ${item.name}`}
-      description={ACTIONS[action].description}
-      actions={
-        <>
-          <Button onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <BusyButton busy={busy} color={action === 'dispose' ? 'error' : 'primary'} onClick={submit}>
-            {ACTIONS[action].button}
-          </BusyButton>
-        </>
-      }
-    >
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 1,
-            p: 1.25,
-            borderRadius: 1.5,
-            backgroundColor: tokens.surfaceSubtle
-          }}
-        >
-          <Field label="Available">{String(item.available)}</Field>
-          <Field label="In use">{String(item.inUse)}</Field>
-          <Field label="Damaged">{String(item.damaged)}</Field>
-        </Box>
-
-        {action === 'checkout' && (
-          <SelectField
-            id="stock-event"
-            label="For event"
-            value={values.ref}
-            onChange={set('ref')}
-            error={errors.ref}
-            options={[
-              { value: NO_EVENT, label: 'No event (e.g. lending, off-site use)' },
-              ...events.map((e) => ({
-                value: e.ref,
-                label: `${formatDate(e.date)} · ${e.eventName} · ${e.rental ? 'equipment rental' : `${e.guests} pax`}`
-              }))
-            ]}
-            hint="Approved, downpayment-paid and confirmed reservations"
-          />
-        )}
-        {action === 'return' && (
-          <SelectField
-            id="stock-from"
-            label="Returned from"
-            value={values.ref}
-            onChange={set('ref')}
-            error={errors.ref}
-            options={item.out.map((o) => ({ value: o.ref, label: placeLabel(o) }))}
-          />
-        )}
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: action === 'return' ? '1fr 1fr' : '1fr', gap: 1.5 }}>
-          <FormField
-            id="stock-qty"
-            label={action === 'return' ? 'Good condition' : 'Quantity'}
-            required
-            type="number"
-            value={values.qty}
-            onChange={set('qty')}
-            error={errors.qty}
-            autoFocus
-            inputProps={{ min: action === 'return' ? 0 : 1, max: maxFor('qty', values) }}
-            hint={
-              action === 'checkout' || action === 'damage'
-                ? `${item.available} available`
-                : action === 'return'
-                  ? `${outAtRef} out there`
-                  : `${item.damaged} damaged`
-            }
-          />
-          {action === 'return' && (
-            <FormField
-              id="stock-damaged"
-              label="Came back damaged"
-              type="number"
-              value={values.damagedQty}
-              onChange={set('damagedQty')}
-              inputProps={{ min: 0, max: maxFor('damagedQty', values) }}
-            />
-          )}
-        </Box>
-
-        <FormField
-          id="stock-note"
-          label={needsNote ? 'Reason' : 'Note'}
-          required={needsNote}
-          optional={!needsNote}
-          multiline
-          minRows={2}
-          value={values.note}
-          onChange={set('note')}
-          error={errors.note}
-          inputProps={{ maxLength: 200 }}
-          placeholder={
-            action === 'damage'
-              ? 'e.g. 3 legs cracked during unloading'
-              : action === 'dispose'
-                ? 'e.g. Beyond repair'
-                : ''
-          }
-        />
-        {action === 'checkout' && values.ref !== NO_EVENT && (
-          <AlertBanner tone="info">This check-out is also added to the reservation's audit trail.</AlertBanner>
-        )}
-      </Box>
-    </AppDialog>
-  );
-}
-
-function DetailsDialog({ item, onClose, onAction }) {
-  const navigate = useNavigate();
-  if (!item) return <AppDialog open={false} onClose={onClose} title="" />;
-
-  return (
-    <AppDialog
-      open
-      onClose={onClose}
-      maxWidth="sm"
-      fullScreenOnMobile
-      title={item.name}
-      description={`${item.code} · ${item.category}${item.archived ? ' · Archived' : ''}`}
-      actions={
-        <>
-          <Button onClick={onClose}>Close</Button>
-          <Button
-            color="error"
-            startIcon={<DeleteOutlineRoundedIcon />}
-            disabled={item.inUse > 0}
-            onClick={() => {
-              onClose();
-              onAction('delete', item);
-            }}
-          >
-            Delete
-          </Button>
-          {!item.archived && (
-            <>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  onClose();
-                  onAction('edit', item);
-                }}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="outlined"
-                disabled={item.inUse < 1}
-                onClick={() => {
-                  onClose();
-                  onAction('return', item);
-                }}
-              >
-                Return
-              </Button>
-              <Button
-                variant="contained"
-                disabled={item.available < 1}
-                onClick={() => {
-                  onClose();
-                  onAction('checkout', item);
-                }}
-              >
-                Check out
-              </Button>
-            </>
-          )}
-        </>
-      }
-    >
-      <Box sx={{ mb: 2 }}>
-        <EquipmentPhoto item={item} admin />
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' },
-          gap: 1.5,
-          p: 1.5,
-          borderRadius: 1.5,
-          backgroundColor: tokens.surfaceSubtle
-        }}
-      >
-        <Field label="Total">{String(item.total)}</Field>
-        <Field label="Available">{String(item.available)}</Field>
-        <Field label="In use">{String(item.inUse)}</Field>
-        <Field label="Damaged">{String(item.damaged)}</Field>
-        <Field label="Alert at">{String(item.lowStockAt)}</Field>
-      </Box>
-      <Typography sx={{ mt: 1.25, fontSize: 13, color: tokens.textSecondary }}>
-        {item.rentable
-          ? `For rent at ${peso(item.rentPrice)} per piece · damage fee ${peso(item.damageFee)}`
-          : 'Not for rent: only our team uses this item.'}
-      </Typography>
-
-      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 14, fontWeight: 700 }}>Currently Out</Typography>
-      {item.out.length === 0 ? (
-        <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>Nothing is checked out.</Typography>
-      ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          {item.out.map((o) => (
-            <ButtonBase
-              key={o.ref}
-              disabled={o.ref === NO_EVENT}
-              onClick={() => {
-                onClose();
-                navigate(`/reservations/${o.ref}`);
-              }}
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 1,
-                p: 1.25,
-                textAlign: 'left',
-                fontFamily: 'inherit',
-                borderRadius: 1.5,
-                border: `1px solid ${tokens.cardLightBorder}`,
-                '&:hover': { borderColor: '#94a3b8' }
-              }}
-            >
-              <Box sx={{ minWidth: 0 }}>
-                <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
-                  {o.ref === NO_EVENT ? 'No event linked' : o.eventName || o.ref}
-                </Typography>
-                {o.ref !== NO_EVENT && (
-                  <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
-                    {o.ref} · {formatDate(o.eventDate)}
-                  </Typography>
-                )}
-              </Box>
-              <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary, whiteSpace: 'nowrap' }}>
-                {o.qty} pcs
-              </Typography>
-            </ButtonBase>
-          ))}
-        </Box>
-      )}
-
-      {item.notes && (
-        <>
-          <Typography sx={{ mt: 2.5, mb: 0.5, fontSize: 14, fontWeight: 700 }}>Notes</Typography>
-          <Typography sx={{ fontSize: 13, color: tokens.textSecondary, whiteSpace: 'pre-line' }}>
-            {item.notes}
-          </Typography>
-        </>
-      )}
-
-      {!item.archived && (item.damaged > 0 || item.available > 0) && (
-        <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button
-            size="small"
-            disabled={item.available < 1}
-            onClick={() => {
-              onClose();
-              onAction('damage', item);
-            }}
-          >
-            Report damage
-          </Button>
-          <Button
-            size="small"
-            disabled={item.damaged < 1}
-            onClick={() => {
-              onClose();
-              onAction('repair', item);
-            }}
-          >
-            Mark repaired
-          </Button>
-          <Button
-            size="small"
-            color="error"
-            disabled={item.damaged < 1}
-            onClick={() => {
-              onClose();
-              onAction('dispose', item);
-            }}
-          >
-            Dispose of damaged
-          </Button>
-        </Box>
-      )}
-
-      <Typography sx={{ mt: 2.5, mb: 1, fontSize: 14, fontWeight: 700 }}>History</Typography>
-      <Box
-        component="ol"
-        className="tm-scroll"
-        sx={{
-          m: 0,
-          p: 0,
-          listStyle: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.25,
-          maxHeight: 260,
-          overflowY: 'auto'
-        }}
-      >
-        {item.history
-          .slice()
-          .reverse()
-          .map((h, i) => (
-            <Box component="li" key={`${h.at}-${i}`} sx={{ display: 'flex', gap: 1.25 }}>
-              <Box
-                sx={{
-                  mt: 0.75,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  flexShrink: 0,
-                  backgroundColor: i === 0 ? tokens.gold : tokens.cardLightBorder
-                }}
-              />
-              <Box>
-                <Typography sx={{ fontSize: 13 }}>{h.text}</Typography>
-                <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
-                  {h.actor} · {formatDateTime(h.at)}
-                </Typography>
-              </Box>
-            </Box>
-          ))}
-      </Box>
-    </AppDialog>
   );
 }

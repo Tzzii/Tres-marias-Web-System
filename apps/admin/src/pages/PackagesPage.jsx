@@ -285,7 +285,7 @@ export default function PackagesPage() {
                         size="sm"
                         label={p.visible ? 'Visible on site' : 'Hidden'}
                         bg={p.visible ? 'rgba(16,185,129,0.12)' : tokens.surfaceMuted}
-                        fg={p.visible ? '#047857' : tokens.textMuted}
+                        fg={p.visible ? tokens.successText : tokens.textMuted}
                       />
                     </Box>
                     <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>

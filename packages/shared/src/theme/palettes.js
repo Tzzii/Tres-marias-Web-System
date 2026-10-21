@@ -4,8 +4,8 @@
  * - `lightPalette` (the default): the "Warm Ivory & Gold" look of the public
  *   website (apps/client/src/theme/siteTheme.js), so the portal matches the page
  *   customers browse before they sign in.
- * - `darkPalette`: the navy shell, used only after someone presses the dark
- *   mode toggle in the portal top bar.
+ * - `darkPalette`: the midnight and champagne shell, used only after someone presses the dark
+ *   mode toggle in Settings.
  *
  * Both objects must hold exactly the same keys: theme/colorMode.js writes every
  * key onto <html> as a CSS custom property, and theme/tokens.js reads them back
@@ -18,120 +18,116 @@
 /** camelCase token name -> CSS custom property, e.g. bgBase -> --tm-bg-base, mood0 -> --tm-mood-0. */
 export const cssVarName = (key) => `--tm-${key.replace(/[A-Z0-9]+/g, (part) => `-${part.toLowerCase()}`)}`;
 
-/** The navy scheme (dark mode, only after the toggle is pressed). */
+/** Midnight & Champagne: blue-charcoal layers, ivory type and warm brand accents. */
 export const darkPalette = {
-  // Shell backgrounds
-  bgBase: '#0b0f19',
-  bgDeep: '#080c14',
-  bgPanel: '#0f1626',
-  headerBg: '#0f172a',
-  slate700: '#1e293b',
+  // A quiet midnight canvas, deeper navigation and lifted overlay surfaces.
+  bgBase: '#111824',
+  bgDeep: '#0c121c',
+  bgPanel: '#222e3e',
+  headerBg: '#151e2b',
+  slate700: '#33445a',
 
-  // Brand gold and its lighter/darker/transparent versions.
-  // `goldText` is gold used as text on the shell; it has to stay readable in both modes.
-  gold: '#c5a059',
-  goldLight: '#dfba73',
-  goldDark: '#9d7c38',
-  goldText: '#dfba73',
-  goldGlow: 'rgba(197, 160, 89, 0.3)',
-  goldSubtle: 'rgba(197, 160, 89, 0.12)',
-  goldChip: 'rgba(197, 160, 89, 0.14)',
-  goldTint: 'rgba(197, 160, 89, 0.1)',
-  goldWash: 'rgba(197, 160, 89, 0.08)',
-  onGold: '#0b0f19',
+  // Champagne is reserved for primary actions and small brand highlights.
+  gold: '#d4b77d',
+  goldLight: '#e5cfa3',
+  goldDark: '#bfa168',
+  goldText: '#e3c995',
+  goldGlow: 'rgba(212, 183, 125, 0.16)',
+  goldSubtle: 'rgba(212, 183, 125, 0.10)',
+  goldChip: 'rgba(212, 183, 125, 0.15)',
+  goldTint: 'rgba(212, 183, 125, 0.08)',
+  goldWash: 'rgba(212, 183, 125, 0.045)',
+  onGold: '#211c13',
 
-  // Cards, surfaces and input borders
-  cardLight: '#ffffff',
-  cardLightBorder: '#e2e8f0',
-  cardDark: '#101828',
-  cardDarkBorder: 'rgba(197, 160, 89, 0.18)',
-  cardDarkBorderHover: 'rgba(197, 160, 89, 0.55)',
-  surfaceSubtle: '#f8fafc',
-  surfaceMuted: '#f1f5f9',
-  borderInput: '#cbd5e1',
-  borderFocus: '#0f172a', // the outline a focused input gets on a white card
-  placeholder: '#94a3b8',
+  // Cards are lifted above the canvas; inset areas sit a step below them.
+  cardLight: '#1b2533',
+  cardLightBorder: '#344359',
+  cardDark: '#1b2533',
+  cardDarkBorder: '#344359',
+  cardDarkBorderHover: '#7187a2',
+  surfaceSubtle: '#151e2a',
+  surfaceMuted: '#2a3748',
+  borderInput: '#71839b',
+  borderFocus: '#d4b77d',
+  placeholder: '#9eafc4',
+  divider: '#344359',
+  dividerFaint: 'rgba(190, 208, 231, 0.08)',
 
-  divider: 'rgba(197, 160, 89, 0.22)',
-  dividerFaint: 'rgba(255, 255, 255, 0.06)',
+  // Dusty blue supports secondary controls without competing with champagne.
+  ink: '#adc7e2',
+  inkHover: '#c6d9ec',
+  onInk: '#162232',
+  dangerOnInk: '#752735',
 
-  // The strong dark fill on white cards: selected chips and tiles, chat bubbles,
-  // the send button, dark submit buttons. It stays dark in both modes
-  // (navy in the navy scheme, warm charcoal in the ivory one).
-  ink: '#0f172a',
-  inkHover: '#1e293b',
-  onInk: '#ffffff',
-  dangerOnInk: '#fca5a5', // a danger action sitting on that dark fill, e.g. "Decline selected"
+  shellHover: 'rgba(173, 199, 226, 0.075)',
+  shellInset: 'rgba(173, 199, 226, 0.045)',
+  shellBorder: 'rgba(173, 199, 226, 0.16)',
+  shellScrim: 'rgba(21, 30, 43, 0.97)',
+  sidebarBg: '#0c121c',
+  sidebarBorder: '#28364a',
+  sidebarText: '#b9c6d6',
+  sidebarTextMuted: '#95a6bd',
+  sidebarActiveText: '#ead3a7',
+  sidebarActiveBg: '#293345',
+  sidebarActiveHover: '#344158',
+  sidebarHover: 'rgba(173, 199, 226, 0.075)',
 
-  // See-through layers painted on the shell: hover wash, inset fields (the search
-  // box, section chips), hairline borders and the bar behind sticky navigation.
-  shellHover: 'rgba(255, 255, 255, 0.05)',
-  shellInset: 'rgba(255, 255, 255, 0.06)',
-  shellBorder: 'rgba(255, 255, 255, 0.09)',
-  shellScrim: 'rgba(15, 23, 42, 0.97)',
+  // Warm ivory headings with softer slate body text and readable small labels.
+  textPrimary: '#f3f0e9',
+  textSecondary: '#c3cedc',
+  textMuted: '#a4b2c5',
+  textLight: '#f3f0e9',
+  textOnDarkSoft: '#c3cedc',
+  textOnDarkMuted: '#a4b2c5',
 
-  // Portal sidebar (and the phone drawer): a shade darker than the page so it reads as its own column.
-  // It is dark in both modes, so its text and hover colours are light in both.
-  sidebarBg: '#070a12',
-  sidebarBorder: 'rgba(255, 255, 255, 0.06)',
-  sidebarText: '#b6c0d0',
-  sidebarTextMuted: '#7d8798',
-  sidebarActiveText: '#dfba73',
-  sidebarActiveBg: 'rgba(197, 160, 89, 0.16)',
-  sidebarActiveHover: 'rgba(197, 160, 89, 0.22)',
-  sidebarHover: 'rgba(255, 255, 255, 0.06)',
+  // Muted semantic colors stay distinguishable and readable on dark surfaces.
+  green: '#86cbb0',
+  amber: '#e2bc79',
+  blue: '#9abfe5',
+  red: '#e9a3ad',
+  redPress: '#edb0b8',
+  dangerSoft: '#efb5be',
+  inputBg: '#131c28',
+  onStatus: '#142130',
+  successText: '#a1dec4',
+  warningText: '#eace9f',
+  infoText: '#b4d4f3',
+  dangerText: '#f1bdc5',
+  violetText: '#ccbce7',
+  successBg: 'rgba(134, 203, 176, 0.10)',
+  warningBg: 'rgba(226, 188, 121, 0.10)',
+  infoBg: 'rgba(154, 191, 229, 0.10)',
+  dangerBg: 'rgba(233, 163, 173, 0.10)',
+  successBorder: 'rgba(134, 203, 176, 0.25)',
+  warningBorder: 'rgba(226, 188, 121, 0.25)',
+  infoBorder: 'rgba(154, 191, 229, 0.25)',
+  dangerBorder: 'rgba(233, 163, 173, 0.25)',
 
-  // Text colours. textPrimary/Secondary/Muted sit on white cards;
-  // textLight/textOnDark* sit on the shell and turn to ink in light mode.
-  textPrimary: '#0f172a',
-  textSecondary: '#475569',
-  textMuted: '#64748b',
-  textLight: '#f8fafc',
-  textOnDarkSoft: '#b6c0d0',
-  textOnDarkMuted: '#7d8798',
-
-  // Status colours (same in both modes: they always sit on white cards)
-  green: '#10b981',
-  amber: '#f59e0b',
-  blue: '#3b82f6',
-  red: '#ef4444',
-  redPress: '#dc2626',
-  dangerSoft: '#fca5a5', // "Log out" and error text on the shell
-
-  // Background gradients and textures
+  // A little atmosphere at the top, with calm, solid work surfaces beneath it.
   gradientPage:
-    'radial-gradient(circle at 65% 15%, rgba(212, 175, 55, 0.08) 0%, transparent 50%), ' +
-    'radial-gradient(circle at 50% 20%, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.98) 55%, #080c14 100%)',
-  gradientCentered:
-    'radial-gradient(circle at 50% 45%, rgba(212, 175, 55, 0.08) 0%, transparent 60%), ' +
-    'radial-gradient(circle at 50% 38%, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.98) 55%, #080c14 100%)',
+    'radial-gradient(ellipse at 85% 0%, rgba(96, 134, 184, 0.10), transparent 48%), linear-gradient(165deg, #172131 0%, #111824 58%, #101722 100%)',
+  gradientCentered: 'radial-gradient(ellipse at 50% 20%, rgba(173, 199, 226, 0.10), transparent 60%), #111824',
   gradientHero:
-    'radial-gradient(ellipse at 20% 20%, rgba(197, 160, 89, 0.16) 0%, transparent 55%), ' +
-    'radial-gradient(ellipse at 82% 70%, rgba(120, 53, 76, 0.28) 0%, transparent 58%), ' +
-    'linear-gradient(160deg, #131b2c 0%, #0b0f19 45%, #080c14 100%)',
-  gradientCta: 'radial-gradient(ellipse at 50% 0%, rgba(197, 160, 89, 0.12) 0%, transparent 60%)',
-  gradientFormPanel: 'radial-gradient(circle at 50% 0%, rgba(197, 160, 89, 0.07) 0%, transparent 55%)',
-  gradientGoldRule: 'linear-gradient(90deg, transparent, #c5a059, transparent)',
-  gradientBar: 'linear-gradient(180deg, #334155 0%, #1e293b 100%)', // chart bars that are not the highlighted one
+    'radial-gradient(ellipse at 15% 0%, rgba(212, 183, 125, 0.10), transparent 55%), linear-gradient(135deg, #243348, #1b283a 65%, #162131)',
+  gradientCta: 'radial-gradient(ellipse at 50% 0%, rgba(212, 183, 125, 0.10), transparent 60%)',
+  gradientFormPanel: 'radial-gradient(ellipse at 50% 0%, rgba(173, 199, 226, 0.07), transparent 60%)',
+  gradientGoldRule: 'linear-gradient(90deg, transparent, #d4b77d, transparent)',
+  gradientBar: 'linear-gradient(180deg, #cbb587 0%, #7c94b2 100%)',
   textureLinen:
-    'repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.018) 0px, rgba(255, 255, 255, 0.018) 1px, transparent 1px, transparent 9px)',
+    'repeating-linear-gradient(115deg, rgba(198, 217, 236, 0.012) 0px, rgba(198, 217, 236, 0.012) 1px, transparent 1px, transparent 9px)',
+  mood0: 'linear-gradient(145deg, #35445a, #202d40)',
+  mood1: 'linear-gradient(145deg, #493947, #2c2635)',
+  mood2: 'linear-gradient(145deg, #2c4747, #1d3037)',
+  mood3: 'linear-gradient(145deg, #494237, #302c28)',
 
-  // Four package card backgrounds, picked by package.mood
-  mood0: 'linear-gradient(150deg, #1b2536 0%, #0f1626 100%)',
-  mood1: 'linear-gradient(150deg, #2a1f2b 0%, #130d18 100%)',
-  mood2: 'linear-gradient(150deg, #14202b 0%, #0b141c 100%)',
-  mood3: 'linear-gradient(150deg, #241d16 0%, #14100b 100%)',
-
-  // Shadows
-  shadowCard:
-    '0 25px 50px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 35px rgba(197, 160, 89, 0.06)',
-  shadowDash: '0 4px 20px -2px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08)',
-  shadowDashHover: '0 10px 25px -4px rgba(0, 0, 0, 0.35)',
-  shadowPanel: '0 30px 60px -25px rgba(0, 0, 0, 0.9)',
-  shadowTile: '0 18px 40px -18px rgba(0, 0, 0, 0.8)',
-  shadowNavScrolled: '0 10px 30px -18px rgba(0, 0, 0, 0.95)',
-  shadowMedallion:
-    '0 30px 70px -15px rgba(0, 0, 0, 0.75), 0 0 45px rgba(197, 160, 89, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.15)'
+  // Separation comes from a fine inner highlight and soft, short shadows.
+  shadowCard: 'inset 0 1px 0 rgba(214, 228, 246, 0.055), 0 16px 36px -20px rgba(3, 8, 16, 0.65)',
+  shadowDash: 'inset 0 1px 0 rgba(214, 228, 246, 0.045), 0 8px 22px -14px rgba(3, 8, 16, 0.6)',
+  shadowDashHover: 'inset 0 1px 0 rgba(214, 228, 246, 0.07), 0 18px 36px -20px rgba(3, 8, 16, 0.75)',
+  shadowPanel: '0 28px 70px -18px rgba(3, 8, 16, 0.75)',
+  shadowTile: '0 14px 30px -16px rgba(3, 8, 16, 0.65)',
+  shadowNavScrolled: '0 8px 24px -16px rgba(3, 8, 16, 0.65)',
+  shadowMedallion: '0 24px 60px -18px rgba(3, 8, 16, 0.7), 0 0 0 1px rgba(212, 183, 125, 0.22)'
 };
 
 /**
@@ -208,6 +204,22 @@ export const lightPalette = {
   red: '#ef4444',
   redPress: '#dc2626',
   dangerSoft: '#b91c1c',
+
+  inputBg: '#ffffff',
+  onStatus: '#ffffff',
+  successText: '#047857',
+  warningText: '#92400e',
+  infoText: '#1d4ed8',
+  dangerText: '#b91c1c',
+  violetText: '#6d28d9',
+  successBg: '#ecfdf5',
+  warningBg: '#fffbeb',
+  infoBg: '#eff6ff',
+  dangerBg: '#fef2f2',
+  successBorder: '#a7f3d0',
+  warningBorder: '#fde68a',
+  infoBorder: '#bfdbfe',
+  dangerBorder: '#fecaca',
 
   gradientPage:
     'radial-gradient(circle at 65% 15%, rgba(197, 160, 89, 0.16) 0%, transparent 50%), ' +

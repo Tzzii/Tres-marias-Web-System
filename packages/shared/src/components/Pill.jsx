@@ -1,5 +1,6 @@
 import Box from '@mui/material/Box';
 import { qrState } from '../domain/payment.js';
+import { tokens } from '../theme/tokens.js';
 import { BALANCE_STATE, FEEDBACK_STATUS, PAYMENT_STATUS, QR_STATUS, STATUS, feedbackState } from '../utils/status.js';
 
 /** A rounded status label. Colours come from the status maps in utils/status.js. */
@@ -36,13 +37,17 @@ export function Pill({ label, bg, fg, dot = true, size = 'md', sx }) {
 
 /** Reservation status chip (falls back to grey for an unknown status). */
 export function StatusChip({ status, size, sx }) {
-  const s = STATUS[status] || { label: status, bg: '#f1f5f9', fg: '#334155' };
+  const s = STATUS[status] || { label: status, bg: tokens.surfaceMuted, fg: tokens.textSecondary };
   return <Pill label={s.label} bg={s.bg} fg={s.fg} size={size} sx={sx} />;
 }
 
 /** Payment status chip: awaiting / verified / rejected. */
 export function PaymentStatusChip({ status, size }) {
-  const s = PAYMENT_STATUS[status];
+  const s = PAYMENT_STATUS[status] || {
+    label: 'Status unavailable',
+    bg: tokens.surfaceMuted,
+    fg: tokens.textSecondary
+  };
   return <Pill label={s.label} bg={s.bg} fg={s.fg} size={size} />;
 }
 
@@ -52,13 +57,13 @@ export function PaymentStatusChip({ status, size }) {
  * only when the page renders again, which useQrWatch does when the QR's time runs out.
  */
 export function QrStatusChip({ qr, at, size }) {
-  const s = QR_STATUS[qrState(qr, at)] || { label: qr.status, bg: '#f1f5f9', fg: '#334155' };
+  const s = QR_STATUS[qrState(qr, at)] || { label: qr.status, bg: tokens.surfaceMuted, fg: tokens.textSecondary };
   return <Pill label={s.label} bg={s.bg} fg={s.fg} size={size} />;
 }
 
 /** Balance chip: unpaid / partial / full / overdue. */
 export function BalanceChip({ state, size }) {
-  const s = BALANCE_STATE[state];
+  const s = BALANCE_STATE[state] || { label: 'Status unavailable', bg: tokens.surfaceMuted, fg: tokens.textSecondary };
   return <Pill label={s.label} bg={s.bg} fg={s.fg} size={size} />;
 }
 

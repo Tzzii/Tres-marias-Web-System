@@ -6,19 +6,20 @@ import { eyebrowSx, tokens } from '../theme/tokens.js';
 import { LightSurface } from './Surface.jsx';
 
 /** The white work card every portal panel sits in (design system: DashCard). */
-export function DashCard({ children, sx, component = 'section', ...rest }) {
+export function DashCard({ children, sx, component = 'section', className = '', ...rest }) {
   return (
     <LightSurface>
       <Paper
         component={component}
+        className={`tm-dash-card ${className}`.trim()}
         elevation={0}
         {...rest}
         sx={{
-          p: { xs: 1.5, sm: 2, md: 2.5 },
+          p: { xs: 2, sm: 2.5, md: 3 },
           backgroundColor: tokens.cardLight,
           color: tokens.textPrimary,
           border: `1px solid ${tokens.cardLightBorder}`,
-          borderRadius: 2,
+          borderRadius: '16px',
           boxShadow: tokens.shadowDash,
           minWidth: 0,
           ...sx
@@ -60,9 +61,9 @@ const ICON_TONES = {
   gold: { color: tokens.goldDark, bg: 'rgba(197, 160, 89, 0.14)' },
   blue: { color: tokens.blue, bg: 'rgba(59, 130, 246, 0.12)' },
   green: { color: tokens.green, bg: 'rgba(16, 185, 129, 0.12)' },
-  amber: { color: '#d97706', bg: 'rgba(245, 158, 11, 0.14)' },
+  amber: { color: tokens.warningText, bg: 'rgba(245, 158, 11, 0.14)' },
   red: { color: tokens.red, bg: 'rgba(239, 68, 68, 0.12)' },
-  violet: { color: '#7c3aed', bg: 'rgba(139, 92, 246, 0.12)' }
+  violet: { color: tokens.violetText, bg: 'rgba(139, 92, 246, 0.12)' }
 };
 
 // A StatCard narrower than this (e.g. two side by side on a phone) puts its icon above the text

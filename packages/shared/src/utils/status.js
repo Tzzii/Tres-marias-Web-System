@@ -13,13 +13,18 @@ export const PIPELINE = ['pending', 'approved', 'downpayment_paid', 'confirmed',
 
 // Display name and chip colours for each reservation status
 export const STATUS = {
-  pending: { label: 'Pending', color: tokens.amber, bg: 'rgba(245, 158, 11, 0.12)', fg: '#b45309' },
-  approved: { label: 'Approved', color: tokens.blue, bg: 'rgba(59, 130, 246, 0.12)', fg: '#1d4ed8' },
-  downpayment_paid: { label: 'Downpayment paid', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', fg: '#6d28d9' },
-  confirmed: { label: 'Confirmed', color: tokens.green, bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },
-  completed: { label: 'Completed', color: tokens.textMuted, bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
-  declined: { label: 'Declined', color: tokens.red, bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' },
-  cancelled: { label: 'Cancelled', color: tokens.red, bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
+  pending: { label: 'Pending', color: tokens.amber, bg: 'rgba(245, 158, 11, 0.12)', fg: tokens.warningText },
+  approved: { label: 'Approved', color: tokens.blue, bg: 'rgba(59, 130, 246, 0.12)', fg: tokens.infoText },
+  downpayment_paid: {
+    label: 'Downpayment paid',
+    color: '#8b5cf6',
+    bg: 'rgba(139, 92, 246, 0.12)',
+    fg: tokens.violetText
+  },
+  confirmed: { label: 'Confirmed', color: tokens.green, bg: 'rgba(16, 185, 129, 0.12)', fg: tokens.successText },
+  completed: { label: 'Completed', color: tokens.textMuted, bg: 'rgba(100, 116, 139, 0.14)', fg: tokens.textSecondary },
+  declined: { label: 'Declined', color: tokens.red, bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText },
+  cancelled: { label: 'Cancelled', color: tokens.red, bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText }
 };
 
 /** Readable name for a status key, e.g. 'downpayment_paid' -> 'Downpayment paid'. */
@@ -39,20 +44,20 @@ export const CUSTOMER_EDITABLE = ['pending', 'approved'];
 
 // Display name and chip colours for each payment status
 export const PAYMENT_STATUS = {
-  awaiting: { label: 'Awaiting verification', bg: 'rgba(245, 158, 11, 0.12)', fg: '#b45309' },
-  verified: { label: 'Verified', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },
-  rejected: { label: 'Rejected', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
+  awaiting: { label: 'Awaiting verification', bg: 'rgba(245, 158, 11, 0.12)', fg: tokens.warningText },
+  verified: { label: 'Verified', bg: 'rgba(16, 185, 129, 0.12)', fg: tokens.successText },
+  rejected: { label: 'Rejected', bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText }
 };
 
 // Display name and chip colours for where a QR Ph code stands (qrState in domain/payment.js). Words of
 // their own, never "Pending" (a reservation status) or "Awaiting verification" (a bank transfer the
 // admin must check): an unpaid QR is not money received, and PayMongo confirms it, not the admin.
 export const QR_STATUS = {
-  waiting: { label: 'Waiting for payment', bg: 'rgba(14, 165, 233, 0.12)', fg: '#0369a1' },
-  checking: { label: 'Checking payment', bg: 'rgba(14, 165, 233, 0.12)', fg: '#0369a1' },
-  paid: { label: 'Paid', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },
-  expired: { label: 'Expired · not charged', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
-  failed: { label: 'Failed · not charged', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
+  waiting: { label: 'Waiting for payment', bg: 'rgba(14, 165, 233, 0.12)', fg: tokens.infoText },
+  checking: { label: 'Checking payment', bg: 'rgba(14, 165, 233, 0.12)', fg: tokens.infoText },
+  paid: { label: 'Paid', bg: 'rgba(16, 185, 129, 0.12)', fg: tokens.successText },
+  expired: { label: 'Expired · not charged', bg: 'rgba(100, 116, 139, 0.14)', fg: tokens.textSecondary },
+  failed: { label: 'Failed · not charged', bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText }
 };
 
 // Display name for each payment method key. 'qrph' is the PayMongo QR Ph code (Phase 8B), which GCash, Maya
@@ -78,21 +83,21 @@ export const paymentKindLabel = (kind) =>
 
 /** Balance status used by the admin Payments filters. */
 export const BALANCE_STATE = {
-  unpaid: { label: 'Unpaid', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
-  partial: { label: 'Partially paid', bg: 'rgba(59, 130, 246, 0.12)', fg: '#1d4ed8' },
-  full: { label: 'Fully paid', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },
-  overdue: { label: 'Overdue', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
+  unpaid: { label: 'Unpaid', bg: 'rgba(100, 116, 139, 0.14)', fg: tokens.textSecondary },
+  partial: { label: 'Partially paid', bg: 'rgba(59, 130, 246, 0.12)', fg: tokens.infoText },
+  full: { label: 'Fully paid', bg: 'rgba(16, 185, 129, 0.12)', fg: tokens.successText },
+  overdue: { label: 'Overdue', bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText }
 };
 
 // Display name and chip colours for where a customer's feedback stands on the website.
 // 'featured' and 'flagged' are not stored as the status: they are the featured / flagged
 // flags on the record, worked out by feedbackState() below.
 export const FEEDBACK_STATUS = {
-  featured: { label: 'Featured', bg: 'rgba(197, 160, 89, 0.16)', fg: '#9d7c38' },
-  published: { label: 'Published', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },
-  hidden: { label: 'Not published', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
-  flagged: { label: 'Flagged', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' },
-  archived: { label: 'Archived', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' }
+  featured: { label: 'Featured', bg: 'rgba(197, 160, 89, 0.16)', fg: tokens.goldText },
+  published: { label: 'Published', bg: 'rgba(16, 185, 129, 0.12)', fg: tokens.successText },
+  hidden: { label: 'Not published', bg: 'rgba(100, 116, 139, 0.14)', fg: tokens.textSecondary },
+  flagged: { label: 'Flagged', bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText },
+  archived: { label: 'Archived', bg: 'rgba(100, 116, 139, 0.14)', fg: tokens.textSecondary }
 };
 
 /** The one label that describes a feedback right now, strongest state first. */

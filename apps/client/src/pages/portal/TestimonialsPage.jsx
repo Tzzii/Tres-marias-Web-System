@@ -34,7 +34,7 @@ function websiteState(testimonial) {
     return { label: 'With the Tres Marias team', bg: tokens.surfaceMuted, fg: tokens.textSecondary };
   }
   if (testimonial.featured) return { label: 'Featured on our website', bg: tokens.goldChip, fg: tokens.goldDark };
-  return { label: 'Published on our website', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' };
+  return { label: 'Published on our website', bg: 'rgba(16, 185, 129, 0.12)', fg: tokens.successText };
 }
 
 export default function TestimonialsPage() {

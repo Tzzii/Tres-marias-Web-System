@@ -1,6 +1,16 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { NotFoundPage, ScrollToTop, Spinner } from '@tm/shared';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import GlobalStyles from '@mui/material/GlobalStyles';
+import { ThemeProvider } from '@mui/material/styles';
+import {
+  LightModeScope,
+  NotFoundPage,
+  ScrollToTop,
+  Spinner,
+  lightPalette,
+  paperSurfaceSx,
+  warmTheme
+} from '@tm/shared';
 import { RequireAuth } from './auth.js';
 import AdminLayout from './layouts/AdminLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -26,9 +36,11 @@ export default function App() {
     <>
       <ScrollToTop />
       <Routes>
-        <Route path="/" element={<SplashPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/locked" element={<UnlockPage />} />
+        <Route element={<AdminSignInLayout />}>
+          <Route path="/" element={<SplashPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/locked" element={<UnlockPage />} />
+        </Route>
 
         <Route
           element={
@@ -56,6 +68,22 @@ export default function App() {
         <Route path="*" element={<NotFoundPage homePath="/dashboard" homeLabel="Back to the dashboard" />} />
       </Routes>
     </>
+  );
+}
+
+/** Keep the full sign-in flow light while retaining the dashboard's saved theme. */
+function AdminSignInLayout() {
+  return (
+    <LightModeScope>
+      <ThemeProvider theme={warmTheme}>
+        <GlobalStyles
+          styles={{
+            body: { ...paperSurfaceSx, backgroundColor: lightPalette.bgBase, color: lightPalette.textPrimary }
+          }}
+        />
+        <Outlet />
+      </ThemeProvider>
+    </LightModeScope>
   );
 }
 

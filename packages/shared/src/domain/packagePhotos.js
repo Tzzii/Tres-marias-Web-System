@@ -1,4 +1,4 @@
-// Bundled samples are only consumed by detail pages and the admin preview.
+// Shared sample photos keep landing cards, detail pages and admin previews consistent.
 const samples = Object.fromEntries(
   Object.entries(import.meta.glob('../assets/package-photos/*.png', { eager: true, import: 'default' })).map(
     ([file, url]) => [file.split('/').pop().replace('.png', ''), url]

@@ -11,6 +11,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import {
   AlertBanner,
+  ActivityTimeline,
   AppDialog,
   BUSINESS,
   BusyButton,
@@ -23,6 +24,7 @@ import {
   DetailRow,
   DocumentDialog,
   ErrorState,
+  EventWorkspace,
   FEEDBACK_CATEGORIES,
   FeedbackStatusChip,
   Field,
@@ -194,6 +196,22 @@ export default function ReservationDetailPage() {
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        <EventWorkspace event={r} admin />
+        <Box component="nav" aria-label="Event workspace sections" sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {[
+            ['quotation-card', 'Quotation'],
+            ['event-payments', 'Payments'],
+            ['event-documents', 'Documents'],
+            ['event-audit', 'Activity']
+          ].map(([id, label]) => (
+            <Button key={id} component="a" href={`#${id}`} size="small" variant="outlined">
+              {label}
+            </Button>
+          ))}
+          <Button size="small" onClick={messageCustomer}>
+            Message customer
+          </Button>
+        </Box>
         <DashCard>
           <StatusPipeline status={r.status} />
           {step === 'quote' && (
@@ -402,7 +420,9 @@ export default function ReservationDetailPage() {
             />
 
             <DashCard>
-              <CardTitle>Payments</CardTitle>
+              <Box id="event-payments">
+                <CardTitle>Payments</CardTitle>
+              </Box>
               <DetailRow label={`Minimum downpayment · ${peso(r.downpayment)}`}>
                 {['pending', 'declined', 'cancelled'].includes(r.status)
                   ? '—'
@@ -545,7 +565,9 @@ export default function ReservationDetailPage() {
             )}
 
             <DashCard>
-              <CardTitle>Documents</CardTitle>
+              <Box id="event-documents">
+                <CardTitle>Documents</CardTitle>
+              </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                 {documentsFor(r).map((d) => (
                   <Box
@@ -571,47 +593,7 @@ export default function ReservationDetailPage() {
               onSave={(notes) => act(() => reservationApi.saveNotes(r.ref, notes), 'Internal notes saved.')}
             />
 
-            <DashCard>
-              <CardTitle>Audit Trail</CardTitle>
-              <Box
-                component="ol"
-                sx={{
-                  m: 0,
-                  p: 0,
-                  listStyle: 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1.5,
-                  maxHeight: 360,
-                  overflowY: 'auto'
-                }}
-                className="tm-scroll"
-              >
-                {r.activity
-                  .slice()
-                  .reverse()
-                  .map((a, i) => (
-                    <Box component="li" key={`${a.at}-${i}`} sx={{ display: 'flex', gap: 1.25 }}>
-                      <Box
-                        sx={{
-                          mt: 0.75,
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          flexShrink: 0,
-                          backgroundColor: i === 0 ? tokens.gold : tokens.cardLightBorder
-                        }}
-                      />
-                      <Box>
-                        <Typography sx={{ fontSize: 13 }}>{a.text}</Typography>
-                        <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
-                          {a.actor} · {formatDateTime(a.at)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
-              </Box>
-            </DashCard>
+            <ActivityTimeline id="event-audit" entries={r.activity} title="Audit trail" />
           </Box>
         </Box>
       </Box>

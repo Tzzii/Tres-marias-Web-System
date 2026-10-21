@@ -325,7 +325,7 @@ function PasswordCard({ profile, onChange }) {
 function TwoStepCard({ profile }) {
   return (
     <DashCard sx={{ gridArea: 'twostep' }}>
-      <CardTitle action={<Pill label="On" bg="rgba(16, 185, 129, 0.12)" fg="#047857" />}>
+      <CardTitle action={<Pill label="On" bg="rgba(16, 185, 129, 0.12)" fg={tokens.successText} />}>
         Two-Step Verification
       </CardTitle>
       <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: tokens.textSecondary }}>

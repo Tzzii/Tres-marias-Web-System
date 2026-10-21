@@ -6,9 +6,10 @@ import { PALETTES, cssVarName } from './palettes.js';
  * Dark / light mode for the customer portal and the admin dashboard.
  *
  * Light (the warm ivory and gold of the public website) is the default; dark is
- * the navy shell, used only after someone presses the toggle in Settings.
+ * the midnight and champagne theme, used after someone presses the toggle in Settings.
  * That press is remembered per browser and is shared by every page of that
- * portal (including its sign-in screen). Nothing is saved until the toggle is
+ * portal. Public pages and admin sign-in stay light in a LightModeScope.
+ * Nothing is saved until the toggle is
  * pressed, so a browser that never pressed it always opens in light mode.
  *
  * How the switch reaches the UI: applyColorMode() writes the chosen palette onto
@@ -180,3 +181,12 @@ export function ColorModeProvider({ children }) {
 
 /** `{ mode, isLight, setMode, toggleMode }`. Safe outside the provider: it then reports light. */
 export const useColorMode = () => useContext(ColorModeContext);
+
+/** Public pages and admin sign-in stay light without changing the saved portal preference. */
+export function LightModeScope({ children }) {
+  return (
+    <ColorModeContext.Provider value={{ mode: 'light', isLight: true, setMode: () => {}, toggleMode: () => {} }}>
+      {children}
+    </ColorModeContext.Provider>
+  );
+}

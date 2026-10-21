@@ -270,7 +270,7 @@ export function DateField({
                         borderRadius: 999,
                         fontSize: 12,
                         fontWeight: 600,
-                        color: '#b91c1c',
+                        color: tokens.dangerText,
                         backgroundColor: 'rgba(239, 68, 68, 0.08)',
                         border: '1px solid rgba(239, 68, 68, 0.3)'
                       }}
@@ -350,7 +350,7 @@ export function DateField({
           sx={{
             p: { xs: 1.5, sm: 2 },
             borderRadius: 1.5,
-            backgroundColor: '#fff',
+            backgroundColor: tokens.cardLight,
             border: `1px solid ${error ? errorColor : tokens.borderInput}`,
             outline: 'none',
             opacity: disabled ? 0.6 : 1,

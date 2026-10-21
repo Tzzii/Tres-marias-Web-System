@@ -5,7 +5,8 @@ import Typography from '@mui/material/Typography';
 import {
   BUSINESS,
   LOGO_SRC,
-  LightSurface,
+  PaperSurface,
+  paperSurfaceSx,
   formatDate,
   formatDateTime,
   formatEventTime,
@@ -26,12 +27,12 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
   const figures = [['Reservations', rows.length], ...counts];
 
   return createPortal(
-    <LightSurface>
+    <PaperSurface>
       <Box
         ref={sheetRef}
         className="tm-print-root tm-print-sheet tm-print-landscape"
         aria-hidden="true"
-        sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}
+        sx={{ ...paperSurfaceSx, color: tokens.textPrimary }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -175,7 +176,7 @@ export default function ReservationsSheet({ rows, filters, newestFirst, generate
           </tbody>
         </Box>
       </Box>
-    </LightSurface>,
+    </PaperSurface>,
     document.body
   );
 }

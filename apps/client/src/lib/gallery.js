@@ -1,3 +1,4 @@
+import { EVENT_STORIES } from '../content/eventStories.js';
 
 const PHOTOS = import.meta.glob('../assets/gallery/*/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', {
   eager: true,
@@ -35,6 +36,7 @@ for (const [path, src] of Object.entries(PHOTOS)) {
 export const GALLERY = EVENTS.map(([key, label]) => ({
   key,
   label,
+  story: EVENT_STORIES[key] || null,
   photos: (photosByFolder[key] || []).sort((a, b) => a.file.localeCompare(b.file, 'en', { numeric: true }))
 })).filter((event) => event.photos.length > 0);
 

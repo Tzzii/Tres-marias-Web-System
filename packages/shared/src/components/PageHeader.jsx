@@ -52,7 +52,13 @@ export function PageHeader({ title, subtitle, crumbs, actions, chip }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           <Typography
             component="h1"
-            sx={{ fontSize: { xs: 22, md: 26 }, fontWeight: 700, color: tokens.textLight, lineHeight: 1.25 }}
+            sx={{
+              fontSize: { xs: 24, md: 30 },
+              fontWeight: 600,
+              letterSpacing: '-0.035em',
+              color: tokens.textLight,
+              lineHeight: 1.25
+            }}
           >
             {title}
           </Typography>

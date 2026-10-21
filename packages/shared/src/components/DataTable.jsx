@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import Box from '@mui/material/Box';
+import TableSortLabel from '@mui/material/TableSortLabel';
 import Button from '@mui/material/Button';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -10,6 +12,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { tokens } from '../theme/tokens.js';
 import { ListSkeleton } from './Feedback.jsx';
+import { compareValues } from '../domain/experience.js';
 
 // Column keys whose cells hold buttons; on a phone card they form the bottom row
 const ACTION_KEYS = ['action', 'actions', 'act'];
@@ -59,44 +62,100 @@ export function DataTable({
   empty,
   minWidth = 720,
   dense = false,
-  cards = true
+  cards = true,
+  controls = true,
+  sort,
+  onSort
 }) {
   const asCards = useMediaQuery('(max-width:899px)') && cards;
+  const [localSort, setLocalSort] = useState({ key: '', direction: 'asc' });
+  const currentSort = sort || localSort;
+  const sortable = (col) =>
+    col.sortable !== false &&
+    typeof col.label === 'string' &&
+    col.label &&
+    !['select', ...ACTION_KEYS].includes(col.key) &&
+    (col.getSortValue || rows.some((row) => ['string', 'number'].includes(typeof row[col.key])));
+  const pickSort = (col) => {
+    const next = {
+      key: col.key,
+      direction: currentSort.key === col.key && currentSort.direction === 'asc' ? 'desc' : 'asc'
+    };
+    if (onSort) onSort(next);
+    else setLocalSort(next);
+  };
+  const sortColumn = columns.find((c) => c.key === currentSort.key);
+  const shownRows =
+    !onSort && sortColumn
+      ? [...rows].sort((a, b) =>
+          compareValues(
+            sortColumn.getSortValue ? sortColumn.getSortValue(a) : a[sortColumn.key],
+            sortColumn.getSortValue ? sortColumn.getSortValue(b) : b[sortColumn.key],
+            currentSort.direction
+          )
+        )
+      : rows;
   // Placeholder rows while loading; the `empty` message when there's nothing to show
   if (loading) return <ListSkeleton rows={4} height={dense ? 40 : 52} />;
   if (!rows.length) return empty || null;
-  if (asCards) return <CardList columns={columns} rows={rows} rowKey={rowKey} onRowClick={onRowClick} />;
+  if (asCards) return <CardList columns={columns} rows={shownRows} rowKey={rowKey} onRowClick={onRowClick} />;
 
   return (
-    <TableContainer className="tm-scroll" sx={{ overflowX: 'auto', maxWidth: '100%', width: '100%' }}>
-      <Table size={dense ? 'small' : 'medium'} sx={{ minWidth }}>
-        <TableHead>
-          <TableRow>
-            {columns.map((col) => (
-              <TableCell key={col.key} align={col.align} sx={{ width: col.width, py: 1.25 }}>
-                {col.label}
-              </TableCell>
-            ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow
-              key={rowKey(row)}
-              hover={Boolean(onRowClick)}
-              onClick={rowClickHandler(onRowClick, row)}
-              sx={{ cursor: onRowClick ? 'pointer' : 'default', '&:last-child td': { borderBottom: 0 } }}
-            >
+    <>
+      <TableContainer
+        className="tm-scroll"
+        sx={{ overflow: 'auto', maxHeight: 620, maxWidth: '100%', width: '100%', borderRadius: 1.5 }}
+      >
+        <Table stickyHeader size={dense ? 'small' : 'medium'} sx={{ minWidth }}>
+          <TableHead>
+            <TableRow>
               {columns.map((col) => (
-                <TableCell key={col.key} align={col.align} sx={{ py: dense ? 1 : 1.5, color: tokens.textPrimary }}>
-                  {cellContent(col, row)}
+                <TableCell key={col.key} align={col.align} sx={{ width: col.width, py: 1.25 }}>
+                  {controls && sortable(col) ? (
+                    <TableSortLabel
+                      active={currentSort.key === col.key}
+                      direction={currentSort.key === col.key ? currentSort.direction : 'asc'}
+                      onClick={() => pickSort(col)}
+                    >
+                      {col.label}
+                    </TableSortLabel>
+                  ) : (
+                    col.label
+                  )}
                 </TableCell>
               ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+          </TableHead>
+          <TableBody>
+            {shownRows.map((row) => (
+              <TableRow
+                key={rowKey(row)}
+                hover={Boolean(onRowClick)}
+                onClick={rowClickHandler(onRowClick, row)}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (e) => {
+                        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault();
+                          onRowClick(row);
+                        }
+                      }
+                    : undefined
+                }
+                sx={{ cursor: onRowClick ? 'pointer' : 'default', '&:last-child td': { borderBottom: 0 } }}
+              >
+                {columns.map((col) => (
+                  <TableCell key={col.key} align={col.align} sx={{ py: dense ? 1 : 1.75, color: tokens.textPrimary }}>
+                    {cellContent(col, row)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </>
   );
 }
 
@@ -143,6 +202,17 @@ function CardList({ columns, rows, rowKey, onRowClick }) {
         <Box
           key={rowKey(row)}
           onClick={rowClickHandler(onRowClick, row)}
+          tabIndex={onRowClick ? 0 : undefined}
+          onKeyDown={
+            onRowClick
+              ? (e) => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onRowClick(row);
+                  }
+                }
+              : undefined
+          }
           sx={{
             p: 1.5,
             borderRadius: 1.5,

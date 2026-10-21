@@ -1,18 +1,22 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { useColorMode } from '../theme/colorMode.jsx';
-import { darkTheme, surfaceThemeForMode } from '../theme/createTheme.js';
+import { darkTheme, warmTheme, surfaceThemeForMode } from '../theme/createTheme.js';
 
 /**
- * Everything inside renders with the light work-surface theme (white cards, dialogs, forms).
- * In dark mode that is the navy-primary light theme; in light mode it is the warm ivory theme,
- * so the cards match the public website.
+ * The existing surface boundary follows the selected portal mode, including nested
+ * forms, dialogs and menus. The name is kept for existing callers.
  */
 export function LightSurface({ children }) {
   const { mode } = useColorMode();
   return <ThemeProvider theme={surfaceThemeForMode(mode)}>{children}</ThemeProvider>;
 }
 
-/** Everything inside renders with the dark navy theme, whichever mode the portal is in. */
+/** Everything inside renders with the evening theme, whichever mode the portal is in. */
 export function DarkSurface({ children }) {
   return <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>;
+}
+
+/** Printed documents retain their paper theme; pair with paperSurfaceSx on the document root. */
+export function PaperSurface({ children }) {
+  return <ThemeProvider theme={warmTheme}>{children}</ThemeProvider>;
 }

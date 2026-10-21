@@ -70,7 +70,7 @@ export function PackageItemList({ items }) {
           >
             {item.name}
             {item.toConfirm && (
-              <Pill label="To confirm" dot={false} size="sm" bg="rgba(245, 158, 11, 0.14)" fg="#b45309" />
+              <Pill label="To confirm" dot={false} size="sm" bg="rgba(245, 158, 11, 0.14)" fg={tokens.warningText} />
             )}
           </Box>
         </Box>

@@ -284,7 +284,7 @@ export default function CalendarSection() {
                           fontFamily: 'inherit',
                           borderRadius: 1.5,
                           border: `1.5px solid ${selected === iso ? tokens.ink : iso === todayISO() ? tokens.gold : tokens.cardLightBorder}`,
-                          backgroundColor: info.blocked ? tokens.surfaceMuted : '#fff'
+                          backgroundColor: info.blocked ? tokens.surfaceMuted : tokens.cardLight
                         }}
                       >
                         <Box sx={{ width: 110, flexShrink: 0 }}>
@@ -310,7 +310,9 @@ export default function CalendarSection() {
                           ))}
                         </Box>
                         {info.full && (
-                          <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#b91c1c' }}>FULL</Typography>
+                          <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.dangerText }}>
+                            FULL
+                          </Typography>
                         )}
                       </ButtonBase>
                     );
@@ -350,7 +352,7 @@ export default function CalendarSection() {
                         fontFamily: 'inherit',
                         borderRadius: 1.5,
                         border: `1px solid ${tokens.cardLightBorder}`,
-                        '&:hover': { borderColor: '#94a3b8' }
+                        '&:hover': { borderColor: tokens.placeholder }
                       }}
                     >
                       <Box sx={{ flex: 1, minWidth: 0 }}>

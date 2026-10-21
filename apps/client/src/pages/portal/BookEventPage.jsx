@@ -8,6 +8,7 @@ import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
+import LinearProgress from '@mui/material/LinearProgress';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
 import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
@@ -16,7 +17,6 @@ import {
   BUFFET_DRINKS,
   BusyButton,
   CardTitle,
-  DISH_CATEGORIES,
   DashCard,
   DateField,
   EndTimeField,
@@ -76,78 +76,18 @@ import {
 import { useAuth } from '../../auth.js';
 import { clearDraft, clearIntent, readDraft, readIntent, saveDraft } from '../../lib/booking.js';
 import { cleanDraftReferencePhotos } from '@tm/shared/domain/referencePhoto.js';
-
-const SECTIONS = [
-  ['details', 'Event Details', 'Event'],
-  ['service', 'What You Are Booking', 'Service'],
-  ['package', 'Package', 'Package'],
-  ['styling', 'Theme and Colors', 'Styling'],
-  ['items', 'Items to Rent', 'Items'],
-  ['food', 'Your Menu', 'Menu'],
-  ['venue', 'Venue and Logistics', 'Venue'],
-  ['addons', 'Additional Charges', 'Add-ons'],
-  ['review', 'Review and Submit', 'Review']
-];
-
-const FIELD_SECTION = {
-  eventName: 'details',
-  occasion: 'details',
-  occasionOther: 'details',
-  date: 'details',
-  startTime: 'details',
-  endTime: 'details',
-  agreeTerms: 'review',
-  guests: 'details',
-  serviceType: 'service',
-  packageId: 'package',
-  rentalItems: 'items',
-  foodNotes: 'food',
-  fulfilment: 'venue',
-  venueName: 'venue',
-  venueAddress: 'venue',
-  city: 'venue'
-};
-
-const sectionForField = (field) => {
-  if (field.startsWith('menu.dessert.')) return 'addons';
-  if (field.startsWith('menu.')) return 'food';
-  if (field.startsWith('styling.')) return 'styling';
-  if (field.startsWith('addonQty.')) return 'addons';
-  if (field.startsWith('rental.')) return 'items';
-  return FIELD_SECTION[field] || 'details';
-};
-
-const hasSizes = (addon) => Boolean(addon && addon.sizes && addon.sizes.length);
-
-const lowestPackagePrice = (addon) => {
-  const prices = addon.sizes.map((s) => s.price).filter((price) => price > 0);
-  return prices.length ? Math.min(...prices) : null;
-};
-
-const EMPTY_STYLING = { theme: '', themeOther: '', colors: [], notes: '' };
-const EMPTY = {
-  eventName: '',
-  occasion: '',
-  occasionOther: '',
-  date: '',
-  startTime: '18:00',
-  endTime: '',
-  guests: '',
-  serviceType: '',
-  packageId: '',
-  menu: {},
-  foodNotes: '',
-  styling: EMPTY_STYLING,
-  referencePhotos: [],
-  venueName: '',
-  venueAddress: '',
-  city: '',
-  accessNotes: '',
-  addonIds: [],
-  addonQty: {},
-  fulfilment: 'pickup',
-  rentalQty: {}
-};
+import Section from './booking/BookingSection.jsx';
+import { QuoteLines, RentalQuoteLines } from './booking/BookingSummary.jsx';
+import {
+  SECTIONS,
+  sectionForField,
+  hasSizes,
+  lowestPackagePrice,
+  EMPTY,
+  draftStyling,
+  wordList,
+  DATES_LOADING
+} from '../../lib/bookingForm.js';
 
 const FORM_COLUMNS = {
   gridTemplateColumns: 'minmax(0, 1fr)',
@@ -156,17 +96,10 @@ const FORM_COLUMNS = {
 const SUMMARY_LAYOUT = '@container portal-content (min-width: 980px)';
 const WIDE_LAYOUT = '@container portal-content (min-width: 1280px)';
 
-const draftStyling = (value) => ({ ...EMPTY_STYLING, ...(cleanStyling(value) || {}) });
-
-const wordList = (words) =>
-  words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : words[0];
-
-const DATES_LOADING = 'The available dates are still loading. Please try again in a moment.';
-
 const AVAILABILITY = {
-  available: { label: (left) => `${left} available`, color: '#047857' },
-  limited: { label: (left) => `Only ${left} left`, color: '#b45309' },
-  out: { label: () => 'None left on this date', color: '#b91c1c' }
+  available: { label: (left) => `${left} available`, color: tokens.successText },
+  limited: { label: (left) => `Only ${left} left`, color: tokens.warningText },
+  out: { label: () => 'None left on this date', color: tokens.dangerText }
 };
 
 export default function BookEventPage() {
@@ -185,6 +118,15 @@ export default function BookEventPage() {
   const [agreed, setAgreed] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [draftSaveFailed, setDraftSaveFailed] = useState(false);
+  useEffect(() => {
+    if (!draftSaveFailed && !photoBusy) return undefined;
+    const warn = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [draftSaveFailed, photoBusy]);
   const [active, setActive] = useState('details');
   const chipBar = useRef(null);
   const touched = useRef(false);
@@ -696,6 +638,40 @@ export default function BookEventPage() {
         </AlertBanner>
       )}
 
+      {data && (
+        <DashCard sx={{ mb: 2.5, py: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Plan your celebration, one detail at a time</Typography>
+            <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>
+              Your request is reviewed before you accept a quotation or pay.
+            </Typography>
+          </Box>
+          <LinearProgress
+            aria-label="Current booking form section"
+            variant="determinate"
+            value={(Math.max(1, sectionNo(active)) / sections.length) * 100}
+            sx={{ height: 5, borderRadius: 9 }}
+          />
+          <Box sx={{ mt: 1.5, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+            {[
+              ['Event', 'details'],
+              ['Service & setup', rental ? 'items' : 'package'],
+              ['Venue & preferences', 'venue'],
+              ['Review & submit', 'review']
+            ].map(([label, key], i) => (
+              <Button
+                key={key}
+                size="small"
+                variant={active === key ? 'contained' : 'text'}
+                onClick={() => scrollTo(key)}
+              >
+                {i + 1}. {label}
+              </Button>
+            ))}
+          </Box>
+        </DashCard>
+      )}
+
       <Box
         ref={chipBar}
         className="tm-scroll"
@@ -1176,7 +1152,7 @@ export default function BookEventPage() {
                                   p: 1.25,
                                   borderRadius: 1.5,
                                   border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`,
-                                  backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff'
+                                  backgroundColor: on ? 'rgba(197,160,89,0.08)' : tokens.cardLight
                                 }}
                               >
                                 <Box
@@ -1487,7 +1463,7 @@ export default function BookEventPage() {
                                 borderRadius: 1.5,
                                 cursor: 'pointer',
                                 border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`,
-                                backgroundColor: on ? 'rgba(197,160,89,0.08)' : '#fff'
+                                backgroundColor: on ? 'rgba(197,160,89,0.08)' : tokens.cardLight
                               }}
                             >
                               <Checkbox
@@ -1818,6 +1794,37 @@ export default function BookEventPage() {
           >
             <DashCard>
               <CardTitle>Your Reservation</CardTitle>
+              {pkg && (
+                <Box sx={{ mb: 2, pb: 2, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
+                  <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: tokens.goldText, mb: 1 }}>
+                    Live estimate
+                  </Typography>
+                  {[
+                    ...(rental
+                      ? quote.rentalItems.map((line) => [`${line.name} × ${line.qty}`, peso(line.total)])
+                      : [['Setup package', peso(quote.packageTotal)]]),
+                    ...(buffet
+                      ? [[`Buffet · ${quote.plates || 0} × ${peso(quote.pricePerPlate)}`, peso(quote.food)]]
+                      : []),
+                    ...(!rental && extraGuests ? [[`Equipment for ${extraGuests} extra guests`, 'To be quoted']] : []),
+                    ...chosenAddons.map((a) => [a.name, a.price ? peso(quote.addonTotals[a.id]) : 'To be quoted']),
+                    ...(rental && delivered ? [['Delivery', peso(quote.deliveryFee)]] : [])
+                  ].map(([label, value], i) => (
+                    <Box
+                      key={`${label}-${i}`}
+                      sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, py: 0.5 }}
+                    >
+                      <Typography sx={{ fontSize: 11.5, color: tokens.textSecondary }}>{label}</Typography>
+                      <Typography sx={{ fontSize: 11.5, fontWeight: 600, textAlign: 'right', flexShrink: 0 }}>
+                        {value}
+                      </Typography>
+                    </Box>
+                  ))}
+                  <Typography sx={{ mt: 1, fontSize: 11, color: tokens.textMuted }}>
+                    Final charges are confirmed in the quotation you review and accept.
+                  </Typography>
+                </Box>
+              )}
               {(rental
                 ? [
                     ['Booking', form.serviceType],
@@ -1994,148 +2001,5 @@ export default function BookEventPage() {
         </Box>
       )}
     </>
-  );
-}
-
-function Section({ id, index, title, subtitle, error, children }) {
-  return (
-    <DashCard
-      component="section"
-      id={`sec-${id}`}
-      aria-labelledby={`sec-${id}-title`}
-      sx={{ scrollMarginTop: `${tokens.headerHeight + 64}px`, ...(error && { borderColor: tokens.red }) }}
-    >
-      <Box sx={{ mb: 2 }}>
-        <Typography id={`sec-${id}-title`} component="h2" sx={{ fontSize: 17, fontWeight: 700 }}>
-          {index} · {title}
-        </Typography>
-        {subtitle && <Typography sx={{ mt: 0.25, fontSize: 13, color: tokens.textSecondary }}>{subtitle}</Typography>}
-        {error && (
-          <Typography role="alert" sx={{ mt: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.redPress }}>
-            {error}
-          </Typography>
-        )}
-      </Box>
-      {children}
-    </DashCard>
-  );
-}
-
-function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
-  const rows = [
-    [pkg ? `Package · ${pkg.name}` : 'Package', pkg ? peso(quote.packageTotal) : '—'],
-    ...(quote.extraGuests ? [[`Extra ${quote.extraGuests} guests (equipment)`, 'To be quoted']] : []),
-    ...(includesFood(serviceType)
-      ? [
-          [
-            quote.plates
-              ? `Buffet · ${quote.plates} × ${peso(quote.pricePerPlate)}`
-              : 'Buffet · enter your guest count',
-            quote.plates ? peso(quote.food) : '—'
-          ]
-        ]
-      : []),
-    ...addons.map((a) => [
-      a.hasQuantity ? `${a.name} × ${Number(addonQty[a.id]) || 1}` : a.name,
-      a.price ? peso(quote.addonTotals[a.id]) : 'To be quoted'
-    ])
-  ];
-  return (
-    <Box sx={{ borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, overflow: 'hidden' }}>
-      {rows.map(([label, value]) => (
-        <Box
-          key={label}
-          sx={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            columnGap: 2,
-            rowGap: 0.5,
-            px: 2,
-            py: 1.25,
-            borderBottom: `1px solid ${tokens.cardLightBorder}`
-          }}
-        >
-          <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 13.5, color: tokens.textSecondary }}>
-            {label}
-          </Typography>
-          <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 13.5, fontWeight: 600 }}>
-            {value}
-          </Typography>
-        </Box>
-      ))}
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          columnGap: 2,
-          rowGap: 0.5,
-          px: 2,
-          py: 1.5,
-          backgroundColor: tokens.surfaceSubtle
-        }}
-      >
-        <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Starting total</Typography>
-        <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: 16, fontWeight: 800 }}>
-          {pkg ? `${peso(quote.net)}${quote.extraGuests ? ' + quoted' : ''}` : '—'}
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
-
-function RentalQuoteLines({ quote, delivered }) {
-  const rows = [
-    ...quote.rentalItems.map((line) => [`${line.name} · ${line.qty} × ${peso(line.price)}`, peso(line.total)]),
-    [delivered ? 'Delivery (standard fee)' : 'Pick up', delivered ? peso(quote.deliveryFee) : 'Free']
-  ];
-  return (
-    <Box sx={{ borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}`, overflow: 'hidden' }}>
-      {quote.rentalItems.length === 0 && (
-        <Typography
-          sx={{
-            px: 2,
-            py: 1.25,
-            fontSize: 13.5,
-            color: tokens.textSecondary,
-            borderBottom: `1px solid ${tokens.cardLightBorder}`
-          }}
-        >
-          No items yet
-        </Typography>
-      )}
-      {rows.map(([label, value]) => (
-        <Box
-          key={label}
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 2,
-            px: 2,
-            py: 1.25,
-            borderBottom: `1px solid ${tokens.cardLightBorder}`
-          }}
-        >
-          <Typography sx={{ fontSize: 13.5, color: tokens.textSecondary }}>{label}</Typography>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{value}</Typography>
-        </Box>
-      ))}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 2,
-          px: 2,
-          py: 1.5,
-          backgroundColor: tokens.surfaceSubtle
-        }}
-      >
-        <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Rental total</Typography>
-        <Typography sx={{ fontSize: 16, fontWeight: 800 }}>
-          {quote.rentalItems.length ? peso(quote.net) : '—'}
-        </Typography>
-      </Box>
-    </Box>
   );
 }

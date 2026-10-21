@@ -134,7 +134,7 @@ export default function ReportsPage() {
               inputProps={{ 'aria-label': 'Report range' }}
               sx={{
                 minWidth: 160,
-                '& .MuiOutlinedInput-root': { backgroundColor: '#fff', color: tokens.textPrimary },
+                '& .MuiOutlinedInput-root': { backgroundColor: tokens.cardLight, color: tokens.textPrimary },
                 '& .MuiSvgIcon-root': { color: tokens.textMuted }
               }}
             >

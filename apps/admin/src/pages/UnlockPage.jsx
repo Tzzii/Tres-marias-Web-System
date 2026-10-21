@@ -139,7 +139,7 @@ export default function UnlockPage() {
             ) : (
               <>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Avatar sx={{ width: 48, height: 48, bgcolor: tokens.ink, color: tokens.gold, fontWeight: 700 }}>
+                  <Avatar sx={{ width: 48, height: 48, bgcolor: tokens.ink, color: tokens.onInk, fontWeight: 700 }}>
                     {initials(name)}
                   </Avatar>
                   <Box sx={{ minWidth: 0 }}>

@@ -1,6 +1,6 @@
 {
   "name": "tres-marias",
-  "version": "1.25.0",
+  "version": "1.26.0",
   "private": true,
   "description": "Tres Marias Catering Services - Customer Portal and Admin Dashboard (React + Vite + MUI monorepo).",
   "workspaces": [
@@ -29,6 +29,10 @@
     "test:labels": "npm run test:labels -w apps/api",
     "test:appearance": "npm run test:appearance -w apps/api",
     "test:animations": "npm run test:animations -w apps/client",
+    "test:experience": "node --test apps/client/tests/experience.test.js apps/client/tests/color-contrast.test.js",
+    "test:search": "node --test apps/client/tests/portal-search.test.js",
+    "test:search-ui": "node scripts/search-popup-check.mjs",
+    "test:premium-ui": "node scripts/premium-ui-check.mjs",
     "test:inventory:db": "npm run test:inventory:db -w apps/api",
     "test:equipment-photos:db": "npm run test:equipment-photos:db -w apps/api --",
     "email:preview": "npm run email:preview -w apps/api",
@@ -44,7 +48,8 @@
     "test:booking": "npm run test:booking -w apps/api",
     "test:seed": "npm run test:seed -w apps/api",
     "catalog:update": "npm run catalog:update -w apps/api --",
-    "test:booking:db": "npm run test:booking:db -w apps/api"
+    "test:booking:db": "npm run test:booking:db -w apps/api",
+    "test": "npm run test -w apps/api && npm run test -w apps/admin && npm run test -w apps/client"
   },
   "engines": {
     "node": ">=20"

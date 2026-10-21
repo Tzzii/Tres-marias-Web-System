@@ -311,11 +311,11 @@ export default function PaymentsSection() {
       label: 'Standing',
       render: (r) =>
         r.awaitingCount ? (
-          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: tokens.warningText }}>
             Proof to verify
           </Box>
         ) : r.openQr ? (
-          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: tokens.infoText }}>
             Waiting for QR payment
           </Box>
         ) : (

@@ -8,7 +8,7 @@ import { signToken } from '../src/lib/tokens.js';
 import * as repo from '../src/modules/outsource/outsource.repo.js';
 import { deletePartner } from '../src/modules/outsource/outsource.service.js';
 import { contractView } from '@tm/shared/src/domain/outsource.js';
-import { migrateOutsourcePartnerDeletion } from './lib/outsource-partner-deletion-migration.js';
+import { migrateOutsourcePartnerDeletion } from '../scripts/lib/outsource-partner-deletion-migration.js';
 
 if (config.isProduction || !['127.0.0.1', 'localhost', '::1'].includes(config.db.host))
   throw new Error('Outsourcing database tests require local, non-production MySQL.');

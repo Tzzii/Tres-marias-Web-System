@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
-import { BUSINESS, BarChart, LOGO_SRC, LightSurface, formatDateTime, peso, tokens } from '@tm/shared';
+import { BUSINESS, BarChart, LOGO_SRC, PaperSurface, paperSurfaceSx, formatDateTime, peso, tokens } from '@tm/shared';
 
 const HEADING_SX = { fontSize: 13, fontWeight: 800, color: tokens.goldDark };
 const NOTE_SX = { mt: 0.25, mb: 1.5, fontSize: 11.5, color: tokens.textMuted };
@@ -66,12 +66,12 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
   ];
 
   return createPortal(
-    <LightSurface>
+    <PaperSurface>
       <Box
         ref={sheetRef}
         className="tm-print-root tm-print-sheet"
         aria-hidden="true"
-        sx={{ backgroundColor: '#fff', color: tokens.textPrimary }}
+        sx={{ ...paperSurfaceSx, color: tokens.textPrimary }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -194,7 +194,7 @@ export default function ReportSheet({ data, rangeLabel, generatedAt, format, she
           </Box>
         </Box>
       </Box>
-    </LightSurface>,
+    </PaperSurface>,
     document.body
   );
 }

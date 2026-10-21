@@ -412,7 +412,7 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
                         fontFamily: 'inherit',
                         borderRadius: 1.5,
                         border: `1px solid ${tokens.cardLightBorder}`,
-                        '&:hover': { borderColor: '#94a3b8' }
+                        '&:hover': { borderColor: tokens.placeholder }
                       }}
                     >
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>

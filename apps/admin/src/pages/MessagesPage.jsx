@@ -13,6 +13,7 @@ import {
   Spinner,
   messageApi,
   reservationApi,
+  tokens,
   useDocumentTitle,
   useNotify,
   useResource
@@ -77,7 +78,7 @@ export default function MessagesPage() {
           </Box>
         }
         actions={
-          <Box sx={{ backgroundColor: '#fff', borderRadius: 999, p: 0.25 }}>
+          <Box sx={{ backgroundColor: tokens.cardLight, borderRadius: 999, p: 0.25 }}>
             <FilterTabs
               value={filter}
               onChange={setFilter}

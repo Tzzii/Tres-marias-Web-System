@@ -12,12 +12,22 @@ import { tokens } from '../theme/tokens.js';
 
 /** Inline banner (design system: AlertBanner) for light surfaces. */
 const ALERT = {
-  error: { bg: '#fef2f2', border: '#fecaca', fg: '#b91c1c', icon: ErrorOutlineRoundedIcon },
-  info: { bg: '#eff6ff', border: '#bfdbfe', fg: '#1d4ed8', icon: InfoOutlinedIcon },
-  success: { bg: '#ecfdf5', border: '#a7f3d0', fg: '#047857', icon: CheckCircleOutlineRoundedIcon },
+  error: { bg: tokens.dangerBg, border: tokens.dangerBorder, fg: tokens.dangerText, icon: ErrorOutlineRoundedIcon },
+  info: { bg: tokens.infoBg, border: tokens.infoBorder, fg: tokens.infoText, icon: InfoOutlinedIcon },
+  success: {
+    bg: tokens.successBg,
+    border: tokens.successBorder,
+    fg: tokens.successText,
+    icon: CheckCircleOutlineRoundedIcon
+  },
   // Something needs attention but nothing has gone wrong, e.g. an edit that changes what a customer owes
-  warning: { bg: '#fffbeb', border: '#fde68a', fg: '#92400e', icon: WarningAmberRoundedIcon },
-  locked: { bg: '#fffbeb', border: '#fde68a', fg: '#92400e', icon: LockClockOutlinedIcon }
+  warning: {
+    bg: tokens.warningBg,
+    border: tokens.warningBorder,
+    fg: tokens.warningText,
+    icon: WarningAmberRoundedIcon
+  },
+  locked: { bg: tokens.warningBg, border: tokens.warningBorder, fg: tokens.warningText, icon: LockClockOutlinedIcon }
 };
 
 /** Coloured message box. tone: error / info / success / warning / locked. */

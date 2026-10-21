@@ -86,7 +86,7 @@ export default function FloatingChat({ user, unread = 0 }) {
               px: 2,
               py: 1.5,
               backgroundColor: tokens.sidebarBg,
-              color: tokens.onInk
+              color: tokens.sidebarText
             }}
           >
             <Avatar sx={{ width: 38, height: 38, backgroundColor: tokens.gold, color: tokens.onGold }}>

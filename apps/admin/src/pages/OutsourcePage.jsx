@@ -64,12 +64,12 @@ const PAGE_SIZE = 10;
 const NO_EVENT = outsourceApi.NO_EVENT;
 
 const STATUS = {
-  draft: { label: 'Draft', bg: 'rgba(100, 116, 139, 0.14)', fg: '#334155' },
-  sent: { label: 'Awaiting reply', bg: 'rgba(245, 158, 11, 0.14)', fg: '#b45309' },
-  accepted: { label: 'Accepted', bg: 'rgba(16, 185, 129, 0.12)', fg: '#047857' },
-  completed: { label: 'Completed', bg: 'rgba(59, 130, 246, 0.12)', fg: '#1d4ed8' },
-  declined: { label: 'Declined', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' },
-  cancelled: { label: 'Cancelled', bg: 'rgba(239, 68, 68, 0.1)', fg: '#b91c1c' }
+  draft: { label: 'Draft', bg: 'rgba(100, 116, 139, 0.14)', fg: tokens.textSecondary },
+  sent: { label: 'Awaiting reply', bg: 'rgba(245, 158, 11, 0.14)', fg: tokens.warningText },
+  accepted: { label: 'Accepted', bg: 'rgba(16, 185, 129, 0.12)', fg: tokens.successText },
+  completed: { label: 'Completed', bg: 'rgba(59, 130, 246, 0.12)', fg: tokens.infoText },
+  declined: { label: 'Declined', bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText },
+  cancelled: { label: 'Cancelled', bg: 'rgba(239, 68, 68, 0.1)', fg: tokens.dangerText }
 };
 
 const STATUS_FILTERS = [
@@ -107,11 +107,11 @@ const TABS = [
 const channelText = (channels) => (channels.includes('email') ? 'Email' : 'No email address');
 
 function ChannelChips({ channels, size = 'sm' }) {
-  if (!channels.length) return <Pill size={size} label="No email" bg="rgba(239, 68, 68, 0.1)" fg="#b91c1c" />;
+  if (!channels.length) return <Pill size={size} label="No email" bg="rgba(239, 68, 68, 0.1)" fg={tokens.dangerText} />;
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
       {channels.includes('email') && (
-        <Pill size={size} label="Email" bg="rgba(59, 130, 246, 0.12)" fg="#1d4ed8" dot={false} />
+        <Pill size={size} label="Email" bg="rgba(59, 130, 246, 0.12)" fg={tokens.infoText} dot={false} />
       )}
       {channels.some((channel) => channel !== 'email') && (
         <Pill size={size} label="Previous delivery" bg={tokens.surfaceMuted} fg={tokens.textMuted} dot={false} />
@@ -412,7 +412,7 @@ export default function OutsourcePage() {
       align: 'right',
       render: (p) =>
         p.openCount > 0 ? (
-          <Pill size="sm" label={String(p.openCount)} bg="rgba(245, 158, 11, 0.14)" fg="#b45309" />
+          <Pill size="sm" label={String(p.openCount)} bg="rgba(245, 158, 11, 0.14)" fg={tokens.warningText} />
         ) : (
           '—'
         )

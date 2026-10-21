@@ -20,6 +20,7 @@ import {
   SearchField,
   StatusChip,
   daysFromToday,
+  compareValues,
   formatDate,
   isRental,
   peso,
@@ -51,12 +52,37 @@ const WHEN_LABEL = { all: 'All dates', upcoming: 'Upcoming events', past: 'Past 
 export default function AllReservationsSection() {
   const navigate = useNavigate();
   const notify = useNotify();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const { data, loading, error, reload } = useResource(() => reservationApi.listReservations(), []);
 
-  const [status, setStatus] = useState('all');
-  const [when, setWhen] = useState('all');
-  const [query, setQuery] = useState(params.get('q') || '');
+  const status = STATUS_TABS.includes(params.get('status')) ? params.get('status') : 'all';
+  const when = Object.hasOwn(WHEN_LABEL, params.get('when')) ? params.get('when') : 'all';
+  const query = params.get('q') || '';
+  const updateParam = (key, value) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (!value || value === 'all') next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true }
+    );
+  const setStatus = (value) => updateParam('status', value);
+  const setWhen = (value) => updateParam('when', value);
+  const setQuery = (value) => updateParam('q', value);
+  const sort = { key: params.get('sort') || 'date', direction: params.get('direction') === 'desc' ? 'desc' : 'asc' };
+  const sortValue = (r, key) => ({ customer: r.customerName, package: r.packageName, pax: r.guests })[key] ?? r[key];
+  const setSort = (nextSort) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.set('sort', nextSort.key);
+        next.set('direction', nextSort.direction);
+        return next;
+      },
+      { replace: true }
+    );
   const [page, setPage] = useState(1);
   const sheetRef = useRef(null);
   const [savingPdf, setSavingPdf] = useState(false);
@@ -68,11 +94,7 @@ export default function AllReservationsSection() {
     return () => window.removeEventListener('beforeprint', stamp);
   }, []);
 
-  const qParam = params.get('q');
-  useEffect(() => {
-    if (qParam !== null) setQuery(qParam);
-  }, [qParam]);
-  useEffect(() => setPage(1), [status, when, query]);
+  useEffect(() => setPage(1), [status, when, query, sort.key, sort.direction]);
 
   const rows = data || [];
   const counts = useMemo(
@@ -85,29 +107,27 @@ export default function AllReservationsSection() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (
-      rows
-        .filter((r) => status === 'all' || r.status === status)
-        .filter((r) =>
-          when === 'upcoming' ? daysFromToday(r.date) >= 0 : when === 'past' ? daysFromToday(r.date) < 0 : true
-        )
-        .filter(
-          (r) =>
-            !q ||
-            [
-              r.ref,
-              r.customerName,
-              r.customerEmail,
-              r.customerMobile,
-              r.eventName,
-              r.packageName,
-              r.venue.city,
-              formatDate(r.date)
-            ].some((v) => String(v).toLowerCase().includes(q))
-        )
-        .sort((a, b) => (when === 'past' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)))
-    );
-  }, [rows, status, when, query]);
+    return rows
+      .filter((r) => status === 'all' || r.status === status)
+      .filter((r) =>
+        when === 'upcoming' ? daysFromToday(r.date) >= 0 : when === 'past' ? daysFromToday(r.date) < 0 : true
+      )
+      .filter(
+        (r) =>
+          !q ||
+          [
+            r.ref,
+            r.customerName,
+            r.customerEmail,
+            r.customerMobile,
+            r.eventName,
+            r.packageName,
+            r.venue.city,
+            formatDate(r.date)
+          ].some((v) => String(v).toLowerCase().includes(q))
+      )
+      .sort((a, b) => compareValues(sortValue(a, sort.key), sortValue(b, sort.key), sort.direction));
+  }, [rows, status, when, query, sort.key, sort.direction]);
 
   const current = Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
 
@@ -245,7 +265,9 @@ export default function AllReservationsSection() {
             </Box>
             <DataTable
               loading={loading}
-              columns={columns}
+              columns={columns.map((col) => ({ ...col, getSortValue: (row) => sortValue(row, col.key) }))}
+              sort={sort}
+              onSort={setSort}
               rows={filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)}
               rowKey={(r) => r.ref}
               onRowClick={(r) => navigate(`/reservations/${r.ref}`)}

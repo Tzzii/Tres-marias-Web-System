@@ -1,5 +1,6 @@
 import { ApiError } from './errors.js';
 import { emitChange, emitSignedOut } from './events.js';
+import { sendMultipart } from './upload.js';
 
 /**
  * The API client: every service (services/remote/*, the xxxApi objects of @tm/shared) and the change
@@ -47,8 +48,11 @@ export function sessionSide() {
 // Send the request; a failure to reach the server at all becomes a NETWORK error pages can show
 async function send(path, options) {
   try {
+    if (typeof XMLHttpRequest !== 'undefined' && typeof FormData !== 'undefined' && options.body instanceof FormData)
+      return await sendMultipart(`${BASE}${path}`, options);
     return await fetch(`${BASE}${path}`, options);
   } catch (e) {
+    if (e instanceof ApiError) throw e;
     throw new ApiError('NETWORK', 'Cannot reach the server. Check your connection and try again.');
   }
 }

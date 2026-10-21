@@ -99,12 +99,12 @@ export function MonthCalendar({
   const toneSx = {
     event: { bg: 'rgba(197, 160, 89, 0.14)', border: 'rgba(197, 160, 89, 0.55)', fg: tokens.textPrimary },
     blocked: {
-      bg: 'repeating-linear-gradient(135deg, #f1f5f9 0 6px, #e2e8f0 6px 12px)',
+      bg: `repeating-linear-gradient(135deg, ${tokens.surfaceSubtle} 0 6px, ${tokens.surfaceMuted} 6px 12px)`,
       border: tokens.cardLightBorder,
       fg: tokens.textMuted
     },
-    full: { bg: 'rgba(239, 68, 68, 0.08)', border: 'rgba(239, 68, 68, 0.35)', fg: '#b91c1c' },
-    open: { bg: '#fff', border: tokens.cardLightBorder, fg: tokens.textPrimary },
+    full: { bg: 'rgba(239, 68, 68, 0.08)', border: 'rgba(239, 68, 68, 0.35)', fg: tokens.dangerText },
+    open: { bg: tokens.cardLight, border: tokens.cardLightBorder, fg: tokens.textPrimary },
     disabled: { bg: tokens.surfaceSubtle, border: 'transparent', fg: tokens.placeholder }
   };
 

@@ -19,7 +19,14 @@ export default defineConfig({
     alias: { '@tm/shared': path.join(sharedDir, 'src') },
     dedupe: ['react', 'react-dom', 'react-router-dom', '@mui/material', '@emotion/react', '@emotion/styled']
   },
-  server: { port: 5174, strictPort: true, fs: { allow: [path.resolve(appDir, '../..')] }, proxy: apiProxy },
+  server: {
+    port: 5174,
+    strictPort: true,
+    fs: { allow: [path.resolve(appDir, '../..')] },
+    // Wait for saves to finish before invalidating modules, especially on Windows / OneDrive.
+    watch: { awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 } },
+    proxy: apiProxy
+  },
   preview: { port: 4174, strictPort: true, proxy: apiProxy },
   build: { outDir: path.join(appDir, 'dist'), emptyOutDir: true, chunkSizeWarningLimit: 1200, minify: false }
 });

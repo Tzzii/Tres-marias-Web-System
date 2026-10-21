@@ -6,7 +6,8 @@ import Typography from '@mui/material/Typography';
 import {
   BUSINESS,
   LOGO_SRC,
-  LightSurface,
+  PaperSurface,
+  paperSurfaceSx,
   formatDateTime,
   peso,
   saveElementAsPdf,
@@ -18,12 +19,12 @@ function PdfDocument({ document: doc, sheetRef }) {
   const columns = doc.rows?.length ? Object.keys(doc.rows[0]) : [];
   const money = doc.money || [];
   return createPortal(
-    <LightSurface>
+    <PaperSurface>
       <Box
         ref={sheetRef}
         aria-hidden="true"
         className={`tm-print-sheet tm-no-print${doc.orientation === 'landscape' ? ' tm-print-landscape' : ''}`}
-        sx={{ backgroundColor: '#fff', color: tokens.textPrimary, fontSize: 12, lineHeight: 1.5 }}
+        sx={{ ...paperSurfaceSx, color: tokens.textPrimary, fontSize: 12, lineHeight: 1.5 }}
       >
         <Box data-pdf-keep>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -138,7 +139,7 @@ function PdfDocument({ document: doc, sheetRef }) {
           </Box>
         )}
       </Box>
-    </LightSurface>,
+    </PaperSurface>,
     document.body
   );
 }

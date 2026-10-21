@@ -17,7 +17,7 @@ import { BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRenta
 import { otherChargeItemsFor } from '../services/pricing.js';
 import { useNotify } from '../hooks/useNotify.jsx';
 import { useReceiptProof } from '../hooks/useReceiptProof.js';
-import { tokens } from '../theme/tokens.js';
+import { tokens, paperSurfaceSx } from '../theme/tokens.js';
 import {
   formatDate,
   formatDateLong,
@@ -32,7 +32,7 @@ import { saveElementAsPdf } from '../utils/savePdf.js';
 import { PAYMENT_METHODS, paymentKindLabel } from '../utils/status.js';
 import { LOGO_SRC } from './Brand.jsx';
 import { StylingSummary } from './Styling.jsx';
-import { LightSurface } from './Surface.jsx';
+import { LightSurface, PaperSurface } from './Surface.jsx';
 import { ReceiptProof } from './ReceiptProof.jsx';
 import adminSignature from '../assets/admin-signature.png';
 
@@ -248,449 +248,470 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
         </Box>
 
         {/* The document. Save PDF draws this box; in the PDF the page margins replace its padding. */}
-        <Box
-          ref={sheetRef}
-          className={doc.kind === 'receipt' ? 'tm-receipt-sheet' : undefined}
-          sx={{ p: { xs: 2.5, sm: doc.kind === 'receipt' ? 3 : 5 }, color: tokens.textPrimary }}
-        >
-          {/* Letterhead */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap' }}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Box
-                component="img"
-                src={LOGO_SRC}
-                alt=""
-                sx={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${tokens.gold}` }}
-              />
-              <Box>
-                <Typography sx={{ fontSize: 18, fontWeight: 800 }}>{BUSINESS.name}</Typography>
-                <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>{BUSINESS.address}</Typography>
-                <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>
-                  {BUSINESS.phone} · {BUSINESS.email}
+        <PaperSurface>
+          <Box
+            ref={sheetRef}
+            className={doc.kind === 'receipt' ? 'tm-receipt-sheet' : undefined}
+            sx={{
+              ...paperSurfaceSx,
+              p: { xs: 2.5, sm: doc.kind === 'receipt' ? 3 : 5 },
+              color: tokens.textPrimary,
+              fontVariantNumeric: 'tabular-nums',
+              borderTop: `5px solid ${tokens.gold}`,
+              '& h2': { letterSpacing: '-0.025em' }
+            }}
+          >
+            {/* Letterhead */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Box
+                  component="img"
+                  src={LOGO_SRC}
+                  alt=""
+                  sx={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${tokens.gold}` }}
+                />
+                <Box>
+                  <Typography sx={{ fontSize: 18, fontWeight: 800 }}>{BUSINESS.name}</Typography>
+                  <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>{BUSINESS.address}</Typography>
+                  <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>
+                    {BUSINESS.phone} · {BUSINESS.email}
+                  </Typography>
+                </Box>
+              </Box>
+              {/* A title too long to sit beside the name (the contracts, on A4) moves under it, still on the right */}
+              <Box sx={{ ml: { sm: 'auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
+                <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark }}>
+                  {TITLES[rental && doc.kind === 'contract' ? 'rentalContract' : doc.kind]}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                  {doc.kind === 'receipt' ? `No. ${payment.receiptNo}` : `Ref. ${detail.ref}`}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                  Date:{' '}
+                  {doc.kind === 'receipt'
+                    ? formatDateTime(payment.verifiedAt)
+                    : formatDateTime(detail.quotation ? detail.quotation.sentAt : detail.createdAt)}
                 </Typography>
               </Box>
             </Box>
-            {/* A title too long to sit beside the name (the contracts, on A4) moves under it, still on the right */}
-            <Box sx={{ ml: { sm: 'auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
-              <Typography sx={{ fontSize: 20, fontWeight: 800, color: tokens.goldDark }}>
-                {TITLES[rental && doc.kind === 'contract' ? 'rentalContract' : doc.kind]}
-              </Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                {doc.kind === 'receipt' ? `No. ${payment.receiptNo}` : `Ref. ${detail.ref}`}
-              </Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                Date:{' '}
-                {doc.kind === 'receipt'
-                  ? formatDateTime(payment.verifiedAt)
-                  : formatDateTime(detail.quotation ? detail.quotation.sentAt : detail.createdAt)}
-              </Typography>
-            </Box>
-          </Box>
 
-          <Divider sx={{ my: doc.kind === 'receipt' ? 2 : 3, borderColor: tokens.gold, borderBottomWidth: 2 }} />
+            <Divider sx={{ my: doc.kind === 'receipt' ? 2 : 3, borderColor: tokens.gold, borderBottomWidth: 2 }} />
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
-            <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
-                {doc.kind === 'receipt' ? 'Received From' : 'Prepared For'}
-              </Typography>
-              <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.customerName}</Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{detail.customerEmail}</Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                {formatMobile(detail.customerMobile)}
-              </Typography>
-            </Box>
-            <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Event</Typography>
-              <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.eventName}</Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                {/* An event shows its start and end ("6:00 pm – 10:00 pm"); a rental its pick-up or delivery time */}
-                {formatDateLong(detail.date)} ·{' '}
-                {rental
-                  ? `${delivered ? 'delivery at ' : 'pick-up at '}${formatTime(detail.startTime)}`
-                  : formatEventTime(detail)}
-              </Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                {rental && !delivered
-                  ? `Pick up at ${RENTAL.pickupAddress}`
-                  : `${detail.venue.name}, ${detail.venue.address}, ${detail.venue.city}`}
-              </Typography>
-            </Box>
-          </Box>
-
-          {/* Receipt: payment summary. Quotation/contract: package, food request and price breakdown. */}
-          {doc.kind === 'receipt' ? (
-            <Box
-              data-pdf-keep
-              sx={{
-                mt: 2,
-                p: 2,
-                borderRadius: 2,
-                border: `1px solid ${tokens.cardLightBorder}`,
-                backgroundColor: tokens.surfaceSubtle
-              }}
-            >
-              <Line label="Payment for" value={`${paymentKindLabel(payment.kind)} · ${detail.ref}`} />
-              <Line label="Payment method" value={PAYMENT_METHODS[payment.method]} />
-              {payment.referenceNo && <Line label="Reference no." value={payment.referenceNo} />}
-              <Divider sx={{ my: 1.5 }} />
-              <Line label="Amount received" value={peso(payment.amount)} strong />
-            </Box>
-          ) : (
-            <>
-              {rental ? (
-                <Box sx={{ mt: 4 }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
-                    {detail.packageName} · {delivered ? 'Delivery' : 'Pick up'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
-                    Damage Fee per Piece
-                  </Typography>
-                  <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
-                    {detail.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}
-                  </Typography>
-                </Box>
-              ) : (
-                <Box sx={{ mt: 4 }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
-                    {detail.packageName} · {detail.guests} guests · {detail.serviceType}
-                  </Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-                    <Box>
-                      {/* For the booking's guest count: plates, chairs and tables grown, the other items as the quotation set them */}
-                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
-                        {extraGuests ? `Package Includes, for ${detail.guests} Guests` : 'Package Includes'}
-                      </Typography>
-                      <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
-                        {bookingItems(detail).map(formatBookingItem).join(', ')}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      {/* A buffet prints its four dishes and the drinks; catering only says there is no food */}
-                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
-                        {includesFood(detail.serviceType) ? 'Buffet Menu' : 'Food'}
-                      </Typography>
-                      <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
-                        {includesFood(detail.serviceType)
-                          ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${buffetDrinks(detail.menu).toLowerCase()}.`
-                          : 'Catering only: equipment and setup, no food.'}
-                      </Typography>
-                      {dessertSummary(detail.menu) && (
-                        <Typography sx={{ mt: 0.5, fontSize: 12.5 }}>
-                          Dessert (additional charge): {dessertSummary(detail.menu)}
-                        </Typography>
-                      )}
-                      {detail.foodNotes && (
-                        <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>
-                          Note: {detail.foodNotes}
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-                  {/* The look agreed for the event (the booking form's Theme and Colors), so it is on paper too.
-                    Each colour prints its square, name and code, which still reads in black and white. */}
-                  {!stylingEmpty(detail.styling) && (
-                    <Box data-pdf-keep sx={{ mt: 1.5 }}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
-                        Theme and Colors
-                      </Typography>
-                      <StylingSummary styling={detail.styling} compact />
-                    </Box>
-                  )}
-                </Box>
-              )}
-
-              {/* Price breakdown: package, extra guests, food, each add-on, other charges, discount.
-                  A rental lists its items, the delivery fee and any damage charges instead of a package and food. */}
-              <Box data-pdf-keep sx={{ mt: 3, ml: 'auto', maxWidth: rental ? 420 : 360 }}>
-                {rental ? (
-                  <>
-                    {(quote.rentalItems || []).map((line) => (
-                      <Line
-                        key={line.itemId}
-                        label={`${line.name} (${line.qty} x ${peso(line.price)})`}
-                        value={peso(line.total)}
-                      />
-                    ))}
-                    <Line
-                      label={delivered ? 'Delivery' : `Pick up at ${RENTAL.pickupAddress}`}
-                      value={delivered ? peso(quote.deliveryFee) : 'Free'}
-                    />
-                    {(quote.damageCharges || []).map((line) => (
-                      <Line
-                        key={`damage-${line.itemId}`}
-                        label={`Damaged or missing: ${line.name} (${line.qty} x ${peso(line.fee)})`}
-                        value={peso(line.total)}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <Line
-                      label={`Package (default: ${detail.package.guests} guests)`}
-                      value={peso(quote.packageTotal)}
-                    />
-                    {/* The equipment for the guests above the package's default, priced in the quotation */}
-                    {extraGuests > 0 && (
-                      <Line
-                        label={`Extra ${extraGuests} guests (equipment)`}
-                        value={detail.quotation ? peso(quote.extraGuestsCharge || 0) : 'To be quoted'}
-                      />
-                    )}
-                  </>
-                )}
-                {/* The buffet is charged per person, so the line shows the sum it came from */}
-                {quote.plates > 0 && (
-                  <Line
-                    label={`Buffet (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`}
-                    value={peso(quote.food)}
-                  />
-                )}
-                {detail.addons.map((a) => (
-                  <Line
-                    key={a.id}
-                    label={a.hasQuantity ? `${a.name} x ${addonCount(a.id)}` : a.name}
-                    value={peso(addonPrice(a.id))}
-                  />
-                ))}
-                {otherChargeItemsFor(quote)
-                  .filter((line) => line.amount > 0)
-                  .map((line, index) => (
-                    <Line key={`other-${index}`} label={line.label || 'Other charges'} value={peso(line.amount)} />
-                  ))}
-                {quote.discount > 0 && <Line label="Discount" value={`− ${peso(quote.discount)}`} />}
-                <Divider sx={{ my: 1 }} />
-                <Line label="Net total" value={peso(quote.net)} strong />
-                {/* The least to pay first: this booking's minimum, or the whole total when that is lower */}
-                <Line label="Minimum downpayment" value={peso(Math.min(minimum, quote.net))} muted />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
+              <Box>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                  {doc.kind === 'receipt' ? 'Received From' : 'Prepared For'}
+                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.customerName}</Typography>
+                <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{detail.customerEmail}</Typography>
+                <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                  {formatMobile(detail.customerMobile)}
+                </Typography>
               </Box>
+              <Box>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Event</Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 700 }}>{detail.eventName}</Typography>
+                <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                  {/* An event shows its start and end ("6:00 pm – 10:00 pm"); a rental its pick-up or delivery time */}
+                  {formatDateLong(detail.date)} ·{' '}
+                  {rental
+                    ? `${delivered ? 'delivery at ' : 'pick-up at '}${formatTime(detail.startTime)}`
+                    : formatEventTime(detail)}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                  {rental && !delivered
+                    ? `Pick up at ${RENTAL.pickupAddress}`
+                    : `${detail.venue.name}, ${detail.venue.address}, ${detail.venue.city}`}
+                </Typography>
+              </Box>
+            </Box>
 
-              {/* Contracts add the terms and signature lines */}
-              {doc.kind === 'contract' && (
-                <Box sx={{ mt: 4 }}>
-                  {/* Before confirmation the contract is shown as a draft for the customer to review */}
-                  {!['confirmed', 'completed'].includes(detail.status) && (
-                    <Typography
-                      sx={{
-                        mb: 2,
-                        p: 1.25,
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        textAlign: 'center',
-                        borderRadius: 1,
-                        border: `1px dashed ${tokens.goldDark}`,
-                        color: tokens.goldDark
-                      }}
-                    >
-                      Draft · This contract becomes final once your booking is confirmed.
+            {/* Receipt: payment summary. Quotation/contract: package, food request and price breakdown. */}
+            {doc.kind === 'receipt' ? (
+              <Box
+                data-pdf-keep
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: 2,
+                  border: `1px solid ${tokens.cardLightBorder}`,
+                  backgroundColor: tokens.surfaceSubtle
+                }}
+              >
+                <Line label="Payment for" value={`${paymentKindLabel(payment.kind)} · ${detail.ref}`} />
+                <Line label="Payment method" value={PAYMENT_METHODS[payment.method]} />
+                {payment.referenceNo && <Line label="Reference no." value={payment.referenceNo} />}
+                <Divider sx={{ my: 1.5 }} />
+                <Line label="Amount received" value={peso(payment.amount)} strong />
+              </Box>
+            ) : (
+              <>
+                {rental ? (
+                  <Box sx={{ mt: 4 }}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
+                      {detail.packageName} · {delivered ? 'Delivery' : 'Pick up'}
                     </Typography>
-                  )}
-                  <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Terms and Conditions</Typography>
-                  {rental ? (
-                    <RentalTerms detail={detail} quote={quote} delivered={delivered} />
-                  ) : (
-                    <Box
-                      component="ol"
-                      sx={{ m: 0, pl: 2.5, fontSize: 12.5, lineHeight: 1.7, color: tokens.textSecondary }}
-                    >
-                      {/* The minimum is the one this booking was made with, not today's setting */}
-                      <li>
-                        {minimum < quote.net
-                          ? `A downpayment of at least ${peso(minimum)} secures the event date. You choose how much to pay, up to the full amount. The balance is due on or before the event day.`
-                          : `Paying the full amount of ${peso(quote.net)} secures the event date.`}
-                      </li>
-                      {/* The per-person rate is read off this quotation, not today's price list, so an old
-                        contract keeps printing the rate it was actually agreed at. */}
-                      {includesFood(detail.serviceType) ? (
-                        <li>
-                          The buffet is served plated and charged per person at {peso(quote.pricePerPlate)} per plate,
-                          as shown above, multiplied by the guest count. It covers four dishes, with up to two in each
-                          category, and {buffetDrinks(detail.menu).toLowerCase()} for every guest.
-                        </li>
-                      ) : (
-                        <li>
-                          This booking is catering only: equipment and setup, with no food and no per-person charge.
-                        </li>
-                      )}
-                      <li>
-                        The final guest count may be adjusted up to 7 days before the event.{' '}
-                        <b>
-                          Any change to it changes the total, so we send you a revised quotation; the new amount applies
-                          only from the quotation we send you, never before.
-                        </b>{' '}
-                        Increases made later than 7 days before the event are billed per guest on the day.
-                      </li>
-                      <li>If a revised quotation is lower than what you have paid, we return the difference.</li>
-                      {/* More guests than the package's default: what grows, and that the rest was set in the quotation */}
-                      {extraGuests > 0 && (
-                        <li>
-                          The package covers {detail.package.guests} guests. For your{' '}
-                          {detail.package.guests + extraGuests} guests, the plates, glasses, cutlery, chairs and tables
-                          grow with the guest count, the other items are as listed above, and the equipment for the{' '}
-                          {extraGuests} extra guests is charged as shown.
-                        </li>
-                      )}
-                      <CancellationTerm detail={detail} day="the event day" />
-                      {/* Same setup time the booking calendar keeps free before every event (RULES.eventBufferHours) */}
-                      <li>
-                        The client provides safe access to the venue at least {RULES.eventBufferHours} hours before the
-                        start time for setup.
-                      </li>
-                      {/* The booked start and end time (older bookings without an end time keep the old wording) */}
-                      <li>
-                        {detail.endTime
-                          ? `The service runs ${formatEventTime(detail)}, as booked. Extending it past the end time is billed at ₱3,500 per hour.`
-                          : 'Service time is as agreed with our team. Extensions are billed at ₱3,500 per hour.'}
-                      </li>
-                      <li>
-                        Tres Marias is responsible for all catering equipment it brings. Loss or damage caused by guests
-                        is charged at cost.
-                      </li>
-                    </Box>
-                  )}
-                  <Box
-                    data-pdf-keep
-                    sx={{
-                      mt: 3,
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                      gap: { xs: 2, sm: 4 },
-                      breakInside: 'avoid'
-                    }}
-                  >
-                    {[
-                      { name: detail.customerName, role: 'Client' },
-                      { name: `For ${BUSINESS.shortName}`, role: 'Admin' }
-                    ].map(({ name, role }) => (
-                      <Box key={role}>
-                        <Box
-                          sx={{ height: 112, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', pb: 1 }}
-                        >
-                          {role === 'Admin' && (
-                            <Box
-                              component="img"
-                              src={adminSignature}
-                              alt="Admin signature"
-                              sx={{ display: 'block', width: 160, maxWidth: '100%', height: 104, objectFit: 'contain' }}
-                            />
-                          )}
-                        </Box>
-                        <Box sx={{ pt: 1, borderTop: `1px solid ${tokens.textPrimary}` }}>
-                          <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{name}</Typography>
-                          <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
-                            {role === 'Admin' ? 'Admin signature' : 'Signature over printed name'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    ))}
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                      Damage Fee per Piece
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
+                      {detail.rentalItems.map((line) => `${line.name} ${peso(line.damageFee)}`).join(', ')}
+                    </Typography>
                   </Box>
-                </Box>
-              )}
+                ) : (
+                  <Box sx={{ mt: 4 }}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
+                      {detail.packageName} · {detail.guests} guests · {detail.serviceType}
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+                      <Box>
+                        {/* For the booking's guest count: plates, chairs and tables grown, the other items as the quotation set them */}
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                          {extraGuests ? `Package Includes, for ${detail.guests} Guests` : 'Package Includes'}
+                        </Typography>
+                        <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
+                          {bookingItems(detail).map(formatBookingItem).join(', ')}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        {/* A buffet prints its four dishes and the drinks; catering only says there is no food */}
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                          {includesFood(detail.serviceType) ? 'Buffet Menu' : 'Food'}
+                        </Typography>
+                        <Typography sx={{ fontSize: 13, color: tokens.textSecondary }}>
+                          {includesFood(detail.serviceType)
+                            ? `${(detail.menuDishes || []).map((d) => d.name).join(', ')}, with ${buffetDrinks(detail.menu).toLowerCase()}.`
+                            : 'Catering only: equipment and setup, no food.'}
+                        </Typography>
+                        {dessertSummary(detail.menu) && (
+                          <Typography sx={{ mt: 0.5, fontSize: 12.5 }}>
+                            Dessert (additional charge): {dessertSummary(detail.menu)}
+                          </Typography>
+                        )}
+                        {detail.foodNotes && (
+                          <Typography sx={{ mt: 0.5, fontSize: 12.5, color: tokens.textSecondary }}>
+                            Note: {detail.foodNotes}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                    {/* The look agreed for the event (the booking form's Theme and Colors), so it is on paper too.
+                    Each colour prints its square, name and code, which still reads in black and white. */}
+                    {!stylingEmpty(detail.styling) && (
+                      <Box data-pdf-keep sx={{ mt: 1.5 }}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>
+                          Theme and Colors
+                        </Typography>
+                        <StylingSummary styling={detail.styling} compact />
+                      </Box>
+                    )}
+                  </Box>
+                )}
 
-              {/* Quotations also keep the record of payments: every verified payment, what's paid and what's left */}
-              {doc.kind === 'quotation' && (
-                <Box sx={{ mt: 4 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
-                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Payment Record</Typography>
-                    {verifiedPayments.length > 0 && detail.balance <= 0 && !ended && (
+                {/* Price breakdown: package, extra guests, food, each add-on, other charges, discount.
+                  A rental lists its items, the delivery fee and any damage charges instead of a package and food. */}
+                <Box data-pdf-keep sx={{ mt: 3, ml: 'auto', maxWidth: rental ? 420 : 360 }}>
+                  {rental ? (
+                    <>
+                      {(quote.rentalItems || []).map((line) => (
+                        <Line
+                          key={line.itemId}
+                          label={`${line.name} (${line.qty} x ${peso(line.price)})`}
+                          value={peso(line.total)}
+                        />
+                      ))}
+                      <Line
+                        label={delivered ? 'Delivery' : `Pick up at ${RENTAL.pickupAddress}`}
+                        value={delivered ? peso(quote.deliveryFee) : 'Free'}
+                      />
+                      {(quote.damageCharges || []).map((line) => (
+                        <Line
+                          key={`damage-${line.itemId}`}
+                          label={`Damaged or missing: ${line.name} (${line.qty} x ${peso(line.fee)})`}
+                          value={peso(line.total)}
+                        />
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <Line
+                        label={`Package (default: ${detail.package.guests} guests)`}
+                        value={peso(quote.packageTotal)}
+                      />
+                      {/* The equipment for the guests above the package's default, priced in the quotation */}
+                      {extraGuests > 0 && (
+                        <Line
+                          label={`Extra ${extraGuests} guests (equipment)`}
+                          value={detail.quotation ? peso(quote.extraGuestsCharge || 0) : 'To be quoted'}
+                        />
+                      )}
+                    </>
+                  )}
+                  {/* The buffet is charged per person, so the line shows the sum it came from */}
+                  {quote.plates > 0 && (
+                    <Line
+                      label={`Buffet (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`}
+                      value={peso(quote.food)}
+                    />
+                  )}
+                  {detail.addons.map((a) => (
+                    <Line
+                      key={a.id}
+                      label={a.hasQuantity ? `${a.name} x ${addonCount(a.id)}` : a.name}
+                      value={peso(addonPrice(a.id))}
+                    />
+                  ))}
+                  {otherChargeItemsFor(quote)
+                    .filter((line) => line.amount > 0)
+                    .map((line, index) => (
+                      <Line key={`other-${index}`} label={line.label || 'Other charges'} value={peso(line.amount)} />
+                    ))}
+                  {quote.discount > 0 && <Line label="Discount" value={`− ${peso(quote.discount)}`} />}
+                  <Divider sx={{ my: 1 }} />
+                  <Line label="Net total" value={peso(quote.net)} strong />
+                  {/* The least to pay first: this booking's minimum, or the whole total when that is lower */}
+                  <Line label="Minimum downpayment" value={peso(Math.min(minimum, quote.net))} muted />
+                </Box>
+
+                {/* Contracts add the terms and signature lines */}
+                {doc.kind === 'contract' && (
+                  <Box sx={{ mt: 4 }}>
+                    {/* Before confirmation the contract is shown as a draft for the customer to review */}
+                    {!['confirmed', 'completed'].includes(detail.status) && (
                       <Typography
                         sx={{
-                          px: 1.25,
-                          py: 0.25,
-                          fontSize: 12,
-                          fontWeight: 800,
-                          letterSpacing: '0.08em',
+                          mb: 2,
+                          p: 1.25,
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          textAlign: 'center',
                           borderRadius: 1,
-                          border: '2px solid #047857',
-                          color: '#047857'
+                          border: `1px dashed ${tokens.goldDark}`,
+                          color: tokens.goldDark
                         }}
                       >
-                        FULLY PAID
+                        Draft · This contract becomes final once your booking is confirmed.
+                      </Typography>
+                    )}
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>Terms and Conditions</Typography>
+                    {rental ? (
+                      <RentalTerms detail={detail} quote={quote} delivered={delivered} />
+                    ) : (
+                      <Box
+                        component="ol"
+                        sx={{ m: 0, pl: 2.5, fontSize: 12.5, lineHeight: 1.7, color: tokens.textSecondary }}
+                      >
+                        {/* The minimum is the one this booking was made with, not today's setting */}
+                        <li>
+                          {minimum < quote.net
+                            ? `A downpayment of at least ${peso(minimum)} secures the event date. You choose how much to pay, up to the full amount. The balance is due on or before the event day.`
+                            : `Paying the full amount of ${peso(quote.net)} secures the event date.`}
+                        </li>
+                        {/* The per-person rate is read off this quotation, not today's price list, so an old
+                        contract keeps printing the rate it was actually agreed at. */}
+                        {includesFood(detail.serviceType) ? (
+                          <li>
+                            The buffet is served plated and charged per person at {peso(quote.pricePerPlate)} per plate,
+                            as shown above, multiplied by the guest count. It covers four dishes, with up to two in each
+                            category, and {buffetDrinks(detail.menu).toLowerCase()} for every guest.
+                          </li>
+                        ) : (
+                          <li>
+                            This booking is catering only: equipment and setup, with no food and no per-person charge.
+                          </li>
+                        )}
+                        <li>
+                          The final guest count may be adjusted up to 7 days before the event.{' '}
+                          <b>
+                            Any change to it changes the total, so we send you a revised quotation; the new amount
+                            applies only from the quotation we send you, never before.
+                          </b>{' '}
+                          Increases made later than 7 days before the event are billed per guest on the day.
+                        </li>
+                        <li>If a revised quotation is lower than what you have paid, we return the difference.</li>
+                        {/* More guests than the package's default: what grows, and that the rest was set in the quotation */}
+                        {extraGuests > 0 && (
+                          <li>
+                            The package covers {detail.package.guests} guests. For your{' '}
+                            {detail.package.guests + extraGuests} guests, the plates, glasses, cutlery, chairs and
+                            tables grow with the guest count, the other items are as listed above, and the equipment for
+                            the {extraGuests} extra guests is charged as shown.
+                          </li>
+                        )}
+                        <CancellationTerm detail={detail} day="the event day" />
+                        {/* Same setup time the booking calendar keeps free before every event (RULES.eventBufferHours) */}
+                        <li>
+                          The client provides safe access to the venue at least {RULES.eventBufferHours} hours before
+                          the start time for setup.
+                        </li>
+                        {/* The booked start and end time (older bookings without an end time keep the old wording) */}
+                        <li>
+                          {detail.endTime
+                            ? `The service runs ${formatEventTime(detail)}, as booked. Extending it past the end time is billed at ₱3,500 per hour.`
+                            : 'Service time is as agreed with our team. Extensions are billed at ₱3,500 per hour.'}
+                        </li>
+                        <li>
+                          Tres Marias is responsible for all catering equipment it brings. Loss or damage caused by
+                          guests is charged at cost.
+                        </li>
+                      </Box>
+                    )}
+                    <Box
+                      data-pdf-keep
+                      sx={{
+                        mt: 3,
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                        gap: { xs: 2, sm: 4 },
+                        breakInside: 'avoid'
+                      }}
+                    >
+                      {[
+                        { name: detail.customerName, role: 'Client' },
+                        { name: `For ${BUSINESS.shortName}`, role: 'Admin' }
+                      ].map(({ name, role }) => (
+                        <Box key={role}>
+                          <Box
+                            sx={{
+                              height: 112,
+                              display: 'flex',
+                              alignItems: 'flex-end',
+                              justifyContent: 'center',
+                              pb: 1
+                            }}
+                          >
+                            {role === 'Admin' && (
+                              <Box
+                                component="img"
+                                src={adminSignature}
+                                alt="Admin signature"
+                                sx={{
+                                  display: 'block',
+                                  width: 160,
+                                  maxWidth: '100%',
+                                  height: 104,
+                                  objectFit: 'contain'
+                                }}
+                              />
+                            )}
+                          </Box>
+                          <Box sx={{ pt: 1, borderTop: `1px solid ${tokens.textPrimary}` }}>
+                            <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{name}</Typography>
+                            <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
+                              {role === 'Admin' ? 'Admin signature' : 'Signature over printed name'}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Quotations also keep the record of payments: every verified payment, what's paid and what's left */}
+                {doc.kind === 'quotation' && (
+                  <Box sx={{ mt: 4 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Payment Record</Typography>
+                      {verifiedPayments.length > 0 && detail.balance <= 0 && !ended && (
+                        <Typography
+                          sx={{
+                            px: 1.25,
+                            py: 0.25,
+                            fontSize: 12,
+                            fontWeight: 800,
+                            letterSpacing: '0.08em',
+                            borderRadius: 1,
+                            border: '2px solid #047857',
+                            color: tokens.successText
+                          }}
+                        >
+                          FULLY PAID
+                        </Typography>
+                      )}
+                    </Box>
+                    {verifiedPayments.length === 0 ? (
+                      <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                        No payments received yet.
+                      </Typography>
+                    ) : (
+                      <Box
+                        component="table"
+                        sx={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: 12.5,
+                          '& th, & td': {
+                            py: 0.75,
+                            px: 0.5,
+                            textAlign: 'left',
+                            borderBottom: `1px solid ${tokens.cardLightBorder}`
+                          },
+                          '& th': { fontSize: 12, fontWeight: 700, color: tokens.textMuted },
+                          '& .amt': { textAlign: 'right' }
+                        }}
+                      >
+                        <thead>
+                          <tr>
+                            <th>Date Paid</th>
+                            <th>Payment</th>
+                            <th>Method</th>
+                            <th>Receipt No.</th>
+                            <th className="amt">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {verifiedPayments.map((p) => (
+                            <tr key={p.id}>
+                              <td>{formatDateTime(p.verifiedAt)}</td>
+                              <td>{paymentKindLabel(p.kind)}</td>
+                              <td>{PAYMENT_METHODS[p.method]}</td>
+                              <td>{p.receiptNo}</td>
+                              <td className="amt">{peso(p.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Box>
+                    )}
+                    {/* "Paid so far" adds up the payments listed above; any money given back shows on its own line */}
+                    <Box data-pdf-keep sx={{ mt: 1.5, ml: 'auto', maxWidth: 360 }}>
+                      <Line label="Net total" value={peso(quote.net)} />
+                      <Line label="Paid so far" value={peso(detail.paid + refunded)} />
+                      {refunded > 0 && <Line label="Refunded" value={`− ${peso(refunded)}`} />}
+                      <Line label="Balance" value={peso(detail.balance)} strong />
+                    </Box>
+                    {detail.awaitingCount > 0 && (
+                      <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textMuted }}>
+                        {peso(detail.awaitingAmount)} is being verified and will appear here once confirmed.
                       </Typography>
                     )}
                   </Box>
-                  {verifiedPayments.length === 0 ? (
-                    <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                      No payments received yet.
-                    </Typography>
-                  ) : (
-                    <Box
-                      component="table"
-                      sx={{
-                        width: '100%',
-                        borderCollapse: 'collapse',
-                        fontSize: 12.5,
-                        '& th, & td': {
-                          py: 0.75,
-                          px: 0.5,
-                          textAlign: 'left',
-                          borderBottom: `1px solid ${tokens.cardLightBorder}`
-                        },
-                        '& th': { fontSize: 12, fontWeight: 700, color: tokens.textMuted },
-                        '& .amt': { textAlign: 'right' }
-                      }}
-                    >
-                      <thead>
-                        <tr>
-                          <th>Date Paid</th>
-                          <th>Payment</th>
-                          <th>Method</th>
-                          <th>Receipt No.</th>
-                          <th className="amt">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {verifiedPayments.map((p) => (
-                          <tr key={p.id}>
-                            <td>{formatDateTime(p.verifiedAt)}</td>
-                            <td>{paymentKindLabel(p.kind)}</td>
-                            <td>{PAYMENT_METHODS[p.method]}</td>
-                            <td>{p.receiptNo}</td>
-                            <td className="amt">{peso(p.amount)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Box>
-                  )}
-                  {/* "Paid so far" adds up the payments listed above; any money given back shows on its own line */}
-                  <Box data-pdf-keep sx={{ mt: 1.5, ml: 'auto', maxWidth: 360 }}>
-                    <Line label="Net total" value={peso(quote.net)} />
-                    <Line label="Paid so far" value={peso(detail.paid + refunded)} />
-                    {refunded > 0 && <Line label="Refunded" value={`− ${peso(refunded)}`} />}
-                    <Line label="Balance" value={peso(detail.balance)} strong />
-                  </Box>
-                  {detail.awaitingCount > 0 && (
-                    <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textMuted }}>
-                      {peso(detail.awaitingAmount)} is being verified and will appear here once confirmed.
-                    </Typography>
-                  )}
-                </Box>
-              )}
+                )}
 
-              {doc.kind === 'quotation' && (
-                <Typography sx={{ mt: 3, fontSize: 12, lineHeight: 1.6, color: tokens.textMuted }}>
-                  {/* The 14-day validity only matters until the first payment is made */}
-                  {verifiedPayments.length === 0 ? 'This quotation is valid for 14 days. ' : ''}
-                  {rental
-                    ? 'Rental prices are per piece for your whole rental. A piece that comes back damaged or missing is charged at its damage fee through a revised quotation.'
-                    : 'The package covers the equipment and service listed above; the food is cooked to your request and priced separately.'}
-                  {detail.quotation?.note ? ` Note: ${detail.quotation.note}` : ''}
-                  {/* A request is approved when the customer accepts its quotation */}
-                  {detail.status === 'pending' && detail.quotation
-                    ? ' Accept it on your reservation page to approve your reservation.'
-                    : ''}
-                </Typography>
-              )}
-            </>
-          )}
+                {doc.kind === 'quotation' && (
+                  <Typography sx={{ mt: 3, fontSize: 12, lineHeight: 1.6, color: tokens.textMuted }}>
+                    {/* The 14-day validity only matters until the first payment is made */}
+                    {verifiedPayments.length === 0 ? 'This quotation is valid for 14 days. ' : ''}
+                    {rental
+                      ? 'Rental prices are per piece for your whole rental. A piece that comes back damaged or missing is charged at its damage fee through a revised quotation.'
+                      : 'The package covers the equipment and service listed above; the food is cooked to your request and priced separately.'}
+                    {detail.quotation?.note ? ` Note: ${detail.quotation.note}` : ''}
+                    {/* A request is approved when the customer accepts its quotation */}
+                    {detail.status === 'pending' && detail.quotation
+                      ? ' Accept it on your reservation page to approve your reservation.'
+                      : ''}
+                  </Typography>
+                )}
+              </>
+            )}
 
-          <Typography
-            sx={{ mt: doc.kind === 'receipt' ? 2 : 5, fontSize: 11.5, textAlign: 'center', color: tokens.textMuted }}
-          >
-            Thank you for choosing {BUSINESS.name}.
-          </Typography>
-          {bankReceipt && <ReceiptProof payment={payment} proof={proof} />}
-        </Box>
+            <Typography
+              sx={{ mt: doc.kind === 'receipt' ? 2 : 5, fontSize: 11.5, textAlign: 'center', color: tokens.textMuted }}
+            >
+              Thank you for choosing {BUSINESS.name}.
+            </Typography>
+            {bankReceipt && <ReceiptProof payment={payment} proof={proof} />}
+          </Box>
+        </PaperSurface>
       </Dialog>
     </LightSurface>
   );

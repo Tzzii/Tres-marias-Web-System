@@ -35,6 +35,7 @@ import {
   formatWeekday,
   headcount,
   isRental,
+  inventoryApi,
   parseISODate,
   paymentApi,
   peso,
@@ -48,6 +49,7 @@ import {
   useResource
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
+import { BusinessPulse, NeedsAttention } from '../components/OperationsBrief.jsx';
 
 export default function DashboardPage() {
   useDocumentTitle('Dashboard', 'Tres Marias Admin');
@@ -55,13 +57,14 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { data, loading, error, reload } = useResource(() => reportApi.getDashboardSummary(), []);
   const calendar = useResource(async () => {
-    const [reservations, payments, refunds, availability] = await Promise.all([
+    const [reservations, payments, refunds, availability, inventory] = await Promise.all([
       reservationApi.listReservations(),
       paymentApi.listPayments(),
       paymentApi.listRefunds(),
-      calendarApi.getCalendar()
+      calendarApi.getCalendar(),
+      inventoryApi.listInventory()
     ]);
-    return { reservations, payments, refunds, availability };
+    return { reservations, payments, refunds, availability, inventory };
   }, []);
 
   const today = parseISODate(todayISO());
@@ -215,13 +218,11 @@ export default function DashboardPage() {
       <Box
         sx={{
           display: 'grid',
-          gap: 2.5,
-          alignItems: 'start',
-          gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.7fr) minmax(0, 1fr)' },
-          gridTemplateAreas: { xs: '"kpi" "chart" "calendar" "lists"', lg: '"chart kpi" "lists calendar"' }
+          gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' },
+          gap: 2.5
         }}
       >
-        <DashCard sx={{ gridArea: 'chart', minWidth: 0 }}>
+        <DashCard sx={{ minWidth: 0 }}>
           <Box
             sx={{
               display: 'flex',
@@ -347,6 +348,31 @@ export default function DashboardPage() {
             />
           )}
         </DashCard>
+        <BusinessPulse
+          data={calendar.data}
+          loading={calendar.loading}
+          error={calendar.error}
+          onRetry={calendar.reload}
+        />
+      </Box>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 2.5,
+          alignItems: 'start',
+          gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.7fr) minmax(0, 1fr)' },
+          gridTemplateAreas: { xs: '"kpi" "attention" "calendar" "lists"', lg: '"attention kpi" "lists calendar"' }
+        }}
+      >
+        <Box sx={{ gridArea: 'attention', minWidth: 0 }}>
+          <NeedsAttention
+            data={calendar.data}
+            loading={calendar.loading}
+            error={calendar.error}
+            onRetry={calendar.reload}
+          />
+        </Box>
 
         <Box
           sx={{
@@ -470,7 +496,7 @@ export default function DashboardPage() {
                           size="sm"
                           label={e.balance === 0 ? 'Fully paid' : `Balance ${peso(e.balance)}`}
                           bg={e.balance === 0 ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'}
-                          fg={e.balance === 0 ? '#047857' : '#b45309'}
+                          fg={e.balance === 0 ? tokens.successText : tokens.warningText}
                         />
                       </Box>
                       <Button

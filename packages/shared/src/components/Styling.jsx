@@ -355,7 +355,7 @@ function ThemeChip({ label, picked, dashed, onClick }) {
           placeItems: 'center',
           border: `1px solid ${picked ? tokens.goldDark : tokens.borderInput}`,
           backgroundColor: picked ? tokens.goldDark : 'transparent',
-          color: '#fff'
+          color: tokens.onStatus
         }}
       >
         {picked && <CheckRoundedIcon sx={{ fontSize: 13 }} />}
@@ -617,7 +617,13 @@ export function StylingSummary({
           </Typography>
         </Box>
         {toDiscuss && (
-          <Pill label="To Discuss" size="sm" bg="rgba(245, 158, 11, 0.12)" fg="#b45309" sx={{ ml: 'auto' }} />
+          <Pill
+            label="To Discuss"
+            size="sm"
+            bg="rgba(245, 158, 11, 0.12)"
+            fg={tokens.warningText}
+            sx={{ ml: 'auto' }}
+          />
         )}
       </Box>
       <Box>

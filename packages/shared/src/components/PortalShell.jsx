@@ -30,6 +30,7 @@ import { tokens } from '../theme/tokens.js';
 import { formatRelative, initials } from '../utils/format.js';
 import { ConfirmDialog } from './AppDialog.jsx';
 import { BrandMark } from './Brand.jsx';
+import { UploadProgress } from './UploadProgress.jsx';
 
 // Shared animation timing for the sidebar and nav items
 const EASE = `all 0.25s ${tokens.easeStandard}`;
@@ -49,6 +50,7 @@ const readSet = (key) => {
  * The signed-in portal frame (top bar, sidebar, menus) shared by both apps (design system: PortalShell).
  *
  * - Desktop: fixed top bar + collapsible 264px sidebar.
+ *   `defaultSidebarCollapsed` controls the initial state for each portal.
  * - Tablet / phone: hamburger opens the navigation drawer, and a magnifier opens the search bar
  *   over the top bar. When `bottomNav` is given, a five-tab bar is pinned to the bottom of the
  *   screen on phones; its height is published on :root as the CSS variable --tm-bottom-nav (0px
@@ -65,6 +67,7 @@ const readSet = (key) => {
  */
 export default function PortalShell({
   portalKey,
+  defaultSidebarCollapsed = true,
   navItems,
   secondaryNavItems = [],
   bottomNav,
@@ -79,19 +82,12 @@ export default function PortalShell({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  // Storage keys are per portal and per user, so settings don't mix between accounts
+  // Storage keys are per portal and per user, so notifications don't mix between accounts
   // (each layout passes a portalKey that includes the user id, e.g. 'admin.adm-001')
-  const collapseKey = `tm.${portalKey}.sidebar`;
   const readKey = `tm.${portalKey}.notifications.read`;
 
-  // Sidebar collapsed state, remembered between visits
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(collapseKey) === '1';
-    } catch (e) {
-      return false;
-    }
-  });
+  // Each portal chooses its initial desktop sidebar state; the toggle still works for the visit.
+  const [collapsed, setCollapsed] = useState(defaultSidebarCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false); // phone/tablet menu
   const [profileAnchor, setProfileAnchor] = useState(null); // profile menu (null = closed)
   const [notifAnchor, setNotifAnchor] = useState(null); // notifications menu (null = closed)
@@ -134,16 +130,9 @@ export default function PortalShell({
     }
   };
 
-  // Collapse or expand the desktop sidebar and remember the choice
+  // Collapse or expand the desktop sidebar for the current visit.
   const toggleSidebar = () => {
-    setCollapsed((was) => {
-      try {
-        localStorage.setItem(collapseKey, was ? '0' : '1');
-      } catch (e) {
-        /* ignore */
-      }
-      return !was;
-    });
+    setCollapsed((was) => !was);
   };
 
   const width = collapsed ? tokens.sidebarCollapsedWidth : tokens.sidebarWidth;
@@ -159,6 +148,7 @@ export default function PortalShell({
     const button = (
       <ButtonBase
         key={item.key}
+        className="tm-sidebar-link"
         onClick={() => navigate(item.to)}
         aria-current={active ? 'page' : undefined}
         sx={{
@@ -221,7 +211,7 @@ export default function PortalShell({
                   placeItems: 'center',
                   fontSize: 11,
                   fontWeight: 700,
-                  color: '#fff',
+                  color: tokens.onStatus,
                   backgroundColor: tokens.red
                 }}
               >
@@ -266,6 +256,7 @@ export default function PortalShell({
 
   return (
     <Box
+      className="tm-portal"
       sx={{
         minHeight: '100vh',
         backgroundColor: tokens.bgBase,
@@ -273,6 +264,7 @@ export default function PortalShell({
         backgroundAttachment: 'fixed'
       }}
     >
+      <UploadProgress />
       {/* --tm-bottom-nav: height of the phone tab bar (56px plus the iPhone home-bar area), 0px where there
           is none. Set on :root so fixed bars and windows outside this frame (e.g. the booking bar of the customer's Book page) see it too. */}
       <GlobalStyles
@@ -308,7 +300,7 @@ export default function PortalShell({
 
       {/* ==================== TOP BAR ==================== */}
       <AppBar
-        className="tm-no-print"
+        className="tm-no-print tm-portal-header"
         position="fixed"
         elevation={0}
         sx={{
@@ -672,7 +664,7 @@ export default function PortalShell({
         }}
       >
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <BrandMark subtitle={null} textColor={tokens.onInk} />
+          <BrandMark subtitle={null} textColor={tokens.sidebarText} />
           <IconButton
             onClick={() => setDrawerOpen(false)}
             aria-label="Close navigation"
@@ -694,7 +686,7 @@ export default function PortalShell({
       <Box sx={{ display: 'flex', pt: `${tokens.headerHeight}px`, minHeight: '100vh' }}>
         <Box
           component="aside"
-          className="tm-no-print"
+          className="tm-no-print tm-portal-sidebar"
           sx={{
             width,
             position: 'fixed',
@@ -760,8 +752,8 @@ export default function PortalShell({
             minWidth: 0,
             outline: 'none',
             '--tm-sidebar-offset': { xs: '0px', lg: `${width}px` },
-            px: { xs: 1.5, sm: 2, md: 3 },
-            pt: { xs: 2, md: 3 },
+            px: { xs: 2, sm: 3, md: 4 },
+            pt: { xs: 2.5, md: 4 },
             pb: { xs: hasBottomNav ? 'calc(var(--tm-bottom-nav) + 32px)' : 4, md: 5 }
           }}
         >
@@ -806,6 +798,7 @@ export default function PortalShell({
               // A drawer tab ("More") opens the full navigation; every other tab goes to its page
               <ButtonBase
                 key={item.key}
+                className="tm-bottom-nav-item"
                 onClick={() => (item.drawer ? setDrawerOpen(true) : navigate(item.to))}
                 aria-current={active && !item.drawer ? 'page' : undefined}
                 aria-haspopup={item.drawer ? 'dialog' : undefined}

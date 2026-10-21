@@ -14,7 +14,7 @@ import { passwordChecks, passwordStrength } from '../utils/validation.js';
 export function PasswordChecklist({ id, value = '', sx }) {
   const checks = passwordChecks(value);
   const strength = passwordStrength(value);
-  const color = ['', tokens.red, '#d97706', '#65a30d', tokens.green][strength.score];
+  const color = ['', tokens.red, tokens.warningText, tokens.successText, tokens.green][strength.score];
 
   return (
     <Box id={id} sx={{ mt: 1, ...sx }}>

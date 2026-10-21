@@ -354,7 +354,7 @@ function FeedbackCard({
         borderRadius: 2,
         border: `1px solid ${feedback.flagged ? 'rgba(239, 68, 68, 0.35)' : tokens.cardLightBorder}`,
         borderLeft: `3px solid ${unread ? tokens.gold : feedback.flagged ? tokens.red : tokens.cardLightBorder}`,
-        backgroundColor: feedback.archived ? tokens.surfaceSubtle : '#fff',
+        backgroundColor: feedback.archived ? tokens.surfaceSubtle : tokens.cardLight,
         p: { xs: 1.75, sm: 2.25 }
       }}
     >
@@ -440,7 +440,7 @@ function FeedbackCard({
             border: '1px solid rgba(239, 68, 68, 0.2)'
           }}
         >
-          <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>Flagged</Typography>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.dangerText }}>Flagged</Typography>
           <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{feedback.flagReason}</Typography>
         </Box>
       )}

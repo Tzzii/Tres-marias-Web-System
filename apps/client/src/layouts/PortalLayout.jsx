@@ -13,6 +13,7 @@ import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   PortalShell,
+  PortalSearch,
   TERMS_VERSION,
   authApi,
   formatDate,
@@ -32,6 +33,7 @@ export default function PortalLayout() {
   const notify = useNotify();
   const { user, signOut, updateUser } = useAuth();
   const [termsLater, setTermsLater] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(null);
 
   const account = useResource(() => authApi.getCustomerProfile(user.id), [user.id]);
   useEffect(() => {
@@ -170,6 +172,7 @@ export default function PortalLayout() {
   return (
     <PortalShell
       portalKey={`client.${user.id}`}
+      defaultSidebarCollapsed
       navItems={navItems}
       secondaryNavItems={[{ key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/portal/settings' }]}
       bottomNav={bottomNav}
@@ -179,8 +182,8 @@ export default function PortalLayout() {
         { key: 'site', label: 'Browse Packages', icon: HomeOutlinedIcon, to: '/' }
       ]}
       search={{
-        placeholder: 'Search your reservations',
-        onSubmit: (q) => navigate(`/portal/reservations?q=${encodeURIComponent(q)}`)
+        placeholder: 'Search your events or payments',
+        onSubmit: setSearchQuery
       }}
       notifications={notifications}
       onLogout={() => {
@@ -189,6 +192,7 @@ export default function PortalLayout() {
       }}
     >
       <Outlet />
+      <PortalSearch key={user.id} query={searchQuery} customerId={user.id} onClose={() => setSearchQuery(null)} />
       <FloatingChat key={user.id} user={user} unread={unreadMessages} />
       <TermsUpdateDialog
         open={termsDue}

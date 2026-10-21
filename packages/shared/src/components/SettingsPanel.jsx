@@ -9,6 +9,7 @@ import { tokens } from '../theme/tokens.js';
 import { CardTitle, DashCard } from './DashCard.jsx';
 import { PageHeader } from './PageHeader.jsx';
 import { ThemeModeToggle } from './ThemeModeToggle.jsx';
+import { ThemeChoices } from './ThemeChoices.jsx';
 
 /** Account and appearance settings shared by the signed-in portals. */
 export function SettingsPanel({ accountLabel, children, paymentDetails, appearanceSettings }) {
@@ -85,6 +86,7 @@ export function SettingsPanel({ accountLabel, children, paymentDetails, appearan
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
             <DashCard sx={{ maxWidth: 640 }}>
               <CardTitle subtitle="Choose how the portal looks on this browser.">Appearance</CardTitle>
+              <ThemeChoices />
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
                 <Box>
                   <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>

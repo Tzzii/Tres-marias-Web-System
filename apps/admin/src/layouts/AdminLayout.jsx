@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
@@ -16,6 +16,7 @@ import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlin
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   PortalShell,
+  PortalSearch,
   authApi,
   feedbackApi,
   formatDate,
@@ -33,6 +34,7 @@ import { useAuth } from '../auth.js';
 export default function AdminLayout() {
   const navigate = useNavigate();
   const { user, signOut, updateUser } = useAuth();
+  const [searchQuery, setSearchQuery] = useState(null);
 
   const account = useResource(() => authApi.getAdminProfile(user.id), [user.id]);
   useEffect(() => {
@@ -195,6 +197,7 @@ export default function AdminLayout() {
   return (
     <PortalShell
       portalKey={`admin.${user.id}`}
+      defaultSidebarCollapsed={false}
       navItems={navItems}
       bottomNav={bottomNav}
       secondaryNavItems={[{ key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/settings' }]}
@@ -203,8 +206,8 @@ export default function AdminLayout() {
         { key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/settings?tab=account' }
       ]}
       search={{
-        placeholder: 'Search reservations or customers',
-        onSubmit: (q) => navigate(`/reservations?tab=all&q=${encodeURIComponent(q)}`)
+        placeholder: 'Search events, customers or payments',
+        onSubmit: setSearchQuery
       }}
       notifications={notifications}
       onLogout={() => {
@@ -213,6 +216,7 @@ export default function AdminLayout() {
       }}
     >
       <Outlet />
+      <PortalSearch key={user.id} query={searchQuery} admin onClose={() => setSearchQuery(null)} />
     </PortalShell>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { tokens } from '../theme/tokens.js';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
 import Dialog from '@mui/material/Dialog';
@@ -68,7 +69,7 @@ export function EquipmentPhoto({ item, file, removePhoto = false, admin = false,
           height,
           borderRadius: 1.5,
           position: 'relative',
-          bgcolor: '#f3f0e9',
+          bgcolor: tokens.surfaceSubtle,
           overflow: 'hidden'
         }}
       >
@@ -82,10 +83,10 @@ export function EquipmentPhoto({ item, file, removePhoto = false, admin = false,
             sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
           />
         )}
-        {!src && <Typography sx={{ fontSize: 11, color: '#665e51', p: 1 }}>{label}</Typography>}
+        {!src && <Typography sx={{ fontSize: 11, color: tokens.textSecondary, p: 1 }}>{label}</Typography>}
       </ButtonBase>
       {!compact && (loading || file) && (
-        <Typography sx={{ mt: 0.75, fontSize: 12, color: '#665e51' }}>
+        <Typography sx={{ mt: 0.75, fontSize: 12, color: tokens.textSecondary }}>
           {label}
           {file ? ' · Save changes to publish' : ''}
         </Typography>
@@ -111,9 +112,9 @@ export function EquipmentPhoto({ item, file, removePhoto = false, admin = false,
             component="img"
             src={src || undefined}
             alt={alt}
-            sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', bgcolor: '#f3f0e9' }}
+            sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', bgcolor: tokens.surfaceSubtle }}
           />
-          <Typography sx={{ px: 2, py: 1.5, fontSize: 12, color: '#665e51' }}>
+          <Typography sx={{ px: 2, py: 1.5, fontSize: 12, color: tokens.textSecondary }}>
             Your rental quantity is selected separately.
           </Typography>
         </Dialog>

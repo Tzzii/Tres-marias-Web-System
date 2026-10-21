@@ -52,8 +52,8 @@ export function StatusPipeline({ status, compact = false }) {
                   placeItems: 'center',
                   fontSize: 12,
                   fontWeight: 700,
-                  color: done || active ? '#fff' : tokens.textMuted,
-                  backgroundColor: done || active ? color : tokens.surfaceMuted,
+                  color: done ? tokens.successText : active ? STATUS[step].fg : tokens.textMuted,
+                  backgroundColor: done ? tokens.successBg : active ? STATUS[step].bg : tokens.surfaceMuted,
                   border: `2px solid ${done || active ? color : tokens.cardLightBorder}`,
                   boxShadow: active ? `0 0 0 4px ${STATUS[step].bg}` : 'none'
                 }}

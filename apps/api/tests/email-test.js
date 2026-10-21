@@ -12,7 +12,7 @@ import {
 import { CODE_EMAILS } from '../src/modules/auth/code.emails.js';
 import { CUSTOMER_EMAILS } from '../src/modules/notify/customer.emails.js';
 import { queueCustomerEmail, useMailerForTests } from '../src/modules/notify/notify.service.js';
-import { codeIn } from './lib/harness.js';
+import { codeIn } from './helpers/harness.js';
 
 
 let passed = 0;

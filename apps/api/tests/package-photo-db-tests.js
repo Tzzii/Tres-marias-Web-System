@@ -11,7 +11,7 @@ import {
   runDir,
   startApi,
   tokenFor
-} from './lib/harness.js';
+} from './helpers/harness.js';
 
 requireWriteConsent({ writesOk: process.argv.includes('--writes-test-data') }, 'Package photo integration check');
 const uploadDir = path.join(runDir(), 'package-photos');

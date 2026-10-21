@@ -147,7 +147,7 @@ export function OtpInput({
             fontSize: 22,
             fontWeight: 700,
             color: tokens.textPrimary,
-            backgroundColor: disabled ? tokens.surfaceSubtle : '#fff',
+            backgroundColor: disabled ? tokens.surfaceSubtle : tokens.cardLight,
             border: `1.5px solid ${digit && state === 'idle' ? tokens.ink : border}`,
             borderRadius: 1.5,
             outline: 'none',

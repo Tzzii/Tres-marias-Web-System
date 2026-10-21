@@ -11,7 +11,7 @@ import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import RestaurantOutlinedIcon from '@mui/icons-material/RestaurantOutlined';
 import WorkOutlineRoundedIcon from '@mui/icons-material/WorkOutlineRounded';
-import { isRentalPackage, peso, tokens } from '@tm/shared';
+import { PackagePhoto, isRentalPackage, peso, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 import { reducedMotionSx, revealEnter, useInView } from './Reveal.jsx';
 import PackageTilt from './PackageTilt.jsx';
@@ -166,7 +166,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
           transition: 'border-color 0.3s ease, box-shadow 0.35s ease',
 
           '& .tm-mood-panel': { overflow: 'hidden' },
-          '& .tm-mood-panel::after': {
+          '& .tm-mood-panel::after, & .tm-package-photo-surface::after': {
             content: '""',
             position: 'absolute',
             top: 0,
@@ -205,7 +205,9 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
                 borderColor: site.gold,
                 boxShadow: `${site.shadowCardHover}, 0 22px 50px -24px rgba(197, 160, 89, 0.45)`
               },
-              '&:hover .tm-mood-panel::after': { animation: `${shineSweep} 0.9s ease` },
+              '&:hover .tm-mood-panel::after, &:hover .tm-package-photo-surface::after': {
+                animation: `${shineSweep} 0.9s ease`
+              },
               '&:hover .tm-mood-icon': {
                 color: site.goldText,
                 filter: 'drop-shadow(0 6px 10px rgba(138, 106, 47, 0.25))',
@@ -225,13 +227,14 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
             transition: 'border-color 0.25s ease',
             '& .tm-mood-icon, & .tm-mood-panel::before': { animation: 'none' },
             '&:hover': { transform: 'none' },
-            '&:hover .tm-mood-panel::after': { animation: 'none' },
+            '&:hover .tm-mood-panel::after, &:hover .tm-package-photo-surface::after': { animation: 'none' },
             '&:hover .tm-mood-icon': { scale: '1', rotate: '0deg' },
             '&:hover .tm-mood-art': { transform: 'none' }
           }
         }}
       >
-        <MoodPanel pkg={pkg} light height={compact ? 110 : 160} iconSize={compact ? 40 : 52}>
+        <Box sx={{ position: 'relative' }}>
+          <PackagePhoto pkg={pkg} height={compact ? 150 : 240} />
           {pkg.featured && (
             <Typography
               component="span"
@@ -247,13 +250,14 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
                 textTransform: 'uppercase',
                 borderRadius: 999,
                 color: site.onEspresso,
-                backgroundColor: site.espresso
+                backgroundColor: site.espresso,
+                pointerEvents: 'none'
               }}
             >
-              Most booked
+              Featured package
             </Typography>
           )}
-        </MoodPanel>
+        </Box>
 
         <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
           <Typography

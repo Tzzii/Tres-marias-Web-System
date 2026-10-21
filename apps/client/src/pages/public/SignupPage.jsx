@@ -31,7 +31,7 @@ import {
   validatePassword
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
-import AuthLayout, { BookingIntentBanner, FormCard, useCardFlip } from '../../components/AuthLayout.jsx';
+import { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
 import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import LegalText from '../../components/LegalText.jsx';
 import { readIntent } from '../../lib/booking.js';
@@ -63,7 +63,6 @@ export default function SignupPage() {
   const [shake, setShake] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [challenge, setChallenge] = useState(null);
-  const { flipping, flipTo } = useCardFlip();
   const loginPath = continuingBooking ? '/login?next=/portal/book' : '/login';
   const catalog = useResource(() => catalogApi.getCatalog(), []);
   const minimum = catalog.data ? catalogApi.minDownpayment() : null;
@@ -113,10 +112,10 @@ export default function SignupPage() {
   };
 
   return (
-    <AuthLayout headline="One account, every celebration you host." perks={['Reserve dates and follow each request live', 'See quotations, contracts and receipts in one place', 'Save drafts and finish your booking any time']}>
-      <FormCard component="form" autoComplete="off" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
+    <>
+      <FormCard component="form" autoComplete="off" noValidate onSubmit={submit} shake={shake} onAnimationEnd={() => setShake(false)}>
         <Box>
-          <Typography component="h1" sx={{ fontSize: 24, fontWeight: 700 }}>
+          <Typography component="h1" tabIndex={-1} sx={{ fontSize: 24, fontWeight: 700 }}>
             Sign Up
           </Typography>
           <Typography sx={{ mt: 0.5, fontSize: 13.5, color: tokens.textSecondary }}>Creating an account is free and takes about a minute.</Typography>
@@ -160,7 +159,7 @@ export default function SignupPage() {
 
         <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
           Already have an account?{' '}
-          <Link component={RouterLink} to={loginPath} onClick={flipTo(loginPath)} sx={{ fontWeight: 700, color: tokens.goldDark }}>
+          <Link component={RouterLink} to={loginPath} sx={{ fontWeight: 700, color: tokens.goldDark }}>
             Log in
           </Link>
         </Typography>
@@ -207,6 +206,6 @@ export default function SignupPage() {
         <Typography component="h2" sx={{ fontSize: 17, fontWeight: 800, mt: 4, mb: 1.5 }}>Privacy Policy</Typography>
         <LegalText sections={privacyPolicy()} compact />
       </AppDialog>
-    </AuthLayout>
+    </>
   );
 }

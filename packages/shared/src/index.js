@@ -10,16 +10,16 @@
  *                was removed in Phase 12)
  *   utils/       formatting, status pipeline, validation, saving part of a page as a PDF
  */
-export { tokens, eyebrowSx, shakeSx } from './theme/tokens.js';
+export { tokens, paperSurfaceSx, eyebrowSx, shakeSx } from './theme/tokens.js';
 export { darkPalette, lightPalette } from './theme/palettes.js';
 export { darkTheme, lightTheme, warmTheme, themeForMode, surfaceThemeForMode } from './theme/createTheme.js';
-export { ColorModeProvider, useColorMode, applyColorMode, readColorMode } from './theme/colorMode.jsx';
+export { ColorModeProvider, LightModeScope, useColorMode, applyColorMode, readColorMode } from './theme/colorMode.jsx';
 export { ThemeModeToggle } from './components/ThemeModeToggle.jsx';
 export { SettingsPanel } from './components/SettingsPanel.jsx';
 export { HeroPhoto } from './components/HeroPhoto.jsx';
 export * as appearanceApi from './services/remote/appearance.js';
 
-export { LightSurface, DarkSurface } from './components/Surface.jsx';
+export { LightSurface, DarkSurface, PaperSurface } from './components/Surface.jsx';
 export { DashCard, CardTitle, StatCard, DetailRow, Field } from './components/DashCard.jsx';
 export {
   Pill,
@@ -185,6 +185,10 @@ export {
   themeLabel
 } from './domain/styling.js';
 export { ApiError } from './services/errors.js';
+export { EventWorkspace } from './components/EventWorkspace.jsx';
+export { PortalSearch } from './components/PortalSearch.jsx';
+export { ActivityTimeline } from './components/ActivityTimeline.jsx';
+export { compareValues, matchesSearch } from './domain/experience.js';
 export * as authApi from './services/remote/auth.js';
 export * as catalogApi from './services/remote/catalog.js';
 export * as calendarApi from './services/remote/calendar.js';

@@ -16,7 +16,7 @@ import {
   startApi,
   tokenFor,
   writeFile
-} from './lib/harness.js';
+} from '../tests/helpers/harness.js';
 
 
 const ACCESS = {

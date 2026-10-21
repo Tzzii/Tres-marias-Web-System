@@ -19,7 +19,7 @@ import {
   validateEmail
 } from '@tm/shared';
 import { useAuth } from '../../auth.js';
-import AuthLayout, { BookingIntentBanner, FormCard, useCardFlip } from '../../components/AuthLayout.jsx';
+import { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
 import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
 import { readIntent } from '../../lib/booking.js';
 
@@ -51,7 +51,6 @@ export default function LoginPage() {
   const [shake, setShake] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetDone, setResetDone] = useState(false);
-  const { flipping, flipTo } = useCardFlip();
   const signupPath = continuingBooking ? '/signup?continue=booking' : '/signup';
   const lockSeconds = useCountdown(lockedUntil);
 
@@ -103,10 +102,10 @@ export default function LoginPage() {
   const locked = Boolean(lockedUntil && lockSeconds > 0);
 
   return (
-    <AuthLayout headline="Welcome to your celebrations." perks={['Follow every reservation from request to event day', 'Pay securely and keep every receipt', 'Message the admin directly']}>
-      <FormCard component="form" noValidate onSubmit={submit} shake={shake} flipping={flipping} onAnimationEnd={() => setShake(false)}>
+    <>
+      <FormCard component="form" noValidate onSubmit={submit} shake={shake} onAnimationEnd={() => setShake(false)}>
         <Box>
-          <Typography component="h1" sx={{ fontSize: 24, fontWeight: 700 }}>
+          <Typography component="h1" tabIndex={-1} sx={{ fontSize: 24, fontWeight: 700 }}>
             Log In
           </Typography>
           <Typography sx={{ mt: 0.5, fontSize: 13.5, color: tokens.textSecondary }}>
@@ -165,7 +164,7 @@ export default function LoginPage() {
 
         <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
           No account yet?{' '}
-          <Link component={RouterLink} to={signupPath} onClick={flipTo(signupPath)} sx={{ fontWeight: 700, color: tokens.goldDark }}>
+          <Link component={RouterLink} to={signupPath} sx={{ fontWeight: 700, color: tokens.goldDark }}>
             Sign up
           </Link>
         </Typography>
@@ -184,6 +183,6 @@ export default function LoginPage() {
           setResetDone(true);
         }}
       />
-    </AuthLayout>
+    </>
   );
 }
