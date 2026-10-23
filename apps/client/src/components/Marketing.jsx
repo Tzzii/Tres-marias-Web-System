@@ -5,30 +5,11 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { keyframes } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import CelebrationOutlinedIcon from '@mui/icons-material/CelebrationOutlined';
-import ChairOutlinedIcon from '@mui/icons-material/ChairOutlined';
-import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
-import RestaurantOutlinedIcon from '@mui/icons-material/RestaurantOutlined';
-import WorkOutlineRoundedIcon from '@mui/icons-material/WorkOutlineRounded';
-import { PackagePhoto, isRentalPackage, peso, tokens } from '@tm/shared';
+import { PackagePhoto, catalogApi, isRentalPackage, peso, samplePackagePhoto, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 import { reducedMotionSx, revealEnter, useInView } from './Reveal.jsx';
 import PackageTilt from './PackageTilt.jsx';
-
-export const PACKAGE_ICONS = {
-  restaurant: RestaurantOutlinedIcon,
-  celebration: CelebrationOutlinedIcon,
-  favorite: FavoriteBorderRoundedIcon,
-  work: WorkOutlineRoundedIcon,
-  chair: ChairOutlinedIcon
-};
-
-export const PACKAGE_BACKDROPS = Object.fromEntries(
-  Object.entries(import.meta.glob('../assets/packages/*.svg', { eager: true, import: 'default' })).map(
-    ([file, url]) => [file.split('/').pop().replace('.svg', ''), url]
-  )
-);
 
 const ruleEnter = keyframes`
   from { transform: scaleX(0); }
@@ -84,41 +65,37 @@ export function SectionHead({ eyebrow, title, description, align = 'center' }) {
   );
 }
 
-export function MoodPanel({ pkg, height = 150, iconSize = 52, light = false, children, sx }) {
-  const Icon = PACKAGE_ICONS[pkg.icon] || RestaurantOutlinedIcon;
-  const backdrop = light ? PACKAGE_BACKDROPS[pkg.slug] : null;
-  const mood = (light ? site.moods : tokens.moods)[pkg.mood % 4];
-  const texture = light ? site.textureLinen : tokens.textureLinen;
+export function MoodPanel({ pkg, height = 150, children, sx }) {
+  const sample = samplePackagePhoto(pkg);
+  const savedPhoto = catalogApi.packagePhotoUrl(pkg);
   return (
     <Box
-      className={backdrop ? 'tm-mood-panel tm-has-art' : 'tm-mood-panel'}
+      className="tm-mood-panel tm-has-art"
       sx={{
         position: 'relative',
         overflow: 'hidden',
         height,
         display: 'grid',
         placeItems: 'center',
-        color: light ? 'rgba(138, 106, 47, 0.75)' : 'rgba(197, 160, 89, 0.6)',
-        background: mood,
-        backgroundImage: `${texture}, ${mood}`,
+        backgroundColor: tokens.surfaceSubtle,
         ...sx
       }}
     >
-      {backdrop ? (
-        <Box
-          className="tm-mood-art"
-          aria-hidden
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: `url(${backdrop})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center'
-          }}
-        />
-      ) : (
-        <Icon className="tm-mood-icon" sx={{ fontSize: iconSize }} />
-      )}
+      <Box
+        component="img"
+        className="tm-mood-art"
+        src={savedPhoto || sample}
+        alt={`${pkg.name}${savedPhoto ? '' : ' sample'} setup`}
+        loading="lazy"
+        decoding="async"
+        width={640}
+        height={400}
+        onError={(event) => {
+          const image = event.currentTarget;
+          if (image.getAttribute('src') !== sample) image.src = sample;
+        }}
+        sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+      />
       {children}
     </Box>
   );

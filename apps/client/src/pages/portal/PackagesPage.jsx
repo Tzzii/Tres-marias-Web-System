@@ -56,7 +56,7 @@ export default function PackagesPage() {
             {data.map((pkg) => (
               <PackageTilt key={pkg.id} borderRadius={2}>
                 <DashCard sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <MoodPanel pkg={pkg} height={120} iconSize={46}>
+                  <MoodPanel pkg={pkg} height={120}>
                     {pkg.featured && (
                       <Typography
                         component="span"

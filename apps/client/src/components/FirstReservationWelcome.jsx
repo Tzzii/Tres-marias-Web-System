@@ -283,9 +283,7 @@ export default function FirstReservationWelcome({ draft }) {
               >
                 <MoodPanel
                   pkg={pkg}
-                  light
                   height="auto"
-                  iconSize={26}
                   sx={{ width: { xs: 100, sm: 65, lg: 110 }, minHeight: 100, flexShrink: 0 }}
                 />
                 <Box sx={{ p: 1.5, minWidth: 0, flex: 1 }}>
