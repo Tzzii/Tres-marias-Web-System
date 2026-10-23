@@ -1,23 +1,56 @@
+# Installed dependencies, build output, and tool caches
 node_modules/
 dist/
+.vite/
+.cache/
+*.timestamp-*.mjs
+
+# Local configuration, runtime data, and logs
 .env
 .env.*
 !.env.example
 *.log
-*.timestamp-*.mjs
 apps/api/uploads/
-
 apps/api/tmp/
-
 apps/api/src/seedData/sample/
-.DS_Store
-.claude/
-design-backup/
+
+# Generated test reports and coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+
+# Local paper copies, working documents, and backups
 docs/
+design-backup/
+/backups/
+/tmp/
+/.tmp/
 
+# Assistant instructions and local editor settings
+.claude/
+/.codex/
+/.agents/
+AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+.vscode/
+.idea/
 
+# Operating-system metadata and Python caches
+.DS_Store
+Thumbs.db
+Desktop.ini
 __pycache__/
 *.pyc
 
+# Local academic-document tooling and its root-level generated PDF
 scripts/capability-guide/
 scripts/ui-responsive-check.mjs
+/scripts/generate_requirements_pdf.py
+/Trez_Marias_Requirements_Documentation.pdf
+
+# Image-generation source notes; the application image assets stay versioned
+/packages/shared/src/assets/equipment-photos/prompts.json
+/packages/shared/src/assets/hero/*.prompt.txt
