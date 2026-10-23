@@ -28,6 +28,9 @@ design-backup/
 /tmp/
 /.tmp/
 
+# Local code, files, and folders unrelated to running or maintaining the system
+/local-only/
+
 # Assistant instructions and local editor settings
 .claude/
 /.codex/
