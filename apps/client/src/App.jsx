@@ -1,11 +1,12 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route } from 'react-router-dom';
 import GlobalStyles from '@mui/material/GlobalStyles';
 import { ThemeProvider } from '@mui/material/styles';
 import { LightModeScope, NotFoundPage, ScrollToTop, Spinner, paperSurfaceSx } from '@tm/shared';
 import { RequireAuth } from './auth.js';
 import PortalLayout from './layouts/PortalLayout.jsx';
 import AuthLayout from './components/AuthLayout.jsx';
+import AuthRouteTransition from './components/AuthRouteTransition.jsx';
 import { site, siteTheme } from './theme/siteTheme.js';
 
 import HomePage from './pages/public/HomePage.jsx';
@@ -30,7 +31,7 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
-      <Routes>
+      <AuthRouteTransition>
         <Route element={<PublicSite />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/packages/:slug" element={<PackageDetailPage />} />
@@ -67,7 +68,7 @@ export default function App() {
 
         <Route path="/register" element={<Navigate to="/signup" replace />} />
         <Route path="*" element={<NotFoundPage homePath="/" homeLabel="Back to Tres Marias" />} />
-      </Routes>
+      </AuthRouteTransition>
     </>
   );
 }
