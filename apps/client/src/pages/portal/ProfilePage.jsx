@@ -126,8 +126,7 @@ export default function ProfilePage() {
     }
   };
 
-  const confirmEmailChange = async (code) => {
-    const saved = await authApi.confirmCustomerEmailChange({ challengeId: emailChallenge.challengeId, code });
+  const finishEmailChange = (saved) => {
     updateUser(saved);
     setEmailChallenge(null);
     notify(`Email updated. Sign in with ${saved.email} from now on.`);
@@ -158,8 +157,7 @@ export default function ProfilePage() {
     }
   };
 
-  const confirmCode = async (code) => {
-    await authApi.confirmPasswordChange({ challengeId: challenge.challengeId, code });
+  const finishPasswordChange = () => {
     setChallenge(null);
     setPw({ current: '', next: '', confirm: '' });
     notify('Password changed. Other devices were signed out.');
@@ -329,7 +327,8 @@ export default function ProfilePage() {
         title="Confirm Your New Email"
         description="Enter the code sent to your new address. Your login email changes only after it is verified."
         actionLabel="Verify & save"
-        onVerify={confirmEmailChange}
+        onVerify={(code) => authApi.confirmCustomerEmailChange({ challengeId: emailChallenge.challengeId, code })}
+        onVerified={finishEmailChange}
         onResend={() => authApi.resendCustomerEmailChangeCode(emailChallenge.challengeId)}
         onRestart={(message) => {
           setEmailChallenge(null);
@@ -404,7 +403,8 @@ export default function ProfilePage() {
         challenge={challenge}
         title="Confirm Your New Password"
         actionLabel="Change password"
-        onVerify={confirmCode}
+        onVerify={(code) => authApi.confirmPasswordChange({ challengeId: challenge.challengeId, code })}
+        onVerified={finishPasswordChange}
         onResend={() => authApi.resendPasswordChangeCode(challenge.challengeId)}
         onRestart={(message) => {
           setChallenge(null);

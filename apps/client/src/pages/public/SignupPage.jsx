@@ -100,14 +100,12 @@ export default function SignupPage() {
 
   const confirmCode = async (code) => {
     try {
-      const session = await authApi.confirmSignUp({ challengeId: challenge.challengeId, code });
-      signIn(session);
-      notify(`Welcome to Tres Marias, ${session.user.firstName}!`);
-      navigate(destination, { replace: true });
+      return await authApi.confirmSignUp({ challengeId: challenge.challengeId, code });
     } catch (error) {
       if (error.code !== 'EMAIL_TAKEN') throw error;
       setChallenge(null);
       setErrors((e) => ({ ...e, email: error.message }));
+      return null;
     }
   };
 
@@ -170,6 +168,12 @@ export default function SignupPage() {
         title="Confirm Your Email"
         actionLabel="Create account"
         onVerify={confirmCode}
+        onVerified={(session) => {
+          signIn(session);
+          notify(`Welcome to Tres Marias, ${session.user.firstName}!`);
+          navigate(destination, { replace: true });
+        }}
+        loadingLabel="Opening your account…"
         onResend={() => authApi.resendSignUpCode(challenge.challengeId)}
         onRestart={(message) => {
           setChallenge(null);

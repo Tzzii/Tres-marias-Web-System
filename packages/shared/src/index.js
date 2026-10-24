@@ -36,6 +36,7 @@ export { PasswordChecklist } from './components/PasswordChecklist.jsx';
 export { BrandLogo, BrandMark, LOGO_SRC } from './components/Brand.jsx';
 export { AppDialog, BusyButton, ConfirmDialog } from './components/AppDialog.jsx';
 export { OtpInput } from './components/OtpInput.jsx';
+export { default as CodeVerification } from './components/CodeVerification.jsx';
 export { AlertBanner, EmptyState, ErrorState, Spinner, ListSkeleton } from './components/Feedback.jsx';
 export { PageHeader } from './components/PageHeader.jsx';
 export { FilterTabs, SearchField } from './components/Filters.jsx';

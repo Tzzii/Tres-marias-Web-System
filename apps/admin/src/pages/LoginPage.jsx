@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
@@ -10,9 +10,9 @@ import {
   AppDialog,
   BrandLogo,
   BusyButton,
+  CodeVerification,
   FormField,
   LightSurface,
-  OtpInput,
   PasswordField,
   RULES,
   authApi,
@@ -44,6 +44,17 @@ export default function LoginPage() {
   const [code, setCode] = useState('');
   const [codeState, setCodeState] = useState('idle');
   const [attemptsLeft, setAttemptsLeft] = useState(RULES.maxCodeAttempts);
+  const verificationPending = useRef(false);
+  const verifiedSession = useRef(null);
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      verifiedSession.current = null;
+    };
+  }, []);
 
   const lockSeconds = useCountdown(lockedUntil);
   const resendSeconds = useCountdown(challenge ? challenge.resendAt : null);
@@ -93,35 +104,59 @@ export default function LoginPage() {
   };
 
   const verify = async (value = code) => {
+    if (!challenge || busy || locked || verificationPending.current) return;
     if (value.length !== RULES.codeLength) {
       setFormError(`Enter all ${RULES.codeLength} digits.`);
       return;
     }
+    verificationPending.current = true;
     setBusy(true);
     setFormError('');
     try {
       const result = await authApi.adminVerifyCode({ challengeId: challenge.challengeId, code: value });
+      if (!mounted.current) return;
+      verifiedSession.current = result;
       setCodeState('success');
-      signIn(result);
-      navigate(next, { replace: true });
     } catch (error) {
-      setBusy(false);
-      setCodeState('error');
-      setCode('');
+      if (!mounted.current) return;
       if (error.code === 'INVALID_CODE') {
+        setCodeState('error');
         setAttemptsLeft(error.meta.remaining);
         setFormError(
           `That code is incorrect. ${error.meta.remaining} ${error.meta.remaining === 1 ? 'attempt' : 'attempts'} left.`
         );
       } else if (error.code === 'LOCKED') {
+        setCodeState('error');
         setLockKind('code');
         setLockedUntil(error.meta.lockedUntil);
         setAttemptsLeft(0);
         setFormError('');
       } else if (error.code === 'CHALLENGE_EXPIRED') {
         closeCode(error.message);
-      } else setFormError(error.message);
+      } else {
+        // Connection/server errors keep the entered code available for retry.
+        setFormError(error.message);
+      }
+      if (error.code !== 'INVALID_CODE' && error.code !== 'LOCKED') {
+        verificationPending.current = false;
+        setBusy(false);
+      }
     }
+  };
+
+  const finishSignIn = () => {
+    const result = verifiedSession.current;
+    if (!result) return;
+    verifiedSession.current = null;
+    signIn(result);
+    navigate(next, { replace: true });
+  };
+
+  const resetRejectedCode = () => {
+    setCode('');
+    setCodeState('idle');
+    verificationPending.current = false;
+    setBusy(false);
   };
 
   const resend = async () => {
@@ -141,6 +176,8 @@ export default function LoginPage() {
   };
 
   const closeCode = (message = '') => {
+    verificationPending.current = false;
+    verifiedSession.current = null;
     setChallenge(null);
     setPassword('');
     setCode('');
@@ -280,6 +317,7 @@ export default function LoginPage() {
               e.preventDefault();
               verify();
             }}
+            aria-busy={busy}
             sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: 1 }}
           >
             <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
@@ -295,7 +333,7 @@ export default function LoginPage() {
               </AlertBanner>
             )}
             {formError && !locked && <AlertBanner tone="error">{formError}</AlertBanner>}
-            <OtpInput
+            <CodeVerification
               length={RULES.codeLength}
               value={code}
               onChange={(value) => {
@@ -306,15 +344,17 @@ export default function LoginPage() {
               onComplete={(value) => verify(value)}
               disabled={busy || locked}
               state={codeState}
+              onSuccessComplete={finishSignIn}
+              onErrorComplete={resetRejectedCode}
             />
             <BusyButton
               type="submit"
               size="large"
-              busy={busy}
-              disabled={locked || code.length !== RULES.codeLength}
+              busy={busy && codeState !== 'success'}
+              disabled={busy || locked || code.length !== RULES.codeLength}
               sx={{ py: 1.3 }}
             >
-              Verify and sign in
+              {codeState === 'success' ? 'Code verified' : 'Verify and sign in'}
             </BusyButton>
             <Box
               sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}

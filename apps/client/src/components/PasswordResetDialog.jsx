@@ -13,7 +13,6 @@ import {
   RULES,
   authApi,
   maskEmail,
-  shakeSx,
   tokens,
   validateEmail,
   validatePassword
@@ -28,8 +27,8 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
   const [values, setValues] = useState({ password: '', confirm: '' });
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [shake, setShake] = useState(false);
+  const [requestBusy, setBusy] = useState(false);
+  const busy = requestBusy || entry.animating;
 
   useEffect(() => {
     if (open) {
@@ -68,23 +67,24 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
   };
 
   const verify = async (value = entry.code) => {
+    if (busy || entry.locked || !entry.challenge) return;
     if (value.length !== RULES.codeLength) {
       setFormError(`Enter all ${RULES.codeLength} digits.`);
       return;
     }
+    if (!entry.startVerification()) return;
     setBusy(true);
     setFormError('');
     try {
       await authApi.verifyPasswordResetCode({ challengeId: entry.challenge.challengeId, code: value });
-      entry.setCodeState('success');
-      setStep('password');
+      entry.succeed(() => setStep('password'));
     } catch (error) {
       if (error.code === 'CHALLENGE_EXPIRED') restart(error.message);
       else {
-        setShake(true);
         setFormError(entry.wrong(error));
       }
     } finally {
+      entry.endVerification();
       setBusy(false);
     }
   };
@@ -157,15 +157,15 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
       description={current.description || undefined}
       actions={
         <>
-          <Button onClick={onClose} sx={{ color: tokens.textSecondary }}>
+          <Button onClick={onClose} disabled={busy} sx={{ color: tokens.textSecondary }}>
             Cancel
           </Button>
           <BusyButton
-            busy={busy}
+            busy={requestBusy && entry.codeState !== 'success'}
             onClick={current.onClick}
-            disabled={step === 'code' && (entry.locked || entry.code.length !== RULES.codeLength)}
+            disabled={busy || (step === 'code' && (entry.locked || entry.code.length !== RULES.codeLength))}
           >
-            {current.action}
+            {step === 'code' && entry.codeState === 'success' ? 'Code verified' : current.action}
           </BusyButton>
         </>
       }
@@ -180,8 +180,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
             current.onClick();
           }
         }}
-        onAnimationEnd={() => setShake(false)}
-        sx={{ display: 'flex', flexDirection: 'column', gap: 2, ...shakeSx(shake) }}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
       >
         {formError && !entry.locked && <AlertBanner tone="error">{formError}</AlertBanner>}
 
@@ -215,6 +214,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
             onComplete={(value) => verify(value)}
             onResend={resend}
             onType={() => setFormError('')}
+            loadingLabel="Preparing the next step…"
           >
             {!accountEmail && (
               <Link

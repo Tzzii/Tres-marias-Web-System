@@ -1,0 +1,474 @@
+.tm-code-verification {
+  position: relative;
+  isolation: isolate;
+  height: 56px;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  --code-green: #15803d;
+}
+
+.tm-code-inputs,
+.tm-code-shards {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  transform: translateY(-50%);
+}
+
+/* Only OTP results opt out of the portals' motion resets. */
+html .tm-code-verification[data-state='success'] {
+  animation: tmCodeExpand 550ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+html .tm-code-verification[data-state='success'] input {
+  color: var(--code-green);
+  -webkit-text-fill-color: var(--code-green);
+  background: #dcfce7;
+  border-color: var(--code-green);
+  box-shadow: 0 0 0 3px rgb(21 128 61 / 10%);
+  opacity: 1;
+  animation: tmCodeGather 1650ms cubic-bezier(0.45, 0, 0.2, 1) both !important;
+}
+
+.tm-code-confirmation {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  margin: -39px;
+  border-radius: 50%;
+  color: var(--code-green);
+  background: #f0fdf4;
+  box-shadow:
+    inset 0 0 0 1px #bbf7d0,
+    0 0 0 7px rgb(21 128 61 / 4%);
+}
+
+html .tm-code-verification .tm-code-confirmation {
+  animation: tmCodeCheckAppear 400ms 1000ms both !important;
+}
+
+.tm-code-check {
+  width: 46px;
+  height: 46px;
+}
+
+.tm-code-check path {
+  stroke: currentColor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+}
+
+html .tm-code-verification .tm-code-check path {
+  animation: tmCodeDrawCheck 400ms 1100ms both !important;
+}
+
+.tm-code-loading-ring {
+  position: absolute;
+  inset: -5px;
+  border: 2px solid #bbf7d0;
+  border-top-color: var(--code-green);
+  border-right-color: var(--code-green);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+html .tm-code-verification[data-loading='true'] .tm-code-loading-ring {
+  opacity: 1;
+  animation: tmCodeSpin 800ms linear infinite !important;
+}
+
+.tm-code-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-code-verification[data-state='success'] .tm-code-status {
+  top: calc(100% - 18px);
+  left: 0;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip-path: none;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--code-green);
+}
+
+html .tm-code-verification[data-state='success'] .tm-code-status {
+  animation: tmCodeCheckAppear 250ms 1000ms both !important;
+}
+
+html .tm-code-verification[data-state='error'] input {
+  animation: tmCodeBreakInput 300ms var(--glass-delay, 0ms) ease-out both !important;
+}
+
+.tm-code-glass-definitions {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tm-code-breakup {
+  position: absolute;
+  inset: -8px 0;
+  overflow: clip;
+  contain: paint;
+  pointer-events: none;
+  z-index: 1;
+  mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent);
+}
+
+.tm-code-breakup .tm-code-shards {
+  left: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(var(--code-length), minmax(0, 1fr));
+  gap: 10px;
+  height: 56px;
+  pointer-events: none;
+}
+
+.tm-code-glass {
+  position: relative;
+  perspective: 400px;
+}
+
+.tm-code-glass-reset {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid var(--tm-border-input, #e6d2b5);
+  border-radius: 12px;
+  background: var(--tm-card-light, #fff);
+}
+
+html .tm-code-verification .tm-code-glass-reset {
+  animation: tmCodeGlassReset 180ms calc(900ms + var(--glass-delay)) ease-out both !important;
+}
+
+.tm-code-glass::before,
+.tm-code-glass::after {
+  position: absolute;
+  content: '';
+  pointer-events: none;
+}
+
+.tm-code-glass::before {
+  inset: -4px;
+  border-radius: 20px;
+  background: radial-gradient(ellipse at 43% 44%, rgb(255 255 255 / 90%), rgb(239 100 87 / 16%) 44%, transparent 72%);
+}
+
+.tm-code-glass::after {
+  inset: 4px;
+  border: 1px solid rgb(203 74 63 / 45%);
+  border-radius: 50%;
+}
+
+html .tm-code-verification .tm-code-glass::before {
+  animation: tmCodeGlassImpact 420ms var(--glass-delay) ease-out both !important;
+}
+
+html .tm-code-verification .tm-code-glass::after {
+  animation: tmCodeGlassShock 500ms var(--glass-delay) ease-out both !important;
+}
+
+.tm-code-shard,
+.tm-code-cracks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tm-code-cracks {
+  fill: none;
+  stroke: #b94c43;
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 0 white);
+}
+
+html .tm-code-verification .tm-code-cracks path {
+  stroke-dasharray: 1;
+  animation: tmCodeGlassCrack 380ms var(--glass-delay) ease-out both !important;
+}
+
+.tm-code-shard {
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 2px 1px rgb(109 40 33 / 14%));
+}
+
+.tm-code-glass-reflection {
+  fill: rgb(255 255 255 / 80%);
+}
+
+.tm-code-glass-digit {
+  font-family: inherit;
+  font-size: 39px;
+  font-weight: 700;
+  fill: #ac4238;
+}
+
+.tm-code-glass-rim {
+  fill: none;
+  stroke: #d8847a;
+  stroke-width: 2;
+}
+
+.tm-code-shard-edge {
+  fill: none;
+  stroke: #e5a69e;
+  stroke-width: 0.65;
+  stroke-linejoin: round;
+}
+
+html .tm-code-verification .tm-code-shard {
+  animation: tmCodeShatter 860ms calc(180ms + var(--glass-delay) + var(--shard-delay)) linear both !important;
+}
+
+.tm-code-glint {
+  position: absolute;
+  top: 44%;
+  left: 43%;
+  width: 3px;
+  height: 5px;
+  background: #fff4ed;
+  box-shadow: 0 0 4px rgb(192 85 68 / 55%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+html .tm-code-verification .tm-code-glint {
+  animation: tmCodeGlassGlint 620ms calc(280ms + var(--glass-delay) + var(--glint-delay)) ease-out both !important;
+}
+
+@keyframes tmCodeExpand {
+  from {
+    height: 56px;
+  }
+  to {
+    height: 188px;
+  }
+}
+
+@keyframes tmCodeGather {
+  0%,
+  16% {
+    transform: translate(0, 0) scale(1);
+  }
+  42% {
+    transform: translate(calc(var(--gather-x) * 0.65), var(--arc-y)) scale(0.65) rotate(-12deg);
+  }
+  70% {
+    transform: translate(calc(var(--gather-x) + var(--ring-x)), var(--ring-y)) scale(0.3) rotate(90deg);
+    border-radius: 14px;
+  }
+  100% {
+    transform: translate(calc(var(--gather-x) + var(--orbit-x)), var(--orbit-y)) scale(0.3) rotate(150deg);
+    border-radius: 14px;
+  }
+}
+
+@keyframes tmCodeCheckAppear {
+  from {
+    opacity: 0;
+    scale: 0.75;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes tmCodeDrawCheck {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes tmCodeSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes tmCodeBreakInput {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  18% {
+    transform: translateX(-2px) rotate(-1deg);
+  }
+  38% {
+    transform: translateX(2px) rotate(1deg);
+  }
+  58% {
+    opacity: 1;
+    transform: translateX(-1px);
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translateX(0) scale(0.98);
+  }
+}
+
+@keyframes tmCodeGlassImpact {
+  0% {
+    opacity: 0;
+    scale: 0.88;
+  }
+  28% {
+    opacity: 1;
+    scale: 1.06;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.12;
+  }
+}
+
+@keyframes tmCodeGlassReset {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tmCodeGlassShock {
+  0%,
+  15% {
+    opacity: 0;
+    scale: 0.3;
+  }
+  35% {
+    opacity: 0.65;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.25;
+  }
+}
+
+@keyframes tmCodeGlassCrack {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  60% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes tmCodeGlassGlint {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  15% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--glint-x), var(--glint-y)) rotate(125deg) scale(0.1);
+  }
+}
+
+@keyframes tmCodeShatter {
+  0% {
+    opacity: 0;
+    transform: perspective(400px) translate3d(0, 0, 0) rotate(0) rotateY(0);
+  }
+  3%,
+  12% {
+    opacity: 1;
+    transform: perspective(400px) translate3d(0, 0, 0) rotate(0) rotateY(0);
+  }
+  42% {
+    opacity: 1;
+    transform: perspective(400px) translate3d(var(--shard-x), var(--shard-y), 12px)
+      rotate(calc(var(--shard-turn) * 0.6)) rotateY(var(--shard-tilt)) scale(0.9);
+  }
+  72% {
+    opacity: 0.55;
+    transform: perspective(400px) translate3d(calc(var(--shard-x) * 1.25), calc(var(--shard-y) + 16px), 0)
+      rotate(var(--shard-turn)) rotateY(calc(var(--shard-tilt) * 1.25)) scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: perspective(400px) translate3d(calc(var(--shard-x) * 1.4), calc(var(--shard-y) + 36px), -35px)
+      rotate(calc(var(--shard-turn) * 1.3)) rotateY(calc(var(--shard-tilt) * 1.5)) scale(0.45);
+  }
+}
+
+@media (max-width: 599px) {
+  .tm-code-verification {
+    height: 50px;
+  }
+  .tm-code-breakup .tm-code-shards {
+    height: 50px;
+    gap: 6px;
+  }
+  @keyframes tmCodeExpand {
+    from {
+      height: 50px;
+    }
+    to {
+      height: 188px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html .tm-code-verification[data-state][data-loading] *,
+  html .tm-code-verification[data-state][data-loading] *::before,
+  html .tm-code-verification[data-state][data-loading] *::after,
+  html .tm-code-verification[data-state][data-loading] {
+    animation: none !important;
+  }
+  .tm-code-verification[data-state='success'] {
+    height: 148px;
+  }
+  .tm-code-verification[data-state='success'] .tm-code-inputs,
+  .tm-code-shards {
+    visibility: hidden;
+  }
+}
