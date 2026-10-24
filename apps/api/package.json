@@ -1,6 +1,6 @@
 {
   "name": "@tm/api",
-  "version": "1.26.0",
+  "version": "1.26.1",
   "private": true,
   "type": "module",
   "description": "Tres Marias API - Express + MySQL backend for the Customer Portal and the Admin Dashboard.",
