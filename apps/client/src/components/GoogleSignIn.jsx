@@ -134,6 +134,7 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
             theme: 'outline',
             size: 'large',
             text: 'continue_with',
+            locale: 'en',
             shape: 'rectangular',
             width: Math.min(400, Math.floor(button.current.clientWidth || 280))
           });
@@ -190,6 +191,7 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
   return (
     <>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Divider sx={{ color: tokens.textMuted, fontSize: 12 }}>or</Divider>
         {loading && (
           <Typography role="status" sx={{ textAlign: 'center', fontSize: 13, color: tokens.textSecondary }}>
             Loading Google sign-in…
@@ -217,7 +219,6 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
           }}
         />
         {error && !flow && <AlertBanner tone="error">{error}</AlertBanner>}
-        <Divider sx={{ color: tokens.textMuted, fontSize: 12 }}>or use your email</Divider>
       </Box>
 
       <AppDialog

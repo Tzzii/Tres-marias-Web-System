@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -52,7 +52,6 @@ export default function LoginPage() {
   const [shake, setShake] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetDone, setResetDone] = useState(false);
-  const signupPath = continuingBooking ? '/signup?continue=booking' : '/signup';
   const lockSeconds = useCountdown(lockedUntil);
 
   useEffect(() => {
@@ -125,9 +124,6 @@ export default function LoginPage() {
         )}
         {formError && !locked && <AlertBanner tone="error">{formError}</AlertBanner>}
 
-        <GoogleSignIn remember={remember} disabled={busy || locked} onBusyChange={setBusy}
-          onSignedIn={(session, options) => { signIn(session, options); navigate(next, { replace: true }); }} />
-
         <FormField
           id="login-email"
           label="Email"
@@ -166,12 +162,8 @@ export default function LoginPage() {
           Log in
         </BusyButton>
 
-        <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
-          No account yet?{' '}
-          <Link component={RouterLink} to={signupPath} sx={{ fontWeight: 700, color: tokens.goldDark }}>
-            Sign up
-          </Link>
-        </Typography>
+        <GoogleSignIn remember={remember} disabled={busy || locked} onBusyChange={setBusy}
+          onSignedIn={(session, options) => { signIn(session, options); navigate(next, { replace: true }); }} />
       </FormCard>
 
       <PasswordResetDialog

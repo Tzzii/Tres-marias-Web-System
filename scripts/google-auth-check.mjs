@@ -44,7 +44,7 @@ async function scenario(name, viewport, reply, run, { failedSdk = false } = {}) 
   const errors = [];
   let scripts = 0;
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.route('https://accounts.google.com/gsi/client', (route) => {
+  await page.route('https://accounts.google.com/gsi/client?hl=en', (route) => {
     scripts++;
     return failedSdk && scripts === 1
       ? route.abort()
@@ -169,7 +169,7 @@ try {
       await page.getByRole('button', { name: 'Try again', exact: true }).click();
       await page.getByRole('button', { name: 'Continue with Google', exact: true }).waitFor();
       const afterRetry = scripts();
-      await page.locator('form').getByRole('link', { name: 'Sign up', exact: true }).click();
+      await page.locator('.tm-auth-brand-panel[aria-hidden="false"]').getByRole('link', { name: 'Sign up', exact: true }).click();
       await page.waitForURL('**/signup?continue=booking');
       await page.getByRole('button', { name: 'Continue with Google', exact: true }).waitFor();
       assert.equal(scripts(), afterRetry, 'route switches reuse the SDK');

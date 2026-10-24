@@ -187,24 +187,29 @@ export default function AuthLayout() {
                     </Box>
                   ))}
                 </Box>
-                <Typography sx={{ mt: 3, mb: 1.25, fontSize: 13.5, color: site.inkSoft }}>{copy.prompt}</Typography>
-                <Button
-                  component={RouterLink}
-                  to={panelMode === 'login' ? signupPath : loginPath}
-                  variant="outlined"
-                  disabled={switching}
-                  sx={{
-                    minWidth: 154,
-                    minHeight: 44,
-                    borderRadius: '12px',
-                    borderColor: site.inkSoft,
-                    color: site.ink,
-                    '&:hover': { borderColor: site.ink, backgroundColor: 'rgba(255,255,255,0.25)' }
-                  }}
-                >
-                  {copy.action}
-                </Button>
               </Box>
+              <Typography
+                sx={{ display: { xs: 'none', md: 'block' }, mt: 3, mb: 1.25, fontSize: 13.5, color: site.inkSoft }}
+              >
+                {copy.prompt}
+              </Typography>
+              <Button
+                component={RouterLink}
+                to={panelMode === 'login' ? signupPath : loginPath}
+                variant="outlined"
+                disabled={switching}
+                sx={{
+                  minWidth: 154,
+                  minHeight: 44,
+                  borderRadius: '12px',
+                  borderColor: site.inkSoft,
+                  color: site.ink,
+                  mt: { xs: 1.5, md: 0 },
+                  '&:hover': { borderColor: site.ink, backgroundColor: 'rgba(255,255,255,0.25)' }
+                }}
+              >
+                {copy.action}
+              </Button>
             </Box>
           </Box>
         );
@@ -265,6 +270,8 @@ export default function AuthLayout() {
             sx={{
               '--auth-enter-x': displayedSignup ? '-24px' : '24px',
               animation: `${formIn} 400ms ${COVER_EASING} both`,
+              // Route focus announces the heading without outlining non-interactive text.
+              '& h1[tabindex="-1"]:focus': { outline: 'none' },
               [REDUCED_MOTION]: { animation: 'none' }
             }}
           >

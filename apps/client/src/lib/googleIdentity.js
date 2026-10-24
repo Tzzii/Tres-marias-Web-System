@@ -19,7 +19,7 @@ export function loadGoogleIdentity({ windowObject = window, documentObject = doc
       } else resolve(windowObject.google.accounts.id);
     };
     const timer = setTimeout(() => finish(true), timeoutMs);
-    script.src = 'https://accounts.google.com/gsi/client';
+    script.src = 'https://accounts.google.com/gsi/client?hl=en';
     script.async = true;
     script.onload = () => finish(!windowObject.google?.accounts?.id);
     script.onerror = () => finish(true);

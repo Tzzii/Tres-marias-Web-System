@@ -64,7 +64,6 @@ export default function SignupPage() {
   const [shake, setShake] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [challenge, setChallenge] = useState(null);
-  const loginPath = continuingBooking ? '/login?next=/portal/book' : '/login';
   const catalog = useResource(() => catalogApi.getCatalog(), []);
   const minimum = catalog.data ? catalogApi.minDownpayment() : null;
 
@@ -123,9 +122,6 @@ export default function SignupPage() {
         <BookingIntentBanner intent={intent} />
         {formError && <AlertBanner tone="error">{formError}</AlertBanner>}
 
-        <GoogleSignIn disabled={busy} onBusyChange={setBusy}
-          onSignedIn={(session) => { signIn(session); navigate(destination, { replace: true }); }} />
-
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
           <FormField id="signup-firstName" label="First name" required autoComplete="off" value={values.firstName} onChange={set('firstName')} error={errors.firstName} disabled={busy} />
           <FormField id="signup-middleName" label="Middle name" optional autoComplete="off" value={values.middleName} onChange={set('middleName')} disabled={busy} />
@@ -159,12 +155,8 @@ export default function SignupPage() {
           Create an account
         </BusyButton>
 
-        <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
-          Already have an account?{' '}
-          <Link component={RouterLink} to={loginPath} sx={{ fontWeight: 700, color: tokens.goldDark }}>
-            Log in
-          </Link>
-        </Typography>
+        <GoogleSignIn disabled={busy} onBusyChange={setBusy}
+          onSignedIn={(session) => { signIn(session); navigate(destination, { replace: true }); }} />
       </FormCard>
 
       <EmailCodeDialog

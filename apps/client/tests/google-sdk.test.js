@@ -15,7 +15,7 @@ test('Google SDK loads once across concurrent mounts and resolves the official A
   const second = loadGoogleIdentity(f);
   assert.equal(first, second);
   assert.equal(f.scripts.length, 1);
-  assert.equal(f.scripts[0].src, 'https://accounts.google.com/gsi/client');
+  assert.equal(f.scripts[0].src, 'https://accounts.google.com/gsi/client?hl=en');
   f.windowObject.google = { accounts: { id: { renderButton() {} } } };
   f.scripts[0].onload();
   assert.equal(await first, f.windowObject.google.accounts.id);
