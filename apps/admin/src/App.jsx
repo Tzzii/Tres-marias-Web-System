@@ -9,7 +9,7 @@ import {
   Spinner,
   lightPalette,
   paperSurfaceSx,
-  warmTheme
+  themeForMode
 } from '@tm/shared';
 import { RequireAuth } from './auth.js';
 import AdminLayout from './layouts/AdminLayout.jsx';
@@ -75,7 +75,7 @@ export default function App() {
 function AdminSignInLayout() {
   return (
     <LightModeScope>
-      <ThemeProvider theme={warmTheme}>
+      <ThemeProvider theme={themeForMode('light', false)}>
         <GlobalStyles
           styles={{
             body: { ...paperSurfaceSx, backgroundColor: lightPalette.bgBase, color: lightPalette.textPrimary }

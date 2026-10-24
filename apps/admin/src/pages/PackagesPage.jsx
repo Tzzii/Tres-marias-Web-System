@@ -170,7 +170,7 @@ export default function PackagesPage() {
   const stacked = useMediaQuery((theme) => theme.breakpoints.down('xl'));
   const scrollPending = useRef(false);
   const scrollToEditor = () => {
-    if (stacked && editorRef.current) editorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (stacked && editorRef.current) editorRef.current.scrollIntoView({ behavior: 'instant', block: 'start' });
   };
   const openEditor = (id) => {
     if (id === editingId) {

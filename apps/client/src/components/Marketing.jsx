@@ -110,8 +110,8 @@ const iconHalo = keyframes`
   50% { opacity: 0.55; transform: translate(-50%, -50%) scale(1.05); }
 `;
 const shineSweep = keyframes`
-  from { left: -60%; }
-  to { left: 130%; }
+  from { transform: translateX(0) skewX(-18deg); }
+  to { transform: translateX(425%) skewX(-18deg); }
 `;
 
 export function PackageCard({ pkg, index = 0, compact = false }) {
@@ -211,7 +211,7 @@ export function PackageCard({ pkg, index = 0, compact = false }) {
         }}
       >
         <Box sx={{ position: 'relative' }}>
-          <PackagePhoto pkg={pkg} height={compact ? 150 : 240} />
+          <PackagePhoto pkg={pkg} height={compact ? 150 : 240} thumbnail />
           {pkg.featured && (
             <Typography
               component="span"

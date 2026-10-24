@@ -1,0 +1,30 @@
+/* Only /portal routes opt in; public pages, login and signup keep their motion. */
+html[data-tm-portal='customer'],
+html[data-tm-portal='customer'] *,
+html[data-tm-portal='customer'] *::before,
+html[data-tm-portal='customer'] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-tm-portal='customer']::view-transition-group(*),
+html[data-tm-portal='customer']::view-transition-image-pair(*),
+html[data-tm-portal='customer']::view-transition-old(*),
+html[data-tm-portal='customer']::view-transition-new(*) {
+  animation: none !important;
+}
+
+html[data-tm-portal='customer'] .MuiTouchRipple-root {
+  display: none !important;
+}
+
+html[data-tm-portal='customer'] .tm-dash-card:hover {
+  transform: none !important;
+}
+
+/* Keep loading feedback visible without the rotating/pulsing motion. */
+html[data-tm-portal='customer'] .MuiCircularProgress-circleIndeterminate {
+  stroke-dasharray: 80px, 200px;
+  stroke-dashoffset: 0;
+}

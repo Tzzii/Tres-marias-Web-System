@@ -17,6 +17,7 @@ import { availabilitySnapshot } from '../services/remote/calendar.js';
 import { RULES } from '../services/config.js';
 import { useStoreVersion } from '../hooks/useResource.js';
 import { tokens } from '../theme/tokens.js';
+import { useColorMode } from '../theme/colorMode.jsx';
 import { formatDateLong, formatTime, parseISODate, todayISO } from '../utils/format.js';
 import { FieldLabel } from './FormField.jsx';
 import { MonthCalendar } from './MonthCalendar.jsx';
@@ -172,7 +173,9 @@ export function DateField({
   // Popup only: booked times on the chosen date, repeated under the input once the popup closes
   const valueBooked = booking && !inline && value ? daySchedule(value, snapshot).booked : [];
 
-  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)'); // device setting to cut animations
+  const { animate } = useColorMode();
+  const deviceReducesMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const reduceMotion = !animate || deviceReducesMotion;
   // Last schedule shown, kept while the panel slides closed so its content doesn't vanish mid-animation
   const lastPanel = useRef({ date: '', schedule: null });
   if (schedule) lastPanel.current = { date: shown, schedule };

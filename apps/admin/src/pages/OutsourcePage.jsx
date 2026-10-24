@@ -22,6 +22,9 @@ import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import ViewColumnOutlinedIcon from '@mui/icons-material/ViewColumnOutlined';
+import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import ButtonBase from '@mui/material/ButtonBase';
 import {
   AlertBanner,
   AppDialog,
@@ -38,12 +41,10 @@ import {
   OUTSOURCE_SERVICES,
   OUTSOURCE_OTHER,
   OUTSOURCE_OTHER_RANGE,
-  PageHeader,
   Pager,
   Pill,
   SearchField,
   SelectField,
-  StatCard,
   formatDate,
   formatDateTime,
   formatMobile,
@@ -57,8 +58,17 @@ import {
   useResource
 } from '@tm/shared';
 import { useColumnChoice } from '../lib/columns.js';
-import { SectionTabs } from '../components/SectionTabs.jsx';
 import { usePdfDocument } from '../components/PdfDocument.jsx';
+import PartnerDirectory from './outsource/PartnerDirectory.jsx';
+import {
+  OperationsHeader,
+  OperationsOverview,
+  OperationsFilters,
+  OperationsPanelHeading,
+  RecordIdentity,
+  ViewSwitcher,
+  operationsPanelSx
+} from '../components/OperationsWorkspace.jsx';
 
 const PAGE_SIZE = 10;
 const NO_EVENT = outsourceApi.NO_EVENT;
@@ -144,6 +154,7 @@ export default function OutsourcePage() {
   const [status, setStatus] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(1);
+  const [partnerView, setPartnerView] = useState('grid');
   const [selected, setSelected] = useState([]);
   const [columns, setColumns] = useColumnChoice(COLUMNS_KEY, OPTIONAL_COLUMNS);
   const [columnsAnchor, setColumnsAnchor] = useState(null);
@@ -309,46 +320,70 @@ export default function OutsourcePage() {
     },
     {
       key: 'partner',
-      label: 'Vendor / Service',
+      label: 'Request / Partner',
+      getSortValue: (c) => c.ref,
       render: (c) => (
-        <Box>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{c.partnerName}</Typography>
-          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
-            {c.service} · {c.itemsSummary}
-          </Typography>
+        <Box sx={{ minWidth: { xs: 0, md: 220 } }}>
+          <RecordIdentity
+            name={c.partnerName}
+            description={
+              <>
+                <Box component="span" sx={{ display: 'block', color: tokens.goldText, fontSize: 10, fontWeight: 500 }}>
+                  <Box component="span">{c.ref}</Box> · {c.service}
+                </Box>
+                {c.itemsSummary}
+              </>
+            }
+          />
         </Box>
       )
     },
     columns.event && {
       key: 'event',
       label: 'Assigned Event',
-      render: (c) =>
-        c.eventName || (
-          <Box component="span" sx={{ color: tokens.textMuted }}>
-            No event linked
-          </Box>
-        )
+      getSortValue: (c) => c.eventName,
+      render: (c) => (
+        <Box sx={{ minWidth: 125, maxWidth: 180 }}>
+          <Typography sx={{ fontSize: 12, color: c.eventName ? tokens.textPrimary : tokens.textMuted }}>
+            {c.eventName || 'No event linked'}
+          </Typography>
+          {columns.eventDate && (
+            <Typography sx={{ mt: 0.4, fontSize: 10.5, color: tokens.textMuted }}>
+              {c.eventDate ? formatDate(c.eventDate) : 'No event date'}
+            </Typography>
+          )}
+        </Box>
+      )
     },
-    columns.eventDate && {
-      key: 'eventDate',
-      label: 'Event Date',
-      render: (c) => (c.eventDate ? formatDate(c.eventDate) : '—')
+    columns.eventDate &&
+      !columns.event && {
+        key: 'eventDate',
+        label: 'Event Date',
+        render: (c) => (c.eventDate ? formatDate(c.eventDate) : '—')
+      },
+    columns.needBy && {
+      key: 'needBy',
+      label: 'Date Needed',
+      render: (c) => (
+        <Box component="span" sx={{ whiteSpace: 'nowrap' }}>
+          {formatDate(c.needBy)}
+        </Box>
+      )
     },
-    columns.needBy && { key: 'needBy', label: 'Date Needed', render: (c) => formatDate(c.needBy) },
     columns.amount && {
       key: 'amount',
       label: 'Outsource Price',
       align: 'right',
-      render: (c) => (c.amount > 0 ? peso(c.amount) : '—')
-    },
-    {
-      key: 'ref',
-      label: 'Request Ref #',
-      render: (c) => <Typography sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{c.ref}</Typography>
+      render: (c) => (
+        <Typography sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {c.amount > 0 ? peso(c.amount) : '—'}
+        </Typography>
+      )
     },
     {
       key: 'status',
       label: 'Request Status',
+      card: 'field',
       render: (c) => <Pill size="sm" label={STATUS[c.status].label} bg={STATUS[c.status].bg} fg={STATUS[c.status].fg} />
     },
     columns.sentTo && {
@@ -358,7 +393,7 @@ export default function OutsourcePage() {
         c.sentAt ? (
           <ChannelChips channels={[...new Set(c.deliveries.map((d) => d.channel))]} />
         ) : (
-          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>Not sent</Typography>
+          <Typography sx={{ fontSize: 11, color: tokens.textMuted, whiteSpace: 'nowrap' }}>Not sent</Typography>
         )
     },
     {
@@ -383,14 +418,7 @@ export default function OutsourcePage() {
     {
       key: 'name',
       label: 'Partner',
-      render: (p) => (
-        <Box>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{p.name}</Typography>
-          <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>
-            {p.contactPerson || 'No contact person'}
-          </Typography>
-        </Box>
-      )
+      render: (p) => <RecordIdentity name={p.name} description={p.contactPerson || 'No contact person'} />
     },
     { key: 'service', label: 'Supplies', render: (p) => p.service },
     {
@@ -448,9 +476,11 @@ export default function OutsourcePage() {
 
   return (
     <>
-      <PageHeader
+      <OperationsHeader
         title="Outsourcing"
-        subtitle="Rent what your own stock can't cover. Ask a partner by email if they can supply it for an event."
+        section="Outsource"
+        icon={HandshakeOutlinedIcon}
+        description="The right partners for every event. Source extra supplies and follow every request from draft to delivery."
         actions={
           <>
             <Button variant="outlined" startIcon={<StorefrontOutlinedIcon />} onClick={() => setPartnerForm({})}>
@@ -468,78 +498,149 @@ export default function OutsourcePage() {
         }
       />
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' },
-          gap: { xs: 1.5, sm: 2.5 },
-          mb: 2.5
-        }}
-      >
-        <StatCard
-          icon={StorefrontOutlinedIcon}
-          tone="gold"
-          label="Total Partners"
-          value={totals.partners}
-          meta={totals.unreachable ? `${totals.unreachable} need an email address` : 'All can be emailed'}
-          loading={loading}
-          onClick={() => setParams({ tab: 'partners' })}
-        />
-        <StatCard
-          icon={HandshakeOutlinedIcon}
-          tone="green"
-          label="Accepted / Active"
-          value={totals.accepted}
-          meta={`${totals.completed} completed`}
-          loading={loading}
-          onClick={() => {
-            setParams({ tab: 'contracts' });
-            setStatus('accepted');
-          }}
-        />
-        <StatCard
-          icon={HourglassEmptyRoundedIcon}
-          tone="amber"
-          label="Pending Response"
-          value={totals.sent}
-          meta={`${totals.draft} draft${totals.draft === 1 ? '' : 's'} not sent`}
-          loading={loading}
-          onClick={() => {
-            setParams({ tab: 'contracts' });
-            setStatus('sent');
-          }}
-        />
-        <StatCard
-          icon={BlockRoundedIcon}
-          tone="red"
-          label="Declined"
-          value={totals.declined}
-          meta={`${totals.cancelled} cancelled`}
-          loading={loading}
-          onClick={() => {
-            setParams({ tab: 'contracts' });
-            setStatus('declined');
-          }}
-        />
-      </Box>
-
-      <SectionTabs
-        ariaLabel="Outsourcing sections"
-        value={tab}
-        onChange={(next) => setParams({ tab: next })}
-        options={[
-          { value: 'contracts', label: 'Requests', badge: totals.sent },
-          { value: 'partners', label: 'Partners' }
+      <OperationsOverview
+        loading={loading}
+        metrics={[
+          {
+            icon: StorefrontOutlinedIcon,
+            label: 'Your partner network',
+            value: totals.partners,
+            meta: totals.unreachable
+              ? `${totals.unreachable} without an email address`
+              : totals.partners
+                ? 'Ready to help with your next event'
+                : 'Build your directory of trusted suppliers',
+            active: tab === 'partners',
+            onClick: () => {
+              setShowArchived(false);
+              setParams({ tab: 'partners' });
+            }
+          },
+          {
+            icon: HandshakeOutlinedIcon,
+            tone: 'green',
+            label: 'Accepted / active',
+            value: totals.accepted,
+            meta: `${totals.completed} request${totals.completed === 1 ? '' : 's'} successfully completed`,
+            active: tab === 'contracts' && status === 'accepted',
+            onClick: () => {
+              setParams({ tab: 'contracts' });
+              setStatus('accepted');
+            }
+          },
+          {
+            icon: HourglassEmptyRoundedIcon,
+            tone: 'amber',
+            label: 'Awaiting reply',
+            value: totals.sent,
+            meta: `${totals.draft} draft${totals.draft === 1 ? '' : 's'} still to send`,
+            active: tab === 'contracts' && status === 'sent',
+            onClick: () => {
+              setParams({ tab: 'contracts' });
+              setStatus('sent');
+            }
+          },
+          {
+            icon: BlockRoundedIcon,
+            tone: 'red',
+            label: 'Declined requests',
+            value: totals.declined,
+            meta: `${totals.cancelled} cancelled request${totals.cancelled === 1 ? '' : 's'}`,
+            active: tab === 'contracts' && status === 'declined',
+            onClick: () => {
+              setParams({ tab: 'contracts' });
+              setStatus('declined');
+            }
+          }
         ]}
       />
 
-      <DashCard>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', mb: 2 }}>
+      <Box
+        role="group"
+        aria-label="Outsourcing sections"
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1.5,
+          mb: 2
+        }}
+      >
+        <Box sx={{ display: 'inline-flex', p: 0.5, gap: 0.5, borderRadius: '11px', bgcolor: tokens.surfaceMuted }}>
+          {[
+            ['contracts', 'Requests', SendRoundedIcon, contracts.length],
+            ['partners', 'Partner directory', StorefrontOutlinedIcon, activePartners.length]
+          ].map(([key, label, Icon, count]) => (
+            <ButtonBase
+              key={key}
+              aria-pressed={tab === key}
+              onClick={() => setParams({ tab: key })}
+              sx={{
+                py: 1,
+                px: { xs: 1.25, sm: 1.75 },
+                gap: 0.9,
+                borderRadius: '8px',
+                color: tab === key ? tokens.textPrimary : tokens.textSecondary,
+                bgcolor: tab === key ? tokens.cardLight : 'transparent',
+                boxShadow: tab === key ? tokens.shadowDash : 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                '&:focus-visible': { outline: `2px solid ${tokens.gold}` }
+              }}
+            >
+              <Icon sx={{ fontSize: 17 }} />
+              {label}
+              <Box component="span" sx={{ fontSize: 10, color: tokens.textMuted, ml: 0.25 }}>
+                {loading ? '—' : count}
+              </Box>
+            </ButtonBase>
+          ))}
+        </Box>
+        {!loading && (
+          <Typography sx={{ fontSize: 11, color: tokens.textMuted, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <LocalShippingOutlinedIcon sx={{ fontSize: 16 }} />
+            {totals.accepted} accepted · {totals.sent} awaiting reply
+          </Typography>
+        )}
+      </Box>
+
+      <DashCard sx={operationsPanelSx}>
+        <OperationsPanelHeading
+          title={tab === 'contracts' ? 'Supply requests' : 'Your trusted partners'}
+          count={loading ? undefined : rows.length}
+          description={
+            tab === 'contracts'
+              ? 'All the details, from the first request to the final delivery.'
+              : 'Keep your supplier contacts close and start a request in a click.'
+          }
+          actions={
+            tab === 'partners' ? (
+              <ViewSwitcher label="Partner layout" value={partnerView} onChange={setPartnerView} />
+            ) : null
+          }
+        />
+        {tab === 'contracts' && (
+          <OperationsFilters
+            label="Request status"
+            value={status}
+            onChange={setStatus}
+            options={STATUS_FILTERS.map(([key, label, test]) => ({
+              value: key,
+              label: key === 'all' ? 'All requests' : label,
+              count: contracts.filter(test).length,
+              warning: key === 'sent'
+            }))}
+          />
+        )}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', py: 2 }}>
           <SearchField
             id="outsource-search"
             value={query}
             onChange={setQuery}
-            placeholder={tab === 'contracts' ? 'Search partner, Ref # or item' : 'Search partner, contact or number'}
+            placeholder={
+              tab === 'contracts' ? 'Search partner, reference, or supplies…' : 'Search partners, contacts, or numbers…'
+            }
             sx={{ flex: '1 1 240px' }}
           />
           <TextField
@@ -586,27 +687,13 @@ export default function OutsourcePage() {
                   </MenuItem>
                 ))}
               </TextField>
-              <TextField
-                select
-                size="small"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                inputProps={{ 'aria-label': 'Status' }}
-                sx={{ minWidth: 170 }}
-              >
-                {STATUS_FILTERS.map(([key, label]) => (
-                  <MenuItem key={key} value={key}>
-                    {key === 'all' ? 'Status: All' : label}
-                  </MenuItem>
-                ))}
-              </TextField>
               <Button
                 variant="outlined"
                 startIcon={<ViewColumnOutlinedIcon />}
                 onClick={(e) => setColumnsAnchor(e.currentTarget)}
                 aria-haspopup="menu"
               >
-                Filter columns
+                Columns
               </Button>
               <Menu anchorEl={columnsAnchor} open={Boolean(columnsAnchor)} onClose={() => setColumnsAnchor(null)}>
                 {OPTIONAL_COLUMNS.map(([key, label]) => (
@@ -624,6 +711,22 @@ export default function OutsourcePage() {
                 ))}
               </Menu>
             </>
+          )}
+          {(query ||
+            service !== 'all' ||
+            (tab === 'contracts' ? status !== 'all' || when !== 'all' : showArchived)) && (
+            <Button
+              startIcon={<RestartAltRoundedIcon />}
+              onClick={() => {
+                setQuery('');
+                setService('all');
+                setWhen('all');
+                setStatus('all');
+                setShowArchived(false);
+              }}
+            >
+              Reset
+            </Button>
           )}
         </Box>
 
@@ -677,6 +780,13 @@ export default function OutsourcePage() {
                 }
               />
             }
+          />
+        ) : partnerView === 'grid' && !loading && pageRows.length > 0 ? (
+          <PartnerDirectory
+            partners={pageRows}
+            onEdit={setPartnerForm}
+            onMenu={setPartnerMenu}
+            onRequest={(partnerId) => setEditing({ prefill: { partnerId } })}
           />
         ) : (
           <DataTable

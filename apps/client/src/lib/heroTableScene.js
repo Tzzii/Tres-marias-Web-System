@@ -1,5 +1,42 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { heroTablePose } from './heroTableMotion.js';
+
+// Batch pieces that move together; leave transparent and instanced meshes intact.
+function batchStaticMeshes(group) {
+  group.updateWorldMatrix(true, true);
+  const inverse = group.matrixWorld.clone().invert();
+  const batches = new Map();
+  group.traverse((object) => {
+    if (!object.isMesh || object.isInstancedMesh || Array.isArray(object.material) || object.material.transparent)
+      return;
+    const geometry = object.geometry;
+    const attributes = Object.keys(geometry.attributes).sort().join(',');
+    const key = `${object.material.uuid}:${object.castShadow}:${object.receiveShadow}:${!!geometry.index}:${attributes}`;
+    if (!batches.has(key)) batches.set(key, []);
+    batches.get(key).push(object);
+  });
+  const removed = new Set();
+  for (const objects of batches.values()) {
+    if (objects.length < 2) continue;
+    const pieces = objects.map((object) =>
+      object.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, object.matrixWorld))
+    );
+    const geometry = mergeGeometries(pieces);
+    pieces.forEach((piece) => piece.dispose());
+    if (!geometry) continue;
+    const combined = new THREE.Mesh(geometry, objects[0].material);
+    combined.castShadow = objects[0].castShadow;
+    combined.receiveShadow = objects[0].receiveShadow;
+    objects.forEach((object) => {
+      removed.add(object.geometry);
+      object.removeFromParent();
+    });
+    group.add(combined);
+  }
+  group.traverse((object) => removed.delete(object.geometry));
+  removed.forEach((geometry) => geometry.dispose());
+}
 
 /** Procedural event table: no remote models, textures or continuous render loop. */
 export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContextLost = () => {} }) {
@@ -177,6 +214,7 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
   clothMaterial.side = THREE.DoubleSide;
   mesh(clothGeometry, clothMaterial, table);
   ring(2.02, 0.012, 1.836, ivory, table);
+  batchStaticMeshes(table);
 
   const runner = new THREE.Group();
   runner.position.y = 1.85;
@@ -194,6 +232,7 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
     }
     drape.geometry.computeVertexNormals();
   }
+  batchStaticMeshes(runner);
 
   const chairs = [];
   for (let i = 0; i < 6; i++) {
@@ -239,6 +278,7 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
       gold,
       chair
     );
+    batchStaticMeshes(chair);
     chairs.push({ group: chair, angle: a });
   }
 
@@ -318,6 +358,7 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
     );
     bowl.castShadow = false;
     ring(0.092, 0.004, 0.405, glassEdge, goblet);
+    batchStaticMeshes(setting);
     placeSettings.push({ group: setting, angle: a, index: i });
   }
 
@@ -398,6 +439,7 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
   petals.castShadow = true;
   petals.receiveShadow = true;
   centerpiece.add(petals);
+  const bloomMaterials = new Map();
   let petalIndex = 0;
   bloomCenters.forEach((bloom) => {
     for (let i = 0; i < 16; i++) {
@@ -412,10 +454,12 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
       petals.setColorAt(petalIndex, new THREE.Color(bloom.color));
       petalIndex++;
     }
-    const bud = mesh(new THREE.SphereGeometry(bloom.size * 0.43, 10, 7), material(bloom.color, 0.83), centerpiece);
+    if (!bloomMaterials.has(bloom.color)) bloomMaterials.set(bloom.color, material(bloom.color, 0.83));
+    const bud = mesh(new THREE.SphereGeometry(bloom.size * 0.43, 10, 7), bloomMaterials.get(bloom.color), centerpiece);
     bud.position.set(bloom.x, bloom.y + 0.05, bloom.z);
     bud.scale.y = 0.82;
   });
+  batchStaticMeshes(centerpiece);
 
   const candleGroups = [];
   for (const [x, z, height] of [
@@ -432,6 +476,7 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
     flame.position.y = height * 1.17 + 0.043;
     flame.scale.set(0.7, 1.8, 0.7);
     flame.castShadow = false;
+    batchStaticMeshes(candle);
     candleGroups.push({ group: candle, x, z });
   }
 
@@ -440,8 +485,16 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
   ground.position.y = -0.065;
   ground.receiveShadow = true;
   scene.add(ground);
+  scene.traverse((object) => {
+    if (object.isMesh) {
+      object.updateMatrix();
+      object.matrixAutoUpdate = false;
+    }
+  });
 
   let disposed = false;
+  let viewportWidth = 0;
+  let viewportHeight = 0;
   function render(progress) {
     if (disposed) return;
     const pose = heroTablePose(progress);
@@ -470,7 +523,9 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
     renderer.render(scene, camera);
   }
   function resize(width, height) {
-    if (disposed || width <= 0 || height <= 0) return;
+    if (disposed || width <= 0 || height <= 0 || (width === viewportWidth && height === viewportHeight)) return false;
+    viewportWidth = width;
+    viewportHeight = height;
     // Frame the setup closer, while keeping all six chairs visible on wide, short screens.
     const span = Math.max(7.6, (5.6 * width) / height);
     const verticalSpan = (span * height) / width;
@@ -479,7 +534,9 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
     camera.top = verticalSpan / 2;
     camera.bottom = -verticalSpan / 2;
     camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(pixelRatio, Math.sqrt(800000 / (width * height))));
     renderer.setSize(width, height, false);
+    return true;
   }
   const lost = (event) => {
     event.preventDefault();
@@ -491,6 +548,12 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
   return {
     render,
     resize,
+    async prepare() {
+      if (disposed) return;
+      await renderer.compileAsync(scene, camera);
+      // Upload all stages, including shadow programs, while the poster is still visible.
+      if (!disposed) render(1);
+    },
     dispose() {
       if (disposed) return;
       disposed = true;

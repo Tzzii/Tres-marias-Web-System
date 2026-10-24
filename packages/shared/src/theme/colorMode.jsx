@@ -130,14 +130,20 @@ const revealFrom = (origin, change) => {
     .catch(() => {});
 };
 
-const ColorModeContext = createContext({ mode: 'light', isLight: true, setMode: () => {}, toggleMode: () => {} });
+const ColorModeContext = createContext({
+  mode: 'light',
+  isLight: true,
+  animate: true,
+  setMode: () => {},
+  toggleMode: () => {}
+});
 
 /**
  * Holds the current mode and keeps <html> and the other open tabs matching.
  * The mode is saved only by `change` (a press of the toggle), never just for
  * opening a page, so light stays the default until someone picks dark.
  */
-export function ColorModeProvider({ children }) {
+export function ColorModeProvider({ children, animate = true }) {
   const [mode, setMode] = useState(readColorMode);
 
   // Repaint whenever the mode changes
@@ -154,38 +160,47 @@ export function ColorModeProvider({ children }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // Remember the pick, then paint the palette inside the transition as well as setting the
-  // React state, so the colours and the MUI theme both belong to the photograph the circle reveals.
-  const change = useCallback((next, origin) => {
-    saveColorMode(next);
-    revealFrom(origin, () => {
-      applyColorMode(next);
-      setMode(next);
-    });
-  }, []);
+  // Portals can switch instantly; animated callers paint the palette and React state together
+  // inside the reveal so the colours and MUI theme belong to the same photograph.
+  const change = useCallback(
+    (next, origin) => {
+      saveColorMode(next);
+      const apply = () => {
+        applyColorMode(next);
+        setMode(next);
+      };
+      if (animate) revealFrom(origin, apply);
+      else apply();
+    },
+    [animate]
+  );
 
   const value = useMemo(
     () => ({
       mode,
       isLight: mode === 'light',
+      animate,
       /** setMode('light' | 'dark', origin?) — `origin` is { x, y } for the circle to open from. */
       setMode: (next, origin) => change(next === 'dark' ? 'dark' : 'light', origin),
       /** toggleMode(origin?) — same, flipping to the other mode. */
       toggleMode: (origin) => change(mode === 'light' ? 'dark' : 'light', origin)
     }),
-    [mode, change]
+    [mode, animate, change]
   );
 
   return <ColorModeContext.Provider value={value}>{children}</ColorModeContext.Provider>;
 }
 
-/** `{ mode, isLight, setMode, toggleMode }`. Safe outside the provider: it then reports light. */
+/** `{ mode, isLight, animate, setMode, toggleMode }`. Safe outside the provider: it then reports light. */
 export const useColorMode = () => useContext(ColorModeContext);
 
 /** Public pages and admin sign-in stay light without changing the saved portal preference. */
 export function LightModeScope({ children }) {
+  const { animate } = useColorMode();
   return (
-    <ColorModeContext.Provider value={{ mode: 'light', isLight: true, setMode: () => {}, toggleMode: () => {} }}>
+    <ColorModeContext.Provider
+      value={{ mode: 'light', isLight: true, animate, setMode: () => {}, toggleMode: () => {} }}
+    >
       {children}
     </ColorModeContext.Provider>
   );

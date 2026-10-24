@@ -206,7 +206,7 @@ export default function BookEventPage() {
     const bar = chipBar.current;
     const chip = bar && bar.querySelector(`[data-section="${active}"]`);
     if (!chip || bar.scrollWidth <= bar.clientWidth) return;
-    bar.scrollTo({ left: chip.offsetLeft - (bar.clientWidth - chip.offsetWidth) / 2, behavior: 'smooth' });
+    bar.scrollTo({ left: chip.offsetLeft - (bar.clientWidth - chip.offsetWidth) / 2, behavior: 'instant' });
   }, [active]);
 
   const data = catalog.data;
@@ -389,7 +389,7 @@ export default function BookEventPage() {
 
   const scrollTo = (key) => {
     const el = document.getElementById(`sec-${key}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el) el.scrollIntoView({ behavior: 'instant', block: 'start' });
   };
 
   const validate = () => {
@@ -944,7 +944,6 @@ export default function BookEventPage() {
                         fontFamily: 'inherit',
                         border: `2px solid ${selected ? tokens.ink : tokens.cardLightBorder}`,
                         backgroundColor: selected ? tokens.surfaceSubtle : tokens.cardLight,
-                        transition: 'border-color 0.15s ease',
                         '&:hover': { borderColor: selected ? tokens.ink : tokens.placeholder }
                       }}
                     >
@@ -1000,7 +999,6 @@ export default function BookEventPage() {
                           fontFamily: 'inherit',
                           border: `2px solid ${selected ? tokens.ink : tokens.cardLightBorder}`,
                           backgroundColor: selected ? tokens.surfaceSubtle : tokens.cardLight,
-                          transition: 'border-color 0.15s ease',
                           '&:hover': { borderColor: selected ? tokens.ink : tokens.placeholder }
                         }}
                       >
@@ -1613,7 +1611,6 @@ export default function BookEventPage() {
                                             fontFamily: 'inherit',
                                             border: `1.5px solid ${picked ? tokens.ink : tokens.cardLightBorder}`,
                                             backgroundColor: picked ? tokens.surfaceSubtle : tokens.cardLight,
-                                            transition: 'border-color 0.15s ease',
                                             '&:hover': { borderColor: picked ? tokens.ink : tokens.placeholder },
                                             '&.Mui-disabled': { opacity: 0.55 }
                                           }}

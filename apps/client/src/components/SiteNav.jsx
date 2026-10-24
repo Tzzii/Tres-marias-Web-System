@@ -19,9 +19,9 @@ import { site, siteContainerSx } from '../theme/siteTheme.js';
 
 export const NAV_LINKS = [
   ['packages', 'Packages'],
-  ['availability', 'Plan your event'],
   ['gallery', 'Gallery'],
   ['services', 'Services'],
+  ['availability', 'Plan your event'],
   ['faq', 'FAQ'],
   ['contact', 'Contact']
 ];

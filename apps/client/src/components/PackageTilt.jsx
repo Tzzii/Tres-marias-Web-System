@@ -12,11 +12,12 @@ export default function PackageTilt({ children, enabled = true, borderRadius = 3
   const pointerRef = useRef(null);
 
   const reset = useCallback(() => {
+    const wasMoving = frameRef.current !== null || pointerRef.current !== null;
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
     pointerRef.current = null;
     const surface = surfaceRef.current;
-    if (!surface) return;
+    if (!surface || (!wasMoving && !surface.hasAttribute('data-tilting'))) return;
     surface.removeAttribute('data-tilting');
     surface.style.setProperty('--tm-tilt-x', '0deg');
     surface.style.setProperty('--tm-tilt-y', '0deg');
@@ -95,11 +96,12 @@ export default function PackageTilt({ children, enabled = true, borderRadius = 3
           borderRadius,
           '& > *': { flex: 1, minWidth: 0 },
           [`@media ${TILT_MEDIA}`]: {
-            transform: enabled
-              ? 'perspective(1000px) rotateX(var(--tm-tilt-x, 0deg)) rotateY(var(--tm-tilt-y, 0deg)) translate3d(0, var(--tm-tilt-lift, 0px), 0)'
-              : 'none',
+            transform: 'none',
             transition: 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             '&[data-tilting="true"]': {
+              transform: enabled
+                ? 'perspective(1000px) rotateX(var(--tm-tilt-x, 0deg)) rotateY(var(--tm-tilt-y, 0deg)) translate3d(0, var(--tm-tilt-lift, 0px), 0)'
+                : 'none',
               transition: 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)',
               '&::after': { opacity: 1 }
             },

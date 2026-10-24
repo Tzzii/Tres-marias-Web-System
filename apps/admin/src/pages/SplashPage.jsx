@@ -1,17 +1,7 @@
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import { keyframes } from '@mui/material/styles';
 import { BrandLogo, tokens, useDocumentTitle } from '@tm/shared';
 import { useAuth } from '../auth.js';
-
-const enter = keyframes`
-  from { opacity: 0; transform: scale(0.85); }
-  to { opacity: 1; transform: scale(1); }
-`;
-const breathe = keyframes`
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.08); }
-`;
 
 export default function SplashPage() {
   useDocumentTitle('Welcome', 'Tres Marias Admin');
@@ -33,7 +23,7 @@ export default function SplashPage() {
         backgroundImage: tokens.gradientCentered
       }}
     >
-      <Box sx={{ animation: `${enter} 600ms ease-out both` }}>
+      <Box>
         <Box
           component="button"
           type="button"
@@ -47,7 +37,6 @@ export default function SplashPage() {
             background: 'none',
             borderRadius: '50%',
             cursor: 'pointer',
-            transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1)',
             '&::before': {
               content: '""',
               position: 'absolute',
@@ -57,22 +46,16 @@ export default function SplashPage() {
                 'radial-gradient(circle, rgba(212, 175, 55, 0.55) 0%, rgba(212, 175, 55, 0.22) 38%, rgba(212, 175, 55, 0) 70%)',
               filter: 'blur(12px)',
               opacity: 0,
-              transform: 'scale(0.7)',
-              transition: 'opacity 450ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1)',
               pointerEvents: 'none',
               zIndex: 0
             },
-            '& > *': { position: 'relative', zIndex: 1, transition: 'box-shadow 450ms ease' },
+            '& > *': { position: 'relative', zIndex: 1 },
             '&:hover, &:focus-visible': {
-              transform: 'translateY(-8px) scale(1.06)',
               '&::before': {
-                opacity: 1,
-                transform: 'scale(1)',
-                animation: `${breathe} 2.6s ease-in-out 600ms infinite`
+                opacity: 1
               },
               '& > *': { boxShadow: '0 0 40px 6px rgba(212, 175, 55, 0.55), 0 24px 60px rgba(0, 0, 0, 0.5)' }
             },
-            '&:active': { transform: 'translateY(-4px) scale(1.02)' },
             '&:focus-visible': { outline: 'none' }
           }}
         >

@@ -18,7 +18,6 @@ import {
   authApi,
   formatCountdown,
   safeNextPath,
-  shakeSx,
   tokens,
   useCountdown,
   useDocumentTitle,
@@ -40,7 +39,6 @@ export default function LoginPage() {
   const [lockedUntil, setLockedUntil] = useState(null);
   const [lockKind, setLockKind] = useState('password');
   const [busy, setBusy] = useState(false);
-  const [shake, setShake] = useState(false);
 
   const [challenge, setChallenge] = useState(null);
   const [code, setCode] = useState('');
@@ -81,7 +79,6 @@ export default function LoginPage() {
       setAttemptsLeft(RULES.maxCodeAttempts);
       setChallenge(result);
     } catch (error) {
-      setShake(true);
       setPassword('');
       if (error.code === 'LOCKED') {
         setLockKind('password');
@@ -110,7 +107,6 @@ export default function LoginPage() {
     } catch (error) {
       setBusy(false);
       setCodeState('error');
-      setShake(true);
       setCode('');
       if (error.code === 'INVALID_CODE') {
         setAttemptsLeft(error.meta.remaining);
@@ -192,7 +188,6 @@ export default function LoginPage() {
             component="form"
             noValidate
             onSubmit={startSignIn}
-            onAnimationEnd={() => setShake(false)}
             elevation={0}
             sx={{
               width: '100%',
@@ -201,8 +196,7 @@ export default function LoginPage() {
               flexDirection: 'column',
               gap: 2,
               borderRadius: 2,
-              boxShadow: tokens.shadowCard,
-              ...shakeSx(shake && !codeOpen)
+              boxShadow: tokens.shadowCard
             }}
           >
             <Typography component="h1" sx={{ fontSize: 21, fontWeight: 700 }}>
@@ -286,8 +280,7 @@ export default function LoginPage() {
               e.preventDefault();
               verify();
             }}
-            onAnimationEnd={() => setShake(false)}
-            sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: 1, ...shakeSx(shake) }}
+            sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: 1 }}
           >
             <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
               <MarkEmailReadOutlinedIcon sx={{ color: tokens.goldDark, mt: '2px' }} />

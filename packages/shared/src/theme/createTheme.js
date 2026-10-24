@@ -326,8 +326,31 @@ export const warmTheme = createTheme({
   }
 });
 
-/** Theme for the app shell (top bar, sidebar, page background) in this mode. */
-export const themeForMode = (mode) => (mode === 'light' ? warmTheme : darkTheme);
+// Keep separate cached themes so opting out never mutates the customer portal's themes.
+const staticThemes = new WeakMap();
+
+/** Theme for this mode; `animate=false` also stops MUI's JS-driven scrolling and transition timers. */
+export const themeForMode = (mode, animate = true) => {
+  const theme = mode === 'light' ? warmTheme : darkTheme;
+  if (animate) return theme;
+  if (!staticThemes.has(theme)) {
+    staticThemes.set(
+      theme,
+      createTheme(theme, {
+        transitions: {
+          create: () => 'none',
+          duration: Object.fromEntries(Object.keys(theme.transitions.duration).map((key) => [key, 0])),
+          getAutoHeightDuration: () => 0
+        },
+        components: {
+          MuiButtonBase: { defaultProps: { disableRipple: true } },
+          MuiSkeleton: { defaultProps: { animation: false } }
+        }
+      })
+    );
+  }
+  return staticThemes.get(theme);
+};
 
 /** Cards, forms and dialogs use the same mode as the portal shell. */
 export const surfaceThemeForMode = themeForMode;

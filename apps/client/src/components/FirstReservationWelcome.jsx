@@ -341,7 +341,7 @@ export default function FirstReservationWelcome({ draft }) {
             startIcon={<ChatBubbleOutlineRoundedIcon />}
             sx={{ minHeight: 44, color: tokens.textLight }}
           >
-            Chat with our team
+            Chat with the admin
           </Button>
         </Box>
       </Box>

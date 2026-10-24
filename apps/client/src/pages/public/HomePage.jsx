@@ -152,11 +152,11 @@ export default function HomePage() {
           '--hero-header-height': { xs: '72px', lg: '84px' },
           ...(heroMotion && {
             [HERO_TABLE_SCROLL_MEDIA]: {
-              height: 'calc(100svh - var(--hero-header-height) + clamp(500px, 80svh, 800px))'
+              height: 'calc(100svh - var(--hero-header-height) + clamp(1000px, 160svh, 1600px))'
             }
           }),
           background: site.gradientHero,
-          '&::before': { content: '""', position: 'absolute', inset: '-40%', background: 'radial-gradient(circle at 50% 50%, rgba(197, 160, 89, 0.16) 0%, transparent 45%)', animation: 'tmHeroDrift 18s ease-in-out infinite alternate', pointerEvents: 'none' },
+          '&::before': { content: '""', position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 50%, rgba(197, 160, 89, 0.16) 0%, transparent 45%)', pointerEvents: 'none' },
           '&::after': { content: '""', position: 'absolute', inset: 0, backgroundImage: site.textureLinen, maskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', pointerEvents: 'none' },
           '@media (prefers-reduced-motion: reduce)': { '&::before': { animation: 'none' } }
         }}
@@ -234,15 +234,6 @@ export default function HomePage() {
               : (packages.data || []).map((pkg, index) => <PackageCard key={pkg.id} pkg={pkg} index={index} />)}
           </Box>
           {!packages.loading && <PackageComparison packages={packages.data || []} />}
-          <BookingJourney />
-        </Container>
-      </Box>
-
-      <Box component="section" id="availability" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
-        <Container maxWidth={false} sx={siteContainerSx}>
-          <Reveal y={28}>
-            <BookingBar onAvailable={() => setTimeout(() => scrollToId('packages'), 900)} />
-          </Reveal>
         </Container>
       </Box>
 
@@ -334,27 +325,12 @@ export default function HomePage() {
         </Container>
       </Box>
 
-      <Box component="section" sx={{ py: { xs: 10, md: 12 } }}>
+      <BookingJourney />
+
+      <Box component="section" id="availability" sx={{ py: { xs: 10, md: 12 }, backgroundColor: site.sand, scrollMarginTop: { xs: '88px', lg: '100px' } }}>
         <Container maxWidth={false} sx={siteContainerSx}>
-          <Reveal y={18} scale={0.98}>
-            <Paper elevation={0} sx={{ p: { xs: 4, md: 8 }, textAlign: 'center', borderRadius: 4, backgroundColor: site.espresso, border: `1px solid ${site.espressoBorder}`, backgroundImage: site.gradientCta, boxShadow: site.shadowCardHover }}>
-              <Typography component="h2" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 30, md: 42 }, fontWeight: 600, color: site.onEspresso }}>
-                Ready to Reserve Your Date?
-              </Typography>
-              <Typography sx={{ mt: 2, mx: 'auto', maxWidth: 600, fontSize: 15, lineHeight: 1.75, color: site.onEspressoSoft }}>
-                {user
-                  ? 'Start a new reservation from your account, or check on the ones already in progress.'
-                  : 'Create your account to submit a reservation, follow its status and manage payments in one place.'}
-              </Typography>
-              <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Button variant="contained" onClick={() => (user ? navigate('/portal/book') : scrollToId('packages'))} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.espresso, backgroundColor: site.gold, '&:hover': { backgroundColor: site.goldLight } }}>
-                  {user ? 'New reservation' : 'Choose a package'}
-                </Button>
-                <Button onClick={() => navigate(user ? '/portal' : '/login')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.onEspresso, border: '1px solid rgba(245, 239, 230, 0.35)', '&:hover': { borderColor: site.gold, backgroundColor: 'rgba(197, 160, 89, 0.1)' } }}>
-                  {user ? 'Go to my account' : 'I have an account'}
-                </Button>
-              </Box>
-            </Paper>
+          <Reveal y={28}>
+            <BookingBar onAvailable={() => setTimeout(() => scrollToId('packages'), 900)} />
           </Reveal>
         </Container>
       </Box>
@@ -390,6 +366,31 @@ export default function HomePage() {
               </Reveal>
             ))}
           </Box>
+        </Container>
+      </Box>
+
+      <Box component="section" id="reservation-cta" sx={{ py: { xs: 10, md: 12 } }}>
+        <Container maxWidth={false} sx={siteContainerSx}>
+          <Reveal y={18} scale={0.98}>
+            <Paper elevation={0} sx={{ p: { xs: 4, md: 8 }, textAlign: 'center', borderRadius: 4, backgroundColor: site.espresso, border: `1px solid ${site.espressoBorder}`, backgroundImage: site.gradientCta, boxShadow: site.shadowCardHover }}>
+              <Typography component="h2" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 30, md: 42 }, fontWeight: 600, color: site.onEspresso }}>
+                Ready to Reserve Your Date?
+              </Typography>
+              <Typography sx={{ mt: 2, mx: 'auto', maxWidth: 600, fontSize: 15, lineHeight: 1.75, color: site.onEspressoSoft }}>
+                {user
+                  ? 'Start a new reservation from your account, or check on the ones already in progress.'
+                  : 'Create your account to submit a reservation, follow its status and manage payments in one place.'}
+              </Typography>
+              <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button variant="contained" onClick={() => (user ? navigate('/portal/book') : scrollToId('packages'))} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.espresso, backgroundColor: site.gold, '&:hover': { backgroundColor: site.goldLight } }}>
+                  {user ? 'New reservation' : 'Choose a package'}
+                </Button>
+                <Button onClick={() => navigate(user ? '/portal' : '/login')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.onEspresso, border: '1px solid rgba(245, 239, 230, 0.35)', '&:hover': { borderColor: site.gold, backgroundColor: 'rgba(197, 160, 89, 0.1)' } }}>
+                  {user ? 'Go to my account' : 'I have an account'}
+                </Button>
+              </Box>
+            </Paper>
+          </Reveal>
         </Container>
       </Box>
 

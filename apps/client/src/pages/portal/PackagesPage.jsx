@@ -54,7 +54,7 @@ export default function PackagesPage() {
           <PackageComparison packages={data || []} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5 }}>
             {data.map((pkg) => (
-              <PackageTilt key={pkg.id} borderRadius={2}>
+              <PackageTilt key={pkg.id} enabled={false} borderRadius={2}>
                 <DashCard sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <MoodPanel pkg={pkg} height={120}>
                     {pkg.featured && (

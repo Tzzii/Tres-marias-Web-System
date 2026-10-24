@@ -17,7 +17,6 @@ import {
   formatCountdown,
   initials,
   safeNextPath,
-  shakeSx,
   tokens,
   useCountdown,
   useDocumentTitle
@@ -34,7 +33,6 @@ export default function UnlockPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [shake, setShake] = useState(false);
   const [attemptsLeft, setAttemptsLeft] = useState(RULES.maxLoginAttempts);
   const [lockedUntil, setLockedUntil] = useState(null);
   const lockSeconds = useCountdown(lockedUntil);
@@ -46,7 +44,6 @@ export default function UnlockPage() {
     event.preventDefault();
     if (!password) {
       setError('Enter your password.');
-      setShake(true);
       return;
     }
     setBusy(true);
@@ -58,7 +55,6 @@ export default function UnlockPage() {
     } catch (e) {
       setBusy(false);
       setPassword('');
-      setShake(true);
       if (e.code === 'LOCKED') {
         setLockedUntil(e.meta && e.meta.lockedUntil ? e.meta.lockedUntil : Date.now() + RULES.loginLockMinutes * 60000);
         signOut();
@@ -101,7 +97,6 @@ export default function UnlockPage() {
             component="form"
             noValidate
             onSubmit={unlock}
-            onAnimationEnd={() => setShake(false)}
             elevation={0}
             sx={{
               width: '100%',
@@ -110,8 +105,7 @@ export default function UnlockPage() {
               flexDirection: 'column',
               gap: 2,
               borderRadius: 2,
-              boxShadow: tokens.shadowCard,
-              ...shakeSx(shake)
+              boxShadow: tokens.shadowCard
             }}
           >
             {lockedUntil ? (
@@ -156,7 +150,7 @@ export default function UnlockPage() {
                 </Box>
                 <Typography sx={{ fontSize: 13.5, lineHeight: 1.55, color: tokens.textSecondary }}>
                   You were away for {RULES.idleMinutes} minutes, so we locked the screen. Enter your password to
-                  continue where you left off. No code is needed.
+                  continue where you left off.
                 </Typography>
                 {error && (
                   <AlertBanner tone="error">

@@ -12,7 +12,7 @@ const TOAST_DURATION_MS = 3000;
 
 /** App-wide toast messages: notify('Saved', 'success'). */
 export function NotifyProvider({ children }) {
-  const { mode } = useColorMode();
+  const { mode, animate } = useColorMode();
   // The toast currently shown: { message, severity, key }
   const [toast, setToast] = useState(null);
   const nextKey = useRef(0);
@@ -39,7 +39,7 @@ export function NotifyProvider({ children }) {
   return (
     <NotifyContext.Provider value={value}>
       {children}
-      <ThemeProvider theme={surfaceThemeForMode(mode)}>
+      <ThemeProvider theme={surfaceThemeForMode(mode, animate)}>
         <Snackbar
           key={toast ? toast.key : undefined}
           open={Boolean(toast)}

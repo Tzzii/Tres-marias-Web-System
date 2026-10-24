@@ -18,6 +18,9 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import ViewColumnOutlinedIcon from '@mui/icons-material/ViewColumnOutlined';
+import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import {
   ConfirmDialog,
   DashCard,
@@ -26,11 +29,9 @@ import {
   EquipmentPhoto,
   ErrorState,
   INVENTORY_CATEGORIES,
-  PageHeader,
   Pager,
   Pill,
   SearchField,
-  StatCard,
   inventoryApi,
   peso,
   tokens,
@@ -43,6 +44,16 @@ import AddItemsDialog from './inventory/AddItemsDialog.jsx';
 import EditItemDialog from './inventory/EditItemDialog.jsx';
 import StockDialog from './inventory/StockDialog.jsx';
 import DetailsDialog from './inventory/DetailsDialog.jsx';
+import InventoryGrid from './inventory/InventoryGrid.jsx';
+import {
+  OperationsHeader,
+  OperationsOverview,
+  OperationsFilters,
+  OperationsPanelHeading,
+  StockMeter,
+  ViewSwitcher,
+  operationsPanelSx
+} from '../components/OperationsWorkspace.jsx';
 
 const PAGE_SIZE = 10;
 
@@ -85,6 +96,7 @@ export default function InventoryPage() {
   const [category, setCategory] = useState('all');
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
+  const [view, setView] = useState('table');
   const [selected, setSelected] = useState([]);
   const [columns, setColumns] = useColumnChoice(COLUMNS_KEY, OPTIONAL_COLUMNS);
   const [columnsAnchor, setColumnsAnchor] = useState(null);
@@ -174,15 +186,15 @@ export default function InventoryPage() {
     },
     {
       key: 'name',
-      label: 'Item Name or Code',
+      label: 'Equipment',
       render: (i) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-          <Box sx={{ width: 64, flexShrink: 0 }}>
-            <EquipmentPhoto item={i} admin compact height={64} />
+          <Box sx={{ width: 48, flexShrink: 0 }}>
+            <EquipmentPhoto item={i} admin compact height={48} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{i.name}</Typography>
-            <Typography sx={{ fontSize: 12, color: tokens.textMuted }}>{i.code}</Typography>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>{i.name}</Typography>
+            <Typography sx={{ mt: 0.25, fontSize: 10.5, color: tokens.textMuted }}>{i.code}</Typography>
           </Box>
         </Box>
       )
@@ -193,33 +205,7 @@ export default function InventoryPage() {
       key: 'available',
       label: 'Available',
       align: 'right',
-      render: (i) => (
-        <Box>
-          <Typography
-            component="span"
-            sx={{
-              fontSize: 13.5,
-              fontWeight: 700,
-              color: i.archived
-                ? tokens.textMuted
-                : i.stock === 'out'
-                  ? tokens.redPress
-                  : i.stock === 'low'
-                    ? tokens.warningText
-                    : tokens.textPrimary
-            }}
-          >
-            {i.available}
-          </Typography>
-          {!i.archived && i.stock !== 'ok' && (
-            <Typography
-              sx={{ fontSize: 11, fontWeight: 700, color: i.stock === 'out' ? tokens.redPress : tokens.warningText }}
-            >
-              {i.stock === 'out' ? 'Out of stock' : 'Low stock'}
-            </Typography>
-          )}
-        </Box>
-      )
+      render: (i) => <StockMeter available={i.available} total={i.total} stock={i.archived ? 'ok' : i.stock} />
     },
     columns.inUse && { key: 'inUse', label: 'In Use', align: 'right', render: (i) => i.inUse },
     columns.rent && {
@@ -281,69 +267,133 @@ export default function InventoryPage() {
 
   return (
     <>
-      <PageHeader
-        title="Equipment Inventory"
-        subtitle="What you own, what is out at events and what needs repair."
+      <OperationsHeader
+        title="Equipment inventory"
+        section="Inventory"
+        icon={Inventory2OutlinedIcon}
+        description="Every piece, in its place. Manage your equipment and keep the next event ready."
         actions={
           <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setAdding(true)}>
-            Add item(s)
+            Add equipment
           </Button>
         }
       />
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, 1fr)' },
-          gap: { xs: 1.5, sm: 2.5 },
-          mb: 2.5
-        }}
-      >
-        <StatCard
-          icon={Inventory2OutlinedIcon}
-          tone="gold"
-          label="Total Items"
-          value={`${totals.total.toLocaleString('en-PH')} pcs`}
-          meta={`${active.length} item types`}
-          loading={loading}
-          onClick={() => setStatus('all')}
-        />
-        <StatCard
-          icon={CheckCircleOutlineRoundedIcon}
-          tone="green"
-          label="Available Items"
-          value={`${totals.available.toLocaleString('en-PH')} pcs`}
-          meta={`${totals.low} low · ${totals.out} out of stock`}
-          loading={loading}
-          onClick={() => setStatus('in_stock')}
-        />
-        <StatCard
-          icon={LocalShippingOutlinedIcon}
-          tone="blue"
-          label="In Use Items"
-          value={`${totals.inUse.toLocaleString('en-PH')} pcs`}
-          meta="Out at events"
-          loading={loading}
-          onClick={() => setStatus('in_use')}
-        />
-        <StatCard
-          icon={BuildOutlinedIcon}
-          tone="amber"
-          label="Damaged Items"
-          value={`${totals.damaged.toLocaleString('en-PH')} pcs`}
-          meta={`${totals.withDamaged} item types need repair`}
-          loading={loading}
-          onClick={() => setStatus('damaged')}
-        />
-      </Box>
+      <OperationsOverview
+        loading={loading}
+        metrics={[
+          {
+            icon: Inventory2OutlinedIcon,
+            label: 'Total equipment',
+            value: totals.total,
+            unit: 'pcs',
+            meta: `${active.length} equipment types · ${totals.total ? Math.round((totals.available / totals.total) * 100) : 0}% available`,
+            active: status === 'all',
+            onClick: () => setStatus('all'),
+            progress: totals.total ? (totals.available / totals.total) * 100 : 0
+          },
+          {
+            icon: CheckCircleOutlineRoundedIcon,
+            tone: 'green',
+            label: 'Ready to use',
+            value: totals.available,
+            unit: 'pcs',
+            meta: 'Available for your next event',
+            active: status === 'in_stock',
+            onClick: () => setStatus('in_stock')
+          },
+          {
+            icon: LocalShippingOutlinedIcon,
+            tone: 'blue',
+            label: 'Out at events',
+            value: totals.inUse,
+            unit: 'pcs',
+            meta: 'Currently checked out',
+            active: status === 'in_use',
+            onClick: () => setStatus('in_use')
+          },
+          {
+            icon: BuildOutlinedIcon,
+            tone: 'amber',
+            label: 'Needs repair',
+            value: totals.damaged,
+            unit: 'pcs',
+            meta: `${totals.withDamaged} equipment types with damage`,
+            active: status === 'damaged',
+            onClick: () => setStatus('damaged')
+          }
+        ]}
+      />
 
-      <DashCard>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', mb: 2 }}>
+      {!loading && (totals.low > 0 || totals.out > 0) && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 1.25,
+            px: 2,
+            py: 1.25,
+            mb: 2.5,
+            border: `1px solid ${tokens.warningBorder}`,
+            borderRadius: '12px',
+            bgcolor: tokens.warningBg,
+            color: tokens.warningText
+          }}
+        >
+          <WarningAmberRoundedIcon sx={{ fontSize: 19 }} />
+          <Typography sx={{ flex: '1 1 180px', fontSize: 12 }}>
+            <Box component="span" sx={{ fontWeight: 700 }}>
+              Keep an eye on stock.
+            </Box>{' '}
+            {totals.low} low stock · {totals.out} out of stock
+          </Typography>
+          <Button
+            size="small"
+            sx={{ color: tokens.warningText, fontSize: 11.5 }}
+            onClick={() => {
+              setCategory('all');
+              setQuery('');
+              setStatus(totals.out ? 'out' : 'low');
+            }}
+          >
+            Review stock
+          </Button>
+          <Button
+            size="small"
+            endIcon={<ArrowForwardRoundedIcon />}
+            sx={{ color: tokens.warningText, fontSize: 11.5 }}
+            onClick={() => navigate('/outsource')}
+          >
+            Find a partner
+          </Button>
+        </Box>
+      )}
+
+      <DashCard sx={operationsPanelSx}>
+        <OperationsPanelHeading
+          title="Equipment library"
+          count={loading ? undefined : filtered.length}
+          description="Track availability, manage stock, and view each item's history."
+          actions={<ViewSwitcher label="Equipment layout" value={view} onChange={setView} />}
+        />
+        <OperationsFilters
+          label="Inventory status"
+          value={status}
+          onChange={setStatus}
+          options={STATUSES.map(([key, label, test]) => ({
+            value: key,
+            label: key === 'all' ? 'All equipment' : key === 'damaged' ? 'Damaged' : label,
+            count: key === 'archived' ? items.filter((i) => i.archived).length : active.filter(test).length,
+            warning: ['low', 'out', 'damaged'].includes(key)
+          }))}
+        />
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', py: 2 }}>
           <SearchField
             id="inventory-search"
             value={query}
             onChange={setQuery}
-            placeholder="Search item name or code"
+            placeholder="Search equipment by name or code…"
             sx={{ flex: '1 1 240px' }}
           />
           <TextField
@@ -361,28 +411,28 @@ export default function InventoryPage() {
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            select
-            size="small"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            inputProps={{ 'aria-label': 'Status' }}
-            sx={{ minWidth: 160 }}
-          >
-            {STATUSES.map(([key, label]) => (
-              <MenuItem key={key} value={key}>
-                {key === 'all' ? 'Status: All' : label}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Button
-            variant="outlined"
-            startIcon={<ViewColumnOutlinedIcon />}
-            onClick={(e) => setColumnsAnchor(e.currentTarget)}
-            aria-haspopup="menu"
-          >
-            Filter columns
-          </Button>
+          {(query || category !== 'all' || status !== 'all') && (
+            <Button
+              startIcon={<RestartAltRoundedIcon />}
+              onClick={() => {
+                setQuery('');
+                setCategory('all');
+                setStatus('all');
+              }}
+            >
+              Reset
+            </Button>
+          )}
+          {view === 'table' && (
+            <Button
+              variant="outlined"
+              startIcon={<ViewColumnOutlinedIcon />}
+              onClick={(e) => setColumnsAnchor(e.currentTarget)}
+              aria-haspopup="menu"
+            >
+              Columns
+            </Button>
+          )}
           <Menu anchorEl={columnsAnchor} open={Boolean(columnsAnchor)} onClose={() => setColumnsAnchor(null)}>
             {OPTIONAL_COLUMNS.map(([key, label]) => (
               <MenuItem key={key} dense onClick={() => setColumns((c) => ({ ...c, [key]: !c[key] }))}>
@@ -440,25 +490,36 @@ export default function InventoryPage() {
           </Box>
         )}
 
-        <DataTable
-          loading={loading}
-          columns={tableColumns}
-          rows={pageRows}
-          rowKey={(i) => i.id}
-          onRowClick={(i) => setDetailsId(i.id)}
-          minWidth={920}
-          empty={
-            <EmptyState
-              compact
-              title={status === 'archived' ? 'Nothing archived' : 'No items match'}
-              description={
-                status === 'archived'
-                  ? 'Archived items appear here and can be restored.'
-                  : 'Try another search, category or status.'
-              }
-            />
-          }
-        />
+        {view === 'grid' && !loading && pageRows.length > 0 ? (
+          <InventoryGrid
+            items={pageRows}
+            selected={selected}
+            onToggle={toggle}
+            onDetails={setDetailsId}
+            onMenu={setRowMenu}
+            selectAll={tableColumns[0].label}
+          />
+        ) : (
+          <DataTable
+            loading={loading}
+            columns={tableColumns}
+            rows={pageRows}
+            rowKey={(i) => i.id}
+            onRowClick={(i) => setDetailsId(i.id)}
+            minWidth={920}
+            empty={
+              <EmptyState
+                compact
+                title={status === 'archived' ? 'Nothing archived' : 'No items match'}
+                description={
+                  status === 'archived'
+                    ? 'Archived items appear here and can be restored.'
+                    : 'Try another search, category or status.'
+                }
+              />
+            }
+          />
+        )}
         {!loading && filtered.length > 0 && (
           <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
         )}

@@ -62,54 +62,61 @@ export default function HeroScene({ scrollRef, onMotionAvailable }) {
     };
     setFailed(false);
     onMotionAvailable(true);
-    import('../lib/heroTableScene.js')
-      .then(({ createHeroTableScene }) => {
-        if (stopped) return;
-        scene = createHeroTableScene({
-          mount,
-          palette,
-          pixelRatio: Math.min(window.devicePixelRatio || 1, window.innerWidth < 900 ? 1.25 : 1.5),
-          onContextLost: fallback
-        });
-        const draw = (progress) => {
-          if (!scene || stopped) return;
-          lastProgress = progress;
-          try {
-            scene.render(progress);
-          } catch {
-            fallback();
-            return;
-          }
-          track.dataset.progress = progress.toFixed(3);
-          const nextPhase = progress < 0.28 ? 0 : progress < 0.68 ? 1 : 2;
-          if (phaseRef.current !== nextPhase) {
-            phaseRef.current = nextPhase;
-            setPhase(nextPhase);
-          }
-          progressRef.current?.style.setProperty('transform', `scaleX(${progress})`);
-        };
-        const resize = () => {
-          if (!scene || stopped) return;
+    const initialize = () =>
+      import('../lib/heroTableScene.js')
+        .then(async ({ createHeroTableScene }) => {
+          if (stopped) return;
+          scene = createHeroTableScene({
+            mount,
+            palette,
+            pixelRatio: Math.min(window.devicePixelRatio || 1, window.innerWidth < 900 ? 1.25 : 1.5),
+            onContextLost: fallback
+          });
+          const draw = (progress) => {
+            if (!scene || stopped) return;
+            lastProgress = progress;
+            try {
+              scene.render(progress);
+            } catch {
+              fallback();
+              return;
+            }
+            track.dataset.progress = progress.toFixed(3);
+            const nextPhase = progress < 0.28 ? 0 : progress < 0.68 ? 1 : 2;
+            if (phaseRef.current !== nextPhase) {
+              phaseRef.current = nextPhase;
+              setPhase(nextPhase);
+            }
+            progressRef.current?.style.setProperty('transform', `scaleX(${progress})`);
+          };
+          const resize = () => {
+            if (!scene || stopped) return;
+            if (scene.resize(mount.clientWidth, mount.clientHeight)) draw(lastProgress);
+          };
           scene.resize(mount.clientWidth, mount.clientHeight);
-          draw(lastProgress);
-        };
-        resize();
-        if (!scene || stopped) return;
-        observer = new ResizeObserver(resize);
-        observer.observe(mount);
-        detach = attachHeroTableScroll({
-          track,
-          viewport,
-          desktopTrack: scrollRef.current,
-          draw,
-          win: window,
-          doc: document
-        });
-        setReady(true);
-      })
-      .catch(fallback);
+          await scene.prepare();
+          if (!scene || stopped) return;
+          observer = new ResizeObserver(resize);
+          observer.observe(mount);
+          detach = attachHeroTableScroll({
+            track,
+            viewport,
+            desktopTrack: scrollRef.current,
+            draw,
+            win: window,
+            doc: document
+          });
+          await new Promise(window.requestAnimationFrame);
+          if (!scene || stopped) return;
+          setReady(true);
+        })
+        .catch(fallback);
+    const idle = typeof window.requestIdleCallback === 'function';
+    const startup = idle ? window.requestIdleCallback(initialize, { timeout: 800 }) : window.setTimeout(initialize, 32);
     return () => {
       stopped = true;
+      if (idle) window.cancelIdleCallback(startup);
+      else window.clearTimeout(startup);
       dispose();
     };
   }, [reducedMotion, shortViewport, scrollRef, onMotionAvailable]);
@@ -137,7 +144,7 @@ export default function HeroScene({ scrollRef, onMotionAvailable }) {
         '@media (min-width: 1280px)': { width: '120%', ml: '-20%' },
         '@media (max-width: 899px) and (prefers-reduced-motion: no-preference)': {
           '&:not([data-table-state="static"])': {
-            height: 'calc(var(--table-height) + 48px + clamp(300px, 58svh, 520px))'
+            height: 'calc(var(--table-height) + 48px + clamp(600px, 116svh, 1040px))'
           }
         }
       }}

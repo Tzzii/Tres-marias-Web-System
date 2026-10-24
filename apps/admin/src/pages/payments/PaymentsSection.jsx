@@ -184,7 +184,7 @@ export default function PaymentsSection() {
   useEffect(() => {
     if (!verifyId || !data) return undefined;
     const timer = setTimeout(
-      () => document.getElementById('verify-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      () => document.getElementById('verify-panel')?.scrollIntoView({ behavior: 'instant', block: 'start' }),
       150
     );
     return () => clearTimeout(timer);

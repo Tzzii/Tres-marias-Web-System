@@ -5,21 +5,22 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider } from '@mui/material/styles';
 import { ColorModeProvider, NotifyProvider, themeForMode, useColorMode } from '@tm/shared';
 import '@tm/shared/theme/global.css';
+import './styles/motion.css';
 import App from './App.jsx';
 import { AuthProvider } from './auth.js';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ColorModeProvider>
+    <ColorModeProvider animate={false}>
       <ThemedApp />
     </ColorModeProvider>
   </React.StrictMode>
 );
 
 function ThemedApp() {
-  const { mode } = useColorMode();
+  const { mode, animate } = useColorMode();
   return (
-    <ThemeProvider theme={themeForMode(mode)}>
+    <ThemeProvider theme={themeForMode(mode, animate)}>
       <CssBaseline />
       <BrowserRouter useTransitions={false}>
         <AuthProvider>

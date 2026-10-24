@@ -154,7 +154,7 @@ export default function ReservationDetailPage() {
           <Button
             variant={step === 'accept' ? 'outlined' : 'contained'}
             onClick={() =>
-              document.getElementById('quotation-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              document.getElementById('quotation-card')?.scrollIntoView({ behavior: 'instant', block: 'center' })
             }
             sx={step === 'accept' ? { color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' } : undefined}
           >

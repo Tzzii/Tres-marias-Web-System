@@ -1,0 +1,31 @@
+/* Keep the admin portal static, including shared components and MUI portals attached to body. */
+html[data-tm-portal='admin'],
+html[data-tm-portal='admin'] *,
+html[data-tm-portal='admin'] *::before,
+html[data-tm-portal='admin'] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-tm-portal='admin']::view-transition-group(*),
+html[data-tm-portal='admin']::view-transition-image-pair(*),
+html[data-tm-portal='admin']::view-transition-old(*),
+html[data-tm-portal='admin']::view-transition-new(*) {
+  animation: none !important;
+}
+
+/* Buttons retain their immediate hover/focus feedback without ripple or card movement. */
+html[data-tm-portal='admin'] .MuiTouchRipple-root {
+  display: none !important;
+}
+
+html[data-tm-portal='admin'] .tm-dash-card:hover {
+  transform: none !important;
+}
+
+/* An indeterminate loader remains visible as a static arc instead of an animated spinner. */
+html[data-tm-portal='admin'] .MuiCircularProgress-circleIndeterminate {
+  stroke-dasharray: 80px, 200px;
+  stroke-dashoffset: 0;
+}

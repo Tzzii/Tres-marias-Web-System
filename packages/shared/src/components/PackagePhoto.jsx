@@ -11,7 +11,7 @@ import { samplePackagePhoto } from '../domain/packagePhotos.js';
 import { adminPackagePhotoUrl, packagePhotoUrl } from '../services/remote/catalog.js';
 
 /** Shared package image for landing cards, detail pages and protected admin previews. */
-export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, height = 320 }) {
+export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, height = 320, thumbnail = false }) {
   const [preview, setPreview] = useState(null);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
@@ -47,6 +47,7 @@ export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, he
   const loading = admin && saved && !file && !preview && !failed;
   const sample = failed || (!file && !saved);
   const src = sample ? samplePackagePhoto(pkg) : preview || (!admin && packagePhotoUrl(pkg));
+  const cardSrc = sample && thumbnail ? samplePackagePhoto(pkg, { thumbnail: true }) : src;
   const caption = loading
     ? 'Loading package photo…'
     : failed
@@ -76,7 +77,7 @@ export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, he
         {src && (
           <Box
             component="img"
-            src={src}
+            src={cardSrc}
             alt={alt}
             loading="lazy"
             decoding="async"

@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { keyframes } from '@mui/material/styles';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import { site } from '../theme/siteTheme.js';
+import { observeReveal } from '../lib/revealObserver.js';
 
 const reviewRoll = keyframes`
   from { transform: translateX(0); }
@@ -14,11 +15,17 @@ const reviewRoll = keyframes`
 export default function CustomerReviews({ reviews }) {
   const [paused, setPaused] = useState(false);
   const touchStart = useRef(null);
+  const ref = useRef(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    if (!reviews.length) return undefined;
+    return observeReveal(ref.current, setInView);
+  }, [reviews.length]);
   if (!reviews.length) return null;
   // Each half must fill the widest viewport so the loop never exposes an empty stretch.
   const run = Array.from({ length: Math.ceil(6 / reviews.length) }, () => reviews).flat();
   return (
-    <Box sx={{ mt: 6 }}>
+    <Box ref={ref} sx={{ mt: 6 }}>
       <Typography component="h3" sx={{ textAlign: 'center', fontFamily: site.fontSerif, fontSize: 28, mb: 3 }}>
         Kind words after the celebration
       </Typography>
@@ -46,7 +53,7 @@ export default function CustomerReviews({ reviews }) {
           maxWidth: 1440,
           mx: 'auto',
           overflow: 'hidden',
-          '--tm-review-play-state': paused ? 'paused' : 'running',
+          '--tm-review-play-state': paused || !inView ? 'paused' : 'running',
           maskImage: 'linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent)',
           WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent)',
           '&:focus-visible .tm-review-track': { animationPlayState: 'paused' },
@@ -68,7 +75,7 @@ export default function CustomerReviews({ reviews }) {
             width: 'max-content',
             animation: `${reviewRoll} ${run.length * 7}s linear infinite`,
             animationPlayState: 'var(--tm-review-play-state)',
-            willChange: 'transform',
+            willChange: inView ? 'transform' : 'auto',
             '@media (prefers-reduced-motion: reduce)': {
               animation: 'none',
               transform: 'none',
