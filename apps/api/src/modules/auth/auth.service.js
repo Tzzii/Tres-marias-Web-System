@@ -23,6 +23,7 @@ import { now } from '../../lib/time.js';
 import { readToken, readUnlockTicket, sessionReplaced, signToken, signUnlockTicket } from '../../lib/tokens.js';
 import * as messages from './auth.messages.js';
 import * as repo from './auth.repo.js';
+import { linkGoogle } from './google.repo.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
 
 
@@ -48,6 +49,7 @@ const publicCustomer = (c) => ({
   company: c.company || '',
   createdAt: c.createdAt,
   termsVersion: c.termsVersion || '',
+  hasPassword: Boolean(c.passwordHash),
   role: 'customer'
 });
 
@@ -64,7 +66,7 @@ const adminProfile = (a) => ({
   failedAttempts: a.failedAttempts || 0
 });
 
-function customerSession(customer, remember = false) {
+export function customerSession(customer, remember = false) {
   const token = signToken(
     { id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: customer.passwordChangedAt },
     { ttl: remember ? config.jwt.customerRememberTtl : config.jwt.customerTtl }
@@ -173,7 +175,26 @@ export async function resendSignUpCode(challengeId) {
   return times;
 }
 
-export async function confirmSignUp({ challengeId, code }) {
+/** Google is not authoritative for third-party email domains, so verify the mailbox before signup. */
+export async function startGoogleEmailSignup(identity, profile) {
+  const address = identity.email;
+  await reserveAttempt('code-email', address);
+  const at = now();
+  const code = newCode(RULES.codeLength);
+  const request = { id: newId('sgn'), email: address, ...profile, passwordHash: null,
+    googleSubject: identity.sub, codeHash: await hashSecret(code), ...codeTimes(at), createdAt: at };
+  await repo.deleteSignupsFor(address);
+  await repo.insertSignup(request);
+  try {
+    await messages.sendSignUpCode(request, code);
+  } catch (err) {
+    await repo.deleteSignup(request.id);
+    throw err;
+  }
+  return { challengeId: request.id, maskedEmail: maskEmail(address), expiresAt: request.expiresAt, resendAt: request.resendAt };
+}
+
+export async function confirmSignUp({ challengeId, code, remember = false }) {
   const at = now();
   const expired = new ApiError('CHALLENGE_EXPIRED', 'Your sign-up request expired. Please start again.');
   const request = await repo.findSignup(challengeId);
@@ -196,6 +217,7 @@ export async function confirmSignUp({ challengeId, code }) {
     name: [request.firstName, request.middleName, request.lastName].filter(Boolean).join(' '),
     email: request.email,
     mobile: request.mobile,
+    passwordHash: request.passwordHash,
     company: '',
     createdAt: at,
     passwordChangedAt: null,
@@ -206,6 +228,7 @@ export async function confirmSignUp({ challengeId, code }) {
     await tx(async (conn) => {
       if (!(await repo.markSignupUsed(conn, request.id, at))) throw expired;
       await repo.insertCustomer({ ...customer, passwordHash: request.passwordHash }, conn);
+      if (request.googleSubject) await linkGoogle(request.googleSubject, customer.id, conn);
     });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY')
@@ -213,7 +236,7 @@ export async function confirmSignUp({ challengeId, code }) {
     throw err;
   }
   await clearAttempts('code-email', request.email);
-  return customerSession(customer);
+  return customerSession(customer, remember);
 }
 
 

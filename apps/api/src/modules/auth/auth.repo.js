@@ -2,7 +2,7 @@ import { pool } from '../../db.js';
 
 
 
-const toCustomer = (row) =>
+export const toCustomer = (row) =>
   row && {
     id: row.id,
     firstName: row.first_name,
@@ -277,6 +277,7 @@ const toSignup = (row) =>
     lastName: row.last_name,
     mobile: row.mobile,
     passwordHash: row.password_hash,
+    googleSubject: row.google_subject || null,
     codeHash: row.code_hash,
     expiresAt: row.expires_at,
     resendAt: row.resend_at,
@@ -290,8 +291,8 @@ export const findSignup = async (id) =>
 
 export async function insertSignup(r) {
   await pool.query(
-    `INSERT INTO signup_requests (id, email, first_name, middle_name, last_name, mobile, password_hash, code_hash, expires_at, resend_at, attempts, used_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
+    `INSERT INTO signup_requests (id, email, first_name, middle_name, last_name, mobile, password_hash, google_subject, code_hash, expires_at, resend_at, attempts, used_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
     [
       r.id,
       r.email,
@@ -300,6 +301,7 @@ export async function insertSignup(r) {
       r.lastName,
       r.mobile,
       r.passwordHash,
+      r.googleSubject || null,
       r.codeHash,
       r.expiresAt,
       r.resendAt,

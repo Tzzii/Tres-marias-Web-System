@@ -68,7 +68,7 @@ CREATE TABLE customers (
   name                VARCHAR(200)    NOT NULL,
   email               VARCHAR(254)    NOT NULL,
   mobile              VARCHAR(20)     NOT NULL DEFAULT '',
-  password_hash       VARCHAR(255)    NOT NULL,
+  password_hash       VARCHAR(255)    NULL,
   company             VARCHAR(160)    NOT NULL DEFAULT '',
   created_at          BIGINT UNSIGNED NOT NULL,
   password_changed_at BIGINT UNSIGNED NULL,
@@ -76,6 +76,14 @@ CREATE TABLE customers (
   terms_accepted_at   BIGINT UNSIGNED NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_customers_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE customer_google_accounts (
+  google_subject VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  customer_id    VARCHAR(40) NOT NULL,
+  PRIMARY KEY (google_subject),
+  UNIQUE KEY uq_google_customer (customer_id),
+  CONSTRAINT fk_google_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -642,7 +650,8 @@ CREATE TABLE signup_requests (
   middle_name   VARCHAR(60)     NOT NULL DEFAULT '',
   last_name     VARCHAR(60)     NOT NULL,
   mobile        VARCHAR(20)     NOT NULL,
-  password_hash VARCHAR(255)    NOT NULL,
+  password_hash VARCHAR(255)    NULL,
+  google_subject VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NULL,
   code_hash     VARCHAR(255)    NOT NULL,
   expires_at    BIGINT UNSIGNED NOT NULL,
   resend_at     BIGINT UNSIGNED NOT NULL,

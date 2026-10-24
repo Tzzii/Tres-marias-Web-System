@@ -20,12 +20,24 @@ const code = z
 
 export const requestParams = z.object({ id: requestId });
 export const codeBody = z.object({ code });
+export const signupCodeBody = z.object({ code, remember: z.boolean().default(false) });
 
 
 export const customerLogin = z.object({
   email: text(254),
   password,
   remember: z.boolean({ error: 'Remember me must be true or false.' }).default(false)
+});
+
+export const customerGoogle = z.object({
+  credential: text(10000).min(1),
+  challenge: text(2000).min(1),
+  remember: z.boolean().default(false),
+  password: password.optional(),
+  profile: z.object({
+    firstName: text(60), middleName: optionalText(60), lastName: text(60), mobile: text(20),
+    agreeTerms: z.boolean(), termsVersion: text(20)
+  }).optional()
 });
 
 export const customerRegister = z.object({

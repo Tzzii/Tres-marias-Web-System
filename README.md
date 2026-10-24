@@ -219,6 +219,47 @@ Both portal configuration files should contain this local API address:
 VITE_API_URL=http://localhost:4000/api
 ```
 
+### Optional: Continue with Google
+
+Customer login and signup can use Google Identity Services alongside email/password authentication.
+Create a **Web application** OAuth client in Google Auth Platform, configure the app's branding and
+audience, and add the exact customer website origin under **Authorized JavaScript origins**.
+The popup/JavaScript callback flow does not require an authorized redirect URI or a client secret.
+Use separate Google projects/clients for development and production.
+
+Set the same Web client ID in both locations:
+
+```dotenv
+# apps/client/.env.local (present before building the frontend)
+VITE_GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+
+# apps/api/.env
+GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+```
+
+For local testing, authorize `http://localhost` and `http://localhost:5173` in the development client.
+For production, authorize `https://tresmariascater.com` and the `www` origin if it serves the portal.
+The API hostname is not a customer login origin. Complete domain ownership and app branding
+verification through Google's console when publishing the production app.
+
+Run `npm run db:migrate` against the intended database before starting the updated API. The migration
+adds Google identity links and permits passwordless customer/signup records without replacing
+existing customers or password hashes. Rebuild the customer portal and restart the API after setting
+the client IDs. When the frontend ID is absent, the Google option stays hidden; when the API ID is
+absent, the API does not accept Google login. A mismatched configuration shows an email-login fallback.
+
+New customers complete their name, mobile number, and current Terms/Privacy agreement. An existing
+account requires its current password before Google is linked, preserving its account ID and bookings.
+Returning Google users are identified by their Google subject, even if their application email changes.
+For Google accounts using third-party email providers, the existing email-code signup flow confirms
+mailbox ownership first. Google-only users can set their first password through **My profile → Set a
+password**, using an emailed code. The admin authentication flow remains separate.
+
+Validation: `npm run test:google`, `npm run test:google:db` (local MySQL, rolled-back fixtures), and
+`npm run test:google-ui` (running local customer portal, isolated Google/API fixtures). The browser check
+uses Playwright and Chrome; `PLAYWRIGHT_MODULE_PATH` can point to an installed Playwright package.
+These fixture checks do not replace a real Google-account sign-in on an authorized origin.
+
 ### 3. Create the MySQL Database and User
 
 Open [apps/api/db-setup.sql](apps/api/db-setup.sql) in MySQL Workbench or another MySQL client. Replace its `CHANGE_ME_...` password placeholders in a **private working copy**, then execute it as a MySQL administrator.

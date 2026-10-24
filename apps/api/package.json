@@ -31,7 +31,8 @@
     "test:seed": "node --test tests/customer-seed-tests.js",
     "catalog:update": "node scripts/catalog-booking-update.js",
     "test:booking:db": "node --test tests/booking-options-db-tests.js",
-    "test": "node --test tests/booking-options-tests.js tests/calendar-tests.js tests/customer-seed-tests.js tests/helper-label-tests.js tests/hero-photo-tests.js tests/inventory-tests.js tests/mobile-tests.js tests/other-charges-tests.js tests/outsource-email-tests.js tests/outsource-tests.js tests/package-photo-tests.js tests/payment-details-tests.js tests/realtime-tests.js tests/receipt-proof-tests.js tests/reference-photo-tests.js"
+    "test": "node --test tests/booking-options-tests.js tests/calendar-tests.js tests/customer-seed-tests.js tests/helper-label-tests.js tests/hero-photo-tests.js tests/inventory-tests.js tests/mobile-tests.js tests/other-charges-tests.js tests/outsource-email-tests.js tests/outsource-tests.js tests/package-photo-tests.js tests/payment-details-tests.js tests/realtime-tests.js tests/receipt-proof-tests.js tests/reference-photo-tests.js tests/google-identity-tests.js tests/google-auth-tests.js tests/google-migration-tests.js tests/google-routes-tests.js",
+    "test:google:db": "node --test tests/google-db-tests.js"
   },
   "dependencies": {
     "@tm/shared": "*",
@@ -40,6 +41,7 @@
     "dotenv": "^18.0.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
+    "google-auth-library": "^11.3.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.12.1",

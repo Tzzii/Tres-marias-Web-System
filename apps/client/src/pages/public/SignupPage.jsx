@@ -34,6 +34,7 @@ import { useAuth } from '../../auth.js';
 import { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
 import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import LegalText from '../../components/LegalText.jsx';
+import GoogleSignIn from '../../components/GoogleSignIn.jsx';
 import { readIntent } from '../../lib/booking.js';
 
 const RULES = {
@@ -121,6 +122,9 @@ export default function SignupPage() {
 
         <BookingIntentBanner intent={intent} />
         {formError && <AlertBanner tone="error">{formError}</AlertBanner>}
+
+        <GoogleSignIn disabled={busy} onBusyChange={setBusy}
+          onSignedIn={(session) => { signIn(session); navigate(destination, { replace: true }); }} />
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
           <FormField id="signup-firstName" label="First name" required autoComplete="off" value={values.firstName} onChange={set('firstName')} error={errors.firstName} disabled={busy} />

@@ -57,6 +57,7 @@ export const config = {
   },
 
   jwtSecret: text('JWT_SECRET'),
+  googleClientId: text('GOOGLE_CLIENT_ID'),
   jwt: {
     adminTtl: text('JWT_ADMIN_TTL', '8h'),
     customerTtl: text('JWT_CUSTOMER_TTL', '12h'),
@@ -93,6 +94,8 @@ export const config = {
 if (config.corsOrigins.length === 0)
   problems.push("CORS_ORIGINS must list at least one origin (in production: the two portals' https:// addresses).");
 if (!config.jwtSecret) problems.push('JWT_SECRET must be set (at least 32 random characters in production).');
+if (config.googleClientId && !/^\d+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(config.googleClientId))
+  problems.push('GOOGLE_CLIENT_ID must be the Web OAuth client ID ending in .apps.googleusercontent.com.');
 Object.entries({
   JWT_ADMIN_TTL: config.jwt.adminTtl,
   JWT_CUSTOMER_TTL: config.jwt.customerTtl,

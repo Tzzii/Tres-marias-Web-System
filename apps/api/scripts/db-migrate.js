@@ -3,6 +3,7 @@ import path from 'node:path';
 import { config } from '../src/config.js';
 import { closePool, dbErrorHint, pool } from '../src/db.js';
 import { migrateOutsourcePartnerDeletion } from './lib/outsource-partner-deletion-migration.js';
+import { migrateGooglePasswords } from './lib/google-auth-migration.js';
 
 
 const COLUMN_TYPE =
@@ -85,10 +86,12 @@ async function main() {
 
       const partnerDeletion = await migrateOutsourcePartnerDeletion(conn);
       if (partnerDeletion) console.log('  enabled permanent partner deletion; existing requests and links kept');
+      const googlePasswords = await migrateGooglePasswords(conn);
+      if (googlePasswords) console.log(`  enabled Google-only accounts in ${googlePasswords} password column(s); existing hashes kept`);
 
       if (unknown.length) console.log(`Not in schema.sql (left as they are): ${unknown.join(', ')}`);
       console.log(
-        missing.length || added || widened || partnerDeletion
+        missing.length || added || widened || partnerDeletion || googlePasswords
           ? `Done: ${missing.length} table(s) and ${added} column(s) added, ${widened} column(s) widened${partnerDeletion ? ', partner deletion enabled' : ''}; existing rows kept.`
           : 'Nothing to do: every table and column in schema.sql is already there.'
       );

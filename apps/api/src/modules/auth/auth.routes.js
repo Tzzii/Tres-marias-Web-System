@@ -4,10 +4,12 @@ import { authLimiter } from '../../middleware/rateLimit.js';
 import { validate } from '../../middleware/validate.js';
 import * as schemas from './auth.schemas.js';
 import * as auth from './auth.service.js';
+import { createGoogleRoutes } from './google.routes.js';
 
 
 
 export const authRoutes = express.Router();
+authRoutes.use(createGoogleRoutes());
 
 authRoutes.post('/customer/login', authLimiter, validate({ body: schemas.customerLogin }), async (req, res) => {
   res.json(await auth.customerLogin(req.valid.body));
@@ -27,9 +29,9 @@ authRoutes.post(
 authRoutes.post(
   '/customer/register/:id/verify',
   authLimiter,
-  validate({ params: schemas.requestParams, body: schemas.codeBody }),
+  validate({ params: schemas.requestParams, body: schemas.signupCodeBody }),
   async (req, res) => {
-    res.status(201).json(await auth.confirmSignUp({ challengeId: req.valid.params.id, code: req.valid.body.code }));
+    res.status(201).json(await auth.confirmSignUp({ challengeId: req.valid.params.id, ...req.valid.body }));
   }
 );
 

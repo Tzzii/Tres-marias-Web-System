@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../../auth.js';
 import { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
 import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
+import GoogleSignIn from '../../components/GoogleSignIn.jsx';
 import { readIntent } from '../../lib/booking.js';
 
 const REMEMBERED_EMAIL = 'tm.client.rememberedEmail';
@@ -123,6 +124,9 @@ export default function LoginPage() {
           </AlertBanner>
         )}
         {formError && !locked && <AlertBanner tone="error">{formError}</AlertBanner>}
+
+        <GoogleSignIn remember={remember} disabled={busy || locked} onBusyChange={setBusy}
+          onSignedIn={(session, options) => { signIn(session, options); navigate(next, { replace: true }); }} />
 
         <FormField
           id="login-email"

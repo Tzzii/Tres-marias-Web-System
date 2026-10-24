@@ -53,12 +53,14 @@ export default function ProfilePage() {
   const [savingPw, setSavingPw] = useState(false);
   const [challenge, setChallenge] = useState(null);
   const [resetOpen, setResetOpen] = useState(false);
+  const [hasPassword, setHasPassword] = useState(user.hasPassword !== false);
 
   useEffect(() => {
     authApi
       .getCustomerProfile(user.id)
       .then((fresh) => {
         setProfile({ name: fresh.name, mobile: fresh.mobile, company: fresh.company || '' });
+        setHasPassword(fresh.hasPassword !== false);
       })
       .catch(() => {});
   }, [user.id]);
@@ -90,6 +92,11 @@ export default function ProfilePage() {
   };
 
   const openEmailChange = () => {
+    if (!hasPassword) {
+      notify('Set a password first to confirm changes to your login email.');
+      setResetOpen(true);
+      return;
+    }
     setEmailForm({ email: '', password: '' });
     setEmailErrors({});
     setEmailFormError('');
@@ -242,7 +249,7 @@ export default function ProfilePage() {
         </DashCard>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          <DashCard component="form" noValidate onSubmit={savePassword}>
+          {hasPassword ? <DashCard component="form" noValidate onSubmit={savePassword}>
             <CardTitle subtitle="8 characters or more, with a lowercase and an uppercase letter, a number and a special character">
               Change Password
             </CardTitle>
@@ -302,7 +309,13 @@ export default function ProfilePage() {
                 </BusyButton>
               </Box>
             </Box>
-          </DashCard>
+          </DashCard> : <DashCard>
+            <CardTitle subtitle="You currently sign in with Google.">Set a Password</CardTitle>
+            <Typography sx={{ mb: 2, fontSize: 13.5, color: tokens.textSecondary }}>
+              You can also sign in with email and password. We will email you a code to set your first password.
+            </Typography>
+            <Button type="button" variant="outlined" onClick={() => setResetOpen(true)}>Set a password</Button>
+          </DashCard>}
 
           <DashCard>
             <CardTitle>Session</CardTitle>
@@ -419,6 +432,8 @@ export default function ProfilePage() {
         onClose={() => setResetOpen(false)}
         onDone={() => {
           setResetOpen(false);
+          setHasPassword(true);
+          updateUser({ hasPassword: true });
           setPw({ current: '', next: '', confirm: '' });
           setPwErrors({});
           notify('Password changed. Other devices were signed out.');

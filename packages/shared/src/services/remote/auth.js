@@ -75,6 +75,9 @@ const segment = (id) => encodeURIComponent(String(id || ''));
 export const customerLogin = ({ email, password, remember = false }) =>
   trackLock('customer', email, () => http.post('/auth/customer/login', { email, password, remember }));
 
+export const getGoogleSignInConfig = () => http.get('/auth/customer/google/config', { quiet: true });
+export const customerGoogleLogin = (values) => http.post('/auth/customer/google', values, { quiet: true });
+
 /**
  * Sign-up, step 1 (Phase 12): the server checks the form and emails a code to the new address; no
  * account exists yet. Only the account fields are sent, with `agreeTerms` (the "I agree to the Terms of
@@ -94,8 +97,8 @@ export const startSignUp = ({
 export const resendSignUpCode = (challengeId) => http.post(`/auth/customer/register/${segment(challengeId)}/resend`);
 
 /** Sign-up, step 2: the emailed code. The server creates the account and signs the customer in: { token, user } */
-export const confirmSignUp = ({ challengeId, code }) =>
-  http.post(`/auth/customer/register/${segment(challengeId)}/verify`, { code });
+export const confirmSignUp = ({ challengeId, code, remember = false }) =>
+  http.post(`/auth/customer/register/${segment(challengeId)}/verify`, { code, remember });
 
 /** Forgot password, step 1: the server emails a code to the account's address. { challengeId, maskedEmail, expiresAt, resendAt } */
 export const startPasswordReset = ({ email }) => http.post('/auth/customer/password-reset', { email });
