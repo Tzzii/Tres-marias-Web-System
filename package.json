@@ -33,6 +33,7 @@
     "test:search": "node --test apps/client/tests/portal-search.test.js",
     "test:search-ui": "node scripts/search-popup-check.mjs",
     "test:premium-ui": "node scripts/premium-ui-check.mjs",
+    "test:hero-ui": "node scripts/hero-table-check.mjs",
     "test:inventory:db": "npm run test:inventory:db -w apps/api",
     "test:equipment-photos:db": "npm run test:equipment-photos:db -w apps/api --",
     "email:preview": "npm run email:preview -w apps/api",

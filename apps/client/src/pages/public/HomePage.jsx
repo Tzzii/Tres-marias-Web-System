@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
@@ -31,8 +31,9 @@ import MobileAuthBar from '../../components/MobileAuthBar.jsx';
 import { Reveal } from '../../components/Reveal.jsx';
 import { GALLERY, photoCount } from '../../lib/gallery.js';
 import { site, siteContainerSx } from '../../theme/siteTheme.js';
-import { AlertBanner, EmptyState, appearanceApi } from '@tm/shared';
+import { AlertBanner, EmptyState } from '@tm/shared';
 import HeroScene from '../../components/HeroScene.jsx';
+import { HERO_TABLE_SCROLL_MEDIA } from '../../lib/heroTableMotion.js';
 import PackageComparison from '../../components/PackageComparison.jsx';
 import BookingJourney from '../../components/BookingJourney.jsx';
 import CustomerReviews from '../../components/CustomerReviews.jsx';
@@ -89,7 +90,8 @@ export default function HomePage() {
   const { user } = useAuth();
   const packages = useResource(() => catalogApi.listPackages(), []);
   const testimonials = useResource(() => feedbackApi.listPublished({ limit: 3 }), []);
-  const appearance = useResource(appearanceApi.getAppearance, []);
+  const heroRef = useRef(null);
+  const [heroMotion, setHeroMotion] = useState(true);
   const minimum = packages.data ? catalogApi.minDownpayment() : null;
   const services = servicesList(minimum);
   const faqs = faqList(minimum);
@@ -141,18 +143,43 @@ export default function HomePage() {
       <SiteNav />
 
       <Box
+        ref={heroRef}
         component="section"
+        data-hero-scroll
         sx={{
           position: 'relative',
-          overflow: 'hidden',
-          pt: { xs: 5, md: 8 },
-          pb: { xs: 6, md: 8 },
+          overflow: 'clip',
+          '--hero-header-height': { xs: '72px', lg: '84px' },
+          ...(heroMotion && {
+            [HERO_TABLE_SCROLL_MEDIA]: {
+              height: 'calc(100svh - var(--hero-header-height) + clamp(500px, 80svh, 800px))'
+            }
+          }),
           background: site.gradientHero,
           '&::before': { content: '""', position: 'absolute', inset: '-40%', background: 'radial-gradient(circle at 50% 50%, rgba(197, 160, 89, 0.16) 0%, transparent 45%)', animation: 'tmHeroDrift 18s ease-in-out infinite alternate', pointerEvents: 'none' },
           '&::after': { content: '""', position: 'absolute', inset: 0, backgroundImage: site.textureLinen, maskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, #000 45%, transparent 100%)', pointerEvents: 'none' },
           '@media (prefers-reduced-motion: reduce)': { '&::before': { animation: 'none' } }
         }}
       >
+        <Box
+          data-hero-panel
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            pt: { xs: 5, md: 8 },
+            pb: { xs: 6, md: 8 },
+            ...(heroMotion && {
+              [HERO_TABLE_SCROLL_MEDIA]: {
+                position: 'sticky',
+                top: 'var(--hero-header-height)',
+                height: 'calc(100svh - var(--hero-header-height))',
+                display: 'flex',
+                alignItems: 'center',
+                py: 'min(5svh, 48px)'
+              }
+            })
+          }}
+        >
         <Container maxWidth={false} sx={{ ...siteContainerSx, position: 'relative', zIndex: 2 }}>
           <Box sx={{ maxWidth: 1440, mx: 'auto', display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 0.95fr) minmax(0, 1.05fr)' }, alignItems: 'center', gap: { xs: 4, md: 5, lg: 7 } }}>
             <Box sx={{ minWidth: 0, maxWidth: { xs: 640, md: 'none' }, mx: { xs: 'auto', md: 0 }, textAlign: { xs: 'center', md: 'left' } }}>
@@ -179,9 +206,10 @@ export default function HomePage() {
               </Typography>
               <Typography sx={{ mt: 1, fontSize: 12, color: site.goldText }}>Serving {BUSINESS.serviceArea}</Typography>
             </Box>
-            <HeroScene settings={appearance.data} />
+            <HeroScene scrollRef={heroRef} onMotionAvailable={setHeroMotion} />
           </Box>
         </Container>
+        </Box>
       </Box>
 
       <Box component="section" id="packages" sx={{ py: { xs: 10, md: 12 }, scrollMarginTop: { xs: '88px', lg: '100px' } }}>

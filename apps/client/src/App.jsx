@@ -87,6 +87,8 @@ function PublicSite() {
       <ThemeProvider theme={siteTheme}>
         <GlobalStyles
           styles={{
+            html: { scrollbarWidth: 'none' },
+            'html::-webkit-scrollbar': { display: 'none' },
             body: { ...paperSurfaceSx, backgroundColor: site.ivory, color: site.ink },
             '::selection': { background: 'rgba(197, 160, 89, 0.3)' }
           }}
