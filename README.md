@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.26.1**
+**System version: 1.26.2**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
@@ -575,7 +575,7 @@ Current limitations and configuration-dependent behavior:
 - The automatic equipment scheduler applies to equipment rentals. Returns still require actual returned and damaged quantities. See [Automatic Equipment Rental Checkout](apps/api/README.md#automatic-equipment-rental-checkout).
 - Venue addresses are entered as text and reviewed during booking; address search and map-pin selection are not included in the current implementation.
 - Sample customer records and local capstone documents are not included in a fresh GitHub clone.
-- README screenshots and academic team details still need to be supplied.
+- README screenshots still need to be supplied.
 
 ## Recommendations for Future Development
 
@@ -583,17 +583,20 @@ SMS notifications and outsourcing dispatch may be considered in a future version
 
 ## Team Members
 
-Academic team details have not yet been added to this README. Replace the entries below with the confirmed project information.
+The following proponents prepared the capstone paper **A Web-Based Catering Reservation and Operations Management System for Tres Marias Catering Services**.
 
 | Name | Project role |
 | --- | --- |
-| To be added | Project member and assigned role |
+| Kim Russel V. Garcia | Requirements Engineer / Systems Analyst |
+| Joviel B. Malacura | Project Manager / Strategic Documentation Lead |
+| Aritha Beatrice M. Nora | Research & Domain Analyst |
+| Kurt Alden W. Tenorio | System Architect / Software Developer |
 
 | Academic detail | Value |
 | --- | --- |
-| Institution and program | To be added |
-| Capstone adviser | To be added |
-| Academic year | To be added |
+| Institution and program | STI College Tanauan — Bachelor of Science in Information Technology |
+| Capstone adviser | Mr. Bryan Zeos B. Basco |
+| Academic year | 2026 - 2027 |
 
 ## Documentation and Credits
 
