@@ -1,3 +1,4 @@
+import { groupBy as group } from '../src/lib/groupBy.js';
 import { config } from '../src/config.js';
 import bcrypt from 'bcrypt';
 import { stat } from 'node:fs/promises';
@@ -7,7 +8,6 @@ import { parseJson } from '../src/lib/json.js';
 import { seedPasswords, seedAdminEmail } from '../src/seedData/passwords.js';
 import { NO_SAMPLE_DATA, loadSampleSeed } from '../src/seedData/sampleLoader.js';
 import { buildBusinessSeed } from '../src/seedData/seed.js';
-
 
 const problems = [];
 const notes = [];
@@ -54,14 +54,6 @@ const compareKeyed = (label, dbList, seedList, key) => {
     else n += compare(`${label}[${k}]`, dbMap.get(k), seedMap.get(k));
   }
   return n;
-};
-const group = (rows, key) => {
-  const m = new Map();
-  rows.forEach((r) => {
-    if (!m.has(r[key])) m.set(r[key], []);
-    m.get(r[key]).push(r);
-  });
-  return m;
 };
 
 async function check() {

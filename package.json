@@ -1,6 +1,6 @@
 {
   "name": "tres-marias",
-  "version": "1.26.2",
+  "version": "1.28.4",
   "private": true,
   "description": "Tres Marias Catering Services - Customer Portal and Admin Dashboard (React + Vite + MUI monorepo).",
   "workspaces": [
@@ -50,10 +50,15 @@
     "test:seed": "npm run test:seed -w apps/api",
     "catalog:update": "npm run catalog:update -w apps/api --",
     "test:booking:db": "npm run test:booking:db -w apps/api",
-    "test": "npm run test -w apps/api && npm run test -w apps/admin && npm run test -w apps/client",
+    "test": "npm run check:versions && npm run test -w apps/api && npm run test -w apps/admin && npm run test -w apps/client",
     "test:google": "node --test apps/api/tests/google-identity-tests.js apps/api/tests/google-auth-tests.js apps/api/tests/google-migration-tests.js apps/api/tests/google-routes-tests.js apps/client/tests/google-sdk.test.js",
     "test:google:db": "npm run test:google:db -w apps/api",
-    "test:google-ui": "node scripts/google-auth-check.mjs"
+    "test:google-ui": "node scripts/google-auth-check.mjs",
+    "test:duration": "npm run test:duration -w apps/api",
+    "test:duration:db": "npm run test:duration:db -w apps/api",
+    "check:versions": "node scripts/check-workspace-versions.mjs",
+    "test:auth-ui": "node scripts/auth-transition-check.mjs",
+    "test:customer-code-ui": "node scripts/customer-code-check.mjs"
   },
   "engines": {
     "node": ">=20"

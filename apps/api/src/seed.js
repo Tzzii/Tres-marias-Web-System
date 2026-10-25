@@ -11,7 +11,6 @@ import { NO_SAMPLE_DATA, loadSampleSeed } from './seedData/sampleLoader.js';
 import { buildBusinessSeed } from './seedData/seed.js';
 import { prepareSampleProofs } from './seedData/proofs.js';
 
-
 export const TABLES = [
   'admins',
   'customers',
@@ -151,6 +150,7 @@ export function toRows(data, hashes, now) {
         id: 1,
         price_per_plate: data.settings.pricePerPlate,
         min_downpayment: data.settings.minDownpayment,
+        six_hour_fee: data.settings.sixHourFee,
         updated_at: now
       }
     ],

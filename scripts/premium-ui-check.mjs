@@ -167,6 +167,7 @@ async function fixture(side) {
     else if (endpoint === '/packages') body = packages;
     else if (endpoint.startsWith('/packages/by-slug/'))
       body = packages.find((p) => p.slug === endpoint.split('/').pop()) || pkg;
+    else if (endpoint === '/catalog/pricing') body = seed.settings;
     else if (endpoint === '/catalog/price-per-plate') body = { pricePerPlate: seed.settings.pricePerPlate };
     else if (endpoint === '/catalog/min-downpayment') body = { minDownpayment: seed.settings.minDownpayment };
     else if (endpoint === '/addons') body = seed.addons;

@@ -354,6 +354,3 @@ export const themeForMode = (mode, animate = true) => {
 
 /** Cards, forms and dialogs use the same mode as the portal shell. */
 export const surfaceThemeForMode = themeForMode;
-
-/** Kept for callers that want a single theme factory. */
-export const createTresMariasTheme = () => darkTheme;

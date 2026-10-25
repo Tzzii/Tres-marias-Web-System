@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import { endTimeOptions } from '../domain/availability.js';
 import { RULES } from '../services/config.js';
 import { tokens } from '../theme/tokens.js';
-import { formatTime } from '../utils/format.js';
+import { formatTime, peso } from '../utils/format.js';
 import { FieldLabel } from './FormField.jsx';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -267,6 +267,7 @@ export function EndTimeField({
   required,
   error,
   hint,
+  sixHourFee,
   startTime,
   value,
   onChange,
@@ -286,6 +287,10 @@ export function EndTimeField({
     below = `Saved end time ${formatTime(value)} no longer fits the start time. Choose ${endText(first)} to ${endText(last)}.`;
   else
     below = `${hint || `Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`} Choose ${endText(first)} to ${endText(last)}.`;
+
+  if (sixHourFee !== undefined) {
+    below += ` Default: ${RULES.initialEventHours} hours. ${Number(sixHourFee) > 0 ? `Exactly 6 hours adds ${peso(sixHourFee)}; under 6 hours has no duration charge.` : 'No duration charge for events up to 6 hours.'}`;
+  }
 
   return (
     <ClockSelect

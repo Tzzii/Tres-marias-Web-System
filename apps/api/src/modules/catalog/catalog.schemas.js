@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-
 const text = (max) =>
   z
     .string({ error: 'This field is required.' })
@@ -18,11 +17,9 @@ const querySwitch = z
 
 const pathText = z.string();
 
-
 export const packagesQuery = z.object({ includeHidden: querySwitch, includeArchived: querySwitch });
 export const archivedQuery = z.object({ includeArchived: querySwitch });
 export const slugParams = z.object({ slug: pathText });
-
 
 export const idParams = z.object({ id: pathText });
 
@@ -53,3 +50,4 @@ export const dishBody = z.object({ name: text(120), category: passThrough });
 export const pricePerPlateBody = z.object({ pricePerPlate: passThrough });
 
 export const minDownpaymentBody = z.object({ minDownpayment: passThrough });
+export const sixHourFeeBody = z.object({ sixHourFee: passThrough });

@@ -6,6 +6,7 @@ export function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
   const rows = [
     [pkg ? `Package · ${pkg.name}` : 'Package', pkg ? peso(quote.packageTotal) : '—'],
     ...(quote.extraGuests ? [[`Extra ${quote.extraGuests} guests (equipment)`, 'To be quoted']] : []),
+    ...(quote.durationCharge > 0 ? [['6-hour event charge', peso(quote.durationCharge)]] : []),
     ...(includesFood(serviceType)
       ? [
           [

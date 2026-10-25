@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.26.2**
+**System version: 1.28.4**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
@@ -115,6 +115,12 @@ Other outcomes: Declined or Cancelled
 ```
 
 **Quotation acceptance is performed by the customer.** Administrators prepare and send quotations; the customer accepts the offer before the booking proceeds. Cancellation, refunds, payment amounts, availability, and rental returns are checked against the system's business rules.
+
+New event reservations default to **2 hours** and allow up to **6 hours**, including events that end after midnight. Only an event lasting exactly **6 hours** adds the **6-hour event charge**, initially **₱5,000**. Shorter events, including 5½-hour events, have no duration charge. Equipment rentals do not have this event charge.
+
+Administrators can change the default under **Packages → Packages → 6-hour Event Charge**, or adjust the charge for one six-hour event in its **Quotation**. Both inputs accept whole pesos from **₱0 to ₱50,000**, with at most **5 digits**; zero waives the charge. The API and database also enforce the cap. Reservations save their rate when submitted, so later default changes apply to new reservations. Changing an event across the six-hour boundary marks a sent quotation as outdated; the customer must receive a revised quotation before the amount owed changes. Older records keep their existing prices, and records saved without an end time keep their original four-hour scheduling fallback.
+
+Run `npm run db:migrate` to add `catalog_settings.six_hour_fee` without deleting existing data. `npm run test:duration` checks duration pricing and amount validation; `npm run test:duration:db` verifies booking, settings, and revised-quotation persistence against a local development database, with all test fixtures rolled back.
 
 ## Technology Stack
 
@@ -492,6 +498,10 @@ For public event gallery photos, follow the [Gallery Photo Guide](apps/client/sr
 See [Testing](#testing) for the available authentication, authorization, and integration checks.
 
 ## Testing
+
+Concurrent JSON reads share an in-flight request only within the same signed-in session. Responses are copied for each consumer, completed reads are not cached, and successful writes or change notifications invalidate older pending reads. Catalogue list reads use the combined `/api/catalog/pricing` endpoint; the older individual pricing endpoints remain available for compatibility.
+
+Run `npm run check:versions` to verify all workspace versions, internal dependency references, the lockfile and the documented system version. `npm run test:auth-ui` and `npm run test:customer-code-ui` expose the existing isolated authentication browser checks through npm; like the other browser checks they require a running local customer portal, Chrome and Playwright.
 
 Run checks relevant to the changes being made. The following commands exercise business rules or controlled fixtures without resetting the configured MySQL database:
 

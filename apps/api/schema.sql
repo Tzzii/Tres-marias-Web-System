@@ -146,6 +146,7 @@ CREATE TABLE catalog_settings (
   id              TINYINT          NOT NULL,
   price_per_plate INT              NOT NULL DEFAULT 600,
   min_downpayment INT              NOT NULL DEFAULT 3000,
+  six_hour_fee    INT              NOT NULL DEFAULT 5000 CHECK (six_hour_fee BETWEEN 0 AND 50000),
   bank_name       VARCHAR(80)      NOT NULL DEFAULT 'BPI',
   bank_account_name VARCHAR(120)   NOT NULL DEFAULT 'Tres Marias Catering Services',
   bank_account_number VARCHAR(40)  NOT NULL DEFAULT '4471 0839 26',

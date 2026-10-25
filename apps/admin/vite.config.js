@@ -28,5 +28,5 @@ export default defineConfig({
     proxy: apiProxy
   },
   preview: { port: 4174, strictPort: true, proxy: apiProxy },
-  build: { outDir: path.join(appDir, 'dist'), emptyOutDir: true, chunkSizeWarningLimit: 1200, minify: false }
+  build: { outDir: path.join(appDir, 'dist'), emptyOutDir: true, chunkSizeWarningLimit: 1200 }
 });

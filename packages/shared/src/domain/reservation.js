@@ -1,6 +1,6 @@
 import { dishesInMenu } from './menu.js';
 import { BUSINESS, DISH_CATEGORIES, RENTAL, includesFood, isRental } from '../services/config.js';
-import { computeQuote } from '../services/pricing.js';
+import { computeQuote, durationChargeFor, reservationSixHourFee } from '../services/pricing.js';
 import { formatDate, todayISO } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
 import { cancelDeadline } from './cancellation.js';
@@ -46,6 +46,11 @@ export function quotationStaleReason(reservation) {
   }
   if (quote.serviceType !== reservation.serviceType)
     return `It was sent as ${quote.serviceType}, but this booking is now ${reservation.serviceType}.`;
+  if (
+    (quote.durationCharge || 0) !==
+    durationChargeFor({ ...reservation, sixHourFee: reservationSixHourFee(reservation) })
+  )
+    return 'The event duration changed after it was sent, so the six-hour event charge must be updated.';
   const plates = includesFood(reservation.serviceType) ? reservation.guests : 0;
   if (quote.plates !== plates)
     return `It was sent for ${quote.plates} guests, but this booking is now for ${reservation.guests}.`;

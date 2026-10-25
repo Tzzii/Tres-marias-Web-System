@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { usePhotoPreview } from '../hooks/usePhotoPreview.js';
 import { tokens } from '../theme/tokens.js';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -12,36 +12,13 @@ import { adminPackagePhotoUrl, packagePhotoUrl } from '../services/remote/catalo
 
 /** Shared package image for landing cards, detail pages and protected admin previews. */
 export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, height = 320, thumbnail = false }) {
-  const [preview, setPreview] = useState(null);
-  const [failed, setFailed] = useState(false);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    let active = true;
-    let objectUrl;
-    setPreview(null);
-    setFailed(false);
-    setOpen(false);
-    if (file) {
-      objectUrl = URL.createObjectURL(file);
-      setPreview(objectUrl);
-    } else if (admin && pkg?.photoVersion && !removePhoto) {
-      adminPackagePhotoUrl(pkg)
-        .then((url) => {
-          if (!active) URL.revokeObjectURL(url);
-          else {
-            objectUrl = url;
-            setPreview(url);
-          }
-        })
-        .catch(() => {
-          if (active) setFailed(true);
-        });
-    }
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [file, admin, pkg?.id, pkg?.slug, pkg?.photoVersion, removePhoto]);
+  const { preview, failed, setFailed, open, setOpen } = usePhotoPreview({
+    record: pkg,
+    file,
+    admin,
+    removePhoto,
+    loadPhoto: adminPackagePhotoUrl
+  });
 
   const saved = !removePhoto && pkg?.photoVersion;
   const loading = admin && saved && !file && !preview && !failed;

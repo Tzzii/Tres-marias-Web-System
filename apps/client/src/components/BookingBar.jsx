@@ -17,6 +17,9 @@ import {
   RULES,
   TimeField,
   calendarApi,
+  catalogApi,
+  initialEndTime,
+  useResource,
   formatDateLong,
   formatEventTime,
   shiftEndTime,
@@ -30,7 +33,8 @@ export default function BookingBar({ onAvailable }) {
   const saved = readIntent() || {};
   const [date, setDate] = useState(saved.date || '');
   const [startTime, setStartTime] = useState(saved.startTime || '');
-  const [endTime, setEndTime] = useState(saved.endTime || '');
+  const [endTime, setEndTime] = useState(saved.endTime || initialEndTime(saved.startTime));
+  const durationFee = useResource(() => catalogApi.getSixHourFee(), []);
   const [occasion, setOccasion] = useState(saved.occasion || '');
   const [guests, setGuests] = useState(saved.guests ? String(saved.guests) : '');
   const [errors, setErrors] = useState({});
@@ -89,6 +93,7 @@ export default function BookingBar({ onAvailable }) {
     >
       <Box
         component="form"
+        autoComplete="off"
         noValidate
         onSubmit={submit}
         sx={{
@@ -155,7 +160,7 @@ export default function BookingBar({ onAvailable }) {
                 value={startTime}
                 onChange={(v) => {
                   setStartTime(v);
-                  if (endTime) setEndTime(shiftEndTime(startTime, endTime, v));
+                  setEndTime(endTime ? shiftEndTime(startTime, endTime, v) : initialEndTime(v));
                   setErrors((er) => ({ ...er, startTime: '' }));
                   setResult(null);
                 }}
@@ -173,6 +178,7 @@ export default function BookingBar({ onAvailable }) {
               </Typography>
               <EndTimeField
                 id="bar-end"
+                sixHourFee={durationFee.data?.sixHourFee ?? catalogApi.sixHourFee()}
                 label=""
                 startTime={startTime}
                 value={endTime}
@@ -222,6 +228,7 @@ export default function BookingBar({ onAvailable }) {
               </Typography>
               <TextField
                 id="bar-guests"
+                autoComplete="off"
                 fullWidth
                 size="small"
                 placeholder="e.g. 150"

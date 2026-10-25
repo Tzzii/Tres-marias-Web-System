@@ -11,8 +11,7 @@
  *   everywhere; only the folder window depends on the browser.
  *
  * A browser only opens the window straight after a click. So a file that takes a while to make (a PDF)
- * asks first (askWhereToSave), is made, and is then written (writeTo); a file that is ready at once uses
- * saveFile, which does both.
+ * asks first (askWhereToSave), is made, and is then written (writeTo).
  */
 
 // The file types the window offers, by extension; the window remembers the last folder per `id`
@@ -64,15 +63,4 @@ export async function writeTo(target, blob) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/**
- * Save a file that is ready now: ask where, then write it. Resolves to true when it was
- * saved or downloaded, false when the user pressed Cancel (say nothing then).
- */
-export async function saveFile(fileName, blob) {
-  const target = await askWhereToSave(fileName);
-  if (!target) return false;
-  await writeTo(target, blob);
-  return true;
 }

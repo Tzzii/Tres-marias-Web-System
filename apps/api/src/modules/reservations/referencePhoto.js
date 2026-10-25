@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { referencePhotoProblem } from '@tm/shared/src/domain/referencePhoto.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { storage } from '../../integrations/storage/index.js';
+import { sniffPhoto } from '../../lib/photos.js';
 
 const invalid = (message) => new ApiError('INVALID', message, { field: 'styling.referencePhoto' });
 
@@ -9,11 +10,7 @@ export function inspectReferencePhoto(file) {
   const buffer = file?.buffer;
   const problem = referencePhotoProblem({ size: buffer?.length, type: file?.mimetype });
   if (problem) throw invalid(problem);
-  let ext;
-  if (buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ext = 'png';
-  else if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) ext = 'jpg';
-  else if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') ext = 'webp';
-  const mime = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[ext];
+  const { ext, mime } = sniffPhoto(buffer) || {};
   if (!ext || mime !== file.mimetype)
     throw invalid('That file is not a valid JPG, PNG or WebP photo. Choose another photo.');
   const name = String(file.originalname || `Reference photo.${ext}`)

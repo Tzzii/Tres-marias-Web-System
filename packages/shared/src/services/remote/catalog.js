@@ -1,4 +1,4 @@
-import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE } from '../config.js';
+import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE, DEFAULT_SIX_HOUR_FEE } from '../config.js';
 import { emitChange } from '../events.js';
 import { apiUrl, fetchFileUrl, http } from '../http.js';
 
@@ -10,9 +10,9 @@ import { apiUrl, fetchFileUrl, http } from '../http.js';
  * - The includeHidden / includeArchived switches are sent as asked; the server honours them for an
  *   admin's token only, so the customer site can never list a hidden or archived record.
  * - pricePerPlate() and minDownpayment() must answer right away (pages read them while loading or
- *   rendering), so each returns the last value the server gave. Both copies are refreshed by every
- *   catalogue list read (listPackages, listAddons, listDishes wait for the two small GETs alongside
- *   their own), by getCatalog (its answer carries both) and by their own setter, so a page that reads
+ *   rendering), so each returns the last value the server gave. The six-hour event rate uses the same
+ *   cache, including zero when waived. All three are refreshed by catalogue list reads, getCatalog
+ *   and their own setter, so a page that reads
  *   one right after a catalogue read never shows an older value than the server's (see syncedSetting).
  */
 
@@ -30,41 +30,23 @@ function switches(options) {
 /* ---------------- Settings read right away: buffet price per person, minimum downpayment ---------------- */
 
 /**
- * A booking-wide amount the pages read synchronously, kept as the last value the server gave: `path` is
- * its small GET (e.g. '/catalog/price-per-plate'), `field` the key of the answer that holds it, and
- * `fallback` the starting value used until the first answer (the default in config.js).
+ * A booking-wide amount read synchronously: the last server value, or its configured fallback.
  * `version` goes up with each save, so an answer to a request sent before the last save never replaces
  * the newer value; reads made at the same time share one request.
  */
-function syncedSetting(path, field, fallback) {
+function syncedSetting(fallback, min = 1) {
   let value = null; // the last value from the server; null until the first answer
   let version = 0;
-  let pending = null; // the request on its way: { version, promise }
 
   // Keep a value from the server (a whole number of pesos)
   const remember = (answer) => {
     const amount = Number(answer);
-    if (Number.isInteger(amount) && amount > 0) value = amount;
+    if (answer !== null && answer !== undefined && Number.isInteger(amount) && amount >= min) value = amount;
   };
 
   return {
     /** The value right away: the server's last answer, or the fallback before any. */
     read: () => (value === null ? fallback : value),
-    /** Ask the server; resolves once the copy is up to date (an answer older than the last save is dropped). */
-    refresh() {
-      if (pending && pending.version === version) return pending.promise;
-      const sent = version;
-      const promise = http
-        .get(path)
-        .then((data) => {
-          if (sent === version) remember(data && data[field]);
-        })
-        .finally(() => {
-          if (pending && pending.promise === promise) pending = null;
-        });
-      pending = { version: sent, promise };
-      return promise;
-    },
     /** The version now: taken before a request whose answer also carries the value (getCatalog). */
     stamp: () => version,
     /** Keep the value from an answer to a request sent at `stamp`, unless a save came after it. */
@@ -79,11 +61,40 @@ function syncedSetting(path, field, fallback) {
   };
 }
 
-const rate = syncedSetting('/catalog/price-per-plate', 'pricePerPlate', DEFAULT_PRICE_PER_PLATE);
-const minimum = syncedSetting('/catalog/min-downpayment', 'minDownpayment', DEFAULT_MIN_DOWNPAYMENT);
+const rate = syncedSetting(DEFAULT_PRICE_PER_PLATE);
+const minimum = syncedSetting(DEFAULT_MIN_DOWNPAYMENT);
+const duration = syncedSetting(DEFAULT_SIX_HOUR_FEE, 0);
+let pricingRequest = null;
 
-// A catalogue list read that also brings both settings up to date before it resolves
-const withSettings = (request) => Promise.all([request, rate.refresh(), minimum.refresh()]).then(([data]) => data);
+// Each rate keeps its own save version so a slower read cannot undo a recent edit.
+function pricingStamps() {
+  return { rate: rate.stamp(), minimum: minimum.stamp(), duration: duration.stamp() };
+}
+function keepPricing(pricing, stamps) {
+  rate.keep(pricing?.pricePerPlate, stamps.rate);
+  minimum.keep(pricing?.minDownpayment, stamps.minimum);
+  duration.keep(pricing?.sixHourFee, stamps.duration);
+}
+function refreshPricing() {
+  const stamps = pricingStamps();
+  if (pricingRequest && Object.keys(stamps).every((key) => pricingRequest.stamps[key] === stamps[key]))
+    return pricingRequest.promise;
+  const promise = http
+    .get('/catalog/pricing')
+    .then((pricing) => keepPricing(pricing, stamps))
+    .finally(() => {
+      if (pricingRequest?.promise === promise) pricingRequest = null;
+    });
+  pricingRequest = { stamps, promise };
+  return promise;
+}
+
+const withSettings = (request) => Promise.all([request, refreshPricing()]).then(([data]) => data);
+export const sixHourFee = () => duration.read();
+export const getSixHourFee = async () => {
+  await refreshPricing();
+  return { sixHourFee: duration.read() };
+};
 
 /**
  * The buffet price per person, returned right away: the last price the server gave, or the starting
@@ -118,12 +129,11 @@ export const listDishes = ({ includeArchived = false } = {}) =>
 /** The rental price list: [{ id, name, category, price, damageFee }], with no stock counts. */
 export const listRentalItems = () => http.get('/rental-items');
 
-/** Everything the reservation form needs: { packages, addons, dishes, pricePerPlate, minDownpayment, rentals }. */
+/** Everything the reservation form needs, including the current sixHourFee. */
 export async function getCatalog() {
-  const stamps = { rate: rate.stamp(), minimum: minimum.stamp() };
+  const stamps = pricingStamps();
   const catalog = await http.get('/catalog');
-  rate.keep(catalog && catalog.pricePerPlate, stamps.rate);
-  minimum.keep(catalog && catalog.minDownpayment, stamps.minimum);
+  keepPricing(catalog, stamps);
   return catalog;
 }
 
@@ -225,6 +235,13 @@ export async function setPricePerPlate(value) {
 export async function setMinDownpayment(value) {
   const result = await http.put('/admin/catalog/min-downpayment', { minDownpayment: value }, { quiet: true });
   minimum.saved(result.minDownpayment);
+  emitChange();
+  return result;
+}
+
+export async function setSixHourFee(value) {
+  const result = await http.put('/admin/catalog/six-hour-fee', { sixHourFee: value }, { quiet: true });
+  duration.saved(result.sixHourFee);
   emitChange();
   return result;
 }

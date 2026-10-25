@@ -19,14 +19,6 @@ export const validStars = (value) => Number.isInteger(Number(value)) && Number(v
 // The category ratings sent with a review: the object itself, or none when it is not an object
 const ratingsIn = (categories) => (categories && typeof categories === 'object' ? categories : {});
 
-/** Average of the category ratings, or 0 when none were given. */
-export function categoryAverage(categories = {}) {
-  const given = ratingsIn(categories);
-  const values = FEEDBACK_CATEGORIES.map(({ key }) => Number(given[key])).filter(validStars);
-  if (!values.length) return 0;
-  return values.reduce((sum, v) => sum + v, 0) / values.length;
-}
-
 /**
  * What is wrong with a new review, or null when it can be saved: { field, message } for the first
  * problem, in the order the form shows them: an overall rating of 1–5 stars (`rating`), a rating

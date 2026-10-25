@@ -1,14 +1,6 @@
+import { groupBy } from '../../lib/groupBy.js';
 
 const first = ([rows]) => rows[0] || null;
-
-function groupBy(rows, key) {
-  const groups = new Map();
-  rows.forEach((row) => {
-    if (!groups.has(row[key])) groups.set(row[key], []);
-    groups.get(row[key]).push(row);
-  });
-  return groups;
-}
 
 const toItem = (row, allocations = [], history = []) => ({
   id: row.id,
@@ -28,7 +20,6 @@ const toItem = (row, allocations = [], history = []) => ({
   addonId: row.addon_id ?? null,
   history: history.map((h) => ({ at: h.at, actor: h.actor, text: h.text, ...(h.ref === null ? {} : { ref: h.ref }) }))
 });
-
 
 export async function findItems(db, { ids, includeArchived = true, lock = false } = {}) {
   if (ids && !ids.length) return { items: [], eventOf: () => null };
@@ -126,7 +117,6 @@ export async function lastAutomaticNotice(db, ref) {
   );
   return row?.text || '';
 }
-
 
 export async function deleteItem(conn, id) {
   await conn.query('DELETE FROM inventory_history WHERE item_id = ?', [id]);

@@ -11,12 +11,6 @@ export function LightSurface({ children }) {
   return <ThemeProvider theme={surfaceThemeForMode(mode, animate)}>{children}</ThemeProvider>;
 }
 
-/** Everything inside renders with the evening theme, whichever mode the portal is in. */
-export function DarkSurface({ children }) {
-  const { animate } = useColorMode();
-  return <ThemeProvider theme={surfaceThemeForMode('dark', animate)}>{children}</ThemeProvider>;
-}
-
 /** Printed documents retain their paper theme; pair with paperSurfaceSx on the document root. */
 export function PaperSurface({ children }) {
   const { animate } = useColorMode();

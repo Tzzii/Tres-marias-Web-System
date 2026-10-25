@@ -43,6 +43,7 @@ async function fixture(viewport, { reducedMotion = 'no-preference', noWebGL = fa
     const endpoint = new URL(request.url()).pathname.replace(/^\/api/, '');
     let body = [];
     if (endpoint === '/packages') body = seed.packages.map((pkg) => ({ ...pkg, visible: true, archived: false }));
+    if (endpoint === '/catalog/pricing') body = seed.settings;
     if (endpoint === '/catalog/min-downpayment') body = { minDownpayment: seed.settings.minDownpayment };
     if (endpoint === '/catalog/price-per-plate') body = { pricePerPlate: seed.settings.pricePerPlate };
     if (endpoint === '/changes') body = { version: 1 };

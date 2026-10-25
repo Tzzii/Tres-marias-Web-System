@@ -1,4 +1,4 @@
-import { cleanStyling } from '@tm/shared';
+import { cleanStyling, initialEndTime } from '@tm/shared';
 
 export const SECTIONS = [
   ['details', 'Event Details', 'Event'],
@@ -55,7 +55,7 @@ export const EMPTY = {
   occasionOther: '',
   date: '',
   startTime: '18:00',
-  endTime: '',
+  endTime: initialEndTime('18:00'),
   guests: '',
   serviceType: '',
   packageId: '',

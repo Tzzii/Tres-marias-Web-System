@@ -1,19 +1,10 @@
+import { groupBy } from '../../lib/groupBy.js';
 import { RENTAL_SERVICE } from '@tm/shared/src/services/config.js';
 import { HOLDS_DATE } from '@tm/shared/src/utils/status.js';
 import { helperItemCounts } from '@tm/shared/src/utils/helperLabels.js';
 import { toJson, parseJson } from '../../lib/json.js';
 
-
 const first = ([rows]) => rows[0] || null;
-
-function groupBy(rows, key) {
-  const groups = new Map();
-  rows.forEach((row) => {
-    if (!groups.has(row[key])) groups.set(row[key], []);
-    groups.get(row[key]).push(row);
-  });
-  return groups;
-}
 
 function scope({ customerId, ref }) {
   const conditions = [];
@@ -116,7 +107,6 @@ export const toRefund = (row) => ({
   recordedAt: row.recorded_at,
   recordedBy: row.admin_name ?? ''
 });
-
 
 export async function findReservations(db, filter = {}) {
   const { where, params } = scope(filter);
@@ -339,7 +329,6 @@ export async function rentalStockInputs(db, date) {
     }))
   };
 }
-
 
 export async function insertReservation(conn, r) {
   await conn.query(

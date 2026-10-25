@@ -10,6 +10,7 @@ import {
 import {
   DEFAULT_MIN_DOWNPAYMENT,
   DEFAULT_PRICE_PER_PLATE,
+  DEFAULT_SIX_HOUR_FEE,
   DISH_CATEGORIES,
   MIN_DOWNPAYMENT_RANGE,
   PRICE_PER_PLATE_RANGE,
@@ -23,7 +24,7 @@ import { ApiError } from '../../lib/ApiError.js';
 import { newId } from '../../lib/ids.js';
 import { now } from '../../lib/time.js';
 import * as repo from './catalog.repo.js';
-
+import { sixHourFeeProblem } from '@tm/shared/src/services/pricing.js';
 
 const MAX_PACKAGE_PRICE = 10_000_000;
 const MAX_ITEMS = 100;
@@ -38,7 +39,6 @@ const toNumber = (value) =>
 
 const isDuplicate = (err, ...keys) =>
   err && err.code === 'ER_DUP_ENTRY' && keys.some((key) => String(err.sqlMessage || err.message).includes(key));
-
 
 export function listPackages({ includeHidden = false, includeArchived = false } = {}, { admin = false } = {}) {
   return repo.listPackages({ includeHidden: admin && includeHidden, includeArchived: admin && includeArchived });
@@ -74,22 +74,40 @@ export async function getMinDownpayment() {
   return { minDownpayment: await currentMinDownpayment() };
 }
 
+export async function getSixHourFee() {
+  return { sixHourFee: Number((await repo.getSixHourFee()) ?? DEFAULT_SIX_HOUR_FEE) };
+}
+
+export async function getPricingSettings() {
+  const settings = await repo.getPricingSettings();
+  return {
+    pricePerPlate: Number(settings?.pricePerPlate) || DEFAULT_PRICE_PER_PLATE,
+    minDownpayment: Number(settings?.minDownpayment) || DEFAULT_MIN_DOWNPAYMENT,
+    sixHourFee: Number(settings?.sixHourFee ?? DEFAULT_SIX_HOUR_FEE)
+  };
+}
+
+export async function setSixHourFee(value) {
+  const problem = sixHourFeeProblem(value);
+  if (problem) throw invalid(problem, 'sixHourFee');
+  await repo.setSixHourFee(Number(value), now());
+  return { sixHourFee: Number(value) };
+}
+
 export async function listRentalItems() {
   return rentalPriceList(await repo.listRentableItems());
 }
 
 export async function getCatalog() {
-  const [packages, addons, dishes, pricePerPlate, minDownpayment, rentals] = await Promise.all([
+  const [packages, addons, dishes, pricing, rentals] = await Promise.all([
     repo.listPackages(),
     repo.listAddons(),
     repo.listDishes(),
-    currentPricePerPlate(),
-    currentMinDownpayment(),
+    getPricingSettings(),
     listRentalItems()
   ]);
-  return { packages, addons, dishes, pricePerPlate, minDownpayment, rentals };
+  return { packages, addons, dishes, ...pricing, rentals };
 }
-
 
 function packageValues(values, rental) {
   const name = values.name.trim();
@@ -205,7 +223,6 @@ export async function setPackageArchived(id, archived) {
   return repo.findPackageById(id);
 }
 
-
 const addonTaken = () =>
   new ApiError('NAME_TAKEN', 'An additional charge with this name already exists.', { field: 'name' });
 
@@ -319,7 +336,6 @@ export async function setAddonArchived(id, archived) {
   return withListedSizes(await repo.findAddonById(id));
 }
 
-
 const dishTaken = () =>
   new ApiError('NAME_TAKEN', 'This category already has a dish with that name.', { field: 'name' });
 
@@ -357,7 +373,6 @@ export async function deleteDish(id) {
   return { id };
 }
 
-
 export async function setPricePerPlate(value) {
   const amount = toNumber(value);
   const { min, max } = PRICE_PER_PLATE_RANGE;
@@ -370,7 +385,6 @@ export async function setPricePerPlate(value) {
   await repo.setPricePerPlate(amount, now());
   return { pricePerPlate: amount };
 }
-
 
 export async function setMinDownpayment(value) {
   const amount = toNumber(value);

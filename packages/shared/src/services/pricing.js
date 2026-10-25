@@ -1,4 +1,22 @@
-import { DEFAULT_PRICE_PER_PLATE, includesFood } from './config.js';
+import { DEFAULT_PRICE_PER_PLATE, SIX_HOUR_FEE_RANGE, includesFood, isRental } from './config.js';
+import { eventMinutes } from '../domain/availability.js';
+
+export function sixHourFeeProblem(value) {
+  const numeric = typeof value === 'number' || (typeof value === 'string' && /^\d{1,5}$/.test(value));
+  const amount = numeric ? Number(value) : NaN;
+  return Number.isInteger(amount) && amount >= SIX_HOUR_FEE_RANGE.min && amount <= SIX_HOUR_FEE_RANGE.max
+    ? ''
+    : 'Enter whole pesos from ₱0 to ₱50,000, using up to 5 digits.';
+}
+
+/** Older bookings without a saved rate retain their original price. */
+export const reservationSixHourFee = (reservation) =>
+  reservation.quotation?.sixHourFee ?? reservation.estimate?.sixHourFee ?? 0;
+
+export const durationChargeFor = ({ startTime, endTime, serviceType, sixHourFee = 0 }) =>
+  !isRental(serviceType) && startTime && endTime && eventMinutes(startTime, endTime) === 360
+    ? Math.max(0, Number(sixHourFee) || 0)
+    : 0;
 
 /** True for the Equipment Rental package: no fixed items or price, the customer picks what to rent. */
 export const isRentalPackage = (pkg) => Boolean(pkg && pkg.kind === 'rental');
@@ -38,18 +56,20 @@ export function otherChargeItemsFor(quote) {
  *                       (extraGuestsCharge, set in the quotation; 0 until then, and ignored when there
  *                       are no extra guests). The booking form shows it as "To be quoted"
  *   food              = guests x the buffet price per person, or 0 for a catering-only booking
+ *   duration          = the saved sixHourFee only when an event lasts exactly six hours (0 for rentals)
  *   rental            = for an equipment rental, each rented item's price per piece x how many
  *   delivery          = for a delivered rental, the delivery fee (standard or set by the admin)
  *   additional charges = the admin's price for each extra the customer ticked, x the quantity asked for
- *   other charges     = set by the admin, e.g. extra hours
+ *   other charges     = other itemized services set by the admin
  *   damage            = rented pieces that came back damaged or not at all, x each item's damage fee
- *   net               = package + extra guests + food + rental + delivery + additional charges + other charges
+ *   net               = package + extra guests + food + duration + rental + delivery + additional charges + other charges
  *                       + damage - discount
  *
  * The food total is worked out here, not typed by the admin, so the customer sees the real
  * price while filling the form. `pricePerPlate` is passed in by the caller and stored on the
  * reservation, so a later price rise never changes a quotation that was already sent. The same
  * goes for rental prices: `rentalItems` carries the price each piece was booked at.
+ * `sixHourFee` is saved in the estimate even for shorter events, preserving the rate if the schedule changes.
  *
  * The downpayment is not part of a quote: it is the booking's own minimum (financials in
  * domain/money.js). Older saved quotes may still hold a `downpayment` field; nothing reads it.
@@ -69,6 +89,9 @@ export function computeQuote({
   serviceType = 'Buffet and Catering',
   guests = 0,
   pricePerPlate = DEFAULT_PRICE_PER_PLATE,
+  startTime,
+  endTime,
+  sixHourFee = 0,
   rentalItems = [],
   deliveryFee = 0,
   damageCharges = [],
@@ -95,6 +118,7 @@ export function computeQuote({
   const plates = includesFood(serviceType) ? Math.max(0, Math.floor(Number(guests) || 0)) : 0;
   const rate = includesFood(serviceType) ? amount(pricePerPlate) : 0;
   const foodTotal = plates * rate;
+  const durationCharge = durationChargeFor({ startTime, endTime, serviceType, sixHourFee });
 
   // Keep the unit price and the quantity only for the extras the customer picked,
   // e.g. prices { 'add-waiters': 800 } with quantities { 'add-waiters': 3 } -> totals { 'add-waiters': 2400 }
@@ -134,7 +158,16 @@ export function computeQuote({
   // The total can't go below 0
   const net = Math.max(
     0,
-    packageTotal + extraCharge + foodTotal + rentalTotal + delivery + addonsTotal + other + damageTotal - cleanDiscount
+    packageTotal +
+      extraCharge +
+      foodTotal +
+      durationCharge +
+      rentalTotal +
+      delivery +
+      addonsTotal +
+      other +
+      damageTotal -
+      cleanDiscount
   );
 
   return {
@@ -146,6 +179,8 @@ export function computeQuote({
     plates,
     pricePerPlate: rate,
     food: foodTotal,
+    sixHourFee: amount(sixHourFee),
+    durationCharge,
     rentalItems: rentalLines,
     rental: rentalTotal,
     deliveryFee: delivery,

@@ -1,4 +1,13 @@
 /* Only /portal routes opt in; public pages, login and signup keep their motion. */
+/* Hide the customer portal's page scrollbar while preserving scrolling. */
+html[data-tm-portal='customer'] {
+  scrollbar-width: none;
+}
+
+html[data-tm-portal='customer']::-webkit-scrollbar {
+  display: none;
+}
+
 html[data-tm-portal='customer'],
 html[data-tm-portal='customer'] *,
 html[data-tm-portal='customer'] *::before,

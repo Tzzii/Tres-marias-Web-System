@@ -123,7 +123,7 @@ export default function PortalLayout() {
       }
     });
     list.sort((a, b) => b.at - a.at);
-    return { notifications: list.slice(0, 20), unreadMessages: unread, paymentsDue: due };
+    return { notifications: list, unreadMessages: unread, paymentsDue: due };
   }, [data]);
 
   const navItems = [

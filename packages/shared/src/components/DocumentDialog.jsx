@@ -461,6 +461,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                       value={peso(addonPrice(a.id))}
                     />
                   ))}
+                  {quote.durationCharge > 0 && <Line label="6-hour event charge" value={peso(quote.durationCharge)} />}
                   {otherChargeItemsFor(quote)
                     .filter((line) => line.amount > 0)
                     .map((line, index) => (

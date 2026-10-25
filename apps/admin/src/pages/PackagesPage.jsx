@@ -11,6 +11,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import SixHourFeeCard from '../components/SixHourFeeCard.jsx';
 import {
   AlertBanner,
   AppDialog,
@@ -90,7 +91,14 @@ export default function PackagesPage() {
       catalogApi.listDishes({ includeArchived: true }),
       inventoryApi.listInventory()
     ]);
-    return { packages, addons, dishes, inventory, pricePerPlate: catalogApi.pricePerPlate() };
+    return {
+      packages,
+      addons,
+      dishes,
+      inventory,
+      pricePerPlate: catalogApi.pricePerPlate(),
+      sixHourFee: catalogApi.sixHourFee()
+    };
   }, []);
 
   const [tab, setTab] = useState('packages');
@@ -249,6 +257,15 @@ export default function PackagesPage() {
         </DashCard>
       </Box>
 
+      {!loading && data && tab === 'packages' && (
+        <SixHourFeeCard
+          current={data.sixHourFee}
+          onSaved={async () => {
+            await reload();
+            notify('6-hour event charge saved.');
+          }}
+        />
+      )}
       {loading ? (
         <DashCard>
           <ListSkeleton rows={5} height={60} />

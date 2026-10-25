@@ -1,7 +1,10 @@
-import { DEFAULT_MIN_DOWNPAYMENT, DEFAULT_PRICE_PER_PLATE } from '@tm/shared/src/services/config.js';
+import {
+  DEFAULT_MIN_DOWNPAYMENT,
+  DEFAULT_PRICE_PER_PLATE,
+  DEFAULT_SIX_HOUR_FEE
+} from '@tm/shared/src/services/config.js';
 import { addDays, todayISO } from '@tm/shared/src/utils/format.js';
 import { buildInventorySeed } from './inventorySeed.js';
-
 
 const items = (list) => list.map(([qty, name]) => ({ qty, name }));
 
@@ -368,7 +371,11 @@ export function buildBusinessSeed() {
   ];
 
   return {
-    settings: { pricePerPlate: DEFAULT_PRICE_PER_PLATE, minDownpayment: DEFAULT_MIN_DOWNPAYMENT },
+    settings: {
+      pricePerPlate: DEFAULT_PRICE_PER_PLATE,
+      minDownpayment: DEFAULT_MIN_DOWNPAYMENT,
+      sixHourFee: DEFAULT_SIX_HOUR_FEE
+    },
     admins,
     packages: PACKAGES,
     addons: ADDONS,

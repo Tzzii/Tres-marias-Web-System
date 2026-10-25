@@ -19,7 +19,7 @@ export { SettingsPanel } from './components/SettingsPanel.jsx';
 export { HeroPhoto } from './components/HeroPhoto.jsx';
 export * as appearanceApi from './services/remote/appearance.js';
 
-export { LightSurface, DarkSurface, PaperSurface } from './components/Surface.jsx';
+export { LightSurface, PaperSurface } from './components/Surface.jsx';
 export { DashCard, CardTitle, StatCard, DetailRow, Field } from './components/DashCard.jsx';
 export {
   Pill,
@@ -31,6 +31,7 @@ export {
 } from './components/Pill.jsx';
 export { StatusPipeline } from './components/StatusPipeline.jsx';
 export { FieldLabel, FormField, SelectField, PasswordField, MobileField } from './components/FormField.jsx';
+export { IntegerAmountField } from './components/IntegerAmountField.jsx';
 // The live "Password needs" list (and strength bar) under every new-password field
 export { PasswordChecklist } from './components/PasswordChecklist.jsx';
 export { BrandLogo, BrandMark, LOGO_SRC } from './components/Brand.jsx';
@@ -82,7 +83,7 @@ export * from './utils/validation.js';
 // The Save PDF buttons: draws an element onto A4 pages and saves the file (loads its libraries on first use)
 export { saveElementAsPdf } from './utils/savePdf.js';
 // Saving a file with the computer's "Save as" window where the browser allows it (Save PDF)
-export { askWhereToSave, canAskWhereToSave, saveFile, writeTo } from './utils/saveFile.js';
+export { askWhereToSave, writeTo } from './utils/saveFile.js';
 
 export {
   BUSINESS,
@@ -102,6 +103,8 @@ export {
   MENU_LINE_MAX,
   DEFAULT_PRICE_PER_PLATE,
   PRICE_PER_PLATE_RANGE,
+  DEFAULT_SIX_HOUR_FEE,
+  SIX_HOUR_FEE_RANGE,
   DEFAULT_MIN_DOWNPAYMENT,
   MIN_DOWNPAYMENT_RANGE,
   ADDON_PRICE_RANGE,
@@ -113,7 +116,15 @@ export {
   OUTSOURCE_OTHER_RANGE,
   FEEDBACK_CATEGORIES
 } from './services/config.js';
-export { computeQuote, extraGuestsFor, isRentalPackage, otherChargeItemsFor } from './services/pricing.js';
+export {
+  computeQuote,
+  extraGuestsFor,
+  isRentalPackage,
+  otherChargeItemsFor,
+  durationChargeFor,
+  reservationSixHourFee,
+  sixHourFeeProblem
+} from './services/pricing.js';
 // A package's items for the guest count (plates and chairs grow, warmers and helpers are confirmed in the quotation)
 export {
   ITEM_COUNT_MAX,
@@ -132,7 +143,8 @@ export {
   endTimeProblem,
   endsNextDay,
   eventHours,
-  shiftEndTime
+  shiftEndTime,
+  initialEndTime
 } from './domain/availability.js';
 // The Terms of Service and Privacy Policy (pages, sign-up, booking form) and the version customers agree to
 export { TERMS_UPDATED, TERMS_VERSION, privacyPolicy, termsOfService } from './legal/terms.js';

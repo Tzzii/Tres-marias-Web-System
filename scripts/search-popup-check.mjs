@@ -99,6 +99,7 @@ async function fixture(side, mobile = false) {
       body = [{ id: 'chair', name: 'Santos Chair', category: 'Seating', available: 100 }];
     else if (endpoint === '/packages')
       body = [{ slug: 'santos', name: 'Santos Package', description: 'Celebration buffet' }];
+    else if (endpoint === '/catalog/pricing') body = { pricePerPlate: 500, minDownpayment: 3000, sixHourFee: 5000 };
     else if (endpoint === '/catalog/price-per-plate') body = { pricePerPlate: 500 };
     else if (endpoint === '/catalog/min-downpayment') body = { minDownpayment: 3000 };
     await route.fulfill({ json: body, headers });
@@ -133,6 +134,8 @@ async function fixture(side, mobile = false) {
       await new Promise((resolve) => setTimeout(resolve, 20));
     assert.ok((calls.get('/changes') || 0) > before, 'change poller saw the new stamp');
     await page.waitForTimeout(300);
+    // Let layout refreshes finish before injecting a failure for the next search load.
+    await page.waitForLoadState('networkidle');
   }
   return {
     page,

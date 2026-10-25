@@ -24,7 +24,7 @@ import {
   statusProblem,
   statusText
 } from '@tm/shared/src/domain/outsource.js';
-import { BUSINESS, isRental } from '@tm/shared/src/services/config.js';
+import { isRental } from '@tm/shared/src/services/config.js';
 import { pool, tx } from '../../db.js';
 import { mailer } from '../../integrations/mailer/index.js';
 import { ApiError } from '../../lib/ApiError.js';

@@ -43,13 +43,11 @@ async function sendPackagePhoto(req, res, admin = false) {
   stream.pipe(res);
 }
 
-
 function viewer(req, wantsAdminView) {
   if (wantsAdminView && !req.user && req.get('Authorization'))
     throw new ApiError('UNAUTHENTICATED', 'Please sign in again.');
   return { admin: Boolean(req.user && req.user.role === 'admin') };
 }
-
 
 export const catalogRoutes = express.Router();
 
@@ -79,16 +77,21 @@ catalogRoutes.get('/dishes', optionalAuth, validate({ query: schemas.archivedQue
 catalogRoutes.get('/catalog', async (req, res) => {
   res.json(await catalog.getCatalog());
 });
+catalogRoutes.get('/catalog/pricing', async (req, res) => {
+  res.json(await catalog.getPricingSettings());
+});
 catalogRoutes.get('/catalog/price-per-plate', async (req, res) => {
   res.json(await catalog.getPricePerPlate());
 });
 catalogRoutes.get('/catalog/min-downpayment', async (req, res) => {
   res.json(await catalog.getMinDownpayment());
 });
+catalogRoutes.get('/catalog/six-hour-fee', async (req, res) => {
+  res.json(await catalog.getSixHourFee());
+});
 catalogRoutes.get('/rental-items', async (req, res) => {
   res.json(await catalog.listRentalItems());
 });
-
 
 export const catalogAdminRoutes = express.Router();
 
@@ -169,4 +172,7 @@ catalogAdminRoutes.put('/catalog/price-per-plate', validate({ body: schemas.pric
 
 catalogAdminRoutes.put('/catalog/min-downpayment', validate({ body: schemas.minDownpaymentBody }), async (req, res) => {
   res.json(await catalog.setMinDownpayment(req.valid.body.minDownpayment));
+});
+catalogAdminRoutes.put('/catalog/six-hour-fee', validate({ body: schemas.sixHourFeeBody }), async (req, res) => {
+  res.json(await catalog.setSixHourFee(req.valid.body.sixHourFee));
 });

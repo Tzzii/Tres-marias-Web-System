@@ -19,7 +19,6 @@ import LocalBarOutlinedIcon from '@mui/icons-material/LocalBarOutlined';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
 import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded';
-import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import { BUSINESS, RULES, cancelWindowText, catalogApi, feedbackApi, isRentalPackage, peso, useDocumentTitle, useResource } from '@tm/shared';
 import { useAuth } from '../../auth.js';
 import BookingBar from '../../components/BookingBar.jsx';

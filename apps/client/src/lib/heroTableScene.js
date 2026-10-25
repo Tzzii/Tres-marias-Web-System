@@ -364,7 +364,7 @@ export function createHeroTableScene({ mount, palette, pixelRatio = 1, onContext
 
   const centerpiece = new THREE.Group();
   setup.add(centerpiece);
-  const vase = lathe(
+  lathe(
     [
       [0, 0],
       [0.17, 0],

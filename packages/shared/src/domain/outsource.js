@@ -138,21 +138,7 @@ export function partnerArchiveProblem(partners, archived, hasOpenContract) {
     : null;
 }
 
-/**
- * A partner's contract counts: how many it has (`contractCount`), how many were sent and wait for its
- * answer (`openCount`), and when one was last sent (`lastSentAt`, null when none). `contracts` are that
- * partner's contracts.
- */
-export function partnerStats(contracts) {
-  const sent = contracts.filter((contract) => contract.sentAt);
-  return {
-    contractCount: contracts.length,
-    openCount: contracts.filter((contract) => contract.status === 'sent').length,
-    lastSentAt: sent.length ? Math.max(...sent.map((contract) => contract.sentAt)) : null
-  };
-}
-
-/** A partner as the pages show it: the record, how it can be reached (`channels`) and its partnerStats(). */
+/** A partner with contact channels and the aggregate request statistics supplied by the API. */
 export const partnerView = (partner, stats) => ({ ...partner, channels: channelsOf(partner), ...stats });
 
 /** The order of the partner list: by category (custom supplies under Other), then by name. */

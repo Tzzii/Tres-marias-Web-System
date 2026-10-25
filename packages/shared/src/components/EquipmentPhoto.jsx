@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { usePhotoPreview } from '../hooks/usePhotoPreview.js';
 import { tokens } from '../theme/tokens.js';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -11,36 +11,13 @@ import { adminInventoryPhotoUrl, inventoryPhotoUrl } from '../services/remote/in
 
 /** One appearance photo per item type; stock and rental quantities never affect the image. */
 export function EquipmentPhoto({ item, file, removePhoto = false, admin = false, compact = false, height = 220 }) {
-  const [preview, setPreview] = useState(null);
-  const [failed, setFailed] = useState(false);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    let active = true;
-    let objectUrl;
-    setPreview(null);
-    setFailed(false);
-    setOpen(false);
-    if (file) {
-      objectUrl = URL.createObjectURL(file);
-      setPreview(objectUrl);
-    } else if (admin && item?.photoVersion && !removePhoto) {
-      adminInventoryPhotoUrl(item)
-        .then((url) => {
-          if (!active) URL.revokeObjectURL(url);
-          else {
-            objectUrl = url;
-            setPreview(url);
-          }
-        })
-        .catch(() => {
-          if (active) setFailed(true);
-        });
-    }
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [file, admin, item?.id, item?.photoVersion, removePhoto]);
+  const { preview, failed, setFailed, open, setOpen } = usePhotoPreview({
+    record: item,
+    file,
+    admin,
+    removePhoto,
+    loadPhoto: adminInventoryPhotoUrl
+  });
 
   const saved = !removePhoto && item?.photoVersion;
   const loading = admin && saved && !file && !preview && !failed;

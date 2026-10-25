@@ -18,6 +18,7 @@ import { createQrPh, getIntent, qrReady } from '../../integrations/paymongo/inde
 import { storage } from '../../integrations/storage/index.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { newId, nextCounter } from '../../lib/ids.js';
+import { sniffPhoto } from '../../lib/photos.js';
 import { isISODate, now, todayISO } from '../../lib/time.js';
 import { bumpStamp } from '../changes/changes.repo.js';
 import { postAdminMessage } from '../messages/messages.repo.js';
@@ -69,15 +70,6 @@ async function lockedReservation(conn, ref, message) {
   if (!owner || owner.ref !== ref) throw new ApiError('NOT_FOUND', message);
   const [row] = await reservationsRepo.findReservations(conn, { ref });
   return row;
-}
-
-function detectProof(buffer) {
-  if (!buffer || buffer.length < 12) return null;
-  const ascii = (from, to) => buffer.subarray(from, to).toString('latin1');
-  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
-  if (buffer[0] === 0x89 && ascii(1, 4) === 'PNG') return { mime: 'image/png', ext: 'png' };
-  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return { mime: 'image/webp', ext: 'webp' };
-  return null;
 }
 
 export async function listPayments({ customerId } = {}) {
@@ -162,7 +154,7 @@ export async function submitPayment(customer, { ref, method, amount, referenceNo
         );
       }
       if (!file) throw invalid('Upload a photo or screenshot of your bank receipt.', 'proof');
-      const type = PROOF_TYPES.includes(file.mimetype) ? detectProof(file.buffer) : null;
+      const type = PROOF_TYPES.includes(file.mimetype) && file.buffer?.length >= 12 ? sniffPhoto(file.buffer) : null;
       if (!type) throw invalid('Upload a photo or screenshot of your receipt (JPG, PNG or WebP).', 'proof');
       const fileName = proofFileName(proofName || file.originalname) || `receipt.${type.ext}`;
 

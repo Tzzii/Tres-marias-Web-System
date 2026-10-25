@@ -1,16 +1,7 @@
+import { groupBy } from '../../lib/groupBy.js';
 import { parseJson, toJson } from '../../lib/json.js';
 
-
 const first = ([rows]) => rows[0] || null;
-
-function groupBy(rows, key) {
-  const groups = new Map();
-  rows.forEach((row) => {
-    if (!groups.has(row[key])) groups.set(row[key], []);
-    groups.get(row[key]).push(row);
-  });
-  return groups;
-}
 
 const toHistory = (rows = []) => rows.map((h) => ({ at: h.at, actor: h.actor, text: h.text }));
 
@@ -45,7 +36,6 @@ const toContract = (row, deliveries = [], history = []) => ({
   answerNote: row.answer_note,
   history: toHistory(history)
 });
-
 
 export async function findPartners(db, { ids, includeArchived = true, lock = false } = {}) {
   if (ids && !ids.length) return [];
@@ -173,7 +163,6 @@ export async function deletePartner(conn, id) {
   await conn.query('DELETE FROM outsource_partner_history WHERE partner_id = ?', [id]);
   await conn.query('DELETE FROM outsource_partners WHERE id = ?', [id]);
 }
-
 
 export async function findContracts(db, { id } = {}) {
   const [rows] = await db.query(

@@ -1,5 +1,5 @@
 import { ApiError } from './errors.js';
-import { emitChange, emitSignedOut } from './events.js';
+import { emitChange, emitSignedOut, subscribe } from './events.js';
 import { sendMultipart } from './upload.js';
 
 /**
@@ -59,6 +59,9 @@ async function send(path, options) {
 
 // 401 codes that mean a wrong password or code was typed into a form, not that the session is gone
 const WRONG_ANSWER = ['INVALID_CREDENTIALS', 'INVALID_CODE'];
+const pendingReads = new Map();
+const invalidateReads = () => pendingReads.clear();
+subscribe(invalidateReads);
 
 /**
  * Turn a failed response into the ApiError pages already handle. A 401 ends the session
@@ -103,8 +106,27 @@ async function request(method, path, body, { quiet = false } = {}) {
   const res = await send(path, { method, headers, body: isForm || body === undefined ? body : JSON.stringify(body) });
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) throw failure(res, data, path, sentToken);
+  if (method !== 'GET') invalidateReads();
   if (method !== 'GET' && !quiet) emitChange();
   return data;
+}
+
+/** Share concurrent reads for the same session; completed results are never cached. */
+function read(path) {
+  const key = JSON.stringify([token(), path]);
+  let pending = pendingReads.get(key);
+  if (!pending) {
+    pending = request('GET', path);
+    pendingReads.set(key, pending);
+    const finished = () => {
+      if (pendingReads.get(key) === pending) pendingReads.delete(key);
+    };
+    pending.then(finished, finished);
+  }
+  // Each consumer retains its own JSON object, just as with separate network requests.
+  return pending.then((data) =>
+    typeof structuredClone === 'function' ? structuredClone(data) : JSON.parse(JSON.stringify(data))
+  );
 }
 
 /**
@@ -112,7 +134,7 @@ async function request(method, path, body, { quiet = false } = {}) {
  * The writes take an optional last argument { quiet: true } to skip the automatic change event.
  */
 export const http = {
-  get: (path) => request('GET', path),
+  get: read,
   post: (path, body = {}, options) => request('POST', path, body, options),
   put: (path, body = {}, options) => request('PUT', path, body, options),
   patch: (path, body = {}, options) => request('PATCH', path, body, options),

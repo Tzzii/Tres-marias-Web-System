@@ -29,9 +29,6 @@ export const listFeedbacks = () => http.get(isAdmin() ? '/admin/feedback' : '/fe
 export const listPublished = ({ limit = 3 } = {}) =>
   http.get(`/feedback/published?${new URLSearchParams({ limit: String(limit) })}`);
 
-/** Admin: how many reviews are unread. */
-export const unreadFeedbackCount = () => http.get('/admin/feedback/unread-count');
-
 /** Customer: review a completed event: { ref, rating, categories, body } -> the review (hidden until the admin publishes it). */
 export const createFeedback = (customerId, { ref, rating, categories, body } = {}) =>
   http.post('/feedback', { ref, rating, categories, body });
@@ -94,6 +91,3 @@ export async function deleteFeedback(id) {
   if (!id) throw gone();
   return http.delete(`/admin/feedback/${segment(id)}`);
 }
-
-// Pure rating rule that takes the category ratings as an argument: the same code the server uses (domain/feedback.js)
-export { categoryAverage } from '../../domain/feedback.js';

@@ -3,11 +3,9 @@ import { helperLabel } from '@tm/shared/src/utils/helperLabels.js';
 import { pool } from '../../db.js';
 import { parseJson, toJson } from '../../lib/json.js';
 
-
 const first = ([rows]) => rows[0] || null;
 
 const where = (conditions) => (conditions.length ? `WHERE ${conditions.join(' AND ')}` : '');
-
 
 const PACKAGE_COLUMNS =
   'id, slug, name, kind, price, guests, description, items, photo_key, photo_mime, mood, icon, featured, visible, archived';
@@ -120,7 +118,6 @@ export async function setPackageArchived(id, archived) {
   await pool.query(sql, [id]);
 }
 
-
 const toAddonRow = (row) => ({
   id: row.id,
   parentId: row.parent_id,
@@ -225,7 +222,6 @@ export async function setAddonArchived(id, archived, db = pool) {
   await db.query('UPDATE addons SET archived = ? WHERE id = ?', [archived, id]);
 }
 
-
 const DISH_COLUMNS = 'id, category, name, archived';
 
 const toDish = (row) =>
@@ -281,10 +277,18 @@ export async function deleteDish(id) {
   await pool.query('DELETE FROM dishes WHERE id = ?', [id]);
 }
 
-
 export async function getPricePerPlate(db = pool) {
   const row = first(await db.query('SELECT price_per_plate FROM catalog_settings WHERE id = 1'));
   return row ? row.price_per_plate : null;
+}
+
+export async function getPricingSettings(db = pool) {
+  const row = first(
+    await db.query('SELECT price_per_plate, min_downpayment, six_hour_fee FROM catalog_settings WHERE id = 1')
+  );
+  return (
+    row && { pricePerPlate: row.price_per_plate, minDownpayment: row.min_downpayment, sixHourFee: row.six_hour_fee }
+  );
 }
 
 export async function setPricePerPlate(amount, at) {
@@ -296,10 +300,22 @@ export async function setPricePerPlate(amount, at) {
     throw new Error('The catalog_settings row is missing. Run npm run db:reset and npm run seed:api.');
 }
 
-
 export async function getMinDownpayment(db = pool) {
   const row = first(await db.query('SELECT min_downpayment FROM catalog_settings WHERE id = 1'));
   return row ? row.min_downpayment : null;
+}
+
+export async function getSixHourFee(db = pool) {
+  const row = first(await db.query('SELECT six_hour_fee FROM catalog_settings WHERE id = 1'));
+  return row?.six_hour_fee ?? null;
+}
+
+export async function setSixHourFee(amount, at) {
+  const [result] = await pool.query('UPDATE catalog_settings SET six_hour_fee = ?, updated_at = ? WHERE id = 1', [
+    amount,
+    at
+  ]);
+  if (!result.affectedRows) throw new Error('The catalog settings row is missing.');
 }
 
 export async function setMinDownpayment(amount, at) {
@@ -310,7 +326,6 @@ export async function setMinDownpayment(amount, at) {
   if (result.affectedRows === 0)
     throw new Error('The catalog_settings row is missing. Run npm run db:reset and npm run seed:api.');
 }
-
 
 export async function listRentableItems() {
   const [rows] = await pool.query(

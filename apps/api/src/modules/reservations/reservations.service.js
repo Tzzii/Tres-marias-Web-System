@@ -24,6 +24,7 @@ import {
   BUSINESS,
   DEFAULT_MIN_DOWNPAYMENT,
   DEFAULT_PRICE_PER_PLATE,
+  DEFAULT_SIX_HOUR_FEE,
   RENTAL,
   RENTAL_SERVICE,
   RULES,
@@ -35,7 +36,13 @@ import {
 import { TERMS_VERSION } from '@tm/shared/src/legal/terms.js';
 import { ITEM_COUNT_MAX, itemsToConfirm } from '@tm/shared/src/domain/packageItems.js';
 import { helperItemCounts } from '@tm/shared/src/utils/helperLabels.js';
-import { computeQuote, extraGuestsFor } from '@tm/shared/src/services/pricing.js';
+import {
+  computeQuote,
+  extraGuestsFor,
+  reservationSixHourFee,
+  sixHourFeeProblem,
+  durationChargeFor
+} from '@tm/shared/src/services/pricing.js';
 import { makeReservationRef } from '@tm/shared/src/services/reservationRef.js';
 import { daysFromToday, formatDate, todayISO } from '@tm/shared/src/utils/format.js';
 import { HOLDS_DATE, statusLabel } from '@tm/shared/src/utils/status.js';
@@ -59,10 +66,7 @@ const notFound = () => new ApiError('NOT_FOUND', 'We could not find this reserva
 const invalid = (message, field) => new ApiError('INVALID', message, field ? { field } : {});
 
 const clean = (value) => (typeof value === 'string' ? value.toWellFormed().trim() : '');
-const cut = (text, max) => {
-  const part = text.slice(0, max);
-  return part.isWellFormed() ? part : part.slice(0, -1);
-};
+
 const toNumber = (value) =>
   typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
 const plainObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
@@ -248,6 +252,7 @@ async function eventBooking(conn, pkg, form) {
   const occasion = occasionOf(form);
 
   const pricePerPlate = Number(await catalogRepo.getPricePerPlate(conn)) || DEFAULT_PRICE_PER_PLATE;
+  const sixHourFee = Number((await catalogRepo.getSixHourFee(conn)) ?? DEFAULT_SIX_HOUR_FEE);
   return {
     fields: {
       eventName,
@@ -271,6 +276,9 @@ async function eventBooking(conn, pkg, form) {
         serviceType,
         guests,
         pricePerPlate,
+        startTime,
+        endTime,
+        sixHourFee,
         addonIds,
         addonQty,
         addonPrices: addonPriceMap(addons)
@@ -731,126 +739,139 @@ function extraGuestValues(pkg, reservation, values) {
   return { extraGuestsCharge, itemCounts };
 }
 
-export async function sendQuotation(ref, values, admin) {
-  return adminWrite(ref, async (conn, row) => {
-    const { reservation, payments, refunds } = row;
-    if (CLOSED.includes(reservation.status)) {
-      throw new ApiError(
-        'INVALID_STATE',
-        `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be re-quoted.`
-      );
-    }
-    if (reservation.status === 'pending') {
-      const blocked = await slotProblem(conn, reservation);
-      if (blocked)
-        throw new ApiError(blocked.code, `${blocked.problem} ${ADMIN_FIX[blocked.fix]} before sending the quotation.`);
-    }
-    const rental = isRental(reservation.serviceType);
-    const delivered = rental && reservation.fulfilment === 'delivery';
-    const fee = values.deliveryFee === undefined ? RENTAL.deliveryFee : values.deliveryFee;
-    const deliveryFee = delivered ? quotationAmount(fee, 'deliveryFee', 'Enter the delivery fee.') : 0;
-    const addonPrices = Object.fromEntries(
-      Object.entries(plainObject(values.addonPrices)).map(([id, price]) => [
-        id,
-        quotationAmount(price, `addonPrices.${id}`)
-      ])
-    );
-    const otherCharges = quotationAmount(values.otherCharges, 'otherCharges');
-    const otherChargeItems = values.otherChargeItems?.map((line, index) => ({
-      amount: quotationAmount(line.amount, `otherChargeItems.${index}.amount`),
-      label: clean(line.label)
-    })) ?? [{ amount: otherCharges, label: clean(values.otherLabel) }];
-    const discount = quotationAmount(values.discount, 'discount');
-    const note = clean(values.note);
-    const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
-    const { extraGuestsCharge, itemCounts } = extraGuestValues(pkg, reservation, values);
-
-    const totalBefore = financials(reservation, payments, refunds).total;
-    const quote = computeQuote({
-      pkg,
-      serviceType: reservation.serviceType,
-      guests: reservation.guests,
-      pricePerPlate: reservation.pricePerPlate,
-      rentalItems: rental ? reservation.rentalItems : [],
-      deliveryFee,
-      damageCharges: rental ? reservation.damageCharges : [],
-      addonIds: reservation.addonIds,
-      addonQty: reservation.addonQty,
-      addonPrices,
-      extraGuestsCharge,
-      otherCharges,
-      otherChargeItems,
-      discount
-    });
-    const quotation = {
-      ...quote,
-      itemCounts,
-      ...(rental ? { fulfilment: reservation.fulfilment } : {}),
-      otherLabel: quote.otherChargeItems.length === 1 ? quote.otherChargeItems[0].label : '',
-      sentAt: now(),
-      note
-    };
-    const quoted = { ...reservation, quotation };
-    const saved = { quotation };
-    const log = [`Sent the quotation (${pesoText(quote.net)}).`];
-
-    let extra = '';
-    let downpaymentStillNeeded = 0;
-    let downpaymentDue = null;
-    const money = financials(quoted, payments, refunds);
-    const status = statusForPayments(reservation.status, money);
-    if (status !== reservation.status) {
-      saved.status = status;
-      if (status === 'approved') {
-        saved.downpaymentDue = downpaymentDueFor(reservation.date);
-        downpaymentStillNeeded = money.downpayment - money.paid;
-        downpaymentDue = saved.downpaymentDue;
-        log.push('Status moved back to Approved: the payments are below the minimum downpayment.');
-        extra = ` Please pay ${pesoText(money.downpayment - money.paid)} more by ${formatDate(saved.downpaymentDue)} to reach the minimum downpayment of ${pesoText(money.downpayment)}.`;
-      } else {
-        log.push(`Status moved to ${statusLabel(status)} under the new quotation.`);
+export async function sendQuotation(ref, values, admin, { transact = tx } = {}) {
+  return adminWrite(
+    ref,
+    async (conn, row) => {
+      const { reservation, payments, refunds } = row;
+      if (CLOSED.includes(reservation.status)) {
+        throw new ApiError(
+          'INVALID_STATE',
+          `A ${statusLabel(reservation.status).toLowerCase()} reservation cannot be re-quoted.`
+        );
       }
-    }
-    const after = financials({ ...quoted, status }, payments, refunds);
-    if (after.overpaid > 0) {
-      log.push(
-        `Total from ${pesoText(totalBefore)} to ${pesoText(quote.net)}, below the ${pesoText(after.paid)} paid: ${pesoText(after.overpaid)} was paid above the new total and is to be returned.`
-      );
-      extra += ` You've paid ${pesoText(after.overpaid)} more than the new total. We'll return it and tell you here when it's sent.`;
-    }
-
-    if (reservation.status === 'pending') extra += ' Open your reservation and tap Accept Quotation to approve it.';
-
-    await repo.updateReservation(conn, ref, saved);
-    for (const text of log) await logAdmin(conn, ref, admin, text);
-    await postAdminMessage(
-      conn,
-      reservation,
-      `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`,
-      { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref },
-      admin.name
-    );
-    const variant = reservation.status === 'pending' ? (reservation.quotation ? 'revised' : 'new') : 'updated';
-    await queueCustomerEmail(conn, {
-      customerId: reservation.customerId,
-      ref: reservation.ref,
-      purpose: 'quotation_ready',
-      data: {
-        reservation: { ...reservation, ...saved },
-        variant,
-        net: quote.net,
-        note,
-        totalBefore,
-        statusBefore: reservation.status,
-        statusAfter: status,
-        downpaymentStillNeeded,
-        downpaymentDue,
-        overpaid: after.overpaid,
-        damageLines: quote.damageCharges.map((line) => ({ name: line.name, qty: line.qty, amount: line.total }))
+      if (reservation.status === 'pending') {
+        const blocked = await slotProblem(conn, reservation);
+        if (blocked)
+          throw new ApiError(
+            blocked.code,
+            `${blocked.problem} ${ADMIN_FIX[blocked.fix]} before sending the quotation.`
+          );
       }
-    });
-    return savedSummary(conn, ref);
-  });
+      const rental = isRental(reservation.serviceType);
+      const delivered = rental && reservation.fulfilment === 'delivery';
+      const fee = values.deliveryFee === undefined ? RENTAL.deliveryFee : values.deliveryFee;
+      const deliveryFee = delivered ? quotationAmount(fee, 'deliveryFee', 'Enter the delivery fee.') : 0;
+      const addonPrices = Object.fromEntries(
+        Object.entries(plainObject(values.addonPrices)).map(([id, price]) => [
+          id,
+          quotationAmount(price, `addonPrices.${id}`)
+        ])
+      );
+      const otherCharges = quotationAmount(values.otherCharges, 'otherCharges');
+      const otherChargeItems = values.otherChargeItems?.map((line, index) => ({
+        amount: quotationAmount(line.amount, `otherChargeItems.${index}.amount`),
+        label: clean(line.label)
+      })) ?? [{ amount: otherCharges, label: clean(values.otherLabel) }];
+      const discount = quotationAmount(values.discount, 'discount');
+      const note = clean(values.note);
+      const sixHourFee = values.sixHourFee ?? reservationSixHourFee(reservation);
+      const durationProblem = sixHourFeeProblem(sixHourFee);
+      if (durationProblem) throw invalid(durationProblem, 'sixHourFee');
+      const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
+      const { extraGuestsCharge, itemCounts } = extraGuestValues(pkg, reservation, values);
+
+      const totalBefore = financials(reservation, payments, refunds).total;
+      const quote = computeQuote({
+        pkg,
+        serviceType: reservation.serviceType,
+        guests: reservation.guests,
+        pricePerPlate: reservation.pricePerPlate,
+        startTime: reservation.startTime,
+        endTime: reservation.endTime,
+        sixHourFee,
+        rentalItems: rental ? reservation.rentalItems : [],
+        deliveryFee,
+        damageCharges: rental ? reservation.damageCharges : [],
+        addonIds: reservation.addonIds,
+        addonQty: reservation.addonQty,
+        addonPrices,
+        extraGuestsCharge,
+        otherCharges,
+        otherChargeItems,
+        discount
+      });
+      const quotation = {
+        ...quote,
+        itemCounts,
+        ...(rental ? { fulfilment: reservation.fulfilment } : {}),
+        otherLabel: quote.otherChargeItems.length === 1 ? quote.otherChargeItems[0].label : '',
+        sentAt: now(),
+        note
+      };
+      const quoted = { ...reservation, quotation };
+      const saved = { quotation };
+      const log = [`Sent the quotation (${pesoText(quote.net)}).`];
+
+      let extra = '';
+      let downpaymentStillNeeded = 0;
+      let downpaymentDue = null;
+      const money = financials(quoted, payments, refunds);
+      const status = statusForPayments(reservation.status, money);
+      if (status !== reservation.status) {
+        saved.status = status;
+        if (status === 'approved') {
+          saved.downpaymentDue = downpaymentDueFor(reservation.date);
+          downpaymentStillNeeded = money.downpayment - money.paid;
+          downpaymentDue = saved.downpaymentDue;
+          log.push('Status moved back to Approved: the payments are below the minimum downpayment.');
+          extra = ` Please pay ${pesoText(money.downpayment - money.paid)} more by ${formatDate(saved.downpaymentDue)} to reach the minimum downpayment of ${pesoText(money.downpayment)}.`;
+        } else {
+          log.push(`Status moved to ${statusLabel(status)} under the new quotation.`);
+        }
+      }
+      const after = financials({ ...quoted, status }, payments, refunds);
+      if (after.overpaid > 0) {
+        log.push(
+          `Total from ${pesoText(totalBefore)} to ${pesoText(quote.net)}, below the ${pesoText(after.paid)} paid: ${pesoText(after.overpaid)} was paid above the new total and is to be returned.`
+        );
+        extra += ` You've paid ${pesoText(after.overpaid)} more than the new total. We'll return it and tell you here when it's sent.`;
+      }
+
+      if (reservation.status === 'pending') extra += ' Open your reservation and tap Accept Quotation to approve it.';
+
+      await repo.updateReservation(conn, ref, saved);
+      for (const text of log) await logAdmin(conn, ref, admin, text);
+      await postAdminMessage(
+        conn,
+        reservation,
+        `Your quotation for ${reservation.eventName} is ready. Net total: ${pesoText(quote.net)}.${note ? ` ${note}` : ''}${extra}`,
+        { name: `Quotation-${ref}.pdf`, kind: 'quotation', ref },
+        admin.name
+      );
+      const variant = reservation.status === 'pending' ? (reservation.quotation ? 'revised' : 'new') : 'updated';
+      await queueCustomerEmail(conn, {
+        customerId: reservation.customerId,
+        ref: reservation.ref,
+        purpose: 'quotation_ready',
+        data: {
+          reservation: { ...reservation, ...saved },
+          variant,
+          net: quote.net,
+          note,
+          totalBefore,
+          statusBefore: reservation.status,
+          statusAfter: status,
+          downpaymentStillNeeded,
+          downpaymentDue,
+          overpaid: after.overpaid,
+          damageLines: quote.damageCharges.map((line) => ({ name: line.name, qty: line.qty, amount: line.total }))
+        }
+      });
+      return savedSummary(conn, ref);
+    },
+    { transact }
+  );
 }
 
 export async function declineReservation(ref, reason, admin) {
@@ -1026,7 +1047,7 @@ export async function undoPreparing(ref, admin) {
   });
 }
 
-export async function updateLogistics(ref, patch, admin) {
+export async function updateLogistics(ref, patch, admin, { transact = tx } = {}) {
   const values = plainObject(patch);
   return adminWrite(
     ref,
@@ -1095,9 +1116,40 @@ export async function updateLogistics(ref, patch, admin) {
       const { due, moved } = dueAfterMove(reservation, date);
       if (moved) changes.push(`downpayment due date to ${formatDate(due)}`);
 
-      await repo.updateReservation(conn, ref, { date, startTime, endTime, guests, venue, downpaymentDue: due });
+      const durationCharge = durationChargeFor({
+        ...reservation,
+        startTime,
+        endTime,
+        sixHourFee: reservationSixHourFee(reservation)
+      });
+      const estimate =
+        !reservation.quotation && reservation.estimate
+          ? {
+              ...reservation.estimate,
+              durationCharge,
+              net: Math.max(0, reservation.estimate.net - (reservation.estimate.durationCharge || 0) + durationCharge)
+            }
+          : undefined;
+      await repo.updateReservation(conn, ref, {
+        date,
+        startTime,
+        endTime,
+        guests,
+        venue,
+        downpaymentDue: due,
+        ...(estimate ? { estimate } : {})
+      });
       if (changes.length) await logAdmin(conn, ref, admin, `Updated ${changes.join(', ')}.`);
       const quote = reservation.quotation;
+      if (quote && (quote.durationCharge || 0) !== durationCharge) {
+        await postAdminMessage(
+          conn,
+          reservation,
+          `The duration for ${reservation.eventName} was changed to ${eventHours(startTime, endTime)} hours. The six-hour event charge changes from ${pesoText(quote.durationCharge || 0)} to ${pesoText(durationCharge)}. We will send a revised quotation; the amount you owe changes when that quotation reaches you.`,
+          null,
+          admin.name
+        );
+      }
       if (guests !== reservation.guests && quote) {
         const reasons = [];
         if (includesFood(reservation.serviceType)) {
@@ -1128,7 +1180,7 @@ export async function updateLogistics(ref, patch, admin) {
       }
       return { changed: changes.length };
     },
-    { availability: true }
+    { availability: true, transact }
   );
 }
 

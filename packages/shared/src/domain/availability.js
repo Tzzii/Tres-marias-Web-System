@@ -93,6 +93,10 @@ export function endTimeProblem(startTime, endTime) {
 export const shiftEndTime = (oldStart, oldEnd, newStart) =>
   oldStart && oldEnd && newStart ? toHHMM(toMinutes(newStart) + eventMinutes(oldStart, oldEnd)) : oldEnd || '';
 
+/** Default for a new booking; legacy records without end times keep defaultEventHours. */
+export const initialEndTime = (startTime) =>
+  startTime ? toHHMM(toMinutes(startTime) + RULES.initialEventHours * 60) : '';
+
 /**
  * True for a reservation that takes one of the day's event slots: approved to confirmed, and not an
  * equipment rental. A rental only hands over equipment (no crew at an event), so it never fills a

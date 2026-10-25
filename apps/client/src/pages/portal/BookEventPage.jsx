@@ -58,6 +58,8 @@ import {
   formatBookingItem,
   formatEventTime,
   includesFood,
+  initialEndTime,
+  DEFAULT_SIX_HOUR_FEE,
   isRental,
   isRentalPackage,
   packageItemsFor,
@@ -161,7 +163,9 @@ export default function BookEventPage() {
         ? { occasion: picks.occasion, ...(picks.occasion === OCCASION_OTHER ? {} : { occasionOther: '' }) }
         : {}),
       ...(picks.startTime ? { startTime: picks.startTime } : {}),
-      ...(picks.endTime ? { endTime: picks.endTime } : {}),
+      endTime:
+        picks.endTime ||
+        (picks.startTime ? initialEndTime(picks.startTime) : base.endTime || initialEndTime(base.startTime)),
       ...(picks.guests ? { guests: String(picks.guests) } : {}),
       ...(pkg ? { packageId: pkg.id, ...serviceFor } : {}),
       ...(params.get('date') || picks.date ? { date: params.get('date') || picks.date } : {})
@@ -238,6 +242,9 @@ export default function BookEventPage() {
     serviceType: form.serviceType,
     guests: rental ? 0 : Number(form.guests) || 0,
     pricePerPlate: data ? data.pricePerPlate : 0,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    sixHourFee: data?.sixHourFee ?? DEFAULT_SIX_HOUR_FEE,
     rentalItems: rentalChosen,
     deliveryFee: delivered ? RENTAL.deliveryFee : 0,
     addonIds: bookedAddonIds,
@@ -730,6 +737,11 @@ export default function BookEventPage() {
       ) : (
         <Box
           className="booking-layout"
+          component="form"
+          aria-label="Customer reservation"
+          autoComplete="off"
+          noValidate
+          onSubmit={(event) => event.preventDefault()}
           sx={{
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr)',
@@ -810,6 +822,7 @@ export default function BookEventPage() {
                 <FormField
                   id="f-eventName"
                   label="Event name"
+                  autoComplete="off"
                   required
                   value={form.eventName}
                   onChange={(e) => update({ eventName: e.target.value })}
@@ -863,7 +876,7 @@ export default function BookEventPage() {
                   onChange={(v) =>
                     update({
                       startTime: v,
-                      ...(form.endTime ? { endTime: shiftEndTime(form.startTime, form.endTime, v) } : {})
+                      endTime: form.endTime ? shiftEndTime(form.startTime, form.endTime, v) : initialEndTime(v)
                     })
                   }
                   error={errors.startTime}
@@ -876,6 +889,7 @@ export default function BookEventPage() {
                     id="f-endTime"
                     required
                     startTime={form.startTime}
+                    sixHourFee={data.sixHourFee ?? DEFAULT_SIX_HOUR_FEE}
                     value={form.endTime}
                     onChange={(v) => update({ endTime: v })}
                     error={errors.endTime}
@@ -886,6 +900,7 @@ export default function BookEventPage() {
                   <FormField
                     id="f-guests"
                     label="Guest count"
+                    autoComplete="off"
                     required
                     value={form.guests}
                     onChange={(e) => updateGuests(e.target.value)}
@@ -1804,6 +1819,7 @@ export default function BookEventPage() {
                       ? [[`Buffet · ${quote.plates || 0} × ${peso(quote.pricePerPlate)}`, peso(quote.food)]]
                       : []),
                     ...(!rental && extraGuests ? [[`Equipment for ${extraGuests} extra guests`, 'To be quoted']] : []),
+                    ...(quote.durationCharge > 0 ? [['6-hour event charge', peso(quote.durationCharge)]] : []),
                     ...chosenAddons.map((a) => [a.name, a.price ? peso(quote.addonTotals[a.id]) : 'To be quoted']),
                     ...(rental && delivered ? [['Delivery', peso(quote.deliveryFee)]] : [])
                   ].map(([label, value], i) => (

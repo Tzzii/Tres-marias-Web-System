@@ -23,9 +23,6 @@ export const formatPackageItem = (item) => (item.qty ? `${item.qty} ${item.name}
 export const headcount = (reservation, word = 'guests') =>
   reservation.serviceType === 'Equipment rental' ? 'Equipment rental' : `${reservation.guests} ${word}`;
 
-/** The rented items of a rental as one line: [{ qty: 100, name: 'Monobloc chair' }] -> "100 × Monobloc chair". */
-export const formatRentalItems = (lines = []) => lines.map((line) => `${line.qty} × ${line.name}`).join(', ');
-
 // 5 -> "05"
 const pad = (n) => String(n).padStart(2, '0');
 

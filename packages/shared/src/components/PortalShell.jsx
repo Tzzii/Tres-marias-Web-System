@@ -119,12 +119,13 @@ export default function PortalShell({
 
   const unread = notifications.filter((n) => !readIds.has(n.id));
 
-  // Mark notifications as read and save them (only the latest 300 IDs are kept)
+  // Keep read state for the current feed without capping how many can be marked as read.
   const markRead = (ids) => {
-    const next = new Set([...readIds, ...ids]);
+    const activeIds = new Set(notifications.map((notification) => notification.id));
+    const next = new Set([...readIds, ...ids].filter((id) => activeIds.has(id)));
     setReadIds(next);
     try {
-      localStorage.setItem(readKey, JSON.stringify([...next].slice(-300)));
+      localStorage.setItem(readKey, JSON.stringify([...next]));
     } catch (e) {
       /* ignore */
     }
@@ -380,7 +381,7 @@ export default function PortalShell({
                 aria-label={`Notifications, ${unread.length} unread`}
                 sx={{ color: tokens.textOnDarkSoft, '&:hover': { color: tokens.gold } }}
               >
-                <Badge badgeContent={unread.length} color="error" max={9}>
+                <Badge badgeContent={unread.length} color="error" max={unread.length}>
                   <NotificationsNoneRoundedIcon sx={{ fontSize: 21 }} />
                 </Badge>
               </IconButton>

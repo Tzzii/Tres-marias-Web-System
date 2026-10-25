@@ -21,5 +21,5 @@ export default defineConfig({
   },
   server: { port: 5173, strictPort: true, fs: { allow: [path.resolve(appDir, '../..')] }, proxy: apiProxy },
   preview: { port: 4173, strictPort: true, proxy: apiProxy },
-  build: { outDir: path.join(appDir, 'dist'), emptyOutDir: true, chunkSizeWarningLimit: 1200, minify: false }
+  build: { outDir: path.join(appDir, 'dist'), emptyOutDir: true, chunkSizeWarningLimit: 1200 }
 });

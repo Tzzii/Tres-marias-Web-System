@@ -33,18 +33,18 @@ export const RULES = {
   /**
    * How long an event may run: the customer picks an end time from minEventHours to maxEventHours after
    * the start (the owner's rule, 2026-10-03). An event may end after midnight, e.g. 10:00 pm to 2:00 am.
-   * defaultEventHours is only for bookings made before end times existed (no end time saved).
+   * initialEventHours is the default for new forms; defaultEventHours preserves the scheduling of
+   * bookings made before end times existed (no end time saved).
    */
   minEventHours: 2,
   maxEventHours: 6,
+  initialEventHours: 2,
   defaultEventHours: 4,
   /** Guest counts the business accepts (the owner's rule, 2026-10-03); forms keep the number inside this range. */
   minGuests: 50,
   maxGuests: 700,
   /** Maximum size of each uploaded photo, in MB; shared by both portals and the API. */
   photoMaxMb: PHOTO_MAX_MB,
-  /** Compatibility alias for callers using the old receipt-specific rule. */
-  proofMaxMb: PHOTO_MAX_MB,
   /** Days after approval the downpayment (at least the booking's minimum, see DEFAULT_MIN_DOWNPAYMENT) falls due. */
   downpaymentDueDays: 7,
   /**
@@ -187,6 +187,10 @@ export const DEFAULT_PRICE_PER_PLATE = 600;
 
 /** The range the admin's buffet price per person has to stay inside. */
 export const PRICE_PER_PLATE_RANGE = { min: 100, max: 5000 };
+
+/** Applied only to an event lasting exactly six hours; saved with each new reservation. */
+export const DEFAULT_SIX_HOUR_FEE = 5000;
+export const SIX_HOUR_FEE_RANGE = { min: 0, max: 50000 };
 
 /**
  * Starting minimum downpayment: the least a customer pays first to secure a date. The customer chooses

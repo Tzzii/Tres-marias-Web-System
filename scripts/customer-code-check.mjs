@@ -97,6 +97,7 @@ async function fixture(scenario) {
     else if (endpoint === '/calendar') json = { capacity: 5, blocked: [], booked: {}, events: [] };
     else if (endpoint === '/appearance') json = {};
     else if (endpoint === '/changes') json = { version: 1 };
+    else if (endpoint === '/catalog/pricing') json = { pricePerPlate: 150, minDownpayment: 3000, sixHourFee: 5000 };
     else if (endpoint === '/catalog/min-downpayment') json = { minDownpayment: 3000 };
     else if (endpoint === '/catalog/price-per-plate') json = { pricePerPlate: 150 };
     await route.fulfill({ json, status, headers });

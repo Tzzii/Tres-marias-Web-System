@@ -58,6 +58,7 @@ export const acceptBody = z.object({ sentAt: passThrough });
 export const availabilityQuery = z.object({ date: passThrough, excludeRef: passThrough });
 
 export const quotationBody = z.object({
+  sixHourFee: passThrough,
   addonPrices: passThrough,
   extraGuestsCharge: passThrough,
   itemCounts: passThrough,

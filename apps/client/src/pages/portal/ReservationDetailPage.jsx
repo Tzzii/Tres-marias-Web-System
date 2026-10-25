@@ -704,6 +704,9 @@ function ChargeLines({ r, rental, delivered }) {
           note: `Covers ${quote.packageGuests || r.package.guests} guests`,
           value: peso(quote.packageTotal)
         },
+        ...(quote.durationCharge > 0
+          ? [{ key: 'duration', label: '6-hour event charge', value: peso(quote.durationCharge) }]
+          : []),
         ...(extraGuests > 0
           ? [
               {

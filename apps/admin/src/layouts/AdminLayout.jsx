@@ -151,7 +151,7 @@ export default function AdminLayout() {
     });
     list.sort((a, b) => b.at - a.at);
     return {
-      notifications: list.slice(0, 25),
+      notifications: list,
       pending: pendingList.length,
       awaiting: awaitingList.length,
       unread: unreadCount,
