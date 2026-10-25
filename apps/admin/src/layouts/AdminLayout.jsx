@@ -30,6 +30,7 @@ import {
   useResource
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
+import FloatingChat from '../components/FloatingChat.jsx';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -217,6 +218,7 @@ export default function AdminLayout() {
     >
       <Outlet />
       <PortalSearch key={user.id} query={searchQuery} admin onClose={() => setSearchQuery(null)} />
+      <FloatingChat key={user.id} unread={unread} />
     </PortalShell>
   );
 }

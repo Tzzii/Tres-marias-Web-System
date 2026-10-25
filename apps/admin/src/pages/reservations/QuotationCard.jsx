@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
@@ -32,8 +32,11 @@ import {
   tokens,
   usesGuestRule
 } from '@tm/shared';
+import { useAuth } from '../../auth.js';
+import { useQuotationDraft } from '../../hooks/useQuotationDraft.js';
 
 export default function QuotationCard({ r, closed, onSend }) {
+  const { user } = useAuth();
   const nextOtherChargeId = useRef(0);
   const newOtherCharge = () => ({
     id: `new-${nextOtherChargeId.current++}`,
@@ -77,9 +80,13 @@ export default function QuotationCard({ r, closed, onSend }) {
       note: q ? q.note : ''
     };
   };
-  const [values, setValues] = useState(initial);
+  const { values, setValues, draftSaved, clearDraft } = useQuotationDraft({
+    adminId: user.id,
+    reservation: r,
+    closed,
+    initial
+  });
   const [busy, setBusy] = useState(false);
-  useEffect(() => setValues(initial()), [r.quotation?.sentAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key) => (e) => setValues((v) => ({ ...v, [key]: e.target.value }));
   const setAddonPrice = (id) => (e) =>
@@ -182,6 +189,11 @@ export default function QuotationCard({ r, closed, onSend }) {
       <CardTitle subtitle={r.quotation ? `Last sent ${formatDateTime(r.quotation.sentAt)}` : 'Not sent yet'}>
         Quotation
       </CardTitle>
+      {!closed && draftSaved && (
+        <Typography role="status" sx={{ mb: 1.5, fontSize: 12, color: tokens.textMuted }}>
+          Draft saved on this tab. Send the quotation when it is ready.
+        </Typography>
+      )}
       {r.quotationStale && !closed && (
         <AlertBanner tone="warning" sx={{ mb: 2 }} title="The customer's quotation is out of date">
           {r.quotationStaleReason} Re-send it so the customer has the correct total.
@@ -455,8 +467,11 @@ export default function QuotationCard({ r, closed, onSend }) {
             disabled={anyInvalid || Boolean(discountError) || missingPrice || missingExtra}
             onClick={async () => {
               setBusy(true);
-              await onSend(toSend(values));
-              setBusy(false);
+              try {
+                if (await onSend(toSend(values))) clearDraft();
+              } finally {
+                setBusy(false);
+              }
             }}
             sx={{ mt: 2 }}
           >

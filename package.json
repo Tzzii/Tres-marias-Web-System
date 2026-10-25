@@ -1,6 +1,6 @@
 {
   "name": "tres-marias",
-  "version": "1.28.4",
+  "version": "1.29.0",
   "private": true,
   "description": "Tres Marias Catering Services - Customer Portal and Admin Dashboard (React + Vite + MUI monorepo).",
   "workspaces": [
@@ -58,7 +58,8 @@
     "test:duration:db": "npm run test:duration:db -w apps/api",
     "check:versions": "node scripts/check-workspace-versions.mjs",
     "test:auth-ui": "node scripts/auth-transition-check.mjs",
-    "test:customer-code-ui": "node scripts/customer-code-check.mjs"
+    "test:customer-code-ui": "node scripts/customer-code-check.mjs",
+    "test:portal-workflow-ui": "node scripts/portal-workflow-check.mjs"
   },
   "engines": {
     "node": ">=20"

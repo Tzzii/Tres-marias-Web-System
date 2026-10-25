@@ -11,7 +11,7 @@ import { AuthProvider } from './auth.js';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ColorModeProvider animate={false}>
+    <ColorModeProvider animate={false} animateThemeChanges>
       <ThemedApp />
     </ColorModeProvider>
   </React.StrictMode>

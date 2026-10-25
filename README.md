@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.28.4**
+**System version: 1.29.0**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
@@ -88,12 +88,14 @@ Guests can browse the public website. Customers sign in to manage their own reco
 | Equipment rentals | Track rented items and automatically check out confirmed rentals when their scheduled pickup or delivery time arrives |
 | Customers | View customer profiles and related booking records |
 | Outsourcing | Manage partners, supply requests, deliveries, request history, and PDF documents |
-| Messages | View and respond to customer conversations |
+| Messages | View and respond to customer conversations from the Messages page or the floating chat window on other admin pages |
 | Feedbacks | Publish, feature, flag, archive, and reply to customer reviews |
 | Account | Manage the administrator account, email-code sign-in, and idle screen lock |
 | Settings → Appearance | Upload and preview the public homepage hero photo, or restore the default photo (JPG, PNG or WebP, up to 20 MB) |
 
 Signed-in portals receive change notifications through Socket.IO and refresh records through the HTTP API. A 15-second polling fallback helps recover missed updates.
+
+Unsent administrator quotation edits are kept in the current browser tab, separately for each administrator and reservation. Leaving the page or refreshing restores the draft; sending successfully or receiving a newer server quotation clears it. Draft edits do not change customer pricing until the administrator sends the quotation. Both portals reveal theme changes as a circle expanding from the Appearance control, while respecting reduced-motion preferences.
 
 ## Booking Workflow
 
@@ -502,6 +504,8 @@ See [Testing](#testing) for the available authentication, authorization, and int
 Concurrent JSON reads share an in-flight request only within the same signed-in session. Responses are copied for each consumer, completed reads are not cached, and successful writes or change notifications invalidate older pending reads. Catalogue list reads use the combined `/api/catalog/pricing` endpoint; the older individual pricing endpoints remain available for compatibility.
 
 Run `npm run check:versions` to verify all workspace versions, internal dependency references, the lockfile and the documented system version. `npm run test:auth-ui` and `npm run test:customer-code-ui` expose the existing isolated authentication browser checks through npm; like the other browser checks they require a running local customer portal, Chrome and Playwright.
+
+Run `npm run test:portal-workflow-ui` with both local portals running to check floating replies, customer selection, unread counts, quotation draft recovery, retry handling, mobile sizing, and circular theme reveals. All API traffic in this check uses isolated fixtures; it does not send messages to real customers or change the database.
 
 Run checks relevant to the changes being made. The following commands exercise business rules or controlled fixtures without resetting the configured MySQL database:
 

@@ -19,8 +19,8 @@ import { PALETTES, cssVarName } from './palettes.js';
  * whole MUI theme, or an icon) call useColorMode().
  *
  * Switching is animated as a circle opening from the toggle button (see
- * revealFrom below). Browsers without the View Transitions API, and anyone who
- * asked for less motion, get a plain colour fade instead.
+ * revealFrom below). Without the View Transitions API, the colour fade is used
+ * where page motion is enabled. Reduced-motion preferences switch immediately.
  */
 
 // A new key on purpose: the old 'tm.theme' was written on every visit (as 'dark', the old
@@ -29,7 +29,7 @@ const STORAGE_KEY = 'tm.colorMode';
 const OLD_STORAGE_KEY = 'tm.theme';
 
 /** How long the reveal (and the fallback colour fade) lasts, in milliseconds. */
-const REVEAL_MS = 520;
+const REVEAL_MS = 650;
 
 /** The mode picked with the toggle, or light when it was never pressed (or storage is blocked). */
 export const readColorMode = () => {
@@ -123,7 +123,7 @@ const revealFrom = (origin, change) => {
     .then(() => {
       document.documentElement.animate(
         { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${cornerDistance(x, y)}px at ${x}px ${y}px)`] },
-        { duration: REVEAL_MS, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', pseudoElement: '::view-transition-new(root)' }
+        { duration: REVEAL_MS, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', pseudoElement: '::view-transition-new(root)' }
       );
     })
     // The transition was skipped (another one started, or the tab went to the background): the mode still changed
@@ -143,7 +143,7 @@ const ColorModeContext = createContext({
  * The mode is saved only by `change` (a press of the toggle), never just for
  * opening a page, so light stays the default until someone picks dark.
  */
-export function ColorModeProvider({ children, animate = true }) {
+export function ColorModeProvider({ children, animate = true, animateThemeChanges = animate }) {
   const [mode, setMode] = useState(readColorMode);
 
   // Repaint whenever the mode changes
@@ -160,8 +160,7 @@ export function ColorModeProvider({ children, animate = true }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // Portals can switch instantly; animated callers paint the palette and React state together
-  // inside the reveal so the colours and MUI theme belong to the same photograph.
+  // Theme reveals can be enabled independently from ordinary page and component motion.
   const change = useCallback(
     (next, origin) => {
       saveColorMode(next);
@@ -169,10 +168,10 @@ export function ColorModeProvider({ children, animate = true }) {
         applyColorMode(next);
         setMode(next);
       };
-      if (animate) revealFrom(origin, apply);
+      if (animateThemeChanges) revealFrom(origin, apply);
       else apply();
     },
-    [animate]
+    [animateThemeChanges]
   );
 
   const value = useMemo(

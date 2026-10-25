@@ -65,6 +65,7 @@ export {
 export { MenuPicker } from './components/MenuPicker.jsx';
 export { ScrollToTop, NotFoundPage } from './components/Routing.jsx';
 export { ChatPanel } from './components/ChatPanel.jsx';
+export { FloatingChat } from './components/FloatingChat.jsx';
 // The booking's "Theme and Colors": the form fields (booking form, admin dialog), the colour picker and the read-only summary
 export { ColorMotifPicker, ColorSwatch, StylingFields, StylingSummary } from './components/Styling.jsx';
 export { default as PortalShell } from './components/PortalShell.jsx';

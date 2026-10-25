@@ -30,7 +30,7 @@ function CustomerApp() {
   }, [inPortal]);
 
   return (
-    <ColorModeProvider animate={!inPortal}>
+    <ColorModeProvider animate={!inPortal} animateThemeChanges>
       <ThemedApp />
     </ColorModeProvider>
   );

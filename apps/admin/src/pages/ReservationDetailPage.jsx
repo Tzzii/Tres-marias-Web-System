@@ -128,8 +128,10 @@ export default function ReservationDetailPage() {
     try {
       await fn();
       notify(message);
+      return true;
     } catch (e) {
       notify(e.message, 'error');
+      return false;
     }
   };
 
