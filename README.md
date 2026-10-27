@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.29.0**
+**System version: 1.29.1**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
@@ -479,7 +479,7 @@ The shared photo limit is **20 MB per file**. Photo forms and API upload middlew
 
 - Uploaded payment proofs are stored under `apps/api/uploads/proofs` by default and accessed through protected routes.
 - Each package can have one saved setup photo under `apps/api/uploads/packages` by default. Admins can upload, replace, remove, or discard pending photo changes.
-- Customer package details show the saved setup photo. Bundled fallback images are labelled **Sample setup**.
+- Customer package cards and details show the saved setup photo or a bundled fallback image, without a sample caption below the photo.
 - Hidden or archived package photos require the protected admin route.
 - Equipment items have appearance photos showing one item or one complete rental unit, without a mock-photo label in the interface. Admins can replace the photo through Inventory; the same saved photo appears in the customer equipment rental price list and booking form.
 - `UPLOAD_DIR` can change the storage location. Uploaded files must be included in deployment backups. Check the repository's ignore rules before adding files; private payment proofs and customer uploads should stay outside Git.

@@ -27,10 +27,10 @@ export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, he
   const cardSrc = sample && thumbnail ? samplePackagePhoto(pkg, { thumbnail: true }) : src;
   const caption = loading
     ? 'Loading package photo…'
-    : failed
+    : failed && admin
       ? 'Photo unavailable · Sample setup shown'
       : sample
-        ? 'Sample setup · For illustration only'
+        ? null
         : file && admin
           ? 'New photo preview · Save changes to publish'
           : 'Package setup';
@@ -85,13 +85,15 @@ export function PackagePhoto({ pkg, file, removePhoto = false, admin = false, he
           </Box>
         )}
       </ButtonBase>
-      <Typography sx={{ px: 2, py: 1, fontSize: 12, color: tokens.textSecondary, bgcolor: tokens.surfaceSubtle }}>
-        {caption}
-      </Typography>
+      {caption && (
+        <Typography sx={{ px: 2, py: 1, fontSize: 12, color: tokens.textSecondary, bgcolor: tokens.surfaceSubtle }}>
+          {caption}
+        </Typography>
+      )}
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="lg" fullWidth aria-labelledby="package-photo-title">
         <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, gap: 1 }}>
           <Typography id="package-photo-title" component="h2" sx={{ flex: 1, fontWeight: 600, fontSize: 16 }}>
-            {pkg?.name} · {sample ? 'Sample setup' : 'Package setup'}
+            {pkg?.name} · Package setup
           </Typography>
           <IconButton aria-label="Close photo" onClick={() => setOpen(false)}>
             <CloseRoundedIcon />
