@@ -1,6 +1,6 @@
 {
   "name": "@tm/client",
-  "version": "1.29.1",
+  "version": "1.29.2",
   "private": true,
   "type": "module",
   "description": "Tres Marias Customer Portal - public browsing, reservations and the customer account.",
@@ -13,7 +13,7 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^6.4.0",
     "@mui/material": "^6.4.0",
-    "@tm/shared": "1.29.1",
+    "@tm/shared": "1.29.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.4",

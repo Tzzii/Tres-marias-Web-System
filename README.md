@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.29.1**
+**System version: 1.29.2**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 

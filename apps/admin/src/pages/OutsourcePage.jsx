@@ -1409,6 +1409,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           id="partner-name"
           label="Partner name"
           required
+          autoComplete="off"
           value={values.name}
           onChange={set('name')}
           error={errors.name}
@@ -1444,6 +1445,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           id="partner-contactPerson"
           label="Contact person"
           required
+          autoComplete="off"
           value={values.contactPerson}
           onChange={set('contactPerson')}
           error={errors.contactPerson}
@@ -1453,6 +1455,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           id="partner-address"
           label="Address"
           required
+          autoComplete="off"
           value={values.address}
           onChange={set('address')}
           error={errors.address}
@@ -1463,6 +1466,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
           label="Email address"
           required
           type="email"
+          autoComplete="off"
           value={values.email}
           onChange={set('email')}
           error={errors.email}
@@ -1485,6 +1489,7 @@ function PartnerDialog({ open, partner, onClose, onSaved }) {
         optional
         multiline
         minRows={2}
+        autoComplete="off"
         value={values.notes}
         onChange={set('notes')}
         error={errors.notes}
