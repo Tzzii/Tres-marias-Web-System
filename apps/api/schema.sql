@@ -3,6 +3,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS password_changes;
 DROP TABLE IF EXISTS customer_email_changes;
+DROP TABLE IF EXISTS customer_google_signins;
 DROP TABLE IF EXISTS signup_requests;
 DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS auth_challenges;
@@ -86,6 +87,23 @@ CREATE TABLE customer_google_accounts (
   CONSTRAINT fk_google_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE customer_google_signins (
+  id                  VARCHAR(40) NOT NULL,
+  customer_id         VARCHAR(40) NOT NULL,
+  google_subject      VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  email               VARCHAR(254) NOT NULL,
+  password_changed_at BIGINT UNSIGNED NULL,
+  remember            BOOLEAN NOT NULL DEFAULT FALSE,
+  code_hash           VARCHAR(255) NOT NULL,
+  expires_at          BIGINT UNSIGNED NOT NULL,
+  resend_at           BIGINT UNSIGNED NOT NULL,
+  used_at             BIGINT UNSIGNED NULL,
+  created_at          BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_google_signins_customer (customer_id),
+  CONSTRAINT fk_google_signins_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE packages (
   id          VARCHAR(40)  NOT NULL,

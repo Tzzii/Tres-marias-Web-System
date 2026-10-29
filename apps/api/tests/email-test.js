@@ -270,6 +270,7 @@ check(
 const CODE = '176498';
 const CODE_SAMPLES = [
   ['customer_sign_up', { name: 'Ana<b>', code: CODE }],
+  ['customer_google_sign_in', { name: 'Ana<b> Santos', code: CODE }],
   ['customer_email_change', { name: 'Ana<b> Santos', email: 'new"<script>alert(1)</script>@example.com', code: CODE }],
   ['customer_password_reset', { name: 'Ana<b> Santos', code: CODE }],
   ['customer_password_change', { name: 'Ana<b> Santos', code: CODE }],

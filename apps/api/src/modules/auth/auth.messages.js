@@ -2,7 +2,6 @@ import { mailer } from '../../integrations/mailer/index.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { CODE_EMAILS } from './code.emails.js';
 
-
 async function deliver(port, message, what) {
   try {
     return await port.send(message);
@@ -21,6 +20,18 @@ export function sendSignInCode(admin, code, challengeId) {
       meta: { purpose: 'admin_sign_in', adminId: admin.id, challengeId }
     },
     'sign-in code'
+  );
+}
+
+export function sendCustomerSignInCode(customer, code, challengeId) {
+  return deliver(
+    mailer,
+    {
+      to: customer.email,
+      ...CODE_EMAILS.customer_google_sign_in({ name: customer.name, code }),
+      meta: { purpose: 'customer_google_sign_in', customerId: customer.id, challengeId }
+    },
+    'Google sign-in code'
   );
 }
 

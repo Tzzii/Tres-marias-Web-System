@@ -26,6 +26,7 @@ function setup({ customers = [], identities = [], person = identity, locked = fa
   let links = structuredClone(identities);
   let queued = 0;
   const cleared = [];
+  const signIns = [];
   const repo = {
     findGoogleCustomer: async (sub) => records.find((c) => c.id === links.find((g) => g.sub === sub)?.customerId),
     findCustomerByEmail: async (email) => records.find((c) => c.email === email),
@@ -53,6 +54,10 @@ function setup({ customers = [], identities = [], person = identity, locked = fa
       }
     },
     session: (user, remember) => ({ token: 'session-token', user, remember }),
+    startSignInCode: async (user, remember, subject) => {
+      signIns.push({ user, remember, subject });
+      return { challengeId: 'signin-request', maskedEmail: user.email, expiresAt: 999999, resendAt: 999999 };
+    },
     checkPassword: async (plain, hash) => hash === `hash:${plain}`,
     assertNotLocked: async () => {
       if (locked) throw new ApiError('LOCKED', 'Locked');
@@ -69,7 +74,7 @@ function setup({ customers = [], identities = [], person = identity, locked = fa
     newId: () => 'new-customer',
     now: () => 123456789
   });
-  return { service, repo, records: () => records, links: () => links, queued: () => queued, cleared };
+  return { service, repo, records: () => records, links: () => links, queued: () => queued, cleared, signIns };
 }
 
 test('a new Google identity receives profile completion before any customer or session exists', async () => {
@@ -97,12 +102,11 @@ test('Google signup validates names, mobile and explicit current terms before cr
   }
   const f = setup();
   const result = await f.service.signIn({ profile: { ...profile, email: 'attacker@example.com' }, remember: true });
-  assert.equal(result.user.email, identity.email);
-  assert.equal(result.user.mobile, '09171234567');
-  assert.equal(result.user.passwordHash, null);
-  assert.equal(result.user.termsVersion, TERMS_VERSION);
-  assert.equal(result.remember, true);
-  assert.deepEqual(f.links(), [{ sub: identity.sub, customerId: 'new-customer' }]);
+  assert.equal(result.status, 'email_required');
+  assert.equal(result.token, undefined);
+  assert.equal(f.queued(), 1, 'Gmail signup must also verify the emailed code');
+  assert.equal(f.records().length, 0, 'no account is created before code verification');
+  assert.deepEqual(f.links(), []);
 });
 
 test('matching email requires the existing account password and preserves its ID and records', async () => {
@@ -118,8 +122,10 @@ test('matching email requires the existing account password and preserves its ID
   await assert.rejects(f.service.signIn({ password: 'incorrect' }), { code: 'INVALID_CREDENTIALS' });
   assert.equal(f.links().length, 0);
   const result = await f.service.signIn({ password: 'correct' });
-  assert.equal(result.user.id, existing.id);
-  assert.equal(result.user.name, existing.name);
+  assert.equal(result.status, 'code_required');
+  assert.equal(result.token, undefined);
+  assert.equal(f.signIns[0].user.id, existing.id);
+  assert.equal(f.signIns[0].user.name, existing.name);
   assert.equal(f.records().length, 1);
   assert.equal(f.links()[0].customerId, existing.id);
 });
@@ -127,15 +133,15 @@ test('matching email requires the existing account password and preserves its ID
 test('returning Google users are found by sub even after their application email changes', async () => {
   const customer = { id: 'existing', email: 'changed@example.com', name: 'Saved Name' };
   const f = setup({ customers: [customer], identities: [{ sub: identity.sub, customerId: customer.id }] });
-  const result = await f.service.signIn({ profile: { ...profile, firstName: 'Overwrite' } });
-  assert.equal(result.user.id, customer.id);
-  assert.equal(result.user.email, 'changed@example.com');
-  assert.equal(result.user.name, 'Saved Name');
-  assert.deepEqual(
-    f.cleared,
-    [['customer', customer.email]],
-    'successful Google login resets the account failure counter'
-  );
+  const result = await f.service.signIn({ profile: { ...profile, firstName: 'Overwrite' }, remember: true });
+  assert.equal(result.status, 'code_required');
+  assert.equal(result.token, undefined);
+  assert.equal(result.challengeId, 'signin-request');
+  assert.equal(f.signIns[0].user.email, 'changed@example.com');
+  assert.equal(f.signIns[0].user.name, 'Saved Name');
+  assert.equal(f.signIns[0].remember, true);
+  assert.equal(f.signIns[0].subject, identity.sub);
+  assert.deepEqual(f.cleared, [], 'the failure counter is not cleared before the email code is verified');
 });
 
 test('locked accounts cannot link or sign in through Google', async () => {
@@ -147,15 +153,6 @@ test('locked accounts cannot link or sign in through Google', async () => {
     });
     await assert.rejects(f.service.signIn({ password: 'correct' }), { code: 'LOCKED' });
   }
-});
-
-test('a conflicting Google identity rolls back registration without creating a duplicate customer', async () => {
-  const f = setup();
-  f.repo.linkGoogle = async () => {
-    throw Object.assign(new Error('race'), { code: 'ER_DUP_ENTRY' });
-  };
-  await assert.rejects(f.service.signIn({ profile }), { code: 'INVALID_STATE' });
-  assert.equal(f.records().length, 0);
 });
 
 test('a password changed during account linking requires a fresh verification', async () => {

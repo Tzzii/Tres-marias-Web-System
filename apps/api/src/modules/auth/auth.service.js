@@ -175,7 +175,7 @@ export async function resendSignUpCode(challengeId) {
   return times;
 }
 
-/** Google is not authoritative for third-party email domains, so verify the mailbox before signup. */
+/** Every new Google customer must enter the emailed code before account creation. */
 export async function startGoogleEmailSignup(identity, profile) {
   const address = identity.email;
   await reserveAttempt('code-email', address);

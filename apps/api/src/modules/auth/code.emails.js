@@ -2,7 +2,6 @@ import { BUSINESS, RULES } from '@tm/shared/src/services/config.js';
 import { maskMobile } from '@tm/shared/src/utils/format.js';
 import { renderCodeEmail } from '../notify/email.layout.js';
 
-
 const firstWord = (name) =>
   String(name || '')
     .trim()
@@ -64,6 +63,21 @@ function customerSignUp(data) {
   };
 }
 
+function customerGoogleSignIn(data) {
+  return {
+    subject: `Your ${BUSINESS.shortName} Google sign-in code`,
+    ...renderCodeEmail({
+      ...common(data),
+      label: 'Google Sign-In Code',
+      heading: 'Finish Signing In',
+      intro: `Use this code to finish signing in with Google to your ${BUSINESS.shortName} customer account:`,
+      ifNotYou:
+        'If you did not try to sign in, ignore this email. Your account cannot be opened with Google without this code.',
+      reason: `You're receiving this because a Google sign-in to your ${BUSINESS.shortName} customer account was started.`
+    })
+  };
+}
+
 function customerEmailChange(data) {
   return {
     subject: `Confirm your new email for ${BUSINESS.shortName}`,
@@ -111,6 +125,7 @@ export const CODE_EMAILS = {
   admin_sign_in: adminSignIn,
   admin_contact_change: adminContactChange,
   customer_sign_up: customerSignUp,
+  customer_google_sign_in: customerGoogleSignIn,
   customer_email_change: customerEmailChange,
   customer_password_reset: customerPasswordReset,
   customer_password_change: customerPasswordChange

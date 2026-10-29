@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.29.2**
+**System version: 1.40.0**
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
@@ -259,11 +259,16 @@ absent, the API does not accept Google login. A mismatched configuration shows a
 New customers complete their name, mobile number, and current Terms/Privacy agreement. An existing
 account requires its current password before Google is linked, preserving its account ID and bookings.
 Returning Google users are identified by their Google subject, even if their application email changes.
-For Google accounts using third-party email providers, the existing email-code signup flow confirms
-mailbox ownership first. Google-only users can set their first password through **My profile → Set a
+Every Google sign-in requires the application's six-digit email code before a customer session is
+issued, including returning users and accounts just connected to Google. Codes go to the customer's
+current application email. New Google customers, including Gmail users, confirm the emailed signup
+code before their account is created. Code expiry, resend cooldowns and attempt limits apply; sign-in
+codes are hashed, bound to the account and password version, and consumed once. Google-only users can set their first password through **My profile → Set a
 password**, using an emailed code. The admin authentication flow remains separate.
 
-Validation: `npm run test:google`, `npm run test:google:db` (local MySQL, rolled-back fixtures), and
+The additive migration also creates `customer_google_signins` for pending sign-in codes.
+
+Validation: `npm run test:google`, `npm run test:google:db` (local MySQL, rolled-back or cleaned-up fixtures), and
 `npm run test:google-ui` (running local customer portal, isolated Google/API fixtures). The browser check
 uses Playwright and Chrome; `PLAYWRIGHT_MODULE_PATH` can point to an installed Playwright package.
 These fixture checks do not replace a real Google-account sign-in on an authorized origin.

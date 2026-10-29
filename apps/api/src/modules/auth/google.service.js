@@ -25,15 +25,12 @@ export function createGoogleCustomerService({
   verify,
   repo,
   transaction,
-  session,
+  startSignInCode,
   checkPassword,
   assertNotLocked,
   reserveAttempt,
   wrongAnswer,
-  clearAttempts,
-  startEmailSignup,
-  newId,
-  now
+  startEmailSignup
 }) {
   const changed = () => new ApiError('INVALID_STATE', 'Your account changed. Please start Google sign-in again.');
   return {
@@ -42,8 +39,7 @@ export function createGoogleCustomerService({
       const linked = await repo.findGoogleCustomer(identity.sub);
       if (linked) {
         await assertNotLocked('customer', linked.email);
-        await clearAttempts('customer', linked.email);
-        return session(linked, remember);
+        return { status: 'code_required', ...(await startSignInCode(linked, remember, identity.sub)) };
       }
       const existing = await repo.findCustomerByEmail(identity.email);
       if (existing) {
@@ -69,8 +65,7 @@ export function createGoogleCustomerService({
           if (error.code === 'ER_DUP_ENTRY') throw changed();
           throw error;
         }
-        await clearAttempts('customer', customer.email);
-        return session(customer, remember);
+        return { status: 'code_required', ...(await startSignInCode(customer, remember, identity.sub)) };
       }
       if (!profile)
         return {
@@ -82,30 +77,7 @@ export function createGoogleCustomerService({
           }
         };
       const clean = completeProfile(profile);
-      if (!identity.authoritativeEmail)
-        return { status: 'email_required', ...(await startEmailSignup(identity, clean)) };
-      const at = now();
-      const customer = {
-        id: newId('cus'),
-        ...clean,
-        email: identity.email,
-        passwordHash: null,
-        company: '',
-        createdAt: at,
-        passwordChangedAt: null,
-        termsVersion: TERMS_VERSION,
-        termsAcceptedAt: at
-      };
-      try {
-        await transaction(async (conn) => {
-          await repo.insertCustomer(customer, conn);
-          await repo.linkGoogle(identity.sub, customer.id, conn);
-        });
-      } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') throw changed();
-        throw error;
-      }
-      return session(customer, remember);
+      return { status: 'email_required', ...(await startEmailSignup(identity, clean)) };
     }
   };
 }

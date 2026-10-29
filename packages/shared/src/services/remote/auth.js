@@ -10,7 +10,7 @@ import { http } from '../http.js';
  *   (customerId, adminId) some pages pass are not sent.
  * - Every one-time code is emailed by the server and never comes back in a
  *   response: the admin's sign-in and contact-change codes, and the customer's codes for signing up,
- *   resetting a forgotten password, and changing the password or login email in My profile.
+ *   Google sign-in, resetting a forgotten password, and changing the password or login email in My profile.
  * - Lockouts are enforced by the server. getLockout only remembers, for this tab, the lock the server
  *   last reported, so the log-in page can restore its countdown after a reload.
  */
@@ -77,6 +77,11 @@ export const customerLogin = ({ email, password, remember = false }) =>
 
 export const getGoogleSignInConfig = () => http.get('/auth/customer/google/config', { quiet: true });
 export const customerGoogleLogin = (values) => http.post('/auth/customer/google', values, { quiet: true });
+/** Complete Google sign-in only after entering the application's emailed code. */
+export const verifyGoogleSignInCode = ({ challengeId, code }) =>
+  http.post(`/auth/customer/google/${segment(challengeId)}/verify`, { code }, { quiet: true });
+export const resendGoogleSignInCode = (challengeId) =>
+  http.post(`/auth/customer/google/${segment(challengeId)}/resend`, {}, { quiet: true });
 
 /**
  * Sign-up, step 1 (Phase 12): the server checks the form and emails a code to the new address; no

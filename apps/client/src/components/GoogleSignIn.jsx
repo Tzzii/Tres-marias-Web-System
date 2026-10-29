@@ -31,6 +31,7 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
   const button = useRef(null);
   const active = useRef(false);
   const working = useRef(false);
+  const dialogOpen = useRef(false);
   const latest = useRef({ onSignedIn, onBusyChange, remember, disabled });
   latest.current = { onSignedIn, onBusyChange, remember, disabled };
   const [reload, setReload] = useState(0);
@@ -49,6 +50,7 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
   });
   const [password, setPassword] = useState('');
   const [emailChallenge, setEmailChallenge] = useState(null);
+  dialogOpen.current = Boolean(flow || emailChallenge);
 
   const close = () => {
     setFlow(null);
@@ -67,10 +69,7 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
     try {
       const result = await authApi.customerGoogleLogin({ ...values, remember: latest.current.remember });
       if (!active.current) return;
-      if (result.token) {
-        setPending(null);
-        latest.current.onSignedIn(result, { remember: latest.current.remember });
-      } else if (result.status === 'profile_required') {
+      if (result.status === 'profile_required') {
         setProfile({
           firstName: result.profile.firstName || '',
           middleName: '',
@@ -81,10 +80,10 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
         setFlow({ kind: 'profile', email: result.profile.email });
       } else if (result.status === 'link_required') {
         setFlow({ kind: 'link', email: result.email });
-      } else if (result.status === 'email_required') {
+      } else if (result.status === 'email_required' || result.status === 'code_required') {
         setFlow(null);
         setPending(null);
-        setEmailChallenge(result);
+        setEmailChallenge({ ...result, remember: latest.current.remember });
       } else throw new Error('Google sign-in could not be completed. Please try again.');
     } catch (err) {
       if (!active.current) return;
@@ -120,7 +119,8 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
           nonce: config.nonce,
           auto_select: false,
           callback: (response) => {
-            if (cancelled || working.current || latest.current.disabled || !response.credential) return;
+            if (cancelled || working.current || dialogOpen.current || latest.current.disabled || !response.credential)
+              return;
             const values = { credential: response.credential, challenge: config.challenge };
             setPending(values);
             exchange(values);
@@ -230,8 +230,8 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
         title={flow?.kind === 'link' ? 'Connect your existing account' : 'Complete your account'}
         description={
           flow?.kind === 'link'
-            ? 'Confirm your Tres Marias password once to connect Google and keep your existing bookings.'
-            : 'Add your contact details to finish signing up with Google.'
+            ? 'Confirm your Tres Marias password to connect Google, then enter the code we email you to sign in.'
+            : 'Add your contact details, then enter the code we email you to finish signing up with Google.'
         }
         actions={
           <>
@@ -340,16 +340,27 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
 
       <EmailCodeDialog
         challenge={emailChallenge}
-        title="Confirm Your Email"
-        actionLabel="Create account"
+        title={emailChallenge?.status === 'code_required' ? 'Verify Your Sign-In' : 'Confirm Your Email'}
+        actionLabel={emailChallenge?.status === 'code_required' ? 'Verify and sign in' : 'Create account'}
+        loadingLabel="Opening your account…"
         onVerify={(code) =>
-          authApi.confirmSignUp({ challengeId: emailChallenge.challengeId, code, remember: latest.current.remember })
+          emailChallenge.status === 'code_required'
+            ? authApi.verifyGoogleSignInCode({ challengeId: emailChallenge.challengeId, code })
+            : authApi.confirmSignUp({
+                challengeId: emailChallenge.challengeId,
+                code,
+                remember: emailChallenge.remember
+              })
         }
         onVerified={(session) => {
           setEmailChallenge(null);
-          latest.current.onSignedIn(session, { remember: latest.current.remember });
+          latest.current.onSignedIn(session, { remember: emailChallenge.remember });
         }}
-        onResend={() => authApi.resendSignUpCode(emailChallenge.challengeId)}
+        onResend={() =>
+          emailChallenge.status === 'code_required'
+            ? authApi.resendGoogleSignInCode(emailChallenge.challengeId)
+            : authApi.resendSignUpCode(emailChallenge.challengeId)
+        }
         onRestart={(message) => {
           close();
           setError(message);

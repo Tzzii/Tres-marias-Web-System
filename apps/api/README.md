@@ -2,6 +2,23 @@
 
 The API uses Express and MySQL. Start it from the project root with `npm run dev:api`.
 
+## Google sign-in verification
+
+Every Google customer sign-in requires an emailed six-digit code. `POST /api/auth/customer/google`
+returns `code_required` and challenge metadata for an existing customer, never a session. Complete it
+with `POST /api/auth/customer/google/:id/verify` and `{ code }`; request another code with
+`POST /api/auth/customer/google/:id/resend`. Both routes require an allowed customer origin and use
+the authentication rate limiter. The server preserves the initial remember preference and current
+account email, checks code and account lockouts, invalidates pending codes after email/password/Google
+identity changes, and consumes each verified challenge in a transaction before issuing a session.
+
+New Google customers return `email_required` after profile completion and use the existing signup
+verify/resend routes, including Gmail addresses. No new account exists before the signup code is
+verified. Run `npm run db:migrate` before starting this API version to create
+`customer_google_signins` without changing existing customer rows. `npm run test:google` covers code
+lifecycle and HTTP validation; `npm run test:google:db` checks local MySQL persistence and concurrent
+single-use verification with test fixtures cleaned up afterward.
+
 ## Folder layout
 
 - `src/`: runtime code and database seed data.
