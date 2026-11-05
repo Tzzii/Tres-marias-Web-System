@@ -38,7 +38,6 @@ import { readPhoto } from '../../lib/photos.js';
 import { storage } from '../../integrations/storage/index.js';
 import crypto from 'node:crypto';
 
-
 const toError = ({ code, message, meta }) => new ApiError(code, message, meta);
 const itemNotFound = () => new ApiError('NOT_FOUND', 'Item not found.');
 
@@ -94,7 +93,6 @@ async function chargeDamage(conn, booking, lost, admin) {
   await postAdminMessage(conn, reservation, damage.message, null, admin.name);
 }
 
-
 export async function listInventory({ includeArchived = false } = {}) {
   const { items, eventOf } = await repo.findItems(pool, { includeArchived });
   return items.map((item) => inventoryView(item, eventOf)).sort(inventoryOrder);
@@ -137,7 +135,6 @@ export async function rentalCheckoutState(ref) {
     dispatched: await dispatchedFor(pool, ref, items)
   };
 }
-
 
 export async function addInventoryItems(rows, admin) {
   if (!rows.length) throw new ApiError('INVALID', 'Add at least one item.');
@@ -336,7 +333,6 @@ export async function setInventoryArchived(ids, archived, admin) {
     return { count: list.length };
   });
 }
-
 
 async function lockedRental(conn, ref) {
   const owner = await lockedBooking(conn, ref);

@@ -1,4 +1,5 @@
 import QuotationCard from './reservations/QuotationCard.jsx';
+import AdditionalServicesCard from './reservations/AdditionalServicesCard.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
@@ -11,6 +12,7 @@ import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineR
 
 import {
   AlertBanner,
+  BudgetRequestCard,
   ActivityTimeline,
   AppDialog,
   BUSINESS,
@@ -34,6 +36,9 @@ import {
   DESSERT_ADDON_ID,
   menuProblem,
   buffetDrinks,
+  isInclusiveBuffet,
+  reservationPricingModel,
+  reservationPackageForPricing,
   dessertSummary,
   PackageItemList,
   PageHeader,
@@ -194,6 +199,8 @@ export default function ReservationDetailPage() {
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
         <EventWorkspace event={r} admin />
+        <BudgetRequestCard reservation={r} />
+        {!isRental(r.serviceType) && <AdditionalServicesCard r={r} onSaved={reload} />}
         <Box component="nav" aria-label="Event workspace sections" sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {[
             ['quotation-card', 'Quotation'],
@@ -333,7 +340,11 @@ export default function ReservationDetailPage() {
             ) : (
               <DashCard>
                 <CardTitle
-                  subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`}
+                  subtitle={
+                    isInclusiveBuffet({ ...r, pricingModel: reservationPricingModel(r) })
+                      ? `${r.packageName} · Standard setup included for ${r.guests} guests`
+                      : `${r.packageName} · ${peso(reservationPackageForPricing(r).price)} · Default: ${reservationPackageForPricing(r).guests} guests`
+                  }
                   action={
                     !closed && (
                       <Button size="small" variant="outlined" onClick={() => setDialog('food')}>
@@ -811,11 +822,12 @@ function LogisticsCard({ r, closed, onSave }) {
     });
   const delivered = rental && values.fulfilment === 'delivery';
   const switching = rental && values.fulfilment !== r.fulfilment;
+  const customPackage = r.packageSource === 'custom';
   const guestsNow = Number(values.guests) || 0;
-  const repricing = includesFood(r.serviceType) && guestsNow !== r.guests && guestsNow > 0;
-  const extraBefore = rental ? 0 : bookingExtraGuests(r);
-  const extraNow = rental || !usesGuestRule(r) ? 0 : extraGuestsFor(r.package, guestsNow);
-  const extraMoves = guestsNow > 0 && guestsNow !== r.guests && extraNow !== extraBefore;
+  const repricing = !customPackage && includesFood(r.serviceType) && guestsNow !== r.guests && guestsNow > 0;
+  const extraBefore = rental || customPackage ? 0 : bookingExtraGuests(r);
+  const extraNow = rental || customPackage || !usesGuestRule(r) ? 0 : extraGuestsFor(r.package, guestsNow);
+  const extraMoves = !customPackage && guestsNow > 0 && guestsNow !== r.guests && extraNow !== extraBefore;
 
   if (rental) {
     return (
@@ -933,7 +945,7 @@ function LogisticsCard({ r, closed, onSave }) {
           customer; the amount they owe only changes once you re-send the quotation.
         </AlertBanner>
       )}
-      {extraMoves && (
+      {extraMoves && !isInclusiveBuffet({ ...r, pricingModel: reservationPricingModel(r) }) && (
         <AlertBanner tone="warning" sx={{ mb: 2 }} title="This changes the extra guests">
           {extraBefore || 'No'} → {extraNow || 'no'} guests above the package's {r.package.guests}. Their equipment and
           the items to confirm are set in the quotation, so{' '}
@@ -985,7 +997,10 @@ function LogisticsCard({ r, closed, onSave }) {
           type="number"
           value={values.guests}
           onChange={set('guests')}
-          disabled={closed}
+          disabled={closed || r.packageSource === 'custom'}
+          hint={
+            r.packageSource === 'custom' ? 'Custom package guest count is fixed to the submitted setup.' : undefined
+          }
         />
         <FormField id="l-venue" label="Venue" value={values.venueName} onChange={set('venueName')} disabled={closed} />
         <FormField id="l-city" label="City" value={values.city} onChange={set('city')} disabled={closed} />
@@ -1244,10 +1259,13 @@ function MenuDialog({ open, onClose, r, onSubmit }) {
           value={values.serviceType}
           onChange={set('serviceType')}
           options={SERVICE_TYPES}
+          disabled={r.packageSource === 'custom'}
           hint={
-            buffet
-              ? `Charged ${peso(r.pricePerPlate)} per person for ${r.guests} guests`
-              : 'Equipment and setup only, with no per-person charge'
+            r.packageSource === 'custom'
+              ? 'Custom package service type is fixed to the submitted setup.'
+              : buffet
+                ? `Charged ${peso(r.pricePerPlate)} per person for ${r.guests} guests`
+                : 'Equipment and setup only, with no per-person charge'
           }
         />
         {buffet && <MenuPicker idPrefix="menu" menu={values.menu} dishes={dishes} onChange={setDish} />}

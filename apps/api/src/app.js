@@ -28,10 +28,15 @@ import {
 import { reportAdminRoutes } from './modules/reports/reports.routes.js';
 import { rentalRoutes, reservationAdminRoutes, reservationRoutes } from './modules/reservations/reservations.routes.js';
 import { appearanceAdminRoutes, appearanceRoutes } from './modules/appearance/appearance.routes.js';
+import { createBudgetRoutes } from './modules/budget/budget.routes.js';
+import { createAssistantRoutes } from './modules/assistant/assistant.routes.js';
+import { packageProposalRoutes } from './modules/package-proposals/packageProposal.routes.js';
+import { createAIAdmission } from './modules/assistant/aiSafety.js';
+import { createAISafetyRepository } from './modules/assistant/aiSafety.repo.js';
 
 export function createApp() {
   const app = express();
-  app.set('trust proxy', 1);
+  app.set('trust proxy', config.trustProxy);
 
   app.use(morgan(config.isProduction ? 'combined' : 'dev'));
   app.use(helmet());
@@ -39,7 +44,7 @@ export function createApp() {
     cors({
       origin: (origin, done) => done(null, !origin || config.corsOrigins.includes(origin)),
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Assistant-Visitor'],
       credentials: false
     })
   );
@@ -51,6 +56,12 @@ export function createApp() {
   app.get('/api/health', (req, res) => res.json({ ok: true, time: Date.now() }));
 
   app.use('/api', apiLimiter);
+  app.use('/api/assistant', createAssistantRoutes({ admission: createAIAdmission() }));
+  const generationAdmission = createAIAdmission(undefined, (req) =>
+    req.method === 'POST' && /^\/?$/.test(req.path) ? 'paid' : null
+  );
+  app.use('/api/package-proposals', requireAuth, requireRole('customer'), generationAdmission, packageProposalRoutes);
+  app.use('/api/budget-proposals', requireAuth, requireRole('customer'), generationAdmission, createBudgetRoutes());
 
   app.use('/api', stampWrites);
 
@@ -75,6 +86,11 @@ export function createApp() {
 
   const admin = express.Router();
   admin.use(requireAuth, requireRole('admin'));
+  const safety = createAISafetyRepository();
+  admin.get('/ai-usage', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json(await safety.snapshot());
+  });
   admin.use('/me', adminAccountRoutes);
   admin.use('/appearance', appearanceAdminRoutes);
   admin.use(catalogAdminRoutes);

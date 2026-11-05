@@ -38,6 +38,10 @@ import { ITEM_COUNT_MAX, itemsToConfirm } from '@tm/shared/src/domain/packageIte
 import { helperItemCounts } from '@tm/shared/src/utils/helperLabels.js';
 import {
   computeQuote,
+  INCLUSIVE_PRICING_MODEL,
+  reservationPricingModel,
+  reservationPackageForPricing,
+  isInclusiveBuffet,
   extraGuestsFor,
   reservationSixHourFee,
   sixHourFeeProblem,
@@ -59,6 +63,20 @@ import * as repo from './reservations.repo.js';
 import { inspectReferencePhoto, storeReferencePhoto } from './referencePhoto.js';
 import { storage } from '../../integrations/storage/index.js';
 import { cleanReferencePhotos, REFERENCE_PHOTO_MAX_COUNT } from '@tm/shared/src/domain/referencePhoto.js';
+import { normalizeBudgetSelection } from '@tm/shared/src/domain/budget.js';
+import { selectionChanges } from '@tm/shared/src/domain/budgetRequest.js';
+import {
+  readBudgetCatalog,
+  buildBudgetRequestSnapshot,
+  validateServiceDependencies,
+  addonSelectionBody
+} from '../budget/budget.submission.js';
+import { budgetBookableAddons, isBudgetFoodAddon } from '@tm/shared/src/domain/budgetPolicy.js';
+import { validateCustomServiceRevision } from '@tm/shared/src/domain/packageProposalRevision.js';
+import {
+  resolvePackageProposalForBooking,
+  markPackageProposalSubmitted
+} from '../package-proposals/packageProposal.submission.js';
 
 const MAX_REF_ATTEMPTS = 3;
 
@@ -125,7 +143,7 @@ export async function getReservation(ref, { customerId } = {}) {
     ]);
     return {
       ...summarize(row),
-      package: pkg,
+      package: reservationPackageForPricing(reservation, pkg),
       menuDishes: menuDishes(reservation),
       addons: flattenAddons(addons).filter((addon) => reservation.addonIds.includes(addon.id)),
       payments: row.payments,
@@ -216,6 +234,8 @@ async function eventBooking(conn, pkg, form) {
   const offered = bookableAddons(await catalogRepo.listAddons({}, conn));
   const ticked = [...new Set(Array.isArray(form.addonIds) ? form.addonIds : [])];
   const addons = ticked.map((id) => offered.find((addon) => addon.id === id)).filter(Boolean);
+  if (form.budgetRequest && addons.length !== ticked.length)
+    throw invalid('A selected additional service is no longer available. Review the selection.', 'addonIds');
   const pickProblem = packagePickProblem(addons);
   if (pickProblem) throw invalid(pickProblem.message, pickProblem.field);
   const quantities = plainObject(form.addonQty);
@@ -273,6 +293,7 @@ async function eventBooking(conn, pkg, form) {
       addonQty,
       estimate: computeQuote({
         pkg,
+        pricingModel: INCLUSIVE_PRICING_MODEL,
         serviceType,
         guests,
         pricePerPlate,
@@ -404,13 +425,50 @@ const isRefTaken = (err) =>
   err.code === 'ER_DUP_ENTRY' &&
   String(err.sqlMessage || '').includes("for key 'reservations.PRIMARY'");
 
-async function book(conn, customer, form, referencePhotos) {
+async function book(
+  conn,
+  customer,
+  form,
+  referencePhotos,
+  { throughAssistant = false, customerRequestNotes = '', onReplay = () => {} } = {}
+) {
   await lockAvailability(conn);
   if (form.agreeTerms !== true)
     throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');
-  const pkg = typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null;
-  if (!pkg || !pkg.visible || pkg.archived) throw invalid('Please choose an available package.', 'packageId');
+  const custom = form.packageProposalRef
+    ? await resolvePackageProposalForBooking(conn, customer.id, form.packageProposalRef, form)
+    : null;
+  if (custom?.existingRef) {
+    const [existing] = await repo.findReservations(conn, { ref: custom.existingRef, customerId: customer.id });
+    if (!existing) throw notFound();
+    onReplay();
+    return withoutNotes(summarize(existing));
+  }
+  const pkg =
+    custom?.packageSnapshot ||
+    (typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null);
+  if (!pkg || (!custom && (!pkg.visible || pkg.archived)))
+    throw invalid('Please choose an available package.', 'packageId');
   const booking = pkg.kind === 'rental' ? await rentalBooking(conn, pkg, form) : await eventBooking(conn, pkg, form);
+  if (custom) {
+    booking.fields.packageId = null;
+    booking.fields.packageSource = 'custom';
+    booking.fields.packageSnapshot = custom.packageSnapshot;
+    booking.fields.estimate = custom.candidate.estimate.quote;
+  }
+  if (customerRequestNotes)
+    booking.fields.venue.accessNotes = [booking.fields.venue.accessNotes, customerRequestNotes]
+      .filter(Boolean)
+      .join('\n\n');
+  booking.fields.budgetRequest = custom
+    ? custom.budgetRequestSnapshot
+    : await buildBudgetRequestSnapshot({
+        request: form.budgetRequest,
+        fields: booking.fields,
+        customerId: customer.id,
+        db: conn,
+        ...(form.budgetRequest ? { catalog: await readBudgetCatalog(conn) } : {})
+      });
   if (referencePhotos.length) {
     if (pkg.kind === 'rental')
       throw invalid(
@@ -446,13 +504,51 @@ async function book(conn, customer, form, referencePhotos) {
     termsVersion: TERMS_VERSION
   };
   await repo.insertReservation(conn, reservation);
+  if (custom) await markPackageProposalSubmitted(conn, custom.proposalReference, ref);
   await repo.insertAddons(conn, ref, reservation.addonIds, reservation.addonQty);
   await repo.insertRentalLines(conn, ref, booking.lines);
-  await repo.insertActivity(conn, ref, { at, actor: customer.name, text: booking.activity });
+  await repo.insertActivity(conn, ref, {
+    at,
+    actor: customer.name,
+    text: throughAssistant ? 'Submitted the reservation request through AI Assistant.' : booking.activity
+  });
   await postAdminMessage(conn, reservation, booking.thankYou, null, 'Tres Marias team');
 
   const [row] = await repo.findReservations(conn, { ref });
   return withoutNotes(summarize(row));
+}
+
+/** Internal only: photos are read from the locked assistant conversation, never a customer request body.
+ * The caller owns the transaction that also records the conversation's submitted reference.
+ */
+export async function createAssistedReservation(conn, customer, form, storedPhotos = [], { budget, budgetNotes } = {}) {
+  const photos = cleanReferencePhotos(storedPhotos);
+  if (photos.length !== storedPhotos.length)
+    throw invalid(
+      'One of the saved reference photos is invalid. Remove it and upload it again.',
+      'styling.referencePhoto'
+    );
+  const safeForm = { ...form, styling: { ...plainObject(form.styling), referencePhoto: null, referencePhotos: [] } };
+  if (budget && form.serviceType === 'Buffet and Catering' && !form.packageProposalRef) {
+    const catalog = await readBudgetCatalog(conn);
+    safeForm.budgetRequest = {
+      budget,
+      preferences: budgetNotes || '',
+      protectedAddonIds: [],
+      reviewedCatalogFingerprint: catalog.budgetCatalogFingerprint
+    };
+  }
+  // Other services and preferences-only requests have no structured buffet budget snapshot.
+  // Preserve their explicit requests in customer-visible logistics after pickup normalization.
+  const customerRequestNotes = safeForm.budgetRequest
+    ? ''
+    : [
+        budget ? `Target budget: ${pesoText(budget)}` : '',
+        clean(budgetNotes) ? `Budget preferences: ${clean(budgetNotes)}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n');
+  return book(conn, customer, safeForm, photos, { throughAssistant: true, customerRequestNotes });
 }
 
 export async function createReservation(
@@ -466,23 +562,35 @@ export async function createReservation(
   // Validate all files before writing any of them; clean up partial writes on failure.
   files.forEach(inspectReferencePhoto);
   const referencePhotos = [];
-  try {
-    for (const photo of files) referencePhotos.push(await storeReferencePhoto(photo));
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        return await transact((conn) => book(conn, customer, safeForm, referencePhotos));
-      } catch (err) {
-        if (attempt >= MAX_REF_ATTEMPTS || !isRefTaken(err)) throw err;
-      }
-    }
-  } catch (err) {
-    await Promise.all(
+  const cleanupUploads = () =>
+    Promise.all(
       referencePhotos.map((photo) =>
         storage
           .remove(photo.key)
           .catch((cleanupError) => console.error('[reference-photo] Cleanup failed:', cleanupError.message))
       )
     );
+  try {
+    for (const photo of files) referencePhotos.push(await storeReferencePhoto(photo));
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        let replayed = false;
+        const result = await transact((conn) =>
+          book(conn, customer, safeForm, referencePhotos, {
+            onReplay: () => {
+              replayed = true;
+            }
+          })
+        );
+        // A successful idempotent retry reused the original request; these newly uploaded files were not attached.
+        if (replayed) await cleanupUploads();
+        return result;
+      } catch (err) {
+        if (attempt >= MAX_REF_ATTEMPTS || !isRefTaken(err)) throw err;
+      }
+    }
+  } catch (err) {
+    await cleanupUploads();
     throw err;
   }
 }
@@ -554,8 +662,8 @@ export async function requestChange(ref, customer, message) {
   });
 }
 
-export async function acceptQuotation(ref, customer, sentAt) {
-  return tx(async (conn) => {
+export async function acceptQuotation(ref, customer, sentAt, { transact = tx } = {}) {
+  return transact(async (conn) => {
     await lockAvailability(conn);
     const owner = await repo.lockOwner(conn, ref);
     if (!owner || !sameRef(owner, ref) || owner.customerId !== customer.id) throw notFound();
@@ -717,7 +825,8 @@ const ADMIN_FIX = {
 function extraGuestValues(pkg, reservation, values) {
   const extra = isRental(reservation.serviceType) ? 0 : extraGuestsFor(pkg, reservation.guests);
   if (!extra) return { extraGuestsCharge: 0, itemCounts: {} };
-  const charge = values.extraGuestsCharge;
+  const inclusive = isInclusiveBuffet({ ...reservation, pricingModel: reservationPricingModel(reservation) });
+  const charge = inclusive ? 0 : values.extraGuestsCharge;
   if (charge === undefined || charge === null || charge === '')
     throw invalid(
       `Enter the price of the equipment for the ${extra} extra guests (0 to waive it).`,
@@ -778,12 +887,16 @@ export async function sendQuotation(ref, values, admin, { transact = tx } = {}) 
       const sixHourFee = values.sixHourFee ?? reservationSixHourFee(reservation);
       const durationProblem = sixHourFeeProblem(sixHourFee);
       if (durationProblem) throw invalid(durationProblem, 'sixHourFee');
-      const pkg = await catalogRepo.findPackageById(reservation.packageId, conn);
+      const pkg = reservationPackageForPricing(
+        reservation,
+        await catalogRepo.findPackageById(reservation.packageId, conn)
+      );
       const { extraGuestsCharge, itemCounts } = extraGuestValues(pkg, reservation, values);
 
       const totalBefore = financials(reservation, payments, refunds).total;
       const quote = computeQuote({
         pkg,
+        pricingModel: reservationPricingModel(reservation),
         serviceType: reservation.serviceType,
         guests: reservation.guests,
         pricePerPlate: reservation.pricePerPlate,
@@ -803,6 +916,22 @@ export async function sendQuotation(ref, values, admin, { transact = tx } = {}) 
       });
       const quotation = {
         ...quote,
+        ...(reservation.packageSource === 'custom' ? { packageSnapshot: reservation.packageSnapshot } : {}),
+        ...(!rental
+          ? {
+              addonSelection: { addonIds: [...reservation.addonIds], addonQty: { ...quote.addonQty } },
+              addonLines: flattenAddons(await catalogRepo.listAddons({ includeArchived: true }, conn))
+                .filter((a) => reservation.addonIds.includes(a.id))
+                .map((a) => ({
+                  id: a.id,
+                  name: a.name,
+                  description: a.description || '',
+                  quantity: quote.addonQty[a.id] || 1,
+                  unitPrice: quote.addonPrices[a.id],
+                  total: quote.addonTotals[a.id]
+                }))
+            }
+          : {}),
         itemCounts,
         ...(rental ? { fulfilment: reservation.fulfilment } : {}),
         otherLabel: quote.otherChargeItems.length === 1 ? quote.otherChargeItems[0].label : '',
@@ -1056,6 +1185,11 @@ export async function updateLogistics(ref, patch, admin, { transact = tx } = {})
       if (CLOSED.includes(reservation.status)) throw closedError();
       if (isRental(reservation.serviceType)) return updateRentalLogistics(conn, row, values, admin);
       const guests = toNumber(values.guests);
+      if (reservation.packageSource === 'custom' && guests !== reservation.guests)
+        throw invalid(
+          'This customized setup was reviewed for the saved guest count. Create and review an updated package proposal before changing the guest count.',
+          'guests'
+        );
       if (!Number.isInteger(guests) || guests < RULES.minGuests || guests > RULES.maxGuests) {
         throw invalid(`Guests must be between ${RULES.minGuests} and ${RULES.maxGuests}.`, 'guests');
       }
@@ -1124,11 +1258,21 @@ export async function updateLogistics(ref, patch, admin, { transact = tx } = {})
       });
       const estimate =
         !reservation.quotation && reservation.estimate
-          ? {
+          ? computeQuote({
               ...reservation.estimate,
-              durationCharge,
-              net: Math.max(0, reservation.estimate.net - (reservation.estimate.durationCharge || 0) + durationCharge)
-            }
+              pkg: reservationPackageForPricing(
+                reservation,
+                await catalogRepo.findPackageById(reservation.packageId, conn)
+              ),
+              pricingModel: reservationPricingModel(reservation),
+              serviceType: reservation.serviceType,
+              pricePerPlate: reservation.pricePerPlate,
+              guests,
+              startTime,
+              endTime,
+              addonIds: reservation.addonIds,
+              addonQty: reservation.addonQty
+            })
           : undefined;
       await repo.updateReservation(conn, ref, {
         date,
@@ -1158,7 +1302,7 @@ export async function updateLogistics(ref, patch, admin, { transact = tx } = {})
             `Your buffet is charged per person, so the food total changes from ${pesoText(quote.food)} to ${pesoText(food)}.`
           );
         }
-        if (quote.extraGuests !== undefined && quote.packageGuests) {
+        if (!isInclusiveBuffet(quote) && quote.extraGuests !== undefined && quote.packageGuests) {
           const extraNow = Math.max(0, guests - quote.packageGuests);
           if (extraNow !== quote.extraGuests) {
             reasons.push(
@@ -1267,40 +1411,72 @@ async function updateRentalLogistics(conn, row, values, admin) {
   return { changed: changes.length };
 }
 
-export async function updateMenu(ref, body, admin) {
+export async function updateMenu(ref, body, admin, { transact = tx } = {}) {
   const values = plainObject(body);
-  return adminWrite(ref, async (conn, { reservation }) => {
-    if (CLOSED.includes(reservation.status)) throw closedError();
-    if (isRental(reservation.serviceType))
-      throw invalid('An equipment rental has no menu. Edit the rented items instead.');
-    const { serviceType } = values;
-    if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose a buffet or catering only.', 'serviceType');
-    const options = { buffet: includesFood(serviceType), dessert: reservation.addonIds.includes(DESSERT_ADDON_ID) };
-    const check = menuProblem(values.menu, options);
-    if (check) throw invalid(check.message, check.field);
-    const menu = cleanMenu(values.menu, options);
-    const before = reservation.serviceType;
-    await repo.updateReservation(conn, ref, { serviceType, menu, foodNotes: clean(values.foodNotes) });
-    await logAdmin(
-      conn,
-      ref,
-      admin,
-      before === serviceType ? 'Updated the menu.' : `Changed the booking from ${before} to ${serviceType}.`
-    );
-    if (before !== serviceType && reservation.quotation) {
-      const food = includesFood(serviceType)
-        ? `A buffet is charged per person, so food for ${reservation.guests} guests will be added to your total.`
-        : 'Catering only has no per-person charge, so the food will be taken off your total.';
-      await postAdminMessage(
+  return adminWrite(
+    ref,
+    async (conn, { reservation }) => {
+      if (CLOSED.includes(reservation.status)) throw closedError();
+      if (isRental(reservation.serviceType))
+        throw invalid('An equipment rental has no menu. Edit the rented items instead.');
+      const { serviceType } = values;
+      if (reservation.packageSource === 'custom' && serviceType !== reservation.serviceType)
+        throw invalid(
+          'This customized package was approved for the saved service. Review a new package proposal before changing the service type.',
+          'serviceType'
+        );
+      if (!SERVICE_TYPES.includes(serviceType)) throw invalid('Choose a buffet or catering only.', 'serviceType');
+      const options = { buffet: includesFood(serviceType), dessert: reservation.addonIds.includes(DESSERT_ADDON_ID) };
+      const check = menuProblem(values.menu, options);
+      if (check) throw invalid(check.message, check.field);
+      const menu = cleanMenu(values.menu, options);
+      const before = reservation.serviceType;
+      const estimate =
+        before !== serviceType && !reservation.quotation && reservation.estimate
+          ? computeQuote({
+              ...reservation.estimate,
+              pkg: reservationPackageForPricing(
+                reservation,
+                await catalogRepo.findPackageById(reservation.packageId, conn)
+              ),
+              pricingModel: reservationPricingModel(reservation),
+              serviceType,
+              guests: reservation.guests,
+              pricePerPlate: reservation.pricePerPlate,
+              startTime: reservation.startTime,
+              endTime: reservation.endTime,
+              addonIds: reservation.addonIds,
+              addonQty: reservation.addonQty
+            })
+          : undefined;
+      await repo.updateReservation(conn, ref, {
+        serviceType,
+        menu,
+        foodNotes: clean(values.foodNotes),
+        ...(estimate ? { estimate } : {})
+      });
+      await logAdmin(
         conn,
-        reservation,
-        `${reservation.eventName} was changed from ${before} to ${serviceType}. ${food} We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`,
-        null,
-        admin.name
+        ref,
+        admin,
+        before === serviceType ? 'Updated the menu.' : `Changed the booking from ${before} to ${serviceType}.`
       );
-    }
-    return { ok: true };
-  });
+      if (before !== serviceType && reservation.quotation) {
+        const food = includesFood(serviceType)
+          ? `A buffet is charged per person, so food for ${reservation.guests} guests will be added to your total.`
+          : 'Catering only has no per-person charge, so the food will be taken off your total.';
+        await postAdminMessage(
+          conn,
+          reservation,
+          `${reservation.eventName} was changed from ${before} to ${serviceType}. ${food} We will send you a revised quotation, and the amount you owe only changes once that quotation reaches you.`,
+          null,
+          admin.name
+        );
+      }
+      return { ok: true };
+    },
+    { transact }
+  );
 }
 
 const stylingKey = (styling) =>
@@ -1348,6 +1524,92 @@ export async function saveNotes(ref, notes) {
     await repo.updateReservation(conn, ref, { notes });
     return { ok: true };
   });
+}
+
+/** Revise the working request only; the customer snapshot and previously sent amounts stay immutable. */
+export async function updateAddons(ref, body, admin, { transact = tx } = {}) {
+  const parsed = addonSelectionBody.safeParse(body);
+  if (!parsed.success) throw invalid('Choose valid additional services and quantities.', 'addonIds');
+  return adminWrite(
+    ref,
+    async (conn, { reservation }) => {
+      if (reservation.status !== 'pending' || isRental(reservation.serviceType))
+        throw new ApiError('INVALID_STATE', 'Additional services can be revised only on a pending event request.');
+      const catalog = await readBudgetCatalog(conn);
+      let selection;
+      try {
+        selection = normalizeBudgetSelection(parsed.data, catalog);
+      } catch (error) {
+        throw invalid(error.message, 'addonIds');
+      }
+      validateServiceDependencies(selection, catalog);
+      if (reservation.packageSource === 'custom') {
+        const revision = validateCustomServiceRevision({
+          current: reservation,
+          selection,
+          snapshot: reservation.packageSnapshot,
+          catalog
+        });
+        if (!revision.valid) throw invalid(revision.problem, revision.field);
+      }
+      // Dessert has conditional menu fields; preserve its selected state in this service-only editor.
+      const foodIds = new Set(
+        budgetBookableAddons(catalog)
+          .filter(isBudgetFoodAddon)
+          .map((a) => a.id)
+      );
+      if (selectionChanges(reservation, selection).some((c) => foodIds.has(c.id) || c.id === DESSERT_ADDON_ID))
+        throw invalid('Keep food selections unchanged here; their menu details need separate review.', 'addonIds');
+      const offered = bookableAddons(catalog.addons);
+      const stockData = await repo.rentalStockInputs(conn, reservation.date);
+      const problem = addonStockProblem(stockData, selection, reservation.date, offered, ref);
+      if (problem) throw invalid(problem.message, problem.field);
+      for (const item of stockData.inventory) {
+        const out = item.allocations?.[ref] || 0;
+        if (
+          out &&
+          item.addonId &&
+          (!selection.addonIds.includes(item.addonId) || selection.addonQty[item.addonId] < out)
+        )
+          throw invalid(`Record the return of checked-out ${item.name} before reducing this service.`, 'addonIds');
+      }
+      const changes = selectionChanges(reservation, selection);
+      if (!changes.length) return { changed: 0 };
+      await repo.replaceAddons(conn, ref, selection);
+      if (!reservation.quotation) {
+        const pkg = reservationPackageForPricing(
+          reservation,
+          await catalogRepo.findPackageById(reservation.packageId, conn)
+        );
+        await repo.updateReservation(conn, ref, {
+          estimate: computeQuote({
+            pkg,
+            pricingModel: reservationPricingModel(reservation),
+            serviceType: reservation.serviceType,
+            guests: reservation.guests,
+            pricePerPlate: reservation.pricePerPlate,
+            startTime: reservation.startTime,
+            endTime: reservation.endTime,
+            sixHourFee: reservationSixHourFee(reservation),
+            ...selection,
+            addonPrices: addonPriceMap(offered)
+          })
+        });
+      } else
+        await repo.updateReservation(conn, ref, {
+          estimate: { ...reservation.estimate, requiresQuoteSentAt: reservation.quotation.sentAt }
+        });
+      const names = new Map(offered.map((a) => [a.id, a.name]));
+      await logAdmin(
+        conn,
+        ref,
+        admin,
+        `Updated additional services: ${changes.map((c) => `${names.get(c.id) || c.id} ${c.before} → ${c.after}`).join(', ')}.${reservation.quotation ? ' A revised quotation is required.' : ''}`
+      );
+      return { changed: changes.length };
+    },
+    { transact, availability: true }
+  );
 }
 
 export async function updateRentalItems(ref, body, admin) {

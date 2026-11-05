@@ -3,6 +3,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS password_changes;
 DROP TABLE IF EXISTS customer_email_changes;
+DROP TABLE IF EXISTS customer_google_signins;
 DROP TABLE IF EXISTS signup_requests;
 DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS auth_challenges;
@@ -30,6 +31,8 @@ DROP TABLE IF EXISTS reservation_activity;
 DROP TABLE IF EXISTS reservation_damage_charges;
 DROP TABLE IF EXISTS reservation_rental_items;
 DROP TABLE IF EXISTS reservation_addons;
+DROP TABLE IF EXISTS package_proposals;
+DROP TABLE IF EXISTS budget_proposals;
 DROP TABLE IF EXISTS reservations;
 DROP TABLE IF EXISTS dishes;
 DROP TABLE IF EXISTS addons;
@@ -86,6 +89,23 @@ CREATE TABLE customer_google_accounts (
   CONSTRAINT fk_google_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE customer_google_signins (
+  id                  VARCHAR(40) NOT NULL,
+  customer_id         VARCHAR(40) NOT NULL,
+  google_subject      VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  email               VARCHAR(254) NOT NULL,
+  password_changed_at BIGINT UNSIGNED NULL,
+  remember            BOOLEAN NOT NULL DEFAULT FALSE,
+  code_hash           VARCHAR(255) NOT NULL,
+  expires_at          BIGINT UNSIGNED NOT NULL,
+  resend_at           BIGINT UNSIGNED NOT NULL,
+  used_at             BIGINT UNSIGNED NULL,
+  created_at          BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_google_signins_customer (customer_id),
+  CONSTRAINT fk_google_signins_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 CREATE TABLE packages (
   id          VARCHAR(40)  NOT NULL,
@@ -118,6 +138,7 @@ CREATE TABLE addons (
   name         VARCHAR(120) NOT NULL,
   description  TEXT         NOT NULL,
   price        INT          NULL,
+  budget_policy JSON        NULL,
   has_quantity BOOLEAN      NOT NULL DEFAULT 0,
   has_packages BOOLEAN      NOT NULL DEFAULT 0,
   archived     BOOLEAN      NOT NULL DEFAULT 0,
@@ -147,6 +168,7 @@ CREATE TABLE catalog_settings (
   price_per_plate INT              NOT NULL DEFAULT 600,
   min_downpayment INT              NOT NULL DEFAULT 3000,
   six_hour_fee    INT              NOT NULL DEFAULT 5000 CHECK (six_hour_fee BETWEEN 0 AND 50000),
+  package_proposal_rules JSON     NULL,
   bank_name       VARCHAR(80)      NOT NULL DEFAULT 'BPI',
   bank_account_name VARCHAR(120)   NOT NULL DEFAULT 'Tres Marias Catering Services',
   bank_account_number VARCHAR(40)  NOT NULL DEFAULT '4471 0839 26',
@@ -169,7 +191,9 @@ CREATE TABLE reservations (
   start_time      CHAR(5)         NOT NULL,
   end_time        CHAR(5)         NULL,
   guests          INT             NOT NULL,
-  package_id      VARCHAR(40)     NOT NULL,
+  package_id      VARCHAR(40)     NULL,
+  package_source  VARCHAR(20)     NOT NULL DEFAULT 'catalog',
+  package_snapshot JSON           NULL,
   service_type    VARCHAR(20)     NOT NULL DEFAULT 'Buffet and Catering',
   fulfilment      VARCHAR(10)     NULL,
   menu            JSON            NULL,
@@ -183,6 +207,7 @@ CREATE TABLE reservations (
   access_notes    TEXT            NOT NULL,
   status          VARCHAR(20)     NOT NULL DEFAULT 'pending',
   estimate        JSON            NOT NULL,
+  budget_request  JSON            NULL,
   quotation       JSON            NULL,
   downpayment_due DATE            NULL,
   preparing_at    BIGINT UNSIGNED NULL,
@@ -204,6 +229,44 @@ CREATE TABLE reservations (
   CONSTRAINT chk_reservations_guests CHECK (guests >= 0),
   CONSTRAINT chk_reservations_min_downpayment CHECK (min_downpayment >= 0),
   CONSTRAINT chk_reservations_cancelled_by CHECK (cancelled_by IS NULL OR cancelled_by IN ('customer', 'admin'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE package_proposals (
+  id                  VARCHAR(40) NOT NULL,
+  customer_id         VARCHAR(40) NOT NULL,
+  request_id          CHAR(36) NOT NULL,
+  input_fingerprint   CHAR(64) NOT NULL,
+  catalog_fingerprint CHAR(64) NOT NULL,
+  revision            INT NOT NULL DEFAULT 1,
+  context             JSON NOT NULL,
+  options             JSON NOT NULL,
+  no_fit_reasons      JSON NOT NULL,
+  status              VARCHAR(16) NOT NULL,
+  selected_option_id  VARCHAR(255) NULL,
+  submitted_ref       VARCHAR(40) NULL,
+  created_at          BIGINT UNSIGNED NOT NULL,
+  expires_at          BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_package_proposals_request (customer_id, request_id),
+  KEY idx_package_proposals_expiry (expires_at),
+  CONSTRAINT fk_package_proposals_customer FOREIGN KEY (customer_id) REFERENCES customers (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE budget_proposals (
+  id                  VARCHAR(40) NOT NULL,
+  customer_id         VARCHAR(40) NOT NULL,
+  context             JSON NOT NULL,
+  original_selection  JSON NOT NULL,
+  original_estimate   JSON NOT NULL,
+  candidates          JSON NOT NULL,
+  input_fingerprint   CHAR(64) NOT NULL,
+  catalog_fingerprint CHAR(64) NOT NULL,
+  created_at          BIGINT UNSIGNED NOT NULL,
+  expires_at          BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_budget_proposals_customer_expiry (customer_id, expires_at),
+  CONSTRAINT fk_budget_proposals_customer FOREIGN KEY (customer_id) REFERENCES customers (id),
+  CONSTRAINT chk_budget_proposals_expiry CHECK (expires_at > created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE reservation_addons (
@@ -693,6 +756,97 @@ CREATE TABLE customer_email_changes (
   CONSTRAINT fk_customer_email_changes_customer FOREIGN KEY (customer_id) REFERENCES customers (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+-- Assistant transcripts expire separately from visitor allowances and aggregate spend records.
+CREATE TABLE assistant_allowances (
+  id VARCHAR(160) NOT NULL,
+  used INT UNSIGNED NOT NULL DEFAULT 0,
+  voice_tries INT UNSIGNED NOT NULL DEFAULT 0,
+  active_request CHAR(36) NULL,
+  lease_until BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  expires_at BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_assistant_allowance_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE assistant_conversations (
+  id CHAR(36) NOT NULL,
+  visitor_hash CHAR(64) NULL,
+  customer_id VARCHAR(128) NULL,
+  created_at BIGINT UNSIGNED NOT NULL,
+  expires_at BIGINT UNSIGNED NOT NULL,
+  booking_draft JSON NULL,
+  draft_revision INT UNSIGNED NOT NULL DEFAULT 0,
+  reference_photos JSON NULL,
+  submitted_ref VARCHAR(64) NULL,
+  PRIMARY KEY (id),
+  KEY idx_assistant_visitor (visitor_hash),
+  KEY idx_assistant_customer (customer_id),
+  KEY idx_assistant_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE assistant_turns (
+  id CHAR(36) NOT NULL,
+  conversation_id CHAR(36) NOT NULL,
+  request_id CHAR(36) NOT NULL,
+  quota_key VARCHAR(160) NOT NULL,
+  user_text TEXT NOT NULL,
+  source ENUM('text', 'voice') NOT NULL DEFAULT 'text',
+  status ENUM('pending', 'completed', 'failed') NOT NULL,
+  response JSON NULL,
+  speech_tries INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_assistant_request (conversation_id, request_id),
+  CONSTRAINT fk_assistant_conversation FOREIGN KEY (conversation_id) REFERENCES assistant_conversations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ai_guard_windows (
+  id VARCHAR(120) PRIMARY KEY,
+  used INT UNSIGNED NOT NULL DEFAULT 0,
+  expires_at BIGINT NOT NULL,
+  INDEX idx_ai_guard_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ai_guard_leases (
+  id VARCHAR(36) PRIMARY KEY,
+  kind VARCHAR(16) NOT NULL,
+  actor_key VARCHAR(32) NOT NULL,
+  expires_at BIGINT NOT NULL,
+  INDEX idx_ai_lease_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ai_usage_alerts (
+  id VARCHAR(120) PRIMARY KEY,
+  code VARCHAR(48) NOT NULL,
+  severity VARCHAR(16) NOT NULL,
+  message VARCHAR(255) NOT NULL,
+  created_at BIGINT NOT NULL,
+  INDEX idx_ai_alert_time (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE assistant_spend (
+  id VARCHAR(16) NOT NULL,
+  used_micro BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE assistant_usage (
+  id CHAR(36) NOT NULL,
+  owner_key VARCHAR(160) NOT NULL,
+  kind ENUM('answer', 'transcription', 'speech') NOT NULL,
+  day_key VARCHAR(16) NOT NULL,
+  month_key VARCHAR(16) NOT NULL,
+  reserved_micro BIGINT UNSIGNED NOT NULL,
+  charged_micro BIGINT UNSIGNED NOT NULL,
+  outcome ENUM('reserved', 'completed', 'unknown') NOT NULL,
+  input_tokens INT UNSIGNED NOT NULL DEFAULT 0,
+  output_tokens INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_assistant_usage_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO catalog_settings (id, price_per_plate, min_downpayment, updated_at) VALUES (1, 600, 3000, UNIX_TIMESTAMP() * 1000);
 

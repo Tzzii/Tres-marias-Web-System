@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import { config } from '../../config.js';
 import { ApiError } from '../../lib/ApiError.js';
 
-
 const BASE = 'https://api.paymongo.com/v1';
 const TIMEOUT_MS = 10000;
 

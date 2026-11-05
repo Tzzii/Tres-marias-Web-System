@@ -1,4 +1,4 @@
-import { extraGuestsFor } from '../services/pricing.js';
+import { extraGuestsFor, reservationPackageForPricing } from '../services/pricing.js';
 import { formatPackageItem } from '../utils/format.js';
 import { helperItemCounts, helperLabel } from '../utils/helperLabels.js';
 
@@ -85,7 +85,7 @@ export const usesGuestRule = (reservation) => !reservation.quotation || reservat
  * `reservation` has { package, guests, quotation }.
  */
 export function bookingItems(reservation) {
-  const pkg = reservation.package;
+  const pkg = reservationPackageForPricing(reservation);
   if (!usesGuestRule(reservation))
     return ((pkg && pkg.items) || []).map((item) => ({
       name: helperLabel(item.name),
@@ -99,4 +99,4 @@ export function bookingItems(reservation) {
 
 /** How many guests a saved booking has above its package's default, 0 for a booking quoted before the rule (usesGuestRule). */
 export const bookingExtraGuests = (reservation) =>
-  usesGuestRule(reservation) ? extraGuestsFor(reservation.package, reservation.guests) : 0;
+  usesGuestRule(reservation) ? extraGuestsFor(reservationPackageForPricing(reservation), reservation.guests) : 0;

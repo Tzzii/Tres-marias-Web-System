@@ -1,11 +1,9 @@
 import { HOLDS_DATE } from '@tm/shared/src/utils/status.js';
 import { pool } from '../../db.js';
 
-
 const first = ([rows]) => rows[0] || null;
 
 const MISSING_SETTINGS = 'The calendar_settings row is missing. Run npm run db:reset and npm run seed:api.';
-
 
 export async function getDailyCapacity(db = pool) {
   const row = first(await db.query('SELECT daily_capacity FROM calendar_settings WHERE id = 1'));
@@ -32,7 +30,6 @@ export async function listSlotHolders(db = pool) {
     serviceType: row.service_type
   }));
 }
-
 
 export async function lockAvailability(conn) {
   const row = first(await conn.query('SELECT id FROM calendar_settings WHERE id = 1 FOR UPDATE'));
@@ -61,7 +58,6 @@ export async function upsertBlocks(conn, dates, reason, note = '') {
 export async function deleteBlock(conn, date) {
   await conn.query('DELETE FROM calendar_blocks WHERE date = ?', [date]);
 }
-
 
 export async function setDailyCapacity(capacity, at) {
   const [result] = await pool.query('UPDATE calendar_settings SET daily_capacity = ?, updated_at = ? WHERE id = 1', [

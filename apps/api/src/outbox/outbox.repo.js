@@ -2,7 +2,6 @@ import { pool } from '../db.js';
 import { newId } from '../lib/ids.js';
 import { toJson } from '../lib/json.js';
 
-
 export async function saveToOutbox({ channel, to, subject = null, body, status, provider, meta = {} }, conn = pool) {
   const id = newId('ob');
   const createdAt = Date.now();

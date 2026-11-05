@@ -15,7 +15,6 @@ import { postAdminMessage } from '../messages/messages.repo.js';
 import { lockOwner } from '../reservations/reservations.repo.js';
 import * as repo from './feedback.repo.js';
 
-
 const gone = () => new ApiError('NOT_FOUND', 'This feedback no longer exists.');
 const notOpen = () => new ApiError('INVALID_STATE', 'Feedback opens once an event is completed.');
 const alreadyReviewed = () => new ApiError('INVALID_STATE', 'You already reviewed this event.');
@@ -48,7 +47,6 @@ async function lockedFeedback(conn, id) {
   return found;
 }
 
-
 export async function listFeedbacks({ customerId } = {}) {
   const rows = await repo.findFeedbacks(pool, { customerId });
   return rows.map((row) => view(row, { admin: customerId == null }));
@@ -62,7 +60,6 @@ export async function listPublished({ limit = 3 } = {}) {
 export async function unreadFeedbackCount() {
   return repo.countUnread(pool);
 }
-
 
 export async function createFeedback(customer, { ref, rating, categories, body } = {}) {
   return tx(async (conn) => {
@@ -91,7 +88,6 @@ export async function createFeedback(customer, { ref, rating, categories, body }
     return view(row, { admin: false });
   });
 }
-
 
 export async function markFeedbackRead(id) {
   return tx(async (conn) => {

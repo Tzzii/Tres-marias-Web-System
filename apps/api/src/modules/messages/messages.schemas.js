@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-
 const passThrough = z.unknown().optional();
 
 export const threadParams = z.object({ id: z.string() });

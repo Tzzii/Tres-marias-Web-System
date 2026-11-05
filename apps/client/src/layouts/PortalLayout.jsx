@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
@@ -30,6 +31,7 @@ import FloatingChat from '../components/FloatingChat.jsx';
 
 export default function PortalLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const notify = useNotify();
   const { user, signOut, updateUser } = useAuth();
   const [termsLater, setTermsLater] = useState(false);
@@ -132,21 +134,61 @@ export default function PortalLayout() {
       key: 'reservations',
       label: 'My Reservations',
       icon: EventNoteOutlinedIcon,
+      section: 'My events',
       to: '/portal/reservations',
-      match: ['/portal/reservations', '/portal/book']
+      match: ['/portal/reservations', '/portal/book', '/portal/plan-event', '/portal/package-proposals']
     },
-    { key: 'payments', label: 'Payments', icon: PaymentsOutlinedIcon, to: '/portal/payments', badge: paymentsDue },
-    { key: 'documents', label: 'Documents', icon: DescriptionOutlinedIcon, to: '/portal/documents' },
-    { key: 'calendar', label: 'Calendar', icon: CalendarMonthOutlinedIcon, to: '/portal/calendar' },
+    {
+      key: 'calendar',
+      label: 'Calendar',
+      icon: CalendarMonthOutlinedIcon,
+      section: 'My events',
+      to: '/portal/calendar'
+    },
+    {
+      key: 'packages',
+      label: 'Available Packages',
+      icon: Inventory2OutlinedIcon,
+      section: 'My events',
+      to: '/portal/packages'
+    },
+    {
+      key: 'payments',
+      label: 'Payments',
+      icon: PaymentsOutlinedIcon,
+      section: 'Payments & files',
+      to: '/portal/payments',
+      badge: paymentsDue
+    },
+    {
+      key: 'documents',
+      label: 'Documents',
+      icon: DescriptionOutlinedIcon,
+      section: 'Payments & files',
+      to: '/portal/documents'
+    },
     {
       key: 'messages',
       label: 'Chat',
       icon: ChatBubbleOutlineRoundedIcon,
+      section: 'Help & feedback',
       to: '/portal/messages',
       badge: unreadMessages
     },
-    { key: 'packages', label: 'Available Packages', icon: Inventory2OutlinedIcon, to: '/portal/packages' },
-    { key: 'testimonials', label: 'My Testimonials', icon: RateReviewOutlinedIcon, to: '/portal/testimonials' }
+    {
+      key: 'assistant',
+      label: 'AI Assistant',
+      icon: AutoAwesomeOutlinedIcon,
+      section: 'Help & feedback',
+      to: '/portal/assistant'
+    },
+    {
+      key: 'testimonials',
+      label: 'My Testimonials',
+      icon: RateReviewOutlinedIcon,
+      section: 'Help & feedback',
+      to: '/portal/testimonials'
+    }
   ];
 
   const bottomNav = [
@@ -156,7 +198,7 @@ export default function PortalLayout() {
       label: 'Reservations',
       icon: EventNoteOutlinedIcon,
       to: '/portal/reservations',
-      match: ['/portal/reservations', '/portal/book']
+      match: ['/portal/reservations', '/portal/book', '/portal/plan-event', '/portal/package-proposals']
     },
     { key: 'payments', label: 'Payments', icon: PaymentsOutlinedIcon, to: '/portal/payments', badge: paymentsDue },
     {
@@ -172,7 +214,7 @@ export default function PortalLayout() {
   return (
     <PortalShell
       portalKey={`client.${user.id}`}
-      defaultSidebarCollapsed
+      defaultSidebarCollapsed={false}
       navItems={navItems}
       secondaryNavItems={[{ key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/portal/settings' }]}
       bottomNav={bottomNav}
@@ -193,7 +235,9 @@ export default function PortalLayout() {
     >
       <Outlet />
       <PortalSearch key={user.id} query={searchQuery} customerId={user.id} onClose={() => setSearchQuery(null)} />
-      <FloatingChat key={user.id} user={user} unread={unreadMessages} />
+      {!location.pathname.startsWith('/portal/assistant') && (
+        <FloatingChat key={user.id} user={user} unread={unreadMessages} />
+      )}
       <TermsUpdateDialog
         open={termsDue}
         firstTime={Boolean(fresh) && !fresh.termsVersion}

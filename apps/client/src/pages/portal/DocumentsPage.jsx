@@ -61,7 +61,7 @@ export default function DocumentsPage() {
             title="No documents yet"
             description="Your quotation appears here once our team reviews your first reservation."
             action={
-              <Button variant="contained" onClick={() => navigate('/portal/book')}>
+              <Button variant="contained" onClick={() => navigate('/portal/plan-event')}>
                 New reservation
               </Button>
             }

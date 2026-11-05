@@ -2,7 +2,6 @@ import { mailer as defaultMailer } from '../../integrations/mailer/index.js';
 import { markOutbox, saveToOutbox } from '../../outbox/outbox.repo.js';
 import { CUSTOMER_EMAILS } from './customer.emails.js';
 
-
 let mailer = defaultMailer;
 
 export function useMailerForTests(stub = defaultMailer) {

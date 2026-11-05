@@ -10,6 +10,7 @@ import Container from '@mui/material/Container';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Typography from '@mui/material/Typography';
+import PublicAssistant from '../../components/assistant/PublicAssistant.jsx';
 
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
@@ -33,6 +34,7 @@ import { site, siteContainerSx } from '../../theme/siteTheme.js';
 import { AlertBanner, EmptyState } from '@tm/shared';
 import HeroScene from '../../components/HeroScene.jsx';
 import { HERO_TABLE_SCROLL_MEDIA } from '../../lib/heroTableMotion.js';
+import { attachLandingGuide, LANDING_GUIDE } from '../../lib/landingGuide.js';
 import PackageComparison from '../../components/PackageComparison.jsx';
 import BookingJourney from '../../components/BookingJourney.jsx';
 import CustomerReviews from '../../components/CustomerReviews.jsx';
@@ -81,6 +83,25 @@ const scrollToId = (id) => {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
+
+// Scroll-driven header and guide updates stay outside the catalogue, gallery and hero render tree.
+function LandingPageChrome() {
+  const [guide, setGuide] = useState({ section: 'welcome', navHidden: false });
+
+  useEffect(() => attachLandingGuide({
+    sections: Object.keys(LANDING_GUIDE).map((id) => document.getElementById(id)).filter(Boolean),
+    onChange: setGuide,
+    win: window,
+    doc: document
+  }), []);
+
+  return (
+    <>
+      <SiteNav hidden={guide.navHidden} />
+      <PublicAssistant section={guide.section} />
+    </>
+  );
+}
 
 export default function HomePage() {
   useDocumentTitle('Celebrations Worth Savouring');
@@ -139,11 +160,12 @@ export default function HomePage() {
 
   return (
     <Box sx={{ backgroundColor: site.ivory, color: site.ink, minHeight: '100vh' }}>
-      <SiteNav />
+      <LandingPageChrome />
 
       <Box
         ref={heroRef}
         component="section"
+        id="welcome"
         data-hero-scroll
         sx={{
           position: 'relative',
@@ -181,7 +203,7 @@ export default function HomePage() {
         >
         <Container maxWidth={false} sx={{ ...siteContainerSx, position: 'relative', zIndex: 2 }}>
           <Box sx={{ maxWidth: 1440, mx: 'auto', display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 0.95fr) minmax(0, 1.05fr)' }, alignItems: 'center', gap: { xs: 4, md: 5, lg: 7 } }}>
-            <Box sx={{ minWidth: 0, maxWidth: { xs: 640, md: 'none' }, mx: { xs: 'auto', md: 0 }, textAlign: { xs: 'center', md: 'left' } }}>
+            <Box sx={{ minWidth: 0, maxWidth: { xs: 640, md: 'none' }, mx: { xs: 'auto', md: 0 }, textAlign: { xs: 'center', md: 'left' }, display: 'flex', flexDirection: 'column', alignItems: { xs: 'center', md: 'flex-start' } }}>
               <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 2, py: 0.875, mb: 3, borderRadius: 999, border: `1px solid ${site.borderHover}`, backgroundColor: 'rgba(255, 255, 255, 0.6)', fontSize: { xs: 10, sm: 12 }, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: site.goldText }}>
                 <AutoAwesomeOutlinedIcon aria-hidden="true" sx={{ fontSize: 16, color: site.goldText }} />
                 Full-service event catering
@@ -189,10 +211,10 @@ export default function HomePage() {
               <Typography component="h1" sx={{ fontFamily: site.fontSerif, fontSize: { xs: 40, sm: 56, md: 58, lg: 68 }, fontWeight: 600, lineHeight: 1.08, letterSpacing: '-0.025em', textWrap: 'balance', color: site.ink }}>
                 Celebrations Worth Savouring
               </Typography>
-              <Typography sx={{ mt: 2.5, maxWidth: 520, mx: { xs: 'auto', md: 0 }, fontSize: { xs: 15, md: 16 }, lineHeight: 1.8, color: site.inkSoft }}>
+              <Typography sx={{ mt: 2.5, maxWidth: 520, mx: { xs: 'auto', md: 0 }, fontSize: { xs: 15, md: 16 }, lineHeight: 1.8, color: site.inkSoft, '@media (max-width:359px)': { order: 1 } }}>
                 Thoughtful setups, Filipino flavours and a warm welcome for every guest. Find the right package for your next celebration.
               </Typography>
-              <Box sx={{ mt: 3.5, display: 'flex', gap: 1.5, justifyContent: { xs: 'center', md: 'flex-start' }, flexWrap: 'wrap' }}>
+              <Box sx={{ mt: 3.5, display: 'flex', gap: 1.5, justifyContent: { xs: 'flex-start', sm: 'center', md: 'flex-start' }, flexWrap: 'wrap', width: '100%', order: { xs: 2, md: 1 } }}>
                 <Button variant="contained" onClick={() => scrollToId('packages')} sx={{ px: 3, py: 1.5, fontSize: 14, borderRadius: 999 }}>
                   See our packages
                 </Button>
@@ -200,10 +222,10 @@ export default function HomePage() {
                   Check availability
                 </Button>
               </Box>
-              <Typography sx={{ mt: 2, fontSize: 12.5, lineHeight: 1.7, color: site.inkSoft }}>
+              <Typography sx={{ mt: 2, fontSize: 12.5, lineHeight: 1.7, color: site.inkSoft, order: 3 }}>
                 Explore without an account. Food is priced separately from setup packages.
               </Typography>
-              <Typography sx={{ mt: 1, fontSize: 12, color: site.goldText }}>Serving {BUSINESS.serviceArea}</Typography>
+              <Typography sx={{ mt: 1, fontSize: 12, color: site.goldText, order: 3 }}>Serving {BUSINESS.serviceArea}</Typography>
             </Box>
             <HeroScene scrollRef={heroRef} onMotionAvailable={setHeroMotion} />
           </Box>
@@ -381,7 +403,7 @@ export default function HomePage() {
                   : 'Create your account to submit a reservation, follow its status and manage payments in one place.'}
               </Typography>
               <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Button variant="contained" onClick={() => (user ? navigate('/portal/book') : scrollToId('packages'))} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.espresso, backgroundColor: site.gold, '&:hover': { backgroundColor: site.goldLight } }}>
+                <Button variant="contained" onClick={() => (user ? navigate('/portal/plan-event') : scrollToId('packages'))} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.espresso, backgroundColor: site.gold, '&:hover': { backgroundColor: site.goldLight } }}>
                   {user ? 'New reservation' : 'Choose a package'}
                 </Button>
                 <Button onClick={() => navigate(user ? '/portal' : '/login')} sx={{ px: 4, py: 1.5, fontSize: 14.5, borderRadius: 999, color: site.onEspresso, border: '1px solid rgba(245, 239, 230, 0.35)', '&:hover': { borderColor: site.gold, backgroundColor: 'rgba(197, 160, 89, 0.1)' } }}>

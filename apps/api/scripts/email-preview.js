@@ -9,7 +9,6 @@ import { outsourceRequestEmail } from '../src/modules/outsource/outsource.emails
 import { composeContractText } from '@tm/shared/src/domain/outsource.js';
 import { BUSINESS } from '@tm/shared/src/services/config.js';
 
-
 const OUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'tmp', 'email-preview');
 const DAY_MS = 86400000;
 const today = todayISO();

@@ -57,7 +57,9 @@ const readSet = (key) => {
  *   when there is no bar), so a fixed bar or window can sit just above it.
  *   A bottom tab with `drawer: true` (e.g. "More") opens the navigation drawer instead of a page,
  *   and lights up on pages that have no tab of their own.
- * - Nav items: { key, label, icon, to, exact?, match?, badge? }. The active item
+ * - Nav items: { key, label, icon, to, exact?, match?, badge?, section? }. Consecutive
+ *   items with the same section are grouped under a heading in expanded navigation.
+ *   Portals without sections keep the flat navigation. The active item
  *   is worked out from the current URL.
  * - Notifications: [{ id, title, body, at, to, onClick? }]; read state is remembered per portal and user.
  *   `onClick` runs instead of navigating to `to` (for an action that is not a page of its own).
@@ -137,6 +139,14 @@ export default function PortalShell({
   };
 
   const width = collapsed ? tokens.sidebarCollapsedWidth : tokens.sidebarWidth;
+  const groupedNavigation = navItems.some((item) => item.section);
+  const navGroups = [];
+  navItems.forEach((item) => {
+    const section = item.section || '';
+    const previous = navGroups[navGroups.length - 1];
+    if (previous?.section === section) previous.items.push(item);
+    else navGroups.push({ section, items: [item] });
+  });
 
   /**
    * Draw one sidebar link. When the sidebar is collapsed ("narrow") only the icon shows,
@@ -151,6 +161,7 @@ export default function PortalShell({
         key={item.key}
         className="tm-sidebar-link"
         onClick={() => navigate(item.to)}
+        aria-label={`${item.label}${item.badge ? `, ${item.badge}` : ''}`}
         aria-current={active ? 'page' : undefined}
         sx={{
           width: '100%',
@@ -161,6 +172,7 @@ export default function PortalShell({
           px: narrow ? 1 : 1.75,
           py: 1.15,
           borderRadius: 1.25,
+          ...(groupedNavigation && { minHeight: 44, py: 1, borderRadius: 1.5 }),
           fontFamily: 'inherit',
           fontSize: 13.5,
           fontWeight: active ? 700 : 500,
@@ -171,6 +183,10 @@ export default function PortalShell({
           '&:hover': {
             backgroundColor: active ? tokens.sidebarActiveHover : tokens.sidebarHover,
             color: tokens.sidebarActiveText
+          },
+          '&.Mui-focusVisible': {
+            outline: `2px solid ${tokens.sidebarActiveText}`,
+            outlineOffset: -2
           }
         }}
       >
@@ -236,13 +252,51 @@ export default function PortalShell({
   // Log out is only in the profile menu at the top right, not in the sidebar or drawer.
   const navList = (forceExpanded) => (
     <Box component="nav" aria-label="Main" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      {navItems.map((item) => renderNavItem(item, forceExpanded))}
+      {navGroups.map((group) => (
+        <Box
+          key={group.items[0].key}
+          role={group.section ? 'group' : undefined}
+          aria-label={group.section || undefined}
+          sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}
+        >
+          {group.section && (
+            <Box sx={{ mt: 1.5, mb: 0.5, mx: 1.75 }}>
+              {collapsed && !forceExpanded ? (
+                <Divider sx={{ borderColor: tokens.sidebarBorder }} />
+              ) : (
+                <Typography
+                  component="span"
+                  sx={{
+                    display: 'block',
+                    fontSize: 10,
+                    lineHeight: 1.6,
+                    fontWeight: 600,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: tokens.sidebarTextMuted
+                  }}
+                >
+                  {group.section}
+                </Typography>
+              )}
+            </Box>
+          )}
+          {group.items.map((item) => renderNavItem(item, forceExpanded))}
+        </Box>
+      ))}
     </Box>
   );
 
   const secondaryList = (forceExpanded) =>
     secondaryNavItems.length > 0 && (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.5,
+          ...(groupedNavigation && { borderTop: `1px solid ${tokens.sidebarBorder}`, pt: 1.25 })
+        }}
+      >
         {secondaryNavItems.map((item) => renderNavItem(item, forceExpanded))}
       </Box>
     );
@@ -660,7 +714,10 @@ export default function PortalShell({
             width: 280,
             backgroundColor: tokens.sidebarBg,
             backgroundImage: 'none',
-            borderRight: `1px solid ${tokens.sidebarBorder}`
+            borderRight: `1px solid ${tokens.sidebarBorder}`,
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            '&::-webkit-scrollbar': { display: 'none' }
           }
         }}
       >
@@ -704,6 +761,9 @@ export default function PortalShell({
             backgroundColor: tokens.sidebarBg,
             borderRight: `1px solid ${tokens.sidebarBorder}`,
             overflowY: 'auto',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            '&::-webkit-scrollbar': { display: 'none' },
             transition: EASE,
             zIndex: 10
           }}
@@ -720,7 +780,7 @@ export default function PortalShell({
             >
               {!collapsed && (
                 <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.sidebarTextMuted }}>
-                  Navigation
+                  {groupedNavigation ? 'Your workspace' : 'Navigation'}
                 </Typography>
               )}
               <IconButton

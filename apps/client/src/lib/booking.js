@@ -1,6 +1,20 @@
-
 const INTENT_KEY = 'tm.client.bookingIntent';
 const draftKey = (customerId) => `tm.client.draft.${customerId}`;
+const activeCustomerId = () => {
+  try {
+    return (
+      JSON.parse(sessionStorage.getItem('tm.client.session') || localStorage.getItem('tm.client.session') || 'null')
+        ?.user?.id || null
+    );
+  } catch {
+    return null;
+  }
+};
+
+export function saveAssistantIntent(draft, customerId = null) {
+  clearIntent();
+  return saveIntent({ ...draft, assistantReviewed: true, assistantCustomerId: customerId });
+}
 
 export function saveIntent(patch) {
   try {
@@ -12,20 +26,27 @@ export function saveIntent(patch) {
   }
 }
 
-export function readIntent() {
+export function readIntent(customerId = activeCustomerId()) {
   try {
     const intent = JSON.parse(sessionStorage.getItem(INTENT_KEY));
-    if (intent && Date.now() - intent.savedAt < 86400000) return intent;
-  } catch (e) {
-  }
+    if (intent && Date.now() - intent.savedAt < 86400000) {
+      if (intent.assistantReviewed) {
+        if (intent.assistantCustomerId && intent.assistantCustomerId !== customerId) return null;
+        if (!intent.assistantCustomerId && customerId) {
+          intent.assistantCustomerId = customerId;
+          sessionStorage.setItem(INTENT_KEY, JSON.stringify(intent));
+        }
+      }
+      return intent;
+    }
+  } catch (e) {}
   return null;
 }
 
 export function clearIntent() {
   try {
     sessionStorage.removeItem(INTENT_KEY);
-  } catch (e) {
-  }
+  } catch (e) {}
 }
 
 export function readDraft(customerId) {
@@ -48,6 +69,5 @@ export function saveDraft(customerId, form) {
 export function clearDraft(customerId) {
   try {
     localStorage.removeItem(draftKey(customerId));
-  } catch (e) {
-  }
+  } catch (e) {}
 }

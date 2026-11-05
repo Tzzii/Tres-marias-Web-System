@@ -49,6 +49,7 @@ import {
   useResource
 } from '@tm/shared';
 import { useAuth } from '../auth.js';
+import AIUsageCard from '../components/AIUsageCard.jsx';
 import { BusinessPulse, NeedsAttention } from '../components/OperationsBrief.jsx';
 
 export default function DashboardPage() {
@@ -355,6 +356,8 @@ export default function DashboardPage() {
           onRetry={calendar.reload}
         />
       </Box>
+
+      <AIUsageCard />
 
       <Box
         sx={{

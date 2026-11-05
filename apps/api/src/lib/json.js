@@ -1,4 +1,3 @@
-
 export function parseJson(value, fallback = null) {
   if (value === null || value === undefined) return fallback;
   const text = Buffer.isBuffer(value) ? value.toString('utf8') : value;

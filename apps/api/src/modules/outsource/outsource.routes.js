@@ -3,7 +3,6 @@ import { validate } from '../../middleware/validate.js';
 import * as schemas from './outsource.schemas.js';
 import * as outsource from './outsource.service.js';
 
-
 export const outsourceAdminRoutes = express.Router();
 
 outsourceAdminRoutes.get('/events', async (req, res) => {

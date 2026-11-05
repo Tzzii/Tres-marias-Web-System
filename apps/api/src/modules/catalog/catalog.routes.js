@@ -95,6 +95,18 @@ catalogRoutes.get('/rental-items', async (req, res) => {
 
 export const catalogAdminRoutes = express.Router();
 
+catalogAdminRoutes.get('/package-proposal-rules', async (req, res) => {
+  const { packageProposalRules: rules } = await catalog.readPackageProposalCatalog();
+  res.json({ rules });
+});
+catalogAdminRoutes.put(
+  '/package-proposal-rules',
+  validate({ body: schemas.packageProposalRulesBody }),
+  async (req, res) => {
+    res.json(await catalog.savePackageProposalRules(req.valid.body.rules));
+  }
+);
+
 catalogAdminRoutes.post('/packages', packageForm, validate({ body: schemas.packageBody }), async (req, res) => {
   res.status(201).json(await catalog.savePackage(null, req.valid.body, req.file));
 });
@@ -127,6 +139,13 @@ catalogAdminRoutes.patch(
 catalogAdminRoutes.post('/addons', validate({ body: schemas.addonBody }), async (req, res) => {
   res.status(201).json(await catalog.saveAddon(null, req.valid.body));
 });
+catalogAdminRoutes.put(
+  '/addons/:id/budget-policy',
+  validate({ params: schemas.idParams, body: schemas.budgetPolicyBody }),
+  async (req, res) => {
+    res.json(await catalog.saveBudgetPolicy(req.valid.params.id, req.valid.body.budgetPolicy));
+  }
+);
 catalogAdminRoutes.put(
   '/addons/:id',
   validate({ params: schemas.idParams, body: schemas.addonBody }),

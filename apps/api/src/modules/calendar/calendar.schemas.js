@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-
 const passThrough = z.unknown().optional();
 
 export const checkQuery = z.object({ date: passThrough, time: passThrough, end: passThrough });

@@ -14,7 +14,8 @@ import { bookingExtraGuests, bookingItems, formatBookingItem } from '../domain/p
 import { stylingEmpty } from '../domain/styling.js';
 import { buffetDrinks, dessertSummary } from '../domain/menu.js';
 import { BUSINESS, DEFAULT_MIN_DOWNPAYMENT, RENTAL, RULES, includesFood, isRental } from '../services/config.js';
-import { otherChargeItemsFor } from '../services/pricing.js';
+import { isInclusiveBuffet, otherChargeItemsFor } from '../services/pricing.js';
+import { quotedAddonLines, budgetDifference } from '../domain/budgetRequest.js';
 import { useNotify } from '../hooks/useNotify.jsx';
 import { useReceiptProof } from '../hooks/useReceiptProof.js';
 import { tokens, paperSurfaceSx } from '../theme/tokens.js';
@@ -167,6 +168,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   };
   // Prices come from the sent quotation, or the estimate if none was sent
   const quote = detail.quotation || detail.estimate;
+  const inclusive = isInclusiveBuffet(quote);
   const rental = isRental(detail.serviceType);
   const delivered = rental && detail.fulfilment === 'delivery';
   // The least to pay first: the booking's minimum, or the whole total when that is lower
@@ -179,13 +181,6 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
   const refunded = detail.refunded || 0;
   // A cancelled or declined booking owes nothing more, so its quotation is never stamped "fully paid"
   const ended = ['cancelled', 'declined'].includes(detail.status);
-  // Admin's price for one add-on (0 on an estimate, where add-ons aren't priced yet)
-  // What an add-on costs on this quotation: for one counted by the piece that is the unit price
-  // times the quantity, which computeQuote has already worked out into `addonTotals`.
-  const addonPrice = (id) =>
-    (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
-  // How many of an add-on were asked for (1 for anything not counted by the piece)
-  const addonCount = (id) => (quote.addonQty && quote.addonQty[id]) || 1;
   // Guests above the package's default: the ones the sent quotation priced (none on one sent before the
   // rule of 2026-10-09), or before any quotation the booking's own, whose equipment is still to be quoted
   const extraGuests = rental ? 0 : detail.quotation ? detail.quotation.extraGuests || 0 : bookingExtraGuests(detail);
@@ -435,11 +430,11 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   ) : (
                     <>
                       <Line
-                        label={`Package (default: ${detail.package.guests} guests)`}
-                        value={peso(quote.packageTotal)}
+                        label={`Package (default: ${quote.packageGuests || detail.package.guests} guests)`}
+                        value={inclusive ? 'Included in buffet rate' : peso(quote.packageTotal)}
                       />
                       {/* The equipment for the guests above the package's default, priced in the quotation */}
-                      {extraGuests > 0 && (
+                      {extraGuests > 0 && !inclusive && (
                         <Line
                           label={`Extra ${extraGuests} guests (equipment)`}
                           value={detail.quotation ? peso(quote.extraGuestsCharge || 0) : 'To be quoted'}
@@ -450,15 +445,15 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   {/* The buffet is charged per person, so the line shows the sum it came from */}
                   {quote.plates > 0 && (
                     <Line
-                      label={`Buffet (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`}
+                      label={`${inclusive ? 'Buffet and standard setup' : 'Buffet'} (${quote.plates} x ${peso(quote.pricePerPlate)} per person)`}
                       value={peso(quote.food)}
                     />
                   )}
-                  {detail.addons.map((a) => (
+                  {quotedAddonLines(detail).map((a) => (
                     <Line
                       key={a.id}
-                      label={a.hasQuantity ? `${a.name} x ${addonCount(a.id)}` : a.name}
-                      value={peso(addonPrice(a.id))}
+                      label={`${a.name} x ${a.quantity}`}
+                      value={a.total === null ? 'To be quoted' : peso(a.total)}
                     />
                   ))}
                   {quote.durationCharge > 0 && <Line label="6-hour event charge" value={peso(quote.durationCharge)} />}
@@ -470,6 +465,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                   {quote.discount > 0 && <Line label="Discount" value={`− ${peso(quote.discount)}`} />}
                   <Divider sx={{ my: 1 }} />
                   <Line label="Net total" value={peso(quote.net)} strong />
+                  {budgetDifference(detail, quote.net) && (
+                    <Line label="Customer's requested budget" value={peso(detail.budgetRequest.budget)} muted />
+                  )}
                   {/* The least to pay first: this booking's minimum, or the whole total when that is lower */}
                   <Line label="Minimum downpayment" value={peso(Math.min(minimum, quote.net))} muted />
                 </Box>
@@ -531,7 +529,7 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                         </li>
                         <li>If a revised quotation is lower than what you have paid, we return the difference.</li>
                         {/* More guests than the package's default: what grows, and that the rest was set in the quotation */}
-                        {extraGuests > 0 && (
+                        {extraGuests > 0 && !inclusive && (
                           <li>
                             The package covers {detail.package.guests} guests. For your{' '}
                             {detail.package.guests + extraGuests} guests, the plates, glasses, cutlery, chairs and
@@ -694,7 +692,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     {verifiedPayments.length === 0 ? 'This quotation is valid for 14 days. ' : ''}
                     {rental
                       ? 'Rental prices are per piece for your whole rental. A piece that comes back damaged or missing is charged at its damage fee through a revised quotation.'
-                      : 'The package covers the equipment and service listed above; the food is cooked to your request and priced separately.'}
+                      : inclusive
+                        ? 'The per-person buffet rate includes four ulam and the standard equipment and setup listed above. Selected additional services and any duration fee are charged separately.'
+                        : 'The package covers the equipment and service listed above; the food is cooked to your request and priced separately.'}
                     {detail.quotation?.note ? ` Note: ${detail.quotation.note}` : ''}
                     {/* A request is approved when the customer accepts its quotation */}
                     {detail.status === 'pending' && detail.quotation

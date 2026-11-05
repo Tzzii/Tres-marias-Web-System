@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+export const packageProposalRulesBody = z
+  .object({ rules: z.object({ enabled: z.boolean(), recipes: z.array(z.unknown()).max(24) }).strict() })
+  .strict();
+
 const text = (max) =>
   z
     .string({ error: 'This field is required.' })
@@ -34,6 +38,9 @@ export const packageBody = z.object({
 });
 export const visibilityBody = z.object({ visible: flag('Visible') });
 export const archivedBody = z.object({ archived: flag('Archived') });
+export const budgetPolicyBody = z.object({
+  budgetPolicy: z.unknown().refine((value) => value !== undefined, 'Specify a budget policy.')
+});
 
 export const addonBody = z.object({
   name: text(120),

@@ -1,4 +1,3 @@
-
 const FIELDS = 'id, name, email, mobile, company, created_at';
 
 const toCustomer = (row) => ({

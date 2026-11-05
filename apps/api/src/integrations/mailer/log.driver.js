@@ -1,7 +1,6 @@
 import { saveToOutbox } from '../../outbox/outbox.repo.js';
 import { now } from '../../lib/time.js';
 
-
 async function deliver({ to, subject, text, html }) {
   console.log(`\n[EMAIL -> ${to}] ${subject}\n${text || html || ''}\n`);
   return { status: 'logged', providerId: null };

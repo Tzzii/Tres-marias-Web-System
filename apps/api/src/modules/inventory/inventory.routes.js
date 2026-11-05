@@ -20,7 +20,6 @@ function itemForm(req, res, next) {
   });
 }
 
-
 export const inventoryAdminRoutes = express.Router();
 
 inventoryAdminRoutes.get('/', validate({ query: schemas.listQuery }), async (req, res) => {

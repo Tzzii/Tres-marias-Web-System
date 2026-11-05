@@ -1,0 +1,135 @@
+.tm-assistant-mascot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 8px 8px rgb(88 61 29 / 12%));
+}
+
+.tm-assistant-mascot * {
+  animation-play-state: var(--tm-assistant-play-state, running) !important;
+}
+
+.tm-assistant-mascot__float {
+  animation: tm-assistant-float 5.8s ease-in-out infinite;
+}
+
+.tm-assistant-mascot__head {
+  transform-origin: 100px 132px;
+  animation: tm-assistant-nod 9s ease-in-out infinite;
+}
+
+.tm-assistant-mascot__eyes {
+  transform-origin: 101px 95px;
+  animation: tm-assistant-blink 6.4s linear infinite;
+}
+
+.tm-assistant-mascot__wave {
+  transform-origin: 137px 157px;
+  animation: tm-assistant-wave 9s ease-in-out infinite;
+}
+
+.tm-assistant-mascot__shadow {
+  transform-origin: 101px 226px;
+  animation: tm-assistant-shadow 5.8s ease-in-out infinite;
+}
+
+.tm-assistant-mascot__sparkles {
+  animation: tm-assistant-sparkle 4.6s ease-in-out infinite;
+}
+
+.tm-assistant-launcher:focus-visible {
+  outline: 3px solid #8a6a2f;
+  outline-offset: 6px;
+}
+
+.tm-assistant-launcher:hover .tm-assistant-mascot__wave {
+  animation-duration: 1.4s;
+}
+
+@keyframes tm-assistant-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes tm-assistant-nod {
+  0%,
+  28%,
+  60%,
+  100% {
+    transform: rotate(0deg);
+  }
+  36%,
+  47% {
+    transform: rotate(-4deg);
+  }
+  72%,
+  83% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes tm-assistant-blink {
+  0%,
+  37%,
+  41%,
+  74%,
+  78%,
+  100% {
+    transform: scaleY(1);
+  }
+  39%,
+  76% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes tm-assistant-wave {
+  0%,
+  24%,
+  100% {
+    transform: rotate(0deg);
+  }
+  4%,
+  12%,
+  20% {
+    transform: rotate(-13deg);
+  }
+  8%,
+  16% {
+    transform: rotate(11deg);
+  }
+}
+
+@keyframes tm-assistant-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.13;
+  }
+  50% {
+    transform: scaleX(0.86);
+    opacity: 0.08;
+  }
+}
+
+@keyframes tm-assistant-sparkle {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-assistant-mascot * {
+    animation: none !important;
+  }
+}

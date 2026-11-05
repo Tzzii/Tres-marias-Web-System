@@ -14,7 +14,6 @@ import { CUSTOMER_EMAILS } from '../src/modules/notify/customer.emails.js';
 import { queueCustomerEmail, useMailerForTests } from '../src/modules/notify/notify.service.js';
 import { codeIn } from './helpers/harness.js';
 
-
 let passed = 0;
 let failed = 0;
 const check = (name, ok, detail = '') => {
@@ -270,6 +269,7 @@ check(
 const CODE = '176498';
 const CODE_SAMPLES = [
   ['customer_sign_up', { name: 'Ana<b>', code: CODE }],
+  ['customer_google_sign_in', { name: 'Ana<b> Santos', code: CODE }],
   ['customer_email_change', { name: 'Ana<b> Santos', email: 'new"<script>alert(1)</script>@example.com', code: CODE }],
   ['customer_password_reset', { name: 'Ana<b> Santos', code: CODE }],
   ['customer_password_change', { name: 'Ana<b> Santos', code: CODE }],
@@ -419,8 +419,7 @@ if (customer) {
       });
       throw new Error('the action failed');
     });
-  } catch {
-  }
+  } catch {}
   await sleep(300);
   const [[{ n: rolledRows }]] = await pool.query('SELECT COUNT(*) AS n FROM outbox WHERE id = ?', [outboxId || '']);
   check(

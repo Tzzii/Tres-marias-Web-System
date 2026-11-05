@@ -3,7 +3,6 @@ import { validate } from '../../middleware/validate.js';
 import * as schemas from './reports.schemas.js';
 import * as reports from './reports.service.js';
 
-
 export const reportAdminRoutes = express.Router();
 
 reportAdminRoutes.get('/dashboard', async (req, res) => {

@@ -41,6 +41,9 @@ export default function PackagesPage() {
         title="Available Packages"
         subtitle="Each package is a flat price for the buffet setup, tableware, tables and chairs, and works for any occasion. Food is cooked to your request and priced in your quotation."
       />
+      <Button onClick={() => navigate('/portal/assistant')} sx={{ mb: 2 }}>
+        Need help choosing? Ask the AI Assistant
+      </Button>
       {error ? (
         <DashCard>
           <ErrorState error={error} onRetry={reload} />

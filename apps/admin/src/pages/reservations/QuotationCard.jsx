@@ -9,6 +9,8 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import {
   AlertBanner,
+  BudgetComparison,
+  quotedAddonLines,
   BusyButton,
   CardTitle,
   DashCard,
@@ -19,6 +21,9 @@ import {
   ITEM_COUNT_MAX,
   RENTAL,
   computeQuote,
+  reservationPricingModel,
+  reservationPackageForPricing,
+  isInclusiveBuffet,
   durationChargeFor,
   reservationSixHourFee,
   sixHourFeeProblem,
@@ -44,10 +49,13 @@ export default function QuotationCard({ r, closed, onSend }) {
     label: ''
   });
   const rental = isRental(r.serviceType);
+  const pricingModel = reservationPricingModel(r);
+  const inclusive = isInclusiveBuffet({ ...r, pricingModel });
+  const pricingPackage = reservationPackageForPricing(r);
   const delivered = rental && r.fulfilment === 'delivery';
   const sixHours = durationChargeFor({ ...r, sixHourFee: 1 }) > 0;
-  const extraGuests = rental ? 0 : extraGuestsFor(r.package, r.guests);
-  const confirmItems = rental ? [] : itemsToConfirm(r.package, r.guests);
+  const extraGuests = rental ? 0 : extraGuestsFor(pricingPackage, r.guests);
+  const confirmItems = rental ? [] : itemsToConfirm(pricingPackage, r.guests);
   const initial = () => {
     const q = r.quotation;
     const otherLines = otherChargeItemsFor(q);
@@ -109,7 +117,8 @@ export default function QuotationCard({ r, closed, onSend }) {
     }));
 
   const preview = computeQuote({
-    pkg: r.package,
+    pkg: pricingPackage,
+    pricingModel,
     serviceType: r.serviceType,
     guests: r.guests,
     pricePerPlate: r.pricePerPlate,
@@ -137,7 +146,7 @@ export default function QuotationCard({ r, closed, onSend }) {
     [
       values.discount,
       ...(delivered ? [values.deliveryFee] : []),
-      ...(extraGuests ? [values.extraGuestsCharge] : []),
+      ...(extraGuests && !inclusive ? [values.extraGuestsCharge] : []),
       ...Object.values(values.addonPrices)
     ].some(invalid) ||
     values.otherChargeItems.some((line) => otherAmountError(line.amount)) ||
@@ -162,7 +171,7 @@ export default function QuotationCard({ r, closed, onSend }) {
   const missingPrice = r.addonIds.some((id) => !Number(values.addonPrices[id]));
   const missingExtra =
     extraGuests > 0 &&
-    (values.extraGuestsCharge === '' ||
+    ((!inclusive && values.extraGuestsCharge === '') ||
       confirmItems.some((item) => itemCount(item.name) === '' || countError(itemCount(item.name))));
   const toSend = (v) => ({
     sixHourFee: Number(v.sixHourFee),
@@ -219,8 +228,8 @@ export default function QuotationCard({ r, closed, onSend }) {
         </>
       ) : (
         <>
-          <DetailRow label={`Package · ${r.packageName} (${r.package.guests} guests)`}>
-            {peso(preview.packageTotal)}
+          <DetailRow label={`Package · ${r.packageName} (${pricingPackage.guests} guests)`}>
+            {inclusive ? 'Included in buffet rate' : peso(preview.packageTotal)}
           </DetailRow>
           {includesFood(r.serviceType) ? (
             <DetailRow label={`Buffet · ${preview.plates} × ${peso(preview.pricePerPlate)}`}>
@@ -236,7 +245,7 @@ export default function QuotationCard({ r, closed, onSend }) {
           {preview.durationCharge > 0 && (
             <DetailRow label="6-hour event charge">{peso(preview.durationCharge)}</DetailRow>
           )}
-          {usesGuestRule(r) && preview.extraGuests > 0 && (
+          {!inclusive && usesGuestRule(r) && preview.extraGuests > 0 && (
             <DetailRow label={`Extra ${preview.extraGuests} guests (equipment)`}>
               {peso(preview.extraGuestsCharge)}
             </DetailRow>
@@ -246,9 +255,9 @@ export default function QuotationCard({ r, closed, onSend }) {
               {confirmItems.map((item) => `${itemCount(item.name) || '?'} ${item.name}`).join(', ')}
             </DetailRow>
           )}
-          {r.addons.map((a) => (
-            <DetailRow key={a.id} label={addonLabel(a)}>
-              {peso(preview.addonTotals[a.id])}
+          {quotedAddonLines(r).map((a) => (
+            <DetailRow key={a.id} label={`${a.name} × ${a.quantity}`}>
+              {peso(a.total)}
             </DetailRow>
           ))}
           {preview.otherChargeItems
@@ -295,18 +304,20 @@ export default function QuotationCard({ r, closed, onSend }) {
           )}
           {extraGuests > 0 && (
             <>
-              <FormField
-                id="q-extra-guests"
-                label={`Extra ${extraGuests} guests (equipment)`}
-                required
-                type="number"
-                value={values.extraGuestsCharge}
-                onChange={set('extraGuestsCharge')}
-                error={amountError(values.extraGuestsCharge)}
-                hint={`${r.guests} guests on a package for ${r.package.guests}. Plates, glasses, cutlery, chairs and tables grow by themselves; enter 0 to waive the charge.`}
-                InputProps={peso0}
-                inputProps={{ min: 0, step: 500 }}
-              />
+              {!inclusive && (
+                <FormField
+                  id="q-extra-guests"
+                  label={`Extra ${extraGuests} guests (equipment)`}
+                  required
+                  type="number"
+                  value={values.extraGuestsCharge}
+                  onChange={set('extraGuestsCharge')}
+                  error={amountError(values.extraGuestsCharge)}
+                  hint={`${r.guests} guests on a package for ${pricingPackage.guests}. Plates, glasses, cutlery, chairs and tables grow by themselves; enter 0 to waive the charge.`}
+                  InputProps={peso0}
+                  inputProps={{ min: 0, step: 500 }}
+                />
+              )}
               {confirmItems.length > 0 && (
                 <Box>
                   <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Items to confirm for {r.guests} guests</Typography>
@@ -324,7 +335,7 @@ export default function QuotationCard({ r, closed, onSend }) {
                         value={itemCount(item.name)}
                         onChange={setItemCount(item.name)}
                         error={countError(itemCount(item.name))}
-                        hint={`Package: ${item.defaultQty} for ${r.package.guests} guests`}
+                        hint={`Package: ${item.defaultQty} for ${pricingPackage.guests} guests`}
                         inputProps={{ min: 1, step: 1 }}
                       />
                     ))}
@@ -428,6 +439,7 @@ export default function QuotationCard({ r, closed, onSend }) {
       </DetailRow>
       {!closed && (
         <>
+          <BudgetComparison reservation={r} total={preview.net} />
           {changed && paidAbove > 0 && (
             <AlertBanner tone="info" sx={{ mt: 1 }} title={`${peso(paidAbove)} was paid above this total`}>
               The customer has paid {peso(r.paid)}. Once sent, the difference shows under Refund to be returned, and the

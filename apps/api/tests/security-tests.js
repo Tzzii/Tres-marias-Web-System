@@ -30,7 +30,6 @@ import {
   writeFile
 } from './helpers/harness.js';
 
-
 const FAKE_SECRET_KEY = 'sk_test_securitytestsonly';
 const FAKE_WEBHOOK_SECRET = 'whsk_securitytestsonly';
 const UPLOAD_DIR = path.join(runDir(), 'uploads');
@@ -69,7 +68,6 @@ const random = (n = 6) => crypto.randomBytes(n).toString('hex');
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const said = (res) => `${res.status}${res.body && res.body.code ? ` ${res.body.code}` : ''}`;
 
-
 const results = [];
 
 async function test(id, title, expected, run) {
@@ -88,7 +86,6 @@ async function test(id, title, expected, run) {
   console.log(`${entry.passed ? 'PASS' : 'FAIL'}  #${id} ${title}`);
   if (!entry.passed) entry.checks.filter((c) => !c.ok).forEach((c) => console.log(`        ✗ ${c.text}`));
 }
-
 
 async function fixtures(call) {
   const adminAcc = await adminAccount();
@@ -200,7 +197,6 @@ function webhook(type, intentId, secret = FAKE_WEBHOOK_SECRET, eventId = `evt_se
 
 const base64url = (value) =>
   Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url');
-
 
 async function runTests(call, fx) {
   const { admin, adminAcc, A, B, C, RA, RB, RC, PB } = fx;
@@ -835,7 +831,6 @@ async function runTests(call, fx) {
     ok(n === 0, 'The test admin was deleted afterwards');
   });
 
-
   await test(
     'E1',
     'Sign-up, password reset and password change with the emailed code',
@@ -968,7 +963,6 @@ async function runTests(call, fx) {
     ok(res.headers.get('x-powered-by') === null, 'No X-Powered-By');
   });
 }
-
 
 function report(base, fx) {
   const main = results.filter((r) => typeof r.id === 'number');

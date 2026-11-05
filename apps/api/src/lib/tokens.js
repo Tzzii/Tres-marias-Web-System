@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { ApiError } from './ApiError.js';
 
-
 const ALGORITHM = 'HS256';
 
 export function signToken({ id, role, name, passwordChangedAt, sessionId }, { ttl, expiresAt } = {}) {

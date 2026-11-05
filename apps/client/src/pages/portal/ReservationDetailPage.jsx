@@ -12,9 +12,15 @@ import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import {
   AlertBanner,
+  BudgetRequestCard,
+  BudgetComparison,
+  quotedAddonLines,
   ActivityTimeline,
   AppDialog,
   buffetDrinks,
+  isInclusiveBuffet,
+  reservationPricingModel,
+  reservationPackageForPricing,
   dessertSummary,
   BUSINESS,
   BusyButton,
@@ -154,6 +160,7 @@ export default function ReservationDetailPage() {
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
         <EventWorkspace event={r} />
+        <BudgetRequestCard reservation={r} />
         <DashCard>
           <StatusPipeline status={r.status} />
           {step === 'accept' && (
@@ -294,7 +301,11 @@ export default function ReservationDetailPage() {
             ) : (
               <DashCard>
                 <CardTitle
-                  subtitle={`${r.packageName} · ${peso(r.package.price)} · Default: ${r.package.guests} guests`}
+                  subtitle={
+                    isInclusiveBuffet({ ...r, pricingModel: reservationPricingModel(r) })
+                      ? `${r.packageName} · Standard setup included for ${r.guests} guests`
+                      : `${r.packageName} · ${peso(reservationPackageForPricing(r).price)} · Default: ${reservationPackageForPricing(r).guests} guests`
+                  }
                 >
                   {r.serviceType}
                 </CardTitle>
@@ -387,6 +398,7 @@ export default function ReservationDetailPage() {
                 Payment Summary
               </CardTitle>
               <ChargeLines r={r} rental={rental} delivered={delivered} />
+              {r.quotation && <BudgetComparison reservation={r} total={r.quotation.net} />}
               <DetailRow label="Minimum downpayment" sx={{ mt: 1 }}>
                 {peso(r.downpayment)}
               </DetailRow>
@@ -666,11 +678,8 @@ function ChangeRequestDialog({ open, onClose, onSend }) {
 function ChargeLines({ r, rental, delivered }) {
   const quote = r.quotation || r.estimate;
   const quoted = Boolean(r.quotation);
-  const extraGuests = rental ? 0 : quoted ? r.quotation.extraGuests || 0 : bookingExtraGuests(r);
-  const addonTotal = (id) =>
-    (quote.addonTotals && quote.addonTotals[id]) || (quote.addonPrices && quote.addonPrices[id]) || 0;
-  const addonCount = (id) => (quote.addonQty && quote.addonQty[id]) || (r.addonQty || {})[id] || 1;
-  const inQuotation = (id) => [quote.addonPrices, quote.addonTotals].some((prices) => prices && id in prices);
+  const extraGuests =
+    rental || isInclusiveBuffet(quote) ? 0 : quoted ? r.quotation.extraGuests || 0 : bookingExtraGuests(r);
   const rentalLines = quote.rentalItems || [];
   const damageLines = quote.damageCharges || [];
   const pieces = (lines) => lines.reduce((sum, line) => sum + line.qty, 0);
@@ -701,8 +710,8 @@ function ChargeLines({ r, rental, delivered }) {
         {
           key: 'package',
           label: `Package · ${r.packageName}`,
-          note: `Covers ${quote.packageGuests || r.package.guests} guests`,
-          value: peso(quote.packageTotal)
+          note: `Covers ${isInclusiveBuffet(quote) ? r.guests : quote.packageGuests || r.package.guests} guests`,
+          value: isInclusiveBuffet(quote) ? 'Included in buffet rate' : peso(quote.packageTotal)
         },
         ...(quote.durationCharge > 0
           ? [{ key: 'duration', label: '6-hour event charge', value: peso(quote.durationCharge) }]
@@ -727,15 +736,15 @@ function ChargeLines({ r, rental, delivered }) {
               }
             ]
           : []),
-        ...r.addons.map((a) => {
-          const priced = quoted ? inQuotation(a.id) : addonTotal(a.id) > 0;
-          const count = addonCount(a.id);
-          const each = quote.addonPrices && quote.addonPrices[a.id];
+        ...quotedAddonLines(r).map((a) => {
+          const priced = quoted || (a.total !== null && a.total > 0);
+          const count = a.quantity;
+          const each = a.unitPrice;
           return {
             key: a.id,
-            label: a.hasQuantity ? `${a.name} × ${count}` : a.name,
-            note: a.hasQuantity && priced && each && count > 1 ? `${peso(each)} each` : '',
-            value: priced ? peso(addonTotal(a.id)) : 'To be quoted',
+            label: count > 1 ? `${a.name} × ${count}` : a.name,
+            note: priced && each && count > 1 ? `${peso(each)} each` : '',
+            value: priced ? peso(a.total) : 'To be quoted',
             toQuote: !priced
           };
         })

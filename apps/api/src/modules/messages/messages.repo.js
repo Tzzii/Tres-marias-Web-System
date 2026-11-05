@@ -2,7 +2,6 @@ import { newId } from '../../lib/ids.js';
 import { parseJson, toJson } from '../../lib/json.js';
 import { now } from '../../lib/time.js';
 
-
 const first = ([rows]) => rows[0] || null;
 
 const readColumn = (side) => (side === 'customer' ? 'read_by_customer' : 'read_by_admin');
@@ -22,7 +21,6 @@ const toMessage = (row) => ({
   deletedAt: row.deleted_at ?? null,
   history: parseJson(row.history) || []
 });
-
 
 export async function findThread(db, threadId) {
   const row = first(await db.query('SELECT id, customer_id FROM threads WHERE id = ?', [threadId]));
@@ -85,7 +83,6 @@ export async function findMessages(db, threadId) {
   );
   return rows.map((row) => ({ ...toMessage(row), eventName: row.event_name ?? '' }));
 }
-
 
 export async function markRead(db, threadId, side) {
   const column = readColumn(side);

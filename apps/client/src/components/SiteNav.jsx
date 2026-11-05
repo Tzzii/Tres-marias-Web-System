@@ -35,18 +35,20 @@ const utilityItemSx = {
   color: site.onEspressoSoft
 };
 
-export default function SiteNav() {
+export default function SiteNav({ hidden = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [focusWithin, setFocusWithin] = useState(false);
   const [activeSection, setActiveSection] = useState('');
   const navRef = useRef(null);
   const desktopNavRef = useRef(null);
   const pendingSectionRef = useRef('');
   const scrollSettledTimerRef = useRef(null);
   const [indicator, setIndicator] = useState(null);
+  const navHidden = hidden && !menuOpen && !focusWithin;
 
   useLayoutEffect(() => {
     const nav = desktopNavRef.current;
@@ -214,6 +216,14 @@ export default function SiteNav() {
 
       <AppBar
         ref={navRef}
+        data-site-navigation
+        data-hidden={navHidden}
+        inert={navHidden ? '' : undefined}
+        aria-hidden={navHidden || undefined}
+        onFocusCapture={(event) => setFocusWithin(event.target.matches(':focus-visible'))}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false);
+        }}
         position="sticky"
         elevation={0}
         sx={{
@@ -224,7 +234,10 @@ export default function SiteNav() {
           backdropFilter: 'blur(14px)',
           borderBottom: `1px solid ${site.border}`,
           boxShadow: scrolled ? '0 10px 30px -22px rgba(60, 42, 20, 0.45)' : 'none',
-          transition: 'background 0.3s ease, box-shadow 0.3s ease'
+          transform: navHidden ? 'translateY(-100%)' : 'translateY(0)',
+          pointerEvents: navHidden ? 'none' : 'auto',
+          transition: 'transform 240ms ease, background 0.3s ease, box-shadow 0.3s ease',
+          '@media (prefers-reduced-motion: reduce)': { transition: 'none' }
         }}
       >
         <Container maxWidth={false} sx={siteContainerSx}>

@@ -3,8 +3,6 @@ import { validate } from '../../middleware/validate.js';
 import * as schemas from './calendar.schemas.js';
 import * as calendar from './calendar.service.js';
 
-
-
 export const calendarRoutes = express.Router();
 
 calendarRoutes.get('/calendar', async (req, res) => {
@@ -14,7 +12,6 @@ calendarRoutes.get('/calendar/check', validate({ query: schemas.checkQuery }), a
   const { date, time, end } = req.valid.query;
   res.json(await calendar.checkAvailability(date, time, end));
 });
-
 
 export const calendarAdminRoutes = express.Router();
 

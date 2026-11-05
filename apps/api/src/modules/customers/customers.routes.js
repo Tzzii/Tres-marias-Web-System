@@ -3,7 +3,6 @@ import { validate } from '../../middleware/validate.js';
 import * as schemas from './customers.schemas.js';
 import * as customers from './customers.service.js';
 
-
 export const customerAdminRoutes = express.Router();
 
 customerAdminRoutes.get('/', async (req, res) => {

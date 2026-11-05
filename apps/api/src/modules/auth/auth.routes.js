@@ -6,8 +6,6 @@ import * as schemas from './auth.schemas.js';
 import * as auth from './auth.service.js';
 import { createGoogleRoutes } from './google.routes.js';
 
-
-
 export const authRoutes = express.Router();
 authRoutes.use(createGoogleRoutes());
 
@@ -87,7 +85,6 @@ authRoutes.post('/admin/unlock', authLimiter, validate({ body: schemas.adminUnlo
   res.json(await auth.adminUnlock(req.valid.body));
 });
 
-
 export const customerAccountRoutes = express.Router();
 
 customerAccountRoutes.get('/', async (req, res) => {
@@ -134,7 +131,6 @@ customerAccountRoutes.post(
     );
   }
 );
-
 
 export const adminAccountRoutes = express.Router();
 

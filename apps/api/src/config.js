@@ -1,10 +1,12 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isIP } from 'node:net';
 import dotenv from 'dotenv';
 import { RULES } from '@tm/shared/src/services/config.js';
 
 export const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BUSINESS_TIME_ZONE = 'Asia/Manila';
+import { TEXT_MODEL_RATES } from './integrations/ai/textPricing.js';
 
 dotenv.config({ path: path.join(API_ROOT, '.env'), quiet: true });
 process.env.TZ = BUSINESS_TIME_ZONE;
@@ -39,12 +41,37 @@ const list = (name, fallback = []) => {
         .filter(Boolean);
 };
 
+const trustedProxies = () => {
+  const raw = text('TRUST_PROXY', 'loopback');
+  if (raw === 'false') return false;
+  const values = raw.split(',').map((value) => value.trim());
+  const valid = values.every((value) => {
+    if (['loopback', 'linklocal', 'uniquelocal'].includes(value)) return true;
+    const [address, prefix, extra] = value.split('/');
+    const family = isIP(address);
+    if (!family || extra !== undefined) return false;
+    if (prefix === undefined) return true;
+    return /^\d{1,3}$/.test(prefix) && Number(prefix) > 0 && Number(prefix) <= (family === 4 ? 32 : 128);
+  });
+  if (!valid) {
+    problems.push(
+      'TRUST_PROXY must be false or a comma-separated list of trusted IP addresses, nonzero CIDR ranges or named local networks (loopback, linklocal, uniquelocal).'
+    );
+    return false;
+  }
+  return values;
+};
+
+const AI_TEXT_MODEL = text('AI_TEXT_MODEL', 'gpt-6-luna');
+if (!Object.hasOwn(TEXT_MODEL_RATES, AI_TEXT_MODEL)) problems.push('AI_TEXT_MODEL must be gpt-6-luna or gpt-6.1-sol.');
+
 export const config = {
   env,
   isProduction,
   port: int('PORT', 4000),
   timeZone: BUSINESS_TIME_ZONE,
   apiRoot: API_ROOT,
+  trustProxy: trustedProxies(),
 
   corsOrigins: list('CORS_ORIGINS', isProduction ? [] : ['http://localhost:5173', 'http://localhost:5174']),
 
@@ -58,6 +85,32 @@ export const config = {
 
   jwtSecret: text('JWT_SECRET'),
   googleClientId: text('GOOGLE_CLIENT_ID'),
+  assistant: {
+    enabled: text('AI_ASSISTANT_ENABLED', 'false') === 'true',
+    voiceEnabled: text('AI_ASSISTANT_VOICE_ENABLED', 'false') === 'true',
+    apiKey: text('OPENAI_API_KEY'),
+    model: AI_TEXT_MODEL,
+    transcriptionModel: 'gpt-transcribe',
+    speechModel: 'gpt-realtime-2.1-mini',
+    voice: text('AI_ASSISTANT_VOICE', 'marin'),
+    dailyLimit: int('AI_ASSISTANT_DAILY_QUESTIONS', 20),
+    dailyBudgetMicro: int('AI_ASSISTANT_DAILY_BUDGET_CENTS', 0) * 10000,
+    monthlyBudgetMicro: int('AI_ASSISTANT_MONTHLY_BUDGET_CENTS', 0) * 10000,
+    timeoutMs: 25000,
+    turnTimeoutMs: 60000,
+    maxOutputTokens: 2048,
+    maxCalls: 6,
+    maxInputBytes: 64000,
+    conversationTtlMs: 24 * 60 * 60 * 1000,
+    visitorTtlMs: 90 * 24 * 60 * 60 * 1000
+  },
+  aiBudget: {
+    enabled: text('AI_BUDGET_ENABLED', 'false') === 'true',
+    apiKey: text('OPENAI_API_KEY'),
+    model: text('AI_BUDGET_MODEL', AI_TEXT_MODEL),
+    timeoutMs: int('AI_BUDGET_TIMEOUT_MS', 20000),
+    maxOutputTokens: int('AI_BUDGET_MAX_OUTPUT_TOKENS', 2000)
+  },
   jwt: {
     adminTtl: text('JWT_ADMIN_TTL', '8h'),
     customerTtl: text('JWT_CUSTOMER_TTL', '12h'),
@@ -94,6 +147,26 @@ export const config = {
 if (config.corsOrigins.length === 0)
   problems.push("CORS_ORIGINS must list at least one origin (in production: the two portals' https:// addresses).");
 if (!config.jwtSecret) problems.push('JWT_SECRET must be set (at least 32 random characters in production).');
+for (const name of ['AI_ASSISTANT_ENABLED', 'AI_ASSISTANT_VOICE_ENABLED'])
+  if (!['true', 'false'].includes(text(name, 'false'))) problems.push(`${name} must be true or false.`);
+if (config.assistant.dailyLimit < 1 || config.assistant.dailyLimit > 200)
+  problems.push('AI_ASSISTANT_DAILY_QUESTIONS must be from 1 to 200.');
+if (config.assistant.dailyBudgetMicro > 10000000 || config.assistant.monthlyBudgetMicro > 40000000)
+  problems.push('Assistant budgets must not exceed 1,000 US cents daily (US) or 4,000 US cents monthly (US).');
+if (
+  !['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'].includes(
+    config.assistant.voice
+  )
+)
+  problems.push('AI_ASSISTANT_VOICE must be a supported built-in voice.');
+if (!['true', 'false'].includes(text('AI_BUDGET_ENABLED', 'false')))
+  problems.push('AI_BUDGET_ENABLED must be true or false.');
+if (config.aiBudget.model !== AI_TEXT_MODEL)
+  problems.push(`AI_BUDGET_MODEL must be ${AI_TEXT_MODEL} to match the booking assistant.`);
+if (config.aiBudget.timeoutMs < 1000 || config.aiBudget.timeoutMs > 60000)
+  problems.push('AI_BUDGET_TIMEOUT_MS must be from 1000 to 60000.');
+if (config.aiBudget.maxOutputTokens < 256 || config.aiBudget.maxOutputTokens > 4000)
+  problems.push('AI_BUDGET_MAX_OUTPUT_TOKENS must be from 256 to 4000.');
 if (config.googleClientId && !/^\d+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(config.googleClientId))
   problems.push('GOOGLE_CLIENT_ID must be the Web OAuth client ID ending in .apps.googleusercontent.com.');
 Object.entries({

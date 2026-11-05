@@ -55,7 +55,7 @@ export default function SignupPage() {
   const { isAuthenticated, signIn } = useAuth();
   const continuingBooking = params.get('continue') === 'booking';
   const intent = continuingBooking ? readIntent() : null;
-  const destination = continuingBooking ? '/portal/book' : '/portal';
+  const destination = continuingBooking ? '/portal/book' : params.get('continue') === 'assistant' ? '/portal/assistant' : '/portal';
 
   const [values, setValues] = useState({ firstName: '', middleName: '', lastName: '', email: '', mobile: '', password: '', confirm: '', agree: false });
   const [errors, setErrors] = useState({});

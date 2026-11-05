@@ -26,7 +26,6 @@ import * as repo from './auth.repo.js';
 import { linkGoogle } from './google.repo.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
 
-
 const minutes = (n) => n * 60000;
 
 const REQUEST_LIFETIME = minutes(30);
@@ -87,7 +86,6 @@ async function assertCurrentPassword(scope, account, password) {
   );
 }
 
-
 export async function customerLogin({ email, password, remember = false }) {
   const address = normaliseEmail(email);
   const attempt = await reserveAttempt('customer', address);
@@ -98,7 +96,6 @@ export async function customerLogin({ email, password, remember = false }) {
   await clearAttempts('customer', address);
   return customerSession(customer, remember);
 }
-
 
 export async function startSignUp({
   firstName = '',
@@ -175,14 +172,22 @@ export async function resendSignUpCode(challengeId) {
   return times;
 }
 
-/** Google is not authoritative for third-party email domains, so verify the mailbox before signup. */
+/** Every new Google customer must enter the emailed code before account creation. */
 export async function startGoogleEmailSignup(identity, profile) {
   const address = identity.email;
   await reserveAttempt('code-email', address);
   const at = now();
   const code = newCode(RULES.codeLength);
-  const request = { id: newId('sgn'), email: address, ...profile, passwordHash: null,
-    googleSubject: identity.sub, codeHash: await hashSecret(code), ...codeTimes(at), createdAt: at };
+  const request = {
+    id: newId('sgn'),
+    email: address,
+    ...profile,
+    passwordHash: null,
+    googleSubject: identity.sub,
+    codeHash: await hashSecret(code),
+    ...codeTimes(at),
+    createdAt: at
+  };
   await repo.deleteSignupsFor(address);
   await repo.insertSignup(request);
   try {
@@ -191,7 +196,12 @@ export async function startGoogleEmailSignup(identity, profile) {
     await repo.deleteSignup(request.id);
     throw err;
   }
-  return { challengeId: request.id, maskedEmail: maskEmail(address), expiresAt: request.expiresAt, resendAt: request.resendAt };
+  return {
+    challengeId: request.id,
+    maskedEmail: maskEmail(address),
+    expiresAt: request.expiresAt,
+    resendAt: request.resendAt
+  };
 }
 
 export async function confirmSignUp({ challengeId, code, remember = false }) {
@@ -238,7 +248,6 @@ export async function confirmSignUp({ challengeId, code, remember = false }) {
   await clearAttempts('code-email', request.email);
   return customerSession(customer, remember);
 }
-
 
 export async function startPasswordReset({ email }) {
   const address = normaliseEmail(email);
@@ -386,7 +395,6 @@ export async function updateCustomerProfile(customerId, { name = '', mobile = ''
   return publicCustomer(saved);
 }
 
-
 export async function startCustomerEmailChange(customerId, { email = '', password = '' }) {
   const customer = await repo.findCustomerById(customerId);
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
@@ -488,7 +496,6 @@ export async function confirmCustomerEmailChange(customerId, { challengeId, code
   return publicCustomer({ ...customer, email: change.newEmail });
 }
 
-
 export async function startPasswordChange(customerId, { current, next }) {
   const customer = await repo.findCustomerById(customerId);
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
@@ -580,7 +587,6 @@ export async function confirmPasswordChange(user, { challengeId, code }) {
   );
   return { ok: true, token };
 }
-
 
 export async function adminStartSignIn({ email, password }) {
   const address = normaliseEmail(email);
@@ -709,7 +715,6 @@ export async function adminUnlock({ ticket, password }) {
   );
   return { token, user: publicAdmin(admin), unlockTicket: ticket, unlockUntil: claims.exp * 1000 };
 }
-
 
 export async function getAdminProfile(adminId) {
   const admin = await repo.findAdminById(adminId);

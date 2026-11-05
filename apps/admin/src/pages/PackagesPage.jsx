@@ -12,6 +12,8 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SixHourFeeCard from '../components/SixHourFeeCard.jsx';
+import BudgetPolicyDialog from '../components/BudgetPolicyDialog.jsx';
+import PackageProposalRulesDialog from '../components/PackageProposalRulesDialog.jsx';
 import {
   AlertBanner,
   AppDialog,
@@ -104,6 +106,8 @@ export default function PackagesPage() {
   const [tab, setTab] = useState('packages');
   const [editingId, setEditingId] = useState(null);
   const [addonDialog, setAddonDialog] = useState(null);
+  const [budgetPolicyCharge, setBudgetPolicyCharge] = useState(null);
+  const [proposalRulesOpen, setProposalRulesOpen] = useState(false);
   const [dishDialog, setDishDialog] = useState(null);
   const [archive, setArchive] = useState(null);
   const [remove, setRemove] = useState(null);
@@ -147,6 +151,9 @@ export default function PackagesPage() {
         <Box sx={{ whiteSpace: 'nowrap' }}>
           <Button size="small" onClick={() => setAddonDialog(a)}>
             Edit
+          </Button>
+          <Button size="small" onClick={() => setBudgetPolicyCharge(a)}>
+            Budget rules
           </Button>
           <Button
             size="small"
@@ -217,6 +224,13 @@ export default function PackagesPage() {
         subtitle="This is what customers see when they browse and reserve. Hidden packages disappear from browse but stay on past reservations."
         actions={
           <>
+            <Button
+              variant="outlined"
+              onClick={() => setProposalRulesOpen(true)}
+              sx={{ color: tokens.textLight, borderColor: 'rgba(197,160,89,0.45)' }}
+            >
+              Custom package recipes
+            </Button>
             <Button
               variant="outlined"
               startIcon={<AddRoundedIcon />}
@@ -569,6 +583,28 @@ export default function PackagesPage() {
           notify(isNew ? 'Additional charge created.' : 'Additional charge saved.');
         }}
       />
+      {proposalRulesOpen && (
+        <PackageProposalRulesDialog
+          onClose={() => setProposalRulesOpen(false)}
+          onSaved={() => {
+            setProposalRulesOpen(false);
+            reload();
+            notify('Custom package recipes saved.');
+          }}
+        />
+      )}
+      {budgetPolicyCharge && (
+        <BudgetPolicyDialog
+          charge={budgetPolicyCharge}
+          catalog={data.addons}
+          onClose={() => setBudgetPolicyCharge(null)}
+          onSaved={() => {
+            setBudgetPolicyCharge(null);
+            reload();
+            notify('Budget adjustment rules saved.');
+          }}
+        />
+      )}
 
       <DishDialog
         dish={dishDialog}

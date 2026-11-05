@@ -26,6 +26,9 @@ const MessagesPage = lazy(() => import('./pages/portal/MessagesPage.jsx'));
 const PackagesPage = lazy(() => import('./pages/portal/PackagesPage.jsx'));
 const TestimonialsPage = lazy(() => import('./pages/portal/TestimonialsPage.jsx'));
 const SettingsPage = lazy(() => import('./pages/portal/SettingsPage.jsx'));
+const AssistantPage = lazy(() => import('./pages/portal/AssistantPage.jsx'));
+const PlanEventPage = lazy(() => import('./pages/portal/PlanEventPage.jsx'));
+const PackageProposalsPage = lazy(() => import('./pages/portal/PackageProposalsPage.jsx'));
 
 export default function App() {
   return (
@@ -55,10 +58,13 @@ export default function App() {
           <Route path="reservations" element={<Lazy page={ReservationsPage} />} />
           <Route path="reservations/:ref" element={<Lazy page={ReservationDetailPage} />} />
           <Route path="book" element={<Lazy page={BookEventPage} />} />
+          <Route path="plan-event" element={<Lazy page={PlanEventPage} />} />
+          <Route path="package-proposals/:id" element={<Lazy page={PackageProposalsPage} />} />
           <Route path="calendar" element={<Lazy page={CalendarPage} />} />
           <Route path="payments" element={<Lazy page={PaymentsPage} />} />
           <Route path="documents" element={<Lazy page={DocumentsPage} />} />
           <Route path="messages" element={<Lazy page={MessagesPage} />} />
+          <Route path="assistant" element={<Lazy page={AssistantPage} />} />
           <Route path="packages" element={<Lazy page={PackagesPage} />} />
           <Route path="testimonials" element={<Lazy page={TestimonialsPage} />} />
           <Route path="settings" element={<Lazy page={SettingsPage} />} />

@@ -130,6 +130,7 @@ export const METALLICS = [
   { name: 'Copper', hex: '#B06A3B', sheen: '#E8A97E' }
 ];
 
+export const STYLING_COLOR_CHOICES = Object.freeze(COLOR_NAMES.map(([name, hex]) => Object.freeze({ name, hex })));
 const HEX = /^#[0-9A-F]{6}$/;
 
 /** A colour code as typed or sent, upper case with its "#" ("9caf88" -> "#9CAF88"), or '' when it isn't one. */

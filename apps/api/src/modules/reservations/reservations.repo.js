@@ -47,6 +47,8 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     endTime: row.end_time ?? null,
     guests: row.guests,
     packageId: row.package_id,
+    packageSource: row.package_source || 'catalog',
+    packageSnapshot: parseJson(row.package_snapshot),
     serviceType: row.service_type,
     menu: parseJson(row.menu),
     foodNotes: row.food_notes,
@@ -61,6 +63,7 @@ function toReservation(row, { addonLinks = [], activity = [], rentalLines = [], 
     status: row.status,
     estimate: parseJson(row.estimate),
     quotation: parseJson(row.quotation),
+    budgetRequest: parseJson(row.budget_request),
     downpaymentDue: row.downpayment_due,
     preparingAt: row.preparing_at,
     notes: row.notes,
@@ -114,7 +117,7 @@ export async function findReservations(db, filter = {}) {
     `SELECT r.ref, r.customer_id, r.event_name, r.occasion, r.date, r.start_time, r.end_time, r.guests, r.package_id, r.service_type,
             r.fulfilment, r.menu, r.food_notes, r.styling, r.price_per_plate, r.min_downpayment, r.venue_name, r.venue_address, r.city, r.access_notes,
             r.status, r.estimate, r.quotation, r.downpayment_due, r.preparing_at, r.notes, r.decline_reason, r.cancel_reason,
-            r.cancelled_by, r.created_at, r.terms_version,
+            r.cancelled_by, r.created_at, r.terms_version, r.budget_request, r.package_source, r.package_snapshot,
             p.name AS package_name, p.slug AS package_slug, c.name AS customer_name, c.email AS customer_email, c.mobile AS customer_mobile
        FROM reservations r
        LEFT JOIN packages p ON p.id = r.package_id
@@ -195,8 +198,9 @@ export async function findReservations(db, filter = {}) {
       rentalLines: byRef.rentalLines.get(row.ref),
       damageLines: byRef.damageLines.get(row.ref)
     }),
-    packageName: row.package_name,
-    packageSlug: row.package_slug,
+    packageName:
+      row.package_source === 'custom' ? parseJson(row.package_snapshot)?.name || row.package_name : row.package_name,
+    packageSlug: row.package_source === 'custom' ? parseJson(row.package_snapshot)?.slug || '' : row.package_slug,
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     customerMobile: row.customer_mobile,
@@ -335,8 +339,8 @@ export async function insertReservation(conn, r) {
     `INSERT INTO reservations (ref, customer_id, event_name, occasion, date, start_time, end_time, guests, package_id, service_type, fulfilment,
                                menu, food_notes, styling, price_per_plate, min_downpayment, venue_name, venue_address, city, access_notes, status,
                                estimate, quotation, downpayment_due, preparing_at, notes, decline_reason, cancel_reason, cancelled_by, created_at,
-                               terms_version)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                               terms_version, budget_request, package_source, package_snapshot)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       r.ref,
       r.customerId,
@@ -368,7 +372,10 @@ export async function insertReservation(conn, r) {
       r.cancelReason,
       r.cancelledBy ?? null,
       r.createdAt,
-      r.termsVersion || ''
+      r.termsVersion || '',
+      toJson(r.budgetRequest ?? null),
+      r.packageSource || 'catalog',
+      toJson(r.packageSnapshot ?? null)
     ]
   );
 }
@@ -378,6 +385,11 @@ export async function insertAddons(conn, ref, addonIds, addonQty) {
   await conn.query('INSERT INTO reservation_addons (reservation_ref, addon_id, qty, sort_order) VALUES ?', [
     addonIds.map((addonId, index) => [ref, addonId, addonQty[addonId] || 1, index])
   ]);
+}
+
+export async function replaceAddons(conn, ref, selection) {
+  await conn.query('DELETE FROM reservation_addons WHERE reservation_ref = ?', [ref]);
+  await insertAddons(conn, ref, selection.addonIds, selection.addonQty);
 }
 
 export async function insertRentalLines(conn, ref, lines) {

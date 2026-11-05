@@ -144,6 +144,13 @@ reservationAdminRoutes.post(
     res.json(await reservations.sendQuotation(req.valid.params.ref, req.valid.body, req.user));
   }
 );
+reservationAdminRoutes.put(
+  '/:ref/addons',
+  validate({ params: schemas.refParams, body: schemas.addonsBody }),
+  async (req, res) => {
+    res.json(await reservations.updateAddons(req.valid.params.ref, req.valid.body, req.user));
+  }
+);
 reservationAdminRoutes.post(
   '/:ref/decline',
   validate({ params: schemas.refParams, body: schemas.reasonBody }),

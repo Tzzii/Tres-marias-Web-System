@@ -6,7 +6,6 @@ import { now } from '../../lib/time.js';
 import { lockOwner } from '../reservations/reservations.repo.js';
 import * as repo from './messages.repo.js';
 
-
 const MESSAGE_MAX = 2000;
 
 const conversationNotFound = () => new ApiError('NOT_FOUND', 'Conversation not found.');

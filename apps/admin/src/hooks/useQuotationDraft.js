@@ -8,7 +8,17 @@ import {
 
 export function useQuotationDraft({ adminId, reservation, closed, initial }) {
   const key = quotationDraftKey(adminId, reservation.ref);
-  const revision = JSON.stringify(reservation.quotation || null);
+  const revision = JSON.stringify([
+    reservation.quotation || null,
+    reservation.serviceType,
+    reservation.guests,
+    reservation.startTime,
+    reservation.endTime,
+    reservation.packageSource || 'catalog',
+    reservation.packageSnapshot?.proposalReference || null,
+    reservation.addonIds,
+    reservation.addonQty
+  ]);
   const scope = JSON.stringify([key, revision, closed]);
   const initialRef = useRef(initial);
   initialRef.current = initial;

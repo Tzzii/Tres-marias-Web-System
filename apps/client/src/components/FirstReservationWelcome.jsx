@@ -90,7 +90,7 @@ export default function FirstReservationWelcome({ draft }) {
             <Box sx={{ mt: 3, display: 'flex', gap: 1.25, flexWrap: 'wrap', width: '100%' }}>
               <Button
                 component={RouterLink}
-                to={draft ? '/portal/book?draft=1' : '/portal/book'}
+                to={draft ? '/portal/book?draft=1' : '/portal/plan-event'}
                 variant="contained"
                 endIcon={<ArrowForwardRoundedIcon />}
                 sx={{ minHeight: 46, px: 2.5, flex: { xs: '1 1 100%', sm: '0 1 auto' } }}

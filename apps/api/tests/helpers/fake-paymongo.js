@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 
-
 const realFetch = globalThis.fetch;
 const BASE = 'https://api.paymongo.com/v1';
 const intents = new Map();

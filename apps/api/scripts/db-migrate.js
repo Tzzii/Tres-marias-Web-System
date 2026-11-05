@@ -5,7 +5,6 @@ import { closePool, dbErrorHint, pool } from '../src/db.js';
 import { migrateOutsourcePartnerDeletion } from './lib/outsource-partner-deletion-migration.js';
 import { migrateGooglePasswords } from './lib/google-auth-migration.js';
 
-
 const COLUMN_TYPE =
   /^(BIGINT|INT|SMALLINT|TINYINT|MEDIUMINT|DECIMAL|BOOLEAN|CHAR|VARCHAR|TEXT|MEDIUMTEXT|LONGTEXT|JSON|DATE|DATETIME|TIMESTAMP|TIME|ENUM)\b/i;
 function columnsOf(createSql) {
@@ -54,7 +53,7 @@ async function main() {
       let widened = 0;
       for (const table of statements.filter((s) => existing.has(s.name))) {
         const [columnRows] = await conn.query(
-          'SELECT column_name AS name, data_type AS type, character_maximum_length AS length FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?',
+          'SELECT column_name AS name, data_type AS type, character_maximum_length AS length, is_nullable AS nullable FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?',
           [table.name]
         );
         const have = new Map(columnRows.map((row) => [row.name.toLowerCase(), row]));
@@ -62,6 +61,11 @@ async function main() {
         for (const [i, column] of columns.entries()) {
           const current = have.get(column.name.toLowerCase());
           if (current) {
+            if (table.name === 'reservations' && column.name === 'package_id' && current.nullable === 'NO') {
+              await conn.query('ALTER TABLE reservations MODIFY COLUMN package_id VARCHAR(40) NULL');
+              console.log('  enabled snapshot-backed reservations with a nullable package_id');
+              continue;
+            }
             const wanted = /^VARCHAR\((\d+)\)/i.exec(column.definition);
             if (
               wanted &&
@@ -87,7 +91,8 @@ async function main() {
       const partnerDeletion = await migrateOutsourcePartnerDeletion(conn);
       if (partnerDeletion) console.log('  enabled permanent partner deletion; existing requests and links kept');
       const googlePasswords = await migrateGooglePasswords(conn);
-      if (googlePasswords) console.log(`  enabled Google-only accounts in ${googlePasswords} password column(s); existing hashes kept`);
+      if (googlePasswords)
+        console.log(`  enabled Google-only accounts in ${googlePasswords} password column(s); existing hashes kept`);
 
       if (unknown.length) console.log(`Not in schema.sql (left as they are): ${unknown.join(', ')}`);
       console.log(

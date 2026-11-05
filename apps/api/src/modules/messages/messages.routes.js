@@ -3,8 +3,6 @@ import { validate } from '../../middleware/validate.js';
 import * as schemas from './messages.schemas.js';
 import * as messages from './messages.service.js';
 
-
-
 export const threadRoutes = express.Router();
 
 threadRoutes.get('/', async (req, res) => {
@@ -53,7 +51,6 @@ threadRoutes.delete('/:id/messages/:messageId', validate({ params: schemas.messa
   const { id, messageId } = req.valid.params;
   res.json(await messages.deleteMessage(id, messageId, { side: 'customer', customerId: req.user.id }));
 });
-
 
 export const threadAdminRoutes = express.Router();
 

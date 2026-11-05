@@ -1,6 +1,5 @@
 import { addDays, todayISO } from '@tm/shared/src/utils/format.js';
 
-
 const ITEMS = [
   ['Monobloc chair', 'Furniture', 400, 60, [15, 40]],
   ['Tiffany chair', 'Furniture', 150, 20, [90, 150]],

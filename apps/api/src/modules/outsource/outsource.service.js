@@ -35,7 +35,6 @@ import * as reservationsRepo from '../reservations/reservations.repo.js';
 import * as repo from './outsource.repo.js';
 import { outsourceRequestEmail, deliverPartnerRequest } from './outsource.emails.js';
 
-
 const toError = ({ code, message, meta }) => new ApiError(code, message, meta);
 const partnerNotFound = () => new ApiError('NOT_FOUND', 'Partner not found.');
 const contractNotFound = () => new ApiError('NOT_FOUND', 'Request not found.');
@@ -78,7 +77,6 @@ async function logContract(conn, contract, partnerName, text, admin, activityTex
   }
 }
 
-
 export async function listPartners({ includeArchived = false } = {}) {
   const [partners, stats] = await Promise.all([
     repo.findPartners(pool, { includeArchived }),
@@ -107,7 +105,6 @@ export async function listOutsourceEvents() {
     venue: `${r.venue.name}, ${r.venue.city}`
   }));
 }
-
 
 export async function savePartner(id, values, admin) {
   return tx(async (conn) => {
@@ -180,7 +177,6 @@ export async function deletePartner(id, admin, { transact = tx } = {}) {
     await repo.deletePartner(conn, partner.id);
   });
 }
-
 
 export async function saveContract(id, values, admin) {
   return tx(async (conn) => {

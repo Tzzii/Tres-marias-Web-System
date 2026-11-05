@@ -2,7 +2,6 @@ import { ApiError } from '../lib/ApiError.js';
 import { readToken, sessionReplaced } from '../lib/tokens.js';
 import { findSessionAccount } from '../modules/auth/auth.repo.js';
 
-
 function bearer(req) {
   const [scheme, token] = (req.get('Authorization') || '').split(' ');
   return scheme === 'Bearer' && token ? token : null;

@@ -197,6 +197,8 @@ export function saveAddon(addon) {
 
 /** Archive or restore an additional charge. */
 export const setAddonArchived = (id, archived) => http.patch(`/admin/addons/${segment(id)}/archived`, { archived });
+export const saveBudgetPolicy = (id, budgetPolicy) =>
+  http.put(`/admin/addons/${segment(id)}/budget-policy`, { budgetPolicy });
 
 /** Update or create a dish: { id?, name, category }. */
 export function saveDish(dish) {

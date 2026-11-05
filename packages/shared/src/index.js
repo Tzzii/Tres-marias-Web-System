@@ -119,6 +119,11 @@ export {
 } from './services/config.js';
 export {
   computeQuote,
+  LEGACY_PRICING_MODEL,
+  INCLUSIVE_PRICING_MODEL,
+  reservationPricingModel,
+  reservationPackageForPricing,
+  isInclusiveBuffet,
   extraGuestsFor,
   isRentalPackage,
   otherChargeItemsFor,
@@ -126,6 +131,19 @@ export {
   reservationSixHourFee,
   sixHourFeeProblem
 } from './services/pricing.js';
+export {
+  disabledBudgetPolicy,
+  isBudgetFoodAddon,
+  budgetBookableAddons,
+  readBudgetPolicy
+} from './domain/budgetPolicy.js';
+export {
+  MAX_BUDGET_CANDIDATES,
+  normalizeBudgetSelection,
+  estimateBudget,
+  buildBudgetCandidates,
+  applyBudgetCandidate
+} from './domain/budget.js';
 // A package's items for the guest count (plates and chairs grow, warmers and helpers are confirmed in the quotation)
 export {
   ITEM_COUNT_MAX,
@@ -205,6 +223,10 @@ export { ActivityTimeline } from './components/ActivityTimeline.jsx';
 export { compareValues, matchesSearch } from './domain/experience.js';
 export * as authApi from './services/remote/auth.js';
 export * as catalogApi from './services/remote/catalog.js';
+export * as budgetApi from './services/remote/budget.js';
+export * as packageProposalApi from './services/remote/packageProposal.js';
+export { BudgetRequestCard, BudgetComparison } from './components/BudgetRequestCard.jsx';
+export { quotedAddonLines, budgetDifference, selectionChanges } from './domain/budgetRequest.js';
 export * as calendarApi from './services/remote/calendar.js';
 export * as reservationApi from './services/remote/reservation.js';
 export * as paymentApi from './services/remote/payment.js';
@@ -212,5 +234,6 @@ export * as messageApi from './services/remote/message.js';
 export * as customerApi from './services/remote/customer.js';
 export * as feedbackApi from './services/remote/feedback.js';
 export * as reportApi from './services/remote/report.js';
+export * as aiUsageApi from './services/remote/aiUsage.js';
 export * as inventoryApi from './services/remote/inventory.js';
 export * as outsourceApi from './services/remote/outsource.js';

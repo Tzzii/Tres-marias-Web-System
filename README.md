@@ -6,7 +6,25 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.29.2**
+**System version: 1.45.0**
+
+AI safety controls share a durable spending ledger across chat, audio and both recommendation endpoints. Persistent IP/account attempt limits, expiring global concurrency leases, a provider-failure circuit and per-request processing ceilings protect paid requests. The admin dashboard includes read-only USD usage estimates and alerts; see the API README's AI usage protections section before enabling live calls.
+
+The landing page uses one floating AI assistant. It stays fixed at the bottom right while customers scroll. Animation starts automatically without Play/Pause controls and also runs in the chat header; reduced-motion preferences remain supported, and background tabs resume automatically when visible. Its guide message follows the section being viewed, including packages, gallery, services, booking steps, availability, FAQ and contact. Section introductions run locally without sending AI questions or using the guest question allowance. The top navigation hides while scrolling down and returns when scrolling up; keyboard-focused navigation and the mobile menu stay available. Scroll-driven header visibility and guide messages update independently of the landing-page content, avoiding full catalogue, gallery and hero renders when the header hides or returns.
+
+New **Buffet and Catering** requests use inclusive per-person pricing: guest count × the configured buffet rate covers four ulam and the selected standard setup. A second package or standard extra-guest equipment surcharge is not added. The configured six-hour event fee and selected Additional Charges remain separate. Existing reservations keep their saved pricing model and package/rate snapshots, including when an administrator previews or re-sends their quotation. Catering-only and equipment-rental calculations remain separate.
+
+The **Package and Budget Recommendation** flow starts at **Plan an Event**. Customers with a package in mind continue to the existing booking form; customers who need help use the AI Assistant to provide service, guests, budget, schedule and preferences. The system assembles complete proposals from approved setup recipes and current catalog items, including combinations that do not match a named package. Customers compare inclusions, menu, optional services, pending charges and calculated estimates, then explicitly choose a proposal for review in the booking form or chat. Editing reviewed financial selections requires a fresh package review.
+
+Administrators configure **Package recommendation rules** in Packages before enabling generation. Rules explicitly approve source setup components, fixed/per-guest quantities, service eligibility, guest ranges, compatible additional services and catering-only setup prices. Buffet food and required standard setup retain inclusive per-person pricing; unknown charges never count as a confirmed budget fit. Existing **Additional Charges → Budget rules** remain the approval source for optional removal, reduction, replacement and dependencies. Missing permissions grant no adjustments. Equipment, staffing, dietary feasibility and final arrangements remain subject to team review; estimates do not hold a slot or stock.
+
+Customized reservations store an immutable server-owned package and original budget snapshot with a nullable catalog package ID. Both portals, quotation/document views and reporting resolve the saved package; historical catalog bookings, old budget requests and sent quotation amounts retain their original meaning. Owner-checked proposal references are revalidated before submission and repeated submissions reuse the same saved reservation. Existing drafts and reference photos require explicit reconciliation before proposal handoff.
+
+The server integrates the official OpenAI SDK with **GPT-6 Luna** (`gpt-6-luna`) for assistant conversations and ranking complete package proposals. Voice transcription and spoken replies retain their separate audio models. Live calls default to disabled. Configure the backend key, assistant enable flag and positive daily/monthly spending caps in `apps/api/.env`; never use a browser/Vite key. New package generation shares the assistant allowance and spending controls, including generation invoked inside a chat answer. The former budget-adjustment endpoint remains available for compatibility, using the same text model. Paid provider evaluation remains separate from local verification; fixture-based tests never require an API key or send a live model request.
+
+`npm run test:package-proposals` checks the engine, approval policies, ranking boundary, offline planning, snapshot compatibility, admin revisions and customer handoff with injected fixtures. `npm run test:package-proposals:db` separately verifies both custom service types through selection, booking, quotation revision/acceptance and response-loss recovery in a local transaction that rolls back. `npm run test:package-proposals:ui` checks the guided pages, rental shortcut, stale selections, chat/form conflicts, submitted recovery and admin recipe editor using isolated browser sessions with intercepted API traffic. Browser checks require Playwright and Chrome; `PLAYWRIGHT_MODULE_PATH` can point to a separately installed Playwright module. No live AI call or customer request is created by these checks.
+
+Run `npm run db:migrate` against the intended local development database to add nullable policy/request fields and the proposal snapshot table without resetting existing data. `npm run test:budget` checks compatible pricing, policy validation, admin/customer endpoint access, deterministic budget candidates, the AI adapter, and proposal storage with mocks. `npm test` also covers customer draft/selection behavior. `npm run test:budget:db` is a separate local-only integration check whose pricing, policy, proposal, immutable request and complete quotation/acceptance workflow fixtures roll back and do not deliver notifications.
 
 <img src="packages/shared/public/images/logo.jpg" alt="Tres Marias Catering Services logo" width="150">
 
@@ -259,11 +277,16 @@ absent, the API does not accept Google login. A mismatched configuration shows a
 New customers complete their name, mobile number, and current Terms/Privacy agreement. An existing
 account requires its current password before Google is linked, preserving its account ID and bookings.
 Returning Google users are identified by their Google subject, even if their application email changes.
-For Google accounts using third-party email providers, the existing email-code signup flow confirms
-mailbox ownership first. Google-only users can set their first password through **My profile → Set a
+Every Google sign-in requires the application's six-digit email code before a customer session is
+issued, including returning users and accounts just connected to Google. Codes go to the customer's
+current application email. New Google customers, including Gmail users, confirm the emailed signup
+code before their account is created. Code expiry, resend cooldowns and attempt limits apply; sign-in
+codes are hashed, bound to the account and password version, and consumed once. Google-only users can set their first password through **My profile → Set a
 password**, using an emailed code. The admin authentication flow remains separate.
 
-Validation: `npm run test:google`, `npm run test:google:db` (local MySQL, rolled-back fixtures), and
+The additive migration also creates `customer_google_signins` for pending sign-in codes.
+
+Validation: `npm run test:google`, `npm run test:google:db` (local MySQL, rolled-back or cleaned-up fixtures), and
 `npm run test:google-ui` (running local customer portal, isolated Google/API fixtures). The browser check
 uses Playwright and Chrome; `PLAYWRIGHT_MODULE_PATH` can point to an installed Playwright package.
 These fixture checks do not replace a real Google-account sign-in on an authorized origin.
@@ -456,6 +479,64 @@ For the menu and separately quoted dessert catalogue change, use `npm run catalo
 For an explicitly planned first production initialization, the API workspace's starter command accepts `--force`; running it again would erase existing records. Keep routine live updates on the migration path.
 
 ## Integrations and Uploads
+
+### AI booking assistant
+
+Visitors can ask the clearly identified AI assistant about published services in English, Filipino or
+Taglish. The guest trial permits two completed questions; signed-in customers use a configurable
+20-question daily allowance. Conversation plans and messages expire 24 hours after creation. Human
+customer/admin Messages remain separate from AI conversations.
+
+Customers can complete a reservation request inside chat. **Start reservation**, or a natural-language
+request to book, opens a saved interview with event name, occasion, service, preferred date/time,
+guest count, photographed package cards, buffet menu when applicable, themes, color palettes,
+optional reference photos/design notes, venue logistics, additional services and quantities, dietary
+requests and budget preferences. Already supplied answers are reused. Existing theme-specific color
+schemes and color controls are shared with the booking form. Customers can edit earlier details,
+review the current estimate and explicitly skip optional questions. Selection controls, reviewing and
+uploads do not consume an AI question; natural-language follow-ups do.
+
+Date selection checks the calendar immediately; complete times are checked for overlap, buffers,
+blocked dates and capacity. **Find other schedules** offers up to three nearest same-day times with
+the same duration and up to three later dates within fourteen days, optionally weekends only.
+The customer selects an alternative explicitly. Equipment rentals use pickup/delivery times and
+rental calendar rules. Calendar checks do not hold a slot or establish equipment/staff availability.
+The final submission revalidates current calendar and inventory rules.
+
+Up to five private JPG/PNG/WebP reference photos (20 MB each) can be uploaded in chat. They survive
+reload and guest-to-customer conversation claiming, are shown only through ownership-checked API
+routes and are never sent to the model. Submission transfers the photos to the reservation. Expired
+unsubmitted conversation uploads are cleaned up; reservation photos are retained. Incomplete plans
+can still continue to the existing booking form.
+
+The signed-in customer reviews the saved summary, accepts the Terms of Service and clicks
+**Submit reservation request**. The backend constructs the request from the saved validated plan,
+uses the authenticated customer's identity, and calls the existing booking rules and pricing in the
+same transaction that records the submitted reference. Retries and concurrent submissions return
+that same reference. Submitted plans cannot be edited; **Plan another reservation** starts a fresh
+conversation while preserving the shared question allowance. Activity records identify the customer
+and that the request came through AI Assistant. Buffet target budgets are preserved in the existing
+budget snapshot. The administrator still prepares the final quotation and confirms arrangements;
+personal reservation/payment lookups and administrative AI actions are outside the assistant.
+
+Optional voice provides tap-to-record questions (up to 30 seconds), editable transcripts and spoken
+replies. Text and voice share one question allowance. Existing-answer playback uses no new question.
+The mascot, reduced-motion support and desktop/mobile chat layout remain available.
+
+Paid model calls remain disabled until `apps/api/.env` contains the backend OpenAI key, assistant
+flags and positive daily/monthly budgets in US cents. Models are GPT-6 Luna (Responses), GPT-Transcribe
+and GPT-Realtime-2.1 Mini (spoken replies). No provider key is sent to the browser. Run
+`npm run db:migrate` before an updated installation to add the assistant tables, reservation-plan
+columns, `reference_photos` and `submitted_ref` without resetting existing application data.
+Full configuration and retention details are in the [API guide](apps/api/README.md#guest-and-customer-ai-assistant).
+
+Run `npm run test:assistant` for isolated logic, provider, attachment, transport and submission tests;
+`npm run test:assistant:db` for local MySQL ownership/concurrency and rollback booking integration;
+and `npm run test:assistant:ui` for desktop/mobile intercepted browser scenarios. Browser fixtures
+cover full catering submission, conflicts, buffet/rental branches, guest signup, photos/edit/reload,
+terms reset, duplicate clicks and a lost submission response. These checks make no paid model calls.
+`npm run evaluate:assistant -- --allow-paid` remains an explicit funded live-model pilot; fixtures do
+not establish real-model answer quality, pronunciation, latency or per-question costs.
 
 ### Email
 

@@ -4,7 +4,6 @@ import { formatDate, formatDateTime, formatEventTime, peso, toISODate, todayISO 
 import { statusLabel } from '@tm/shared/src/utils/status.js';
 import { PORTAL_PATHS, emailSubject, oneLine, renderEmail, reservationPath, shorten } from './email.layout.js';
 
-
 const METHOD_NAMES = { qrph: 'QR Ph', bank: 'Bank transfer', cash: 'Cash' };
 
 const PAY_ONLY_HERE =

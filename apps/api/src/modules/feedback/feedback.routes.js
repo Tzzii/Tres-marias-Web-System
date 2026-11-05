@@ -3,14 +3,11 @@ import { validate } from '../../middleware/validate.js';
 import * as schemas from './feedback.schemas.js';
 import * as feedback from './feedback.service.js';
 
-
-
 export const feedbackPublishedRoutes = express.Router();
 
 feedbackPublishedRoutes.get('/', validate({ query: schemas.publishedQuery }), async (req, res) => {
   res.json(await feedback.listPublished({ limit: req.valid.query.limit }));
 });
-
 
 export const feedbackRoutes = express.Router();
 
@@ -20,7 +17,6 @@ feedbackRoutes.get('/', async (req, res) => {
 feedbackRoutes.post('/', validate({ body: schemas.createBody }), async (req, res) => {
   res.status(201).json(await feedback.createFeedback(req.user, req.valid.body));
 });
-
 
 export const feedbackAdminRoutes = express.Router();
 

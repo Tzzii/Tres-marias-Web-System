@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-
 const text = (max) =>
   z
     .string({ error: 'This field is required.' })

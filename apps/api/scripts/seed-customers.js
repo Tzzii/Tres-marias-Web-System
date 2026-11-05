@@ -12,6 +12,7 @@ import { prepareSampleProofs } from '../src/seedData/proofs.js';
 
 const CUSTOMER_TABLES = [
   'customers',
+  'customer_google_signins',
   'reservations',
   'reservation_addons',
   'reservation_activity',
@@ -140,7 +141,7 @@ async function main() {
       OR JSON_UNQUOTE(JSON_EXTRACT(o.meta, '$.ref')) IN (SELECT ref FROM reservations)
       OR JSON_UNQUOTE(JSON_EXTRACT(o.meta, '$.reservationRef')) IN (SELECT ref FROM reservations)`);
     await conn.query(
-      `DELETE FROM login_attempts WHERE scope IN ('customer', 'signup-code', 'reset-code', 'change-code', 'customer-reauth', 'code-email')`
+      `DELETE FROM login_attempts WHERE scope IN ('customer', 'google-code', 'signup-code', 'reset-code', 'change-code', 'customer-reauth', 'code-email')`
     );
     await conn.query("DELETE FROM inventory_allocations WHERE reservation_ref <> 'none'");
     await conn.query('DELETE FROM inventory_history WHERE ref IS NOT NULL');

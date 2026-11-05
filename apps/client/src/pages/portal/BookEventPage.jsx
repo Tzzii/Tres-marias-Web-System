@@ -9,9 +9,26 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
+import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
+import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
+import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
+import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
+import TableBarOutlinedIcon from '@mui/icons-material/TableBarOutlined';
 import {
   AlertBanner,
   BUFFET_DRINKS,
@@ -28,6 +45,7 @@ import {
   MenuPicker,
   DessertFields,
   DESSERT_ADDON_ID,
+  menuCount,
   menuProblem,
   buffetDrinks,
   dessertSummary,
@@ -47,8 +65,10 @@ import {
   bookingOccasion,
   calendarApi,
   catalogApi,
+  packageProposalApi,
   cleanStyling,
   computeQuote,
+  INCLUSIVE_PRICING_MODEL,
   decorReminders,
   endTimeProblem,
   eventHours,
@@ -80,6 +100,19 @@ import { clearDraft, clearIntent, readDraft, readIntent, saveDraft } from '../..
 import { cleanDraftReferencePhotos } from '@tm/shared/domain/referencePhoto.js';
 import Section from './booking/BookingSection.jsx';
 import { QuoteLines, RentalQuoteLines } from './booking/BookingSummary.jsx';
+import PackageAndBudgetSection, { PackageBudgetSummary } from './booking/PackageAndBudgetSection.jsx';
+import {
+  applyProposalHandoff,
+  canClearRecoveredDraft,
+  cleanProposalReference,
+  loadProposalForRestore,
+  proposalDraftConflicts,
+  proposalFormPatch,
+  proposalPatchIsStale,
+  sameProposalReference
+} from '../../lib/packageProposalDraft.js';
+import { cleanBudgetDraft, budgetSubmission } from '../../lib/budgetDraft.js';
+import { applyAssistantBooking } from '@tm/shared/domain/assistantBooking.js';
 import {
   SECTIONS,
   sectionForField,
@@ -91,9 +124,37 @@ import {
   DATES_LOADING
 } from '../../lib/bookingForm.js';
 
+const SECTION_ICONS = {
+  details: EventNoteOutlinedIcon,
+  service: CategoryOutlinedIcon,
+  package: Inventory2OutlinedIcon,
+  styling: PaletteOutlinedIcon,
+  items: Inventory2OutlinedIcon,
+  food: RestaurantMenuOutlinedIcon,
+  venue: PlaceOutlinedIcon,
+  addons: AddCircleOutlineRoundedIcon,
+  budget: AccountBalanceWalletOutlinedIcon,
+  review: FactCheckOutlinedIcon
+};
+
+const SECTION_STAGES = {
+  details: 'Stage 1 · Celebration Basics',
+  service: 'Stage 1 · Celebration Basics',
+  package: 'Stage 2 · Setup, Menu & Style',
+  styling: 'Stage 2 · Setup, Menu & Style',
+  items: 'Stage 2 · Equipment Selection',
+  food: 'Stage 2 · Setup, Menu & Style',
+  venue: 'Stage 3 · Venue & Preferences',
+  addons: 'Stage 3 · Venue & Preferences',
+  budget: 'Stage 3 · Venue & Preferences',
+  review: 'Stage 4 · Final Review'
+};
+
+const OPTIONAL_SECTIONS = new Set(['styling', 'addons', 'budget']);
+
 const FORM_COLUMNS = {
   gridTemplateColumns: 'minmax(0, 1fr)',
-  '@container booking-form (min-width: 560px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }
+  '@container booking-form (min-width: 520px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }
 };
 const SUMMARY_LAYOUT = '@container portal-content (min-width: 980px)';
 const WIDE_LAYOUT = '@container portal-content (min-width: 1280px)';
@@ -115,11 +176,15 @@ export default function BookEventPage() {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
+  const [recoveredReservation, setRecoveredReservation] = useState('');
+  const recoveredReference = useRef(null);
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [draftSaveFailed, setDraftSaveFailed] = useState(false);
+  const [proposalVerified, setProposalVerified] = useState(false);
+  const [proposalHandoff, setProposalHandoff] = useState(null);
   useEffect(() => {
     if (!draftSaveFailed && !photoBusy) return undefined;
     const warn = (event) => {
@@ -141,13 +206,14 @@ export default function BookEventPage() {
     initialised.current = true;
     const draft = readDraft(user.id);
     const hasDraft = Boolean(draft && draft.form);
-    const intent = readIntent();
+    const intent = readIntent(user.id);
     const intentIsNewer = Boolean(intent && (!hasDraft || !draft.savedAt || intent.savedAt > draft.savedAt));
 
     const base = hasDraft
       ? { ...EMPTY, ...Object.fromEntries(Object.entries(draft.form).filter(([key]) => key in EMPTY)) }
       : { ...EMPTY };
     base.styling = draftStyling(base.styling);
+    base.budgetDraft = cleanBudgetDraft(base.budgetDraft);
     base.referencePhotos = cleanDraftReferencePhotos(draft?.form?.referencePhotos ?? draft?.form?.referencePhoto);
     const picks = intentIsNewer ? intent : {};
     const pkg = catalog.data.packages.find((p) => p.slug === (params.get('package') || picks.packageSlug));
@@ -157,21 +223,106 @@ export default function BookEventPage() {
         : pkg && isRental(base.serviceType)
           ? { serviceType: EMPTY.serviceType }
           : {};
+    const reviewed = applyAssistantBooking(base, picks, catalog.data);
     setForm({
-      ...base,
+      ...reviewed,
       ...(picks.occasion
         ? { occasion: picks.occasion, ...(picks.occasion === OCCASION_OTHER ? {} : { occasionOther: '' }) }
         : {}),
       ...(picks.startTime ? { startTime: picks.startTime } : {}),
-      endTime:
-        picks.endTime ||
-        (picks.startTime ? initialEndTime(picks.startTime) : base.endTime || initialEndTime(base.startTime)),
+      endTime: picks.clearedFields?.includes('endTime')
+        ? ''
+        : picks.endTime ||
+          (picks.startTime ? initialEndTime(picks.startTime) : reviewed.endTime || initialEndTime(reviewed.startTime)),
       ...(picks.guests ? { guests: String(picks.guests) } : {}),
-      ...(pkg ? { packageId: pkg.id, ...serviceFor } : {}),
+      ...(pkg
+        ? {
+            packageId: pkg.id,
+            packageProposalRef: null,
+            packageProposalDisplay: null,
+            packageProposalContext: null,
+            packageProposalStale: false,
+            ...serviceFor
+          }
+        : {}),
+      ...(pkg && pkg.kind !== 'rental' && ['Buffet and Catering', 'Catering only'].includes(picks.serviceType)
+        ? { serviceType: picks.serviceType }
+        : {}),
       ...(params.get('date') || picks.date ? { date: params.get('date') || picks.date } : {})
     });
     if (hasDraft) setSavedAt(draft.savedAt);
   }, [catalog.data, user.id, params]);
+
+  const referenceKey = JSON.stringify(form.packageProposalRef);
+  const routeProposal = params.get('proposal'),
+    routeOption = params.get('option'),
+    routeRevision = Number(params.get('revision'));
+  useEffect(() => {
+    const reference = routeProposal
+      ? cleanProposalReference({ proposalId: routeProposal, optionId: routeOption, revision: routeRevision })
+      : cleanProposalReference(form.packageProposalRef);
+    setProposalVerified(false);
+    setRecoveredReservation('');
+    recoveredReference.current = null;
+    if (!reference || !catalog.data) return undefined;
+    let live = true;
+    const owner = user.id;
+    const initialSaved = readDraft(owner);
+    const initialIntent = readIntent(owner);
+    (async () => {
+      try {
+        const { proposal, selection, reservationRef, submittedAt } = await loadProposalForRestore(
+          reference,
+          packageProposalApi
+        );
+        if (!live) return;
+        if (reservationRef) {
+          recoveredReference.current = reference;
+          setRecoveredReservation(reservationRef);
+          setFormError('');
+          // Only the untouched, identical saved form is the response-loss retry we may clear and route automatically.
+          if (
+            !touched.current &&
+            !(initialIntent?.savedAt > submittedAt) &&
+            canClearRecoveredDraft(initialSaved, readDraft(owner), reference, submittedAt)
+          ) {
+            clearDraft(owner);
+            const intent = readIntent(owner);
+            if (
+              sameProposalReference(intent?.packageProposalRef, reference) &&
+              intent.savedAt <= submittedAt &&
+              JSON.stringify(intent) === JSON.stringify(initialIntent)
+            )
+              clearIntent();
+            notify(`Reservation ${reservationRef} was already sent. Opening your saved request.`, 'success');
+            navigate(`/portal/reservations/${encodeURIComponent(reservationRef)}`, { replace: true });
+          }
+          return;
+        }
+        const patch = proposalFormPatch(proposal, selection);
+        if (!live) return;
+        if (routeProposal)
+          setProposalHandoff({ patch, owner, conflicts: proposalDraftConflicts(readDraft(owner)?.form, patch) });
+        else {
+          setForm((current) => ({
+            ...current,
+            packageProposalDisplay: selection.option,
+            packageProposalContext: proposal.context,
+            packageProposalStale: current.packageProposalStale || proposalPatchIsStale(current, patch)
+          }));
+          setProposalVerified(true);
+        }
+      } catch (failure) {
+        if (live) {
+          setFormError(`${failure.message} Your custom package needs a fresh review before submission.`);
+          setForm((current) => ({ ...current, packageProposalStale: true }));
+        }
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [referenceKey, routeProposal, routeOption, routeRevision, user.id, catalog.data]);
 
   useEffect(() => {
     if (form.occasion === OCCASION_OTHER && justPickedOther.current && occasionBox.current) occasionBox.current.focus();
@@ -214,7 +365,11 @@ export default function BookEventPage() {
   }, [active]);
 
   const data = catalog.data;
-  const pkg = data ? data.packages.find((p) => p.id === form.packageId) : null;
+  const pkg = form.packageProposalRef
+    ? form.packageProposalDisplay?.packageSnapshot || null
+    : data
+      ? data.packages.find((p) => p.id === form.packageId)
+      : null;
   const rentalPkg = data ? data.packages.find(isRentalPackage) || null : null;
   const packages = data ? data.packages.filter((p) => !isRentalPackage(p)) : [];
   const rental = isRental(form.serviceType);
@@ -239,6 +394,9 @@ export default function BookEventPage() {
   const reminders = data && !rental ? decorReminders(form.styling.notes, data.addons, form.addonIds) : [];
   const quote = computeQuote({
     pkg,
+    pricingModel: form.packageProposalRef
+      ? form.packageProposalDisplay?.estimate?.pricingModel || INCLUSIVE_PRICING_MODEL
+      : INCLUSIVE_PRICING_MODEL,
     serviceType: form.serviceType,
     guests: rental ? 0 : Number(form.guests) || 0,
     pricePerPlate: data ? data.pricePerPlate : 0,
@@ -251,11 +409,14 @@ export default function BookEventPage() {
     addonQty: form.addonQty,
     addonPrices: addonPriceMap(chosenAddons)
   });
-  const knownTotal = quote.net;
+  const knownTotal =
+    form.packageProposalRef && !form.packageProposalStale && form.packageProposalDisplay
+      ? form.packageProposalDisplay.estimate.knownTotal
+      : quote.net;
   const packageItems = pkg && !rental ? packageItemsFor(pkg, Number(form.guests) || 0) : [];
   const extraGuests = rental ? 0 : quote.extraGuests;
-  const extraNote = extraGuests ? ` + equipment for ${extraGuests} extra guests (to be quoted)` : '';
-  const plusQuoted = extraGuests ? ' + quoted' : '';
+  const extraNote = extraGuests && !buffet ? ` + equipment for ${extraGuests} extra guests (to be quoted)` : '';
+  const plusQuoted = (extraGuests && !buffet) || chosenAddons.some((a) => a.price == null) ? ' + quoted' : '';
   const addonNote = quote.addons ? ` + additional charges ${peso(quote.addons)}` : '';
   const quotedNote = chosenAddons.some((a) => !a.price)
     ? ' Charges marked "To be quoted" are priced in your quotation.'
@@ -288,7 +449,11 @@ export default function BookEventPage() {
 
   const update = (patch) => {
     touched.current = true;
-    setForm((f) => ({ ...f, ...patch }));
+    setForm((f) => ({
+      ...f,
+      ...patch,
+      ...(patch.packageProposalRef !== null && proposalPatchIsStale(f, patch) ? { packageProposalStale: true } : {})
+    }));
     setErrors((e) => {
       const next = { ...e };
       Object.keys(patch).forEach((k) => delete next[k]);
@@ -303,7 +468,10 @@ export default function BookEventPage() {
 
   const updateStyling = (patch) => {
     touched.current = true;
-    setForm((f) => ({ ...f, styling: { ...f.styling, ...patch } }));
+    setForm((f) => {
+      const styling = { ...f.styling, ...patch };
+      return { ...f, styling, ...(proposalPatchIsStale(f, { styling }) ? { packageProposalStale: true } : {}) };
+    });
     setErrors((e) => {
       const next = { ...e };
       Object.keys(patch).forEach((k) => delete next[`styling.${k}`]);
@@ -322,7 +490,15 @@ export default function BookEventPage() {
   };
 
   const chooseService = (value) => {
-    if (isRental(value)) update({ serviceType: value, packageId: rentalPkg.id });
+    if (isRental(value))
+      update({
+        serviceType: value,
+        packageId: rentalPkg.id,
+        packageProposalRef: null,
+        packageProposalDisplay: null,
+        packageProposalContext: null,
+        packageProposalStale: false
+      });
     else update({ serviceType: value, packageId: pkg && isRentalPackage(pkg) ? '' : form.packageId });
   };
 
@@ -496,6 +672,17 @@ export default function BookEventPage() {
 
   const submit = async () => {
     if (busy || photoBusy) return;
+    if (recoveredReservation && sameProposalReference(form.packageProposalRef, recoveredReference.current)) {
+      navigate(`/portal/reservations/${encodeURIComponent(recoveredReservation)}`);
+      return;
+    }
+    if (form.packageProposalRef && (!proposalVerified || form.packageProposalStale)) {
+      setFormError(
+        'Your custom package needs a fresh review. Open Package and Budget to adjust your answers and generate current options.'
+      );
+      scrollTo('budget');
+      return;
+    }
     const found = validate();
     setErrors(found);
     setFormError('');
@@ -527,6 +714,7 @@ export default function BookEventPage() {
           : {
               ...form,
               agreeTerms: agreed,
+              budgetRequest: form.packageProposalRef ? undefined : budgetSubmission(form, data),
               guests: Number(form.guests),
               menu: form.menu,
               styling,
@@ -540,11 +728,18 @@ export default function BookEventPage() {
       navigate('/portal', { replace: true });
     } catch (error) {
       setBusy(false);
+      if (error.code === 'CATALOG_CHANGED') catalog.reload();
+      if (error.code === 'PROPOSAL_STALE' && error.meta?.allowManual)
+        update({ budgetDraft: { ...cleanBudgetDraft(form.budgetDraft), proposalRef: null } });
       if (error.meta && error.meta.field) {
         setErrors((e) => ({ ...e, [error.meta.field]: error.message }));
         scrollTo(sectionForField(error.meta.field));
       }
-      setFormError(error.message);
+      setFormError(
+        error.code === 'PROPOSAL_STALE' && error.meta?.allowManual
+          ? `${error.message} The expired link has been removed. Your selections remain saved; submit again to continue manually.`
+          : error.message
+      );
     }
   };
 
@@ -582,33 +777,113 @@ export default function BookEventPage() {
 
   const sectionHasError = (key) => Object.keys(errors).some((f) => sectionForField(f) === key);
   const menuComplete = !menuProblem(form.menu);
+  const dishCount = menuCount(form.menu);
+  const totalRentalPieces = rentalChosen.reduce((sum, line) => sum + line.qty, 0);
   const sectionDone = {
-    details:
+    details: Boolean(
       form.eventName &&
       !bookingOccasion(form.occasion, form.occasionOther).problem &&
       form.date &&
       form.startTime &&
-      (rental || (form.endTime && form.guests)),
+      (rental || (form.endTime && form.guests))
+    ),
     service: Boolean(form.serviceType),
     package: Boolean(pkg),
     styling: (!stylingEmpty(styling) || Boolean(form.referencePhotos.length)) && !stylingProblem(styling),
     items: rentalChosen.length > 0,
     food: menuComplete,
-    venue: rental && !delivered ? true : form.venueName && form.venueAddress && form.city,
+    venue: Boolean(rental && !delivered ? true : form.venueName && form.venueAddress && form.city),
     addons: chosenAddons.length > 0,
-    review: false
+    budget: Boolean(form.budgetDraft?.amount),
+    review: Boolean(agreed)
+  };
+  const sectionSummary = {
+    details: [form.date ? formatDate(form.date) : '', !rental && form.guests ? `${form.guests} guests` : '']
+      .filter(Boolean)
+      .join(' · '),
+    service: form.serviceType || '',
+    package: pkg ? pkg.name : '',
+    styling:
+      (styling && themeLabel(styling)) ||
+      (form.referencePhotos.length ? `${form.referencePhotos.length} photo(s)` : ''),
+    items: rentalChosen.length ? `${totalRentalPieces} pcs (${rentalChosen.length} items)` : '',
+    food: `${dishCount}/4 dishes`,
+    venue: rental ? (delivered ? form.city || 'Delivery' : 'Store pick-up') : form.venueName || form.city || '',
+    addons: chosenAddons.length ? `${chosenAddons.length} selected` : '',
+    budget: form.budgetDraft?.amount ? peso(Number(form.budgetDraft.amount)) : '',
+    review: agreed ? 'Terms accepted' : ''
   };
   const sections = SECTIONS.filter(([key]) =>
-    rental ? !['package', 'styling', 'food', 'addons'].includes(key) : key !== 'items' && (key !== 'food' || buffet)
+    rental
+      ? !['package', 'styling', 'food', 'addons', 'budget'].includes(key)
+      : key !== 'items' && (key !== 'food' || buffet)
   ).map(([key, label, short]) => [
     key,
     rental && key === 'venue' ? 'Pick Up or Delivery' : label,
     rental && key === 'venue' ? 'Pick-up / delivery' : short
   ]);
   const sectionNo = (key) => sections.findIndex(([k]) => k === key) + 1;
+  const nextSectionFor = (key) => {
+    const idx = sections.findIndex(([k]) => k === key);
+    return idx >= 0 && idx < sections.length - 1 ? sections[idx + 1] : null;
+  };
+  const requiredSections = sections.filter(([key]) => !OPTIONAL_SECTIONS.has(key));
+  const completedRequired = requiredSections.filter(([key]) => sectionDone[key]).length;
 
   return (
-    <>
+    <Box sx={{ maxWidth: 1120, mx: 'auto' }}>
+      <Dialog
+        open={Boolean(proposalHandoff)}
+        onClose={() => {
+          setProposalHandoff(null);
+          navigate('/portal/book', { replace: true });
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Review this custom package</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {proposalHandoff?.conflicts.length
+              ? `This replaces your saved ${proposalHandoff.conflicts.join(', ')}. `
+              : 'Add this reviewed package to your reservation. '}
+            Your event name, venue, access notes and reference photos stay saved. Any different food notes stay saved
+            and require a fresh package review.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setProposalHandoff(null);
+              navigate('/portal/book', { replace: true });
+            }}
+          >
+            Keep current form
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              try {
+                const latest = readDraft(user.id)?.form || form;
+                const next = applyProposalHandoff(user.id, proposalHandoff.owner, latest, proposalHandoff.patch, {
+                  confirmed: true
+                });
+                if (!saveDraft(user.id, next))
+                  throw new Error('Your browser could not save this package. Try again after freeing storage.');
+                setForm({ ...EMPTY, ...next });
+                touched.current = true;
+                setProposalVerified(true);
+                setProposalHandoff(null);
+                navigate('/portal/book', { replace: true });
+              } catch (failure) {
+                setFormError(failure.message);
+              }
+            }}
+          >
+            Use reviewed package
+          </Button>
+        </DialogActions>
+      </Dialog>
       <PageHeader
         crumbs={[{ label: 'My Reservations', to: '/portal/reservations' }, { label: 'Book an Event' }]}
         title="Book an Event"
@@ -644,90 +919,229 @@ export default function BookEventPage() {
           and try again before leaving this page.
         </AlertBanner>
       )}
+      {recoveredReservation && (
+        <AlertBanner tone="success" sx={{ mb: 2 }}>
+          This package was already submitted as {recoveredReservation}. Your current form has been preserved.{' '}
+          <Button onClick={() => navigate(`/portal/reservations/${encodeURIComponent(recoveredReservation)}`)}>
+            View saved request
+          </Button>
+        </AlertBanner>
+      )}
 
-      {data && (
-        <DashCard sx={{ mb: 2.5, py: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Plan your celebration, one detail at a time</Typography>
-            <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>
-              Your request is reviewed before you accept a quotation or pay.
-            </Typography>
-          </Box>
-          <LinearProgress
-            aria-label="Current booking form section"
-            variant="determinate"
-            value={(Math.max(1, sectionNo(active)) / sections.length) * 100}
-            sx={{ height: 5, borderRadius: 9 }}
-          />
-          <Box sx={{ mt: 1.5, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-            {[
-              ['Event', 'details'],
-              ['Service & setup', rental ? 'items' : 'package'],
-              ['Venue & preferences', 'venue'],
-              ['Review & submit', 'review']
-            ].map(([label, key], i) => (
-              <Button
-                key={key}
-                size="small"
-                variant={active === key ? 'contained' : 'text'}
-                onClick={() => scrollTo(key)}
+      {data ? (
+        <DashCard sx={{ mb: 2, p: { xs: 2, sm: 2.25 }, borderRadius: 2.5, borderTop: `3px solid ${tokens.gold}` }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1.45fr) minmax(260px, 0.9fr)' },
+              gap: { xs: 2, md: 2.5 },
+              alignItems: 'center'
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  flexWrap: 'wrap',
+                  gap: 1.25,
+                  mb: 1.25
+                }}
               >
-                {i + 1}. {label}
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.textPrimary }}>
+                    Plan your celebration, one detail at a time
+                  </Typography>
+                  <Typography sx={{ mt: 0.25, fontSize: 12.5, color: tokens.textSecondary }}>
+                    Your request is reviewed before you accept a quotation or pay.
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 0.6,
+                    px: 1.15,
+                    py: 0.35,
+                    borderRadius: 999,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: completedRequired === requiredSections.length ? tokens.successText : tokens.goldText,
+                    backgroundColor:
+                      completedRequired === requiredSections.length ? tokens.successBg : tokens.goldSubtle,
+                    border: `1px solid ${
+                      completedRequired === requiredSections.length ? tokens.successBorder : tokens.shellBorder
+                    }`
+                  }}
+                >
+                  <CheckCircleRoundedIcon sx={{ fontSize: 14 }} />
+                  {completedRequired} of {requiredSections.length} required steps ready
+                </Box>
+              </Box>
+
+              <LinearProgress
+                aria-label="Current booking form section"
+                variant="determinate"
+                value={(Math.max(1, sectionNo(active)) / sections.length) * 100}
+                sx={{
+                  height: 5,
+                  borderRadius: 999,
+                  backgroundColor: tokens.surfaceMuted,
+                  '& .MuiLinearProgress-bar': { backgroundColor: tokens.gold }
+                }}
+              />
+            </Box>
+
+            <Box
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                backgroundColor: tokens.goldWash,
+                border: `1px solid ${tokens.shellBorder}`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: 1,
+                minWidth: 0
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
+                <Box
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 1.5,
+                    flexShrink: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    backgroundColor: tokens.goldSubtle,
+                    color: tokens.goldText
+                  }}
+                >
+                  <AutoAwesomeOutlinedIcon sx={{ fontSize: 16 }} />
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: tokens.textPrimary }}>
+                    AI Event Concierge
+                  </Typography>
+                  <Typography sx={{ mt: 0.15, fontSize: 11.5, lineHeight: 1.45, color: tokens.textSecondary }}>
+                    Not sure which package, menu, or budget setup fits best? Let our assistant pre-fill your plan.
+                  </Typography>
+                </Box>
+              </Box>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<AutoAwesomeOutlinedIcon sx={{ fontSize: 15 }} />}
+                onClick={() => navigate('/portal/assistant')}
+                sx={{
+                  borderRadius: 999,
+                  alignSelf: 'flex-start',
+                  backgroundColor: tokens.cardLight,
+                  fontSize: 12,
+                  px: 1.35,
+                  py: 0.35
+                }}
+              >
+                Questions about your event? Ask the AI Assistant
               </Button>
-            ))}
+            </Box>
           </Box>
         </DashCard>
+      ) : (
+        <Button onClick={() => navigate('/portal/assistant')} sx={{ mb: 2 }}>
+          Questions about your event? Ask the AI Assistant
+        </Button>
       )}
 
       <Box
         ref={chipBar}
-        className="tm-scroll"
+        component="nav"
+        aria-label="Form sections"
         sx={{
           display: 'flex',
-          [WIDE_LAYOUT]: { display: 'none' },
           position: 'sticky',
-          top: tokens.headerHeight,
-          zIndex: 5,
+          top: tokens.headerHeight + 8,
+          zIndex: 8,
           gap: 0.75,
           overflowX: 'auto',
-          py: 1,
-          mb: 2,
-          backgroundColor: tokens.shellScrim,
-          backdropFilter: 'blur(10px)'
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          '&::-webkit-scrollbar': { display: 'none' },
+          px: 1.25,
+          py: 0.85,
+          mb: 2.5,
+          borderRadius: 2,
+          backgroundColor: tokens.cardLight,
+          border: `1px solid ${tokens.cardLightBorder}`,
+          boxShadow: tokens.shadowDash
         }}
       >
-        {sections.map(([key, , short], i) => (
-          <ButtonBase
-            key={key}
-            data-section={key}
-            onClick={() => scrollTo(key)}
-            aria-current={active === key ? 'true' : undefined}
-            sx={{
-              flexShrink: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.6,
-              px: 1.5,
-              py: 0.75,
-              borderRadius: 999,
-              fontFamily: 'inherit',
-              fontSize: 12.5,
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              color: active === key ? tokens.onGold : sectionHasError(key) ? tokens.dangerSoft : tokens.textOnDarkSoft,
-              backgroundColor: active === key ? tokens.gold : tokens.shellInset,
-              border: `1px solid ${sectionHasError(key) ? 'rgba(239,68,68,0.5)' : 'transparent'}`,
-              '@media (pointer: coarse)': { py: 1 }
-            }}
-          >
-            {sectionDone[key] ? (
-              <CheckCircleRoundedIcon sx={{ fontSize: 15, color: active === key ? tokens.onGold : tokens.green }} />
-            ) : (
-              <span>{i + 1}</span>
-            )}
-            {short}
-          </ButtonBase>
-        ))}
+        {sections.map(([key, , short], i) => {
+          const isCurrent = active === key;
+          const hasErr = sectionHasError(key);
+          const isDone = sectionDone[key];
+          return (
+            <ButtonBase
+              key={key}
+              data-section={key}
+              onClick={() => scrollTo(key)}
+              aria-current={isCurrent ? 'true' : undefined}
+              sx={{
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.65,
+                px: 1.25,
+                py: 0.6,
+                borderRadius: 999,
+                fontFamily: 'inherit',
+                fontSize: 12,
+                fontWeight: isCurrent ? 700 : 600,
+                whiteSpace: 'nowrap',
+                color: isCurrent ? tokens.onGold : hasErr ? tokens.dangerText : tokens.textPrimary,
+                backgroundColor: isCurrent ? tokens.gold : hasErr ? tokens.dangerBg : tokens.surfaceSubtle,
+                border: `1px solid ${
+                  isCurrent
+                    ? tokens.goldDark
+                    : hasErr
+                      ? tokens.dangerBorder
+                      : isDone
+                        ? tokens.successBorder
+                        : tokens.cardLightBorder
+                }`,
+                transition: 'background-color 0.15s ease, border-color 0.15s ease',
+                '&:hover': {
+                  borderColor: isCurrent ? tokens.goldDark : tokens.gold
+                },
+                '@media (pointer: coarse)': { py: 0.8 }
+              }}
+            >
+              {isDone ? (
+                <CheckCircleRoundedIcon sx={{ fontSize: 14, color: isCurrent ? tokens.onGold : tokens.green }} />
+              ) : (
+                <Box
+                  component="span"
+                  sx={{
+                    width: 17,
+                    height: 17,
+                    borderRadius: '50%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    backgroundColor: isCurrent ? 'rgba(0,0,0,0.14)' : tokens.surfaceMuted,
+                    color: isCurrent ? tokens.onGold : tokens.textSecondary
+                  }}
+                >
+                  {i + 1}
+                </Box>
+              )}
+              <span>{short}</span>
+            </ButtonBase>
+          );
+        })}
       </Box>
 
       {!data ? (
@@ -745,64 +1159,18 @@ export default function BookEventPage() {
           sx={{
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr)',
-            [SUMMARY_LAYOUT]: { gridTemplateColumns: 'minmax(0, 1fr) 288px', pb: 0 },
-            [WIDE_LAYOUT]: { gridTemplateColumns: '180px minmax(0, 1fr) 288px' },
-            gap: { xs: 2, md: 2.5 },
+            [SUMMARY_LAYOUT]: { gridTemplateColumns: 'minmax(0, 1fr) 296px', pb: 0 },
+            [WIDE_LAYOUT]: { gridTemplateColumns: 'minmax(0, 1fr) 316px' },
+            gap: { xs: 2.5, md: 3 },
             alignItems: 'start',
             pb: '140px'
           }}
         >
           <Box
-            component="nav"
-            aria-label="Form sections"
-            sx={{
-              display: 'none',
-              [WIDE_LAYOUT]: { display: 'block' },
-              position: 'sticky',
-              top: tokens.headerHeight + 24
-            }}
-          >
-            <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.textOnDarkMuted, mb: 1, px: 1.5 }}>
-              On This Page
-            </Typography>
-            {sections.map(([key, label], i) => (
-              <ButtonBase
-                key={key}
-                onClick={() => scrollTo(key)}
-                aria-current={active === key ? 'true' : undefined}
-                sx={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  px: 1.5,
-                  py: 1,
-                  borderRadius: 1.25,
-                  fontFamily: 'inherit',
-                  fontSize: 13.5,
-                  fontWeight: active === key ? 700 : 500,
-                  textAlign: 'left',
-                  color:
-                    active === key ? tokens.goldText : sectionHasError(key) ? tokens.dangerSoft : tokens.textOnDarkSoft,
-                  backgroundColor: active === key ? 'rgba(197,160,89,0.14)' : 'transparent',
-                  borderLeft: `3px solid ${active === key ? tokens.gold : 'transparent'}`
-                }}
-              >
-                {sectionDone[key] ? (
-                  <CheckCircleRoundedIcon sx={{ fontSize: 16, color: tokens.green }} />
-                ) : (
-                  <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 16, opacity: 0.5 }} />
-                )}
-                {i + 1} · {label}
-              </ButtonBase>
-            ))}
-          </Box>
-
-          <Box
             sx={{
               display: 'flex',
               flexDirection: 'column',
-              gap: { xs: 2, md: 2.5 },
+              gap: 2.5,
               minWidth: 0,
               containerType: 'inline-size',
               containerName: 'booking-form'
@@ -817,8 +1185,15 @@ export default function BookEventPage() {
               subtitle={
                 rental ? 'Tell us what the items are for and when you need them' : 'Tell us about the celebration'
               }
+              done={sectionDone.details}
+              active={active === 'details'}
+              summary={sectionSummary.details}
+              stageLabel={SECTION_STAGES.details}
+              icon={SECTION_ICONS.details}
+              nextSection={nextSectionFor('details')}
+              onNext={scrollTo}
             >
-              <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <FormField
                   id="f-eventName"
                   label="Event name"
@@ -828,91 +1203,109 @@ export default function BookEventPage() {
                   onChange={(e) => update({ eventName: e.target.value })}
                   error={errors.eventName}
                   placeholder="e.g. Santos–Reyes Wedding Reception"
-                  sx={{ gridColumn: { sm: '1 / -1' } }}
                   inputProps={{ maxLength: 80 }}
                 />
-                <SelectField
-                  id="f-occasion"
-                  label="Occasion"
-                  required
-                  value={form.occasion}
-                  onChange={(e) => pickOccasion(e.target.value)}
-                  options={OCCASIONS}
-                  placeholder="Select an occasion"
-                  error={errors.occasion}
-                  sx={{ gridColumn: { sm: '1 / -1' } }}
-                />
-                {form.occasion === OCCASION_OTHER && (
-                  <FormField
-                    ref={occasionBox}
-                    id="f-occasionOther"
-                    label="Your occasion"
+
+                <Box
+                  sx={{
+                    display: 'grid',
+                    ...FORM_COLUMNS,
+                    gap: 2
+                  }}
+                >
+                  <SelectField
+                    id="f-occasion"
+                    label="Occasion"
                     required
-                    value={form.occasionOther}
-                    onChange={(e) => update({ occasionOther: e.target.value })}
-                    error={errors.occasionOther}
-                    placeholder="e.g. Baby Shower, Despedida, Housewarming"
-                    inputProps={{ maxLength: OCCASION_OTHER_RANGE.max }}
-                    sx={{ gridColumn: { sm: '1 / -1' } }}
+                    value={form.occasion}
+                    onChange={(e) => pickOccasion(e.target.value)}
+                    options={OCCASIONS}
+                    placeholder="Select an occasion"
+                    error={errors.occasion}
+                    sx={rental ? { gridColumn: '1 / -1' } : undefined}
                   />
-                )}
-                <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
-                  <DateField
-                    id="f-date"
-                    label={rental ? 'Date you need the items' : 'Event date'}
-                    required
-                    inline
-                    rental={rental}
-                    value={form.date}
-                    onChange={(v) => update({ date: v })}
-                    error={errors.date}
-                  />
+                  {!rental && (
+                    <FormField
+                      id="f-guests"
+                      label="Guest count"
+                      autoComplete="off"
+                      required
+                      value={form.guests}
+                      onChange={(e) => updateGuests(e.target.value)}
+                      error={errors.guests}
+                      hint={
+                        pkg
+                          ? `Default for ${pkg.name}: ${pkg.guests} guests${extraGuests ? `. The package grows to your ${form.guests} guests; the ${extraGuests} extra are priced in your quotation.` : ''}`
+                          : `Between ${RULES.minGuests} and ${RULES.maxGuests} guests`
+                      }
+                      inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }}
+                    />
+                  )}
+                  {form.occasion === OCCASION_OTHER && (
+                    <FormField
+                      ref={occasionBox}
+                      id="f-occasionOther"
+                      label="Your occasion"
+                      required
+                      value={form.occasionOther}
+                      onChange={(e) => update({ occasionOther: e.target.value })}
+                      error={errors.occasionOther}
+                      placeholder="e.g. Baby Shower, Despedida, Housewarming"
+                      inputProps={{ maxLength: OCCASION_OTHER_RANGE.max }}
+                      sx={{ gridColumn: '1 / -1' }}
+                    />
+                  )}
                 </Box>
-                <TimeField
-                  id="f-startTime"
-                  label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start time'}
+
+                <Divider sx={{ my: 0.25 }} />
+
+                <DateField
+                  id="f-date"
+                  label={rental ? 'Date you need the items' : 'Event date'}
                   required
-                  value={form.startTime}
-                  onChange={(v) =>
-                    update({
-                      startTime: v,
-                      endTime: form.endTime ? shiftEndTime(form.startTime, form.endTime, v) : initialEndTime(v)
-                    })
-                  }
-                  error={errors.startTime}
-                  min={RULES.earliestStart}
-                  max={RULES.latestStart}
-                  step={30}
+                  inline
+                  rental={rental}
+                  value={form.date}
+                  onChange={(v) => update({ date: v })}
+                  error={errors.date}
                 />
-                {!rental && (
-                  <EndTimeField
-                    id="f-endTime"
+
+                <Box
+                  sx={{
+                    display: 'grid',
+                    ...FORM_COLUMNS,
+                    gap: 2
+                  }}
+                >
+                  <TimeField
+                    id="f-startTime"
+                    label={rental ? (delivered ? 'Delivery time' : 'Pick-up time') : 'Start time'}
                     required
-                    startTime={form.startTime}
-                    sixHourFee={data.sixHourFee ?? DEFAULT_SIX_HOUR_FEE}
-                    value={form.endTime}
-                    onChange={(v) => update({ endTime: v })}
-                    error={errors.endTime}
-                    hint={`Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`}
-                  />
-                )}
-                {!rental && (
-                  <FormField
-                    id="f-guests"
-                    label="Guest count"
-                    autoComplete="off"
-                    required
-                    value={form.guests}
-                    onChange={(e) => updateGuests(e.target.value)}
-                    error={errors.guests}
-                    hint={
-                      pkg
-                        ? `Default for ${pkg.name}: ${pkg.guests} guests${extraGuests ? `. The package grows to your ${form.guests} guests; the ${extraGuests} extra are priced in your quotation.` : ''}`
-                        : `Between ${RULES.minGuests} and ${RULES.maxGuests} guests`
+                    value={form.startTime}
+                    onChange={(v) =>
+                      update({
+                        startTime: v,
+                        endTime: form.endTime ? shiftEndTime(form.startTime, form.endTime, v) : initialEndTime(v)
+                      })
                     }
-                    inputProps={{ inputMode: 'numeric', maxLength: String(RULES.maxGuests).length }}
+                    error={errors.startTime}
+                    min={RULES.earliestStart}
+                    max={RULES.latestStart}
+                    step={30}
                   />
-                )}
+                  {!rental && (
+                    <EndTimeField
+                      id="f-endTime"
+                      required
+                      startTime={form.startTime}
+                      sixHourFee={data.sixHourFee ?? DEFAULT_SIX_HOUR_FEE}
+                      value={form.endTime}
+                      onChange={(v) => update({ endTime: v })}
+                      error={errors.endTime}
+                      hint={`Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`}
+                    />
+                  )}
+                </Box>
               </Box>
             </Section>
 
@@ -922,29 +1315,61 @@ export default function BookEventPage() {
               title="What You Are Booking"
               subtitle="This decides whether we cook for you."
               error={errors.serviceType}
+              done={sectionDone.service}
+              active={active === 'service'}
+              summary={sectionSummary.service}
+              stageLabel={SECTION_STAGES.service}
+              icon={SECTION_ICONS.service}
+              nextSection={nextSectionFor('service')}
+              onNext={scrollTo}
             >
-              <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 1.5 }}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr)',
+                  '@container booking-form (min-width: 480px)': {
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))'
+                  },
+                  ...(rentalPkg
+                    ? {
+                        '@container booking-form (min-width: 620px)': {
+                          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))'
+                        }
+                      }
+                    : {}),
+                  gap: 1.5
+                }}
+              >
                 {[
                   [
                     'Buffet and Catering',
                     'We cook your food',
-                    `Four dishes, with up to two per category, and ${BUFFET_DRINKS.toLowerCase()}. Charged ${peso(data.pricePerPlate)} per person.`
+                    `Four dishes, with up to two per category, and ${BUFFET_DRINKS.toLowerCase()}. Charged ${peso(data.pricePerPlate)} per person.`,
+                    RestaurantMenuOutlinedIcon,
+                    `${peso(data.pricePerPlate)} / guest`,
+                    'Full Service'
                   ],
                   [
                     'Catering only',
                     'Equipment and setup only',
-                    'Tables, chairs, linens, food warmers and tableware. You provide the food, and there is no per-person charge.'
+                    'Tables, chairs, linens, food warmers and tableware. You provide the food, and there is no per-person charge.',
+                    TableBarOutlinedIcon,
+                    'Package rate',
+                    'Setup & Dining'
                   ],
                   ...(rentalPkg
                     ? [
                         [
                           RENTAL_SERVICE,
                           'Rent items only',
-                          `Pick the tables, chairs, linens, warmers or decor you need, priced per piece. Pick up in ${RENTAL.pickupAddress} or have them delivered.`
+                          `Pick the tables, chairs, linens, warmers or decor you need, priced per piece. Pick up in ${RENTAL.pickupAddress} or have them delivered.`,
+                          Inventory2OutlinedIcon,
+                          'Per piece',
+                          'Equipment Only'
                         ]
                       ]
                     : [])
-                ].map(([value, heading, description]) => {
+                ].map(([value, heading, description, TierIcon, priceBadge, tagLabel]) => {
                   const selected = form.serviceType === value;
                   return (
                     <ButtonBase
@@ -952,32 +1377,75 @@ export default function BookEventPage() {
                       onClick={() => chooseService(value)}
                       aria-pressed={selected}
                       sx={{
-                        display: 'block',
-                        p: 2,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                        justifyContent: 'space-between',
+                        p: 1.75,
                         textAlign: 'left',
                         borderRadius: 2,
                         fontFamily: 'inherit',
-                        border: `2px solid ${selected ? tokens.ink : tokens.cardLightBorder}`,
-                        backgroundColor: selected ? tokens.surfaceSubtle : tokens.cardLight,
-                        '&:hover': { borderColor: selected ? tokens.ink : tokens.placeholder }
+                        transition: 'border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease',
+                        border: `1.5px solid ${selected ? tokens.goldDark : tokens.cardLightBorder}`,
+                        backgroundColor: selected ? tokens.goldWash : tokens.cardLight,
+                        boxShadow: selected ? `0 6px 16px -10px ${tokens.goldGlow}` : 'none',
+                        '&:hover': { borderColor: selected ? tokens.goldDark : tokens.placeholder }
                       }}
                     >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: tokens.textPrimary }}>
+                      <Box>
+                        <Box
+                          sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}
+                        >
+                          <Box
+                            component="span"
+                            sx={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              px: 0.9,
+                              py: 0.25,
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: selected ? tokens.goldText : tokens.textSecondary,
+                              backgroundColor: selected ? tokens.goldSubtle : tokens.surfaceMuted
+                            }}
+                          >
+                            <TierIcon sx={{ fontSize: 13 }} />
+                            {tagLabel}
+                          </Box>
+                          {selected ? (
+                            <CheckCircleRoundedIcon sx={{ color: tokens.goldDark, fontSize: 19 }} />
+                          ) : (
+                            <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput, fontSize: 19 }} />
+                          )}
+                        </Box>
+                        <Typography sx={{ fontSize: 14.5, fontWeight: 700, color: tokens.textPrimary }}>
                           {value}
                         </Typography>
-                        {selected ? (
-                          <CheckCircleRoundedIcon sx={{ color: tokens.ink }} />
-                        ) : (
-                          <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput }} />
-                        )}
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: tokens.goldText, mt: 0.15 }}>
+                          {heading}
+                        </Typography>
+                        <Typography sx={{ mt: 0.65, fontSize: 12, lineHeight: 1.5, color: tokens.textSecondary }}>
+                          {description}
+                        </Typography>
                       </Box>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: tokens.textSecondary }}>
-                        {heading}
-                      </Typography>
-                      <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.5, color: tokens.textSecondary }}>
-                        {description}
-                      </Typography>
+                      <Box
+                        sx={{
+                          mt: 1.25,
+                          pt: 1,
+                          borderTop: `1px solid ${tokens.dividerFaint}`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 1
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 11, color: tokens.textMuted }}>Pricing</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textPrimary }}>
+                          {priceBadge}
+                        </Typography>
+                      </Box>
                     </ButtonBase>
                   );
                 })}
@@ -997,46 +1465,97 @@ export default function BookEventPage() {
                 title="Package"
                 subtitle="Any package works for any occasion. Each one shows its default guest count, so pick the one closest to yours."
                 error={errors.packageId}
+                done={sectionDone.package}
+                active={active === 'package'}
+                summary={sectionSummary.package}
+                stageLabel={SECTION_STAGES.package}
+                icon={SECTION_ICONS.package}
+                nextSection={nextSectionFor('package')}
+                onNext={scrollTo}
               >
+                {form.packageProposalRef && (
+                  <Box sx={{ mb: 2 }}>
+                    <PackageBudgetSummary form={form} />
+                    <Typography sx={{ fontSize: 12 }}>
+                      Choosing a catalog package below replaces your custom package selection.
+                    </Typography>
+                  </Box>
+                )}
                 <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 1.5 }}>
                   {packages.map((p) => {
                     const selected = p.id === form.packageId;
                     return (
                       <ButtonBase
                         key={p.id}
-                        onClick={() => update({ packageId: p.id })}
+                        onClick={() =>
+                          update({
+                            packageId: p.id,
+                            packageProposalRef: null,
+                            packageProposalDisplay: null,
+                            packageProposalContext: null,
+                            packageProposalStale: false
+                          })
+                        }
                         aria-pressed={selected}
                         sx={{
-                          display: 'block',
-                          p: 2,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'stretch',
+                          justifyContent: 'space-between',
+                          p: 1.75,
                           textAlign: 'left',
                           borderRadius: 2,
                           fontFamily: 'inherit',
-                          border: `2px solid ${selected ? tokens.ink : tokens.cardLightBorder}`,
-                          backgroundColor: selected ? tokens.surfaceSubtle : tokens.cardLight,
-                          '&:hover': { borderColor: selected ? tokens.ink : tokens.placeholder }
+                          transition: 'border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease',
+                          border: `1.5px solid ${selected ? tokens.goldDark : tokens.cardLightBorder}`,
+                          backgroundColor: selected ? tokens.goldWash : tokens.cardLight,
+                          boxShadow: selected ? `0 6px 16px -10px ${tokens.goldGlow}` : 'none',
+                          '&:hover': { borderColor: selected ? tokens.goldDark : tokens.placeholder }
                         }}
                       >
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                          <Typography sx={{ fontSize: 16, fontWeight: 700, color: tokens.textPrimary }}>
-                            {p.name}
+                        <Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontSize: 14.5, fontWeight: 700, color: tokens.textPrimary }}>
+                              {p.name}
+                            </Typography>
+                            {selected ? (
+                              <CheckCircleRoundedIcon sx={{ color: tokens.goldDark, fontSize: 19 }} />
+                            ) : (
+                              <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput, fontSize: 19 }} />
+                            )}
+                          </Box>
+                          <Typography sx={{ mt: 0.5, fontSize: 12, lineHeight: 1.5, color: tokens.textSecondary }}>
+                            {p.description}
                           </Typography>
-                          {selected ? (
-                            <CheckCircleRoundedIcon sx={{ color: tokens.ink }} />
-                          ) : (
-                            <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput }} />
-                          )}
                         </Box>
-                        <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{p.description}</Typography>
                         <Box
                           onClick={(e) => e.stopPropagation()}
-                          sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', gap: 1 }}
+                          sx={{
+                            mt: 1.5,
+                            pt: 1.15,
+                            borderTop: `1px solid ${tokens.dividerFaint}`,
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: 1
+                          }}
                         >
-                          <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
+                          <Typography
+                            sx={{
+                              px: 0.9,
+                              py: 0.2,
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: tokens.textSecondary,
+                              backgroundColor: tokens.surfaceMuted
+                            }}
+                          >
                             Default: {p.guests} guests
                           </Typography>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
-                            {peso(p.price)}
+                          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: tokens.textPrimary }}>
+                            {buffet ? 'Included in buffet rate' : peso(p.price)}
                           </Typography>
                         </Box>
                       </ButtonBase>
@@ -1044,24 +1563,67 @@ export default function BookEventPage() {
                   })}
                 </Box>
                 {pkg && (
-                  <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
-                      {pkg.name} includes{extraGuests ? ` for your ${form.guests} guests` : ''}
-                    </Typography>
-                    {extraGuests > 0 && (
-                      <Typography sx={{ mb: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.goldDark }}>
-                        Adjusted from {pkg.guests} to your {form.guests} guests. We confirm the items marked "to
-                        confirm" and price the equipment for your {extraGuests} extra guests in your quotation.
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 1.75,
+                      borderRadius: 2,
+                      backgroundColor: tokens.surfaceSubtle,
+                      border: `1px solid ${tokens.cardLightBorder}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1.25
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
+                        {pkg.name} includes{extraGuests ? ` for your ${form.guests} guests` : ''}
                       </Typography>
-                    )}
-                    <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: tokens.textSecondary }}>
+                      {extraGuests > 0 && (
+                        <Typography sx={{ mt: 0.5, fontSize: 12, fontWeight: 600, color: tokens.goldDark }}>
+                          Adjusted from {pkg.guests} to your {form.guests} guests. We confirm the items marked "to
+                          confirm".
+                          {buffet
+                            ? ' Standard dining equipment is included in your buffet rate.'
+                            : ` Equipment for ${extraGuests} extra guests is priced in your quotation.`}
+                        </Typography>
+                      )}
+                      {form.serviceType && (
+                        <Typography sx={{ mt: 0.35, fontSize: 12, lineHeight: 1.5, color: tokens.textSecondary }}>
+                          {buffet
+                            ? 'The per-person buffet rate includes four ulam and the standard equipment and setup listed here.'
+                            : 'Booked as catering only: the equipment listed here, with no food.'}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 0.75,
+                        minWidth: 0
+                      }}
+                    >
                       {packageItems.map((item, i) => (
-                        <Fragment key={`${item.name}-${i}`}>
-                          {i > 0 && ' · '}
+                        <Box
+                          key={`${item.name}-${i}`}
+                          component="span"
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.4,
+                            px: 1.05,
+                            py: 0.4,
+                            borderRadius: 1.5,
+                            fontSize: 12,
+                            backgroundColor: item.toConfirm ? tokens.goldSubtle : tokens.cardLight,
+                            border: `1px solid ${item.toConfirm ? tokens.shellBorder : tokens.cardLightBorder}`,
+                            color: item.toConfirm ? tokens.goldDark : tokens.textSecondary
+                          }}
+                        >
                           {item.toConfirm ? (
-                            <Box component="span" sx={{ color: tokens.goldDark }}>
-                              {formatBookingItem(item)}
-                            </Box>
+                            formatBookingItem(item)
                           ) : item.qty !== item.defaultQty ? (
                             <>
                               <Box component="b" sx={{ color: tokens.textPrimary }}>
@@ -1072,16 +1634,9 @@ export default function BookEventPage() {
                           ) : (
                             formatBookingItem(item)
                           )}
-                        </Fragment>
+                        </Box>
                       ))}
-                    </Typography>
-                    {form.serviceType && (
-                      <Typography sx={{ mt: 0.75, fontSize: 12.5, color: tokens.textSecondary }}>
-                        {buffet
-                          ? 'Your food is cooked by us and charged per person on top of this package.'
-                          : 'Booked as catering only: the equipment above, with no food.'}
-                      </Typography>
-                    )}
+                    </Box>
                   </Box>
                 )}
               </Section>
@@ -1093,6 +1648,14 @@ export default function BookEventPage() {
                 index={sectionNo('styling')}
                 title="Theme and Colors"
                 subtitle="Optional. Tell us the look you want so our team sets up your tables, linens and backdrop to match."
+                done={sectionDone.styling}
+                active={active === 'styling'}
+                optional
+                summary={sectionSummary.styling}
+                stageLabel={SECTION_STAGES.styling}
+                icon={SECTION_ICONS.styling}
+                nextSection={nextSectionFor('styling')}
+                onNext={scrollTo}
               >
                 <StylingFields
                   idPrefix="f-styling"
@@ -1106,7 +1669,7 @@ export default function BookEventPage() {
                   onReferencePhotoChange={updateReferencePhoto}
                 >
                   {reminders.length > 0 && (
-                    <AlertBanner tone="info" sx={{ mt: 1.5 }}>
+                    <AlertBanner tone="info" sx={{ mt: 2 }}>
                       You mentioned {wordList(reminders.map((r) => r.word))}. {wordList(reminders.map((r) => r.name))}{' '}
                       {reminders.length === 1 ? 'is an additional charge' : 'are additional charges'}: tick{' '}
                       {reminders.length === 1 ? 'it' : 'them'} under Additional Charges if you want us to provide{' '}
@@ -1133,19 +1696,68 @@ export default function BookEventPage() {
                 title="Items to Rent"
                 subtitle="Type how many you need of each item. Prices are per piece for your whole rental."
                 error={errors.rentalItems}
+                done={sectionDone.items}
+                active={active === 'items'}
+                summary={sectionSummary.items}
+                stageLabel={SECTION_STAGES.items}
+                icon={SECTION_ICONS.items}
+                nextSection={nextSectionFor('items')}
+                onNext={scrollTo}
               >
                 {!form.date && (
                   <AlertBanner tone="info" sx={{ mb: 2 }}>
                     Choose your date above to see what is available that day.
                   </AlertBanner>
                 )}
+                {rentalChosen.length > 0 && (
+                  <Box
+                    sx={{
+                      mb: 2,
+                      p: 1.5,
+                      borderRadius: 2,
+                      backgroundColor: tokens.goldWash,
+                      border: `1px solid ${tokens.shellBorder}`,
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}>
+                      {rentalChosen.length} {rentalChosen.length === 1 ? 'item type' : 'item types'} ·{' '}
+                      {totalRentalPieces} pieces selected
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 800, color: tokens.goldText }}>
+                      Items subtotal: {peso(quote.rental)}
+                    </Typography>
+                  </Box>
+                )}
                 {INVENTORY_CATEGORIES.filter((category) => data.rentals.some((i) => i.category === category)).map(
                   (category) => (
-                    <Box key={category} sx={{ mb: 2 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted, mb: 1 }}>
+                    <Box
+                      key={category}
+                      sx={{
+                        mb: 2,
+                        p: { xs: 1.5, sm: 2 },
+                        borderRadius: 2,
+                        backgroundColor: tokens.surfaceSubtle,
+                        border: `1px solid ${tokens.cardLightBorder}`
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.goldText, mb: 1.25 }}>
                         {titleCase(category)}
                       </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0, 1fr)',
+                          '@container booking-form (min-width: 600px)': {
+                            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))'
+                          },
+                          gap: 1.25
+                        }}
+                      >
                         {data.rentals
                           .filter((i) => i.category === category)
                           .map((item) => {
@@ -1159,13 +1771,13 @@ export default function BookEventPage() {
                                 key={item.id}
                                 sx={{
                                   display: 'grid',
-                                  gridTemplateColumns: { xs: 'minmax(0, 1fr) 80px', sm: 'minmax(0, 1fr) 104px' },
+                                  gridTemplateColumns: { xs: 'minmax(0, 1fr) 76px', sm: 'minmax(0, 1fr) 96px' },
                                   gap: 1.25,
-                                  alignItems: 'start',
+                                  alignItems: 'center',
                                   p: 1.25,
                                   borderRadius: 1.5,
                                   border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`,
-                                  backgroundColor: on ? 'rgba(197,160,89,0.08)' : tokens.cardLight
+                                  backgroundColor: on ? tokens.goldWash : tokens.cardLight
                                 }}
                               >
                                 <Box
@@ -1173,23 +1785,24 @@ export default function BookEventPage() {
                                     display: 'flex',
                                     gap: 1.25,
                                     minWidth: 0,
+                                    alignItems: { xs: 'flex-start', sm: 'center' },
                                     flexDirection: { xs: 'column', sm: 'row' }
                                   }}
                                 >
-                                  <Box sx={{ width: { xs: 88, sm: 96 }, flexShrink: 0 }}>
-                                    <EquipmentPhoto item={item} compact height={88} />
+                                  <Box sx={{ width: 80, flexShrink: 0 }}>
+                                    <EquipmentPhoto item={item} compact height={76} />
                                   </Box>
                                   <Box sx={{ minWidth: 0 }}>
-                                    <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{item.name}</Typography>
-                                    <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                                    <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{item.name}</Typography>
+                                    <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>
                                       {peso(item.price)} per piece{on ? ` · ${peso(item.price * Number(qty))}` : ''}
                                     </Typography>
-                                    <Typography sx={{ fontSize: 11.5, color: tokens.textMuted }}>
+                                    <Typography sx={{ fontSize: 11, color: tokens.textMuted }}>
                                       Damage fee {peso(item.damageFee)} per piece
                                     </Typography>
                                     <Typography
                                       sx={{
-                                        fontSize: 12,
+                                        fontSize: 11.5,
                                         fontWeight: 700,
                                         color: free ? free.color : tokens.textMuted
                                       }}
@@ -1234,6 +1847,13 @@ export default function BookEventPage() {
                 index={sectionNo('food')}
                 title="Your Menu"
                 subtitle={`Pick exactly 4 dishes, with up to 2 from any category, or add your own dish. ${peso(data.pricePerPlate)} per person covers all of it.`}
+                done={sectionDone.food}
+                active={active === 'food'}
+                summary={sectionSummary.food}
+                stageLabel={SECTION_STAGES.food}
+                icon={SECTION_ICONS.food}
+                nextSection={nextSectionFor('food')}
+                onNext={scrollTo}
               >
                 <MenuPicker
                   idPrefix="f-dish"
@@ -1247,50 +1867,76 @@ export default function BookEventPage() {
                   For a dish not on the list, use Add other dish and enter one dish per box. Dessert is selected
                   separately under Additional Charges.
                 </AlertBanner>
-                <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: tokens.surfaceSubtle }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.25 }}>Drinks</Typography>
-                  <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                    Unlimited water is included. Tell us which juice you prefer; we will confirm availability.
-                  </Typography>
+
+                <Divider sx={{ my: 2.25 }} />
+
+                <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 2, alignItems: 'start' }}>
+                  <Box sx={{ gridColumn: '1 / -1' }}>
+                    <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary, mb: 0.25 }}>
+                      Drinks & Kitchen Instructions
+                    </Typography>
+                    <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                      Unlimited water is included. Tell us which juice you prefer and any dietary notes for our kitchen.
+                    </Typography>
+                  </Box>
+                  <FormField
+                    id="f-juice"
+                    label="Preferred juice"
+                    optional
+                    value={form.menu.juice || ''}
+                    onChange={(e) => setDish('juice', e.target.value)}
+                    error={errors['menu.juice']}
+                    placeholder="e.g. Orange, pineapple, or iced tea"
+                    hint="We will confirm availability with your quotation."
+                    inputProps={{ maxLength: 120 }}
+                  />
+                  <FormField
+                    id="f-foodNotes"
+                    label="Anything we should know about the food"
+                    optional
+                    multiline
+                    minRows={3}
+                    value={form.foodNotes}
+                    onChange={(e) => update({ foodNotes: e.target.value })}
+                    placeholder="Allergies, a vegetarian portion, softer food for elderly guests, serving time…"
+                    hint="This does not change the price. Our kitchen reads it before the event."
+                    inputProps={{ maxLength: 500 }}
+                  />
                 </Box>
-                <FormField
-                  id="f-juice"
-                  label="Preferred juice"
-                  optional
-                  value={form.menu.juice || ''}
-                  onChange={(e) => setDish('juice', e.target.value)}
-                  error={errors['menu.juice']}
-                  placeholder="e.g. Orange, pineapple, or iced tea"
-                  inputProps={{ maxLength: 120 }}
-                  sx={{ mt: 2 }}
-                />
-                <FormField
-                  id="f-foodNotes"
-                  label="Anything we should know about the food"
-                  optional
-                  multiline
-                  minRows={3}
-                  value={form.foodNotes}
-                  onChange={(e) => update({ foodNotes: e.target.value })}
-                  placeholder="Allergies, a vegetarian portion, softer food for elderly guests, serving time…"
-                  hint="This does not change the price. Our kitchen reads it before the event."
-                  inputProps={{ maxLength: 500 }}
-                  sx={{ mt: 2 }}
-                />
               </Section>
             )}
 
             {rental ? (
-              <Section id="venue" index={sectionNo('venue')} title="Pick Up or Delivery" error={errors.fulfilment}>
+              <Section
+                id="venue"
+                index={sectionNo('venue')}
+                title="Pick Up or Delivery"
+                error={errors.fulfilment}
+                done={sectionDone.venue}
+                active={active === 'venue'}
+                summary={sectionSummary.venue}
+                stageLabel={SECTION_STAGES.venue}
+                icon={SECTION_ICONS.venue}
+                nextSection={nextSectionFor('venue')}
+                onNext={scrollTo}
+              >
                 <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 1.5 }}>
                   {[
-                    ['pickup', 'Pick up', `Free. Collect the items at ${RENTAL.pickupAddress}.`],
+                    [
+                      'pickup',
+                      'Pick up',
+                      `Free. Collect the items at ${RENTAL.pickupAddress}.`,
+                      StorefrontOutlinedIcon,
+                      'Free'
+                    ],
                     [
                       'delivery',
                       'Delivery',
-                      `${peso(RENTAL.deliveryFee)} standard fee. A large order may be quoted a different delivery fee.`
+                      `${peso(RENTAL.deliveryFee)} standard fee. A large order may be quoted a different delivery fee.`,
+                      LocalShippingOutlinedIcon,
+                      peso(RENTAL.deliveryFee)
                     ]
-                  ].map(([value, heading, description]) => {
+                  ].map(([value, heading, description, ModeIcon, feeBadge]) => {
                     const selected = form.fulfilment === value;
                     return (
                       <ButtonBase
@@ -1299,51 +1945,123 @@ export default function BookEventPage() {
                         aria-pressed={selected}
                         sx={{
                           display: 'block',
-                          p: 2,
+                          p: 1.75,
                           textAlign: 'left',
                           borderRadius: 2,
                           fontFamily: 'inherit',
-                          border: `2px solid ${selected ? tokens.ink : tokens.cardLightBorder}`,
-                          backgroundColor: selected ? tokens.surfaceSubtle : tokens.cardLight,
-                          '&:hover': { borderColor: selected ? tokens.ink : tokens.placeholder }
+                          border: `1.5px solid ${selected ? tokens.goldDark : tokens.cardLightBorder}`,
+                          backgroundColor: selected ? tokens.goldWash : tokens.cardLight,
+                          '&:hover': { borderColor: selected ? tokens.goldDark : tokens.placeholder }
                         }}
                       >
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                          <Typography sx={{ fontSize: 16, fontWeight: 700, color: tokens.textPrimary }}>
-                            {heading}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85 }}>
+                            <ModeIcon sx={{ fontSize: 19, color: selected ? tokens.goldDark : tokens.textSecondary }} />
+                            <Typography sx={{ fontSize: 14.5, fontWeight: 700, color: tokens.textPrimary }}>
+                              {heading}
+                            </Typography>
+                          </Box>
                           {selected ? (
-                            <CheckCircleRoundedIcon sx={{ color: tokens.ink }} />
+                            <CheckCircleRoundedIcon sx={{ color: tokens.goldDark, fontSize: 19 }} />
                           ) : (
-                            <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput }} />
+                            <RadioButtonUncheckedRoundedIcon sx={{ color: tokens.borderInput, fontSize: 19 }} />
                           )}
                         </Box>
-                        <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.5, color: tokens.textSecondary }}>
+                        <Typography sx={{ mt: 0.65, fontSize: 12, lineHeight: 1.5, color: tokens.textSecondary }}>
                           {description}
                         </Typography>
+                        <Box
+                          sx={{
+                            mt: 1.25,
+                            pt: 1,
+                            borderTop: `1px solid ${tokens.dividerFaint}`,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <Typography sx={{ fontSize: 11, color: tokens.textMuted }}>Fee</Typography>
+                          <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.textPrimary }}>
+                            {feeBadge}
+                          </Typography>
+                        </Box>
                       </ButtonBase>
                     );
                   })}
                 </Box>
                 {delivered && (
-                  <Box sx={{ mt: 2, display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
+                  <>
+                    <Divider sx={{ my: 2.25 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
+                        <FormField
+                          id="f-venueName"
+                          label="Place name"
+                          required
+                          value={form.venueName}
+                          onChange={(e) => update({ venueName: e.target.value })}
+                          error={errors.venueName}
+                          placeholder="e.g. Santos Residence"
+                        />
+                        <FormField
+                          id="f-city"
+                          label="City"
+                          required
+                          value={form.city}
+                          onChange={(e) => update({ city: e.target.value })}
+                          error={errors.city}
+                          placeholder="e.g. Lipa City"
+                        />
+                      </Box>
+                      <FormField
+                        id="f-venueAddress"
+                        label="Delivery address"
+                        required
+                        value={form.venueAddress}
+                        onChange={(e) => update({ venueAddress: e.target.value })}
+                        error={errors.venueAddress}
+                        placeholder="Street, barangay"
+                      />
+                      <FormField
+                        id="f-accessNotes"
+                        label="Notes for the delivery"
+                        optional
+                        multiline
+                        minRows={3}
+                        value={form.accessNotes}
+                        onChange={(e) => update({ accessNotes: e.target.value })}
+                        placeholder="Landmark, gate, who receives the items…"
+                        hint="Include gate pass rules, landmark directions, or unloading instructions so our crew arrives on time."
+                        inputProps={{ maxLength: 500 }}
+                      />
+                    </Box>
+                  </>
+                )}
+              </Section>
+            ) : (
+              <Section
+                id="venue"
+                index={sectionNo('venue')}
+                title="Venue and Logistics"
+                subtitle="Tell us where the celebration takes place and any access instructions for our setup team."
+                done={sectionDone.venue}
+                active={active === 'venue'}
+                summary={sectionSummary.venue}
+                stageLabel={SECTION_STAGES.venue}
+                icon={SECTION_ICONS.venue}
+                nextSection={nextSectionFor('venue')}
+                onNext={scrollTo}
+              >
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
                     <FormField
                       id="f-venueName"
-                      label="Place name"
+                      label="Venue name"
                       required
                       value={form.venueName}
                       onChange={(e) => update({ venueName: e.target.value })}
                       error={errors.venueName}
-                      placeholder="e.g. Santos Residence"
-                    />
-                    <FormField
-                      id="f-venueAddress"
-                      label="Delivery address"
-                      required
-                      value={form.venueAddress}
-                      onChange={(e) => update({ venueAddress: e.target.value })}
-                      error={errors.venueAddress}
-                      placeholder="Street, barangay"
+                      placeholder="e.g. The Glass Garden"
                     />
                     <FormField
                       id="f-city"
@@ -1352,35 +2070,9 @@ export default function BookEventPage() {
                       value={form.city}
                       onChange={(e) => update({ city: e.target.value })}
                       error={errors.city}
-                      placeholder="e.g. Lipa City"
-                    />
-                    <FormField
-                      id="f-accessNotes"
-                      label="Notes for the delivery"
-                      optional
-                      multiline
-                      minRows={3}
-                      value={form.accessNotes}
-                      onChange={(e) => update({ accessNotes: e.target.value })}
-                      placeholder="Landmark, gate, who receives the items…"
-                      sx={{ gridColumn: { sm: '1 / -1' } }}
-                      inputProps={{ maxLength: 500 }}
+                      placeholder="e.g. Pasig City"
                     />
                   </Box>
-                )}
-              </Section>
-            ) : (
-              <Section id="venue" index={sectionNo('venue')} title="Venue and Logistics">
-                <Box sx={{ display: 'grid', ...FORM_COLUMNS, gap: 2 }}>
-                  <FormField
-                    id="f-venueName"
-                    label="Venue name"
-                    required
-                    value={form.venueName}
-                    onChange={(e) => update({ venueName: e.target.value })}
-                    error={errors.venueName}
-                    placeholder="e.g. The Glass Garden"
-                  />
                   <FormField
                     id="f-venueAddress"
                     label="Venue address"
@@ -1391,15 +2083,6 @@ export default function BookEventPage() {
                     placeholder="Street, barangay"
                   />
                   <FormField
-                    id="f-city"
-                    label="City"
-                    required
-                    value={form.city}
-                    onChange={(e) => update({ city: e.target.value })}
-                    error={errors.city}
-                    placeholder="e.g. Pasig City"
-                  />
-                  <FormField
                     id="f-accessNotes"
                     label="Access notes"
                     optional
@@ -1408,7 +2091,7 @@ export default function BookEventPage() {
                     value={form.accessNotes}
                     onChange={(e) => update({ accessNotes: e.target.value })}
                     placeholder="Gate, parking, elevator, loading area, setup time restrictions…"
-                    sx={{ gridColumn: { sm: '1 / -1' } }}
+                    hint="Let our crew know about building rules, ingress hours, or unloading points."
                     inputProps={{ maxLength: 500 }}
                   />
                 </Box>
@@ -1421,7 +2104,40 @@ export default function BookEventPage() {
                 index={sectionNo('addons')}
                 title="Additional Charges"
                 subtitle="Optional. Tick what you need. A charge marked Quoted is priced in your quotation."
+                done={sectionDone.addons}
+                active={active === 'addons'}
+                optional
+                summary={sectionSummary.addons}
+                stageLabel={SECTION_STAGES.addons}
+                icon={SECTION_ICONS.addons}
+                nextSection={nextSectionFor('addons')}
+                onNext={scrollTo}
               >
+                {chosenAddons.length > 0 && (
+                  <Box
+                    sx={{
+                      mb: 2,
+                      p: 1.35,
+                      borderRadius: 1.75,
+                      backgroundColor: tokens.goldWash,
+                      border: `1px solid ${tokens.shellBorder}`,
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: tokens.textPrimary }}>
+                      {chosenAddons.length} additional {chosenAddons.length === 1 ? 'service' : 'services'} selected
+                    </Typography>
+                    {quote.addons > 0 && (
+                      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: tokens.goldText }}>
+                        Known extras: {peso(quote.addons)}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
                 {[
                   { key: 'plain', list: data.addons.filter((a) => !a.hasPackages) },
                   {
@@ -1436,21 +2152,25 @@ export default function BookEventPage() {
                     <Box key={group.key} sx={groupIndex ? { mt: 2.5 } : undefined}>
                       {group.title && (
                         <Box sx={{ mb: 1.25 }}>
-                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary }}>
+                          <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
                             {group.title}
                           </Typography>
-                          <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>{group.hint}</Typography>
+                          <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>{group.hint}</Typography>
                         </Box>
                       )}
                       <Box
                         sx={{
                           display: 'grid',
                           alignItems: 'start',
-                          gridTemplateColumns:
-                            group.key === 'packages'
-                              ? 'minmax(0, 1fr)'
-                              : { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' },
-                          gap: 1.25
+                          gridTemplateColumns: 'minmax(0, 1fr)',
+                          ...(group.key === 'plain'
+                            ? {
+                                '@container booking-form (min-width: 520px)': {
+                                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))'
+                                }
+                              }
+                            : {}),
+                          gap: 1.5
                         }}
                       >
                         {group.list.map((a) => {
@@ -1471,12 +2191,14 @@ export default function BookEventPage() {
                               }}
                               sx={{
                                 display: 'flex',
-                                gap: 1,
-                                p: 1.5,
-                                borderRadius: 1.5,
+                                gap: 1.15,
+                                p: 1.75,
+                                borderRadius: 2,
                                 cursor: 'pointer',
+                                transition: 'border-color 0.15s ease, background-color 0.15s ease',
                                 border: `1.5px solid ${on ? tokens.goldDark : tokens.cardLightBorder}`,
-                                backgroundColor: on ? 'rgba(197,160,89,0.08)' : tokens.cardLight
+                                backgroundColor: on ? tokens.goldWash : tokens.cardLight,
+                                '&:hover': { borderColor: on ? tokens.goldDark : tokens.placeholder }
                               }}
                             >
                               <Checkbox
@@ -1487,16 +2209,31 @@ export default function BookEventPage() {
                                 sx={{ p: 0.25, alignSelf: 'flex-start' }}
                               />
                               <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                                  <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{a.name}</Typography>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: 1
+                                  }}
+                                >
+                                  <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary }}>
+                                    {a.name}
+                                  </Typography>
                                   <Typography
                                     sx={{
-                                      fontSize: 12,
-                                      fontWeight: 600,
+                                      px: 0.9,
+                                      py: 0.2,
+                                      borderRadius: 999,
+                                      fontSize: 11.5,
+                                      fontWeight: 700,
                                       whiteSpace: 'nowrap',
                                       color: (packaged ? from : a.price && !sized)
                                         ? tokens.textPrimary
-                                        : tokens.textMuted
+                                        : tokens.goldText,
+                                      backgroundColor: (packaged ? from : a.price && !sized)
+                                        ? tokens.surfaceMuted
+                                        : tokens.goldSubtle
                                     }}
                                   >
                                     {sized
@@ -1510,11 +2247,22 @@ export default function BookEventPage() {
                                           : 'Quoted'}
                                   </Typography>
                                 </Box>
-                                <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
+                                <Typography
+                                  sx={{ mt: 0.35, fontSize: 12, lineHeight: 1.5, color: tokens.textSecondary }}
+                                >
                                   {a.description}
                                 </Typography>
                                 {a.id === DESSERT_ADDON_ID && on && (
-                                  <Box onClick={(e) => e.stopPropagation()} sx={{ mt: 1.5 }}>
+                                  <Box
+                                    onClick={(e) => e.stopPropagation()}
+                                    sx={{
+                                      mt: 1.5,
+                                      p: 1.35,
+                                      borderRadius: 1.5,
+                                      backgroundColor: tokens.cardLight,
+                                      border: `1px solid ${tokens.cardLightBorder}`
+                                    }}
+                                  >
                                     <DessertFields
                                       idPrefix="f-dessert"
                                       value={form.menu.dessert}
@@ -1535,13 +2283,23 @@ export default function BookEventPage() {
                                       maxLength: 2,
                                       'aria-label': `How many ${a.name}`
                                     }}
-                                    sx={{ mt: 1, maxWidth: 150 }}
+                                    sx={{ mt: 1.25, maxWidth: 140 }}
                                   />
                                 )}
                                 {sized && on && (
                                   <Box
                                     onClick={(e) => e.stopPropagation()}
-                                    sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}
+                                    sx={{
+                                      mt: 1.25,
+                                      p: 1.35,
+                                      borderRadius: 1.5,
+                                      backgroundColor: tokens.cardLight,
+                                      border: `1px solid ${tokens.cardLightBorder}`,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 1,
+                                      cursor: 'default'
+                                    }}
                                   >
                                     {a.sizes.map((s) => {
                                       const left = leftFor(s);
@@ -1605,7 +2363,13 @@ export default function BookEventPage() {
                                   <Box
                                     role="radiogroup"
                                     aria-label={`${a.name} package`}
-                                    sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'default' }}
+                                    sx={{
+                                      mt: 1.25,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 1,
+                                      cursor: 'default'
+                                    }}
                                   >
                                     {a.sizes.map((s) => {
                                       const picked = Number(form.addonQty[s.id]) > 0;
@@ -1620,7 +2384,7 @@ export default function BookEventPage() {
                                           sx={{
                                             display: 'block',
                                             width: '100%',
-                                            p: 1.25,
+                                            p: 1.35,
                                             textAlign: 'left',
                                             borderRadius: 1.5,
                                             fontFamily: 'inherit',
@@ -1640,7 +2404,12 @@ export default function BookEventPage() {
                                             )}
                                             <Typography
                                               component="span"
-                                              sx={{ flex: 1, fontSize: 13, fontWeight: 700, color: tokens.textPrimary }}
+                                              sx={{
+                                                flex: 1,
+                                                fontSize: 13,
+                                                fontWeight: 700,
+                                                color: tokens.textPrimary
+                                              }}
                                             >
                                               {s.size}
                                             </Typography>
@@ -1720,10 +2489,157 @@ export default function BookEventPage() {
               </Section>
             )}
 
-            <Section id="review" index={sectionNo('review')} title="Review and Submit">
-              {!rental && buffet && <Typography sx={{ mb: 1, fontSize: 13 }}>{buffetDrinks(form.menu)}</Typography>}
+            {!rental && (
+              <PackageAndBudgetSection
+                form={form}
+                catalog={data}
+                stock={avail}
+                index={sectionNo('budget')}
+                onPatch={update}
+                onCatalogChanged={catalog.reload}
+                submissionError={errors.budgetRequest || errors.packageProposalRef ? formError : ''}
+                onEditServices={() => scrollTo('addons')}
+                done={sectionDone.budget}
+                active={active === 'budget'}
+                optional
+                summary={sectionSummary.budget}
+                stageLabel={SECTION_STAGES.budget}
+                nextSection={nextSectionFor('budget')}
+                onNext={scrollTo}
+              />
+            )}
+
+            <Section
+              id="review"
+              index={sectionNo('review')}
+              title="Review and Submit"
+              subtitle="Check your event blueprint and itemized estimate before sending your reservation request."
+              done={sectionDone.review}
+              active={active === 'review'}
+              summary={sectionSummary.review}
+              stageLabel={SECTION_STAGES.review}
+              icon={SECTION_ICONS.review}
+            >
+              <Box
+                sx={{
+                  mb: 2,
+                  display: 'grid',
+                  ...FORM_COLUMNS,
+                  gap: 1.5
+                }}
+              >
+                {[
+                  [
+                    'Celebration & Schedule',
+                    form.eventName || 'Untitled event',
+                    [
+                      form.occasion === OCCASION_OTHER ? form.occasionOther : form.occasion,
+                      form.date ? formatDate(form.date) : 'No date selected',
+                      form.startTime && (rental || form.endTime) ? formatEventTime(form) : ''
+                    ]
+                      .filter(Boolean)
+                      .join(' · '),
+                    'details'
+                  ],
+                  [
+                    rental ? 'Service & Items' : 'Service & Package',
+                    form.serviceType || 'Service not chosen',
+                    rental
+                      ? rentalChosen.length
+                        ? `${totalRentalPieces} pieces across ${rentalChosen.length} items`
+                        : 'No rental items selected yet'
+                      : [pkg ? pkg.name : 'No package chosen', form.guests ? `${form.guests} guests` : '']
+                          .filter(Boolean)
+                          .join(' · '),
+                    rental ? 'items' : 'package'
+                  ],
+                  ...(rental
+                    ? []
+                    : [
+                        [
+                          'Menu & Styling',
+                          buffet
+                            ? menuComplete
+                              ? '4 of 4 dishes selected'
+                              : `${dishCount} of 4 dishes selected`
+                            : 'Catering setup (no food)',
+                          (styling && themeLabel(styling)) || 'Theme not specified',
+                          buffet ? 'food' : 'styling'
+                        ]
+                      ]),
+                  [
+                    rental ? 'Pick-Up or Delivery' : 'Venue & Extras',
+                    rental
+                      ? delivered
+                        ? form.venueName || 'Delivery selected'
+                        : 'Store pick-up (Free)'
+                      : form.venueName || 'Venue not entered',
+                    rental
+                      ? delivered
+                        ? [form.venueAddress, form.city].filter(Boolean).join(', ')
+                        : RENTAL.pickupAddress
+                      : `${[form.venueAddress, form.city].filter(Boolean).join(', ') || 'No address yet'}${
+                          chosenAddons.length ? ` · ${chosenAddons.length} add-on(s)` : ''
+                        }`,
+                    'venue'
+                  ]
+                ].map(([heading, primary, secondary, targetKey]) => (
+                  <Box
+                    key={heading}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2,
+                      backgroundColor: tokens.surfaceSubtle,
+                      border: `1px solid ${tokens.cardLightBorder}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: 0.6,
+                      minWidth: 0
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                      <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.goldText }}>
+                        {heading}
+                      </Typography>
+                      <Button
+                        size="small"
+                        onClick={() => scrollTo(targetKey)}
+                        sx={{ minWidth: 0, px: 0.75, py: 0.15, fontSize: 11.5 }}
+                      >
+                        Edit
+                      </Button>
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography
+                        sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary, overflowWrap: 'anywhere' }}
+                      >
+                        {primary}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          mt: 0.2,
+                          fontSize: 12,
+                          lineHeight: 1.45,
+                          color: tokens.textSecondary,
+                          overflowWrap: 'anywhere'
+                        }}
+                      >
+                        {secondary}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+
+              {!rental && <PackageBudgetSummary form={form} catalog={data} stock={avail} />}
+              {!rental && buffet && (
+                <Typography sx={{ mb: 1, fontSize: 13, fontWeight: 600, color: tokens.textSecondary }}>
+                  {buffetDrinks(form.menu)}
+                </Typography>
+              )}
               {!rental && bookedAddonIds.includes(DESSERT_ADDON_ID) && (
-                <Typography sx={{ mb: 1, fontSize: 13 }}>
+                <Typography sx={{ mb: 1.5, fontSize: 13, fontWeight: 600, color: tokens.textSecondary }}>
                   Dessert: {dessertSummary(form.menu) || 'Choose a dessert in Additional Charges'} · additional charge
                 </Typography>
               )}
@@ -1739,7 +2655,15 @@ export default function BookEventPage() {
                 />
               )}
               {!rental && (!stylingEmpty(styling) || form.referencePhotos.length > 0) && (
-                <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: `1px solid ${tokens.cardLightBorder}` }}>
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 1.75,
+                    borderRadius: 2,
+                    backgroundColor: tokens.surfaceSubtle,
+                    border: `1px solid ${tokens.cardLightBorder}`
+                  }}
+                >
                   <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Theme and Colors</Typography>
                   <StylingSummary styling={styling} referencePhotos={form.referencePhotos} compact />
                 </Box>
@@ -1747,9 +2671,19 @@ export default function BookEventPage() {
               <AlertBanner tone="info" sx={{ mt: 2 }}>
                 {rental
                   ? 'This is a request, not a confirmed rental. We check the items and send your quotation within 24 hours; accepting it approves your rental.'
-                  : `This is a request, not a confirmed booking. We review it and send your quotation with the additional charges${extraGuests ? ` and the equipment for your ${extraGuests} extra guests` : ''} priced within 24 hours; accepting it approves your reservation.`}
+                  : `This is a request, not a confirmed booking. We review it and send your quotation with the additional charges${extraGuests && !buffet ? ` and the equipment for your ${extraGuests} extra guests` : ''} priced within 24 hours; accepting it approves your reservation.`}
               </AlertBanner>
-              <Box sx={{ mt: 2 }}>
+              <Box
+                sx={{
+                  mt: 2,
+                  p: 1.75,
+                  borderRadius: 2,
+                  backgroundColor: agreed ? tokens.goldWash : tokens.surfaceSubtle,
+                  border: `1.5px solid ${
+                    errors.agreeTerms ? tokens.red : agreed ? tokens.goldDark : tokens.cardLightBorder
+                  }`
+                }}
+              >
                 <FormControlLabel
                   sx={{ alignItems: 'flex-start', mr: 0 }}
                   control={
@@ -1804,115 +2738,146 @@ export default function BookEventPage() {
               '@media (max-height: 799px)': { position: 'static' }
             }}
           >
-            <DashCard>
-              <CardTitle>Your Reservation</CardTitle>
+            <DashCard sx={{ p: { xs: 2, sm: 2.25 }, borderRadius: 2.5, borderTop: `3px solid ${tokens.gold}` }}>
+              <CardTitle subtitle={`${completedRequired} of ${requiredSections.length} required steps ready`}>
+                Your Reservation
+              </CardTitle>
+
+              <Box
+                sx={{
+                  mb: 1.75,
+                  p: 1.5,
+                  borderRadius: 2,
+                  backgroundColor: tokens.goldWash,
+                  border: `1px solid ${tokens.shellBorder}`
+                }}
+              >
+                <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.goldText }}>
+                  {rental ? 'Rental total' : 'Starting total'}
+                </Typography>
+                <Typography sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1.2, overflowWrap: 'anywhere', mt: 0.25 }}>
+                  {pkg && (!rental || rentalChosen.length) ? peso(knownTotal) : '—'}
+                  {pkg && plusQuoted && (
+                    <Box component="span" sx={{ fontSize: 13, fontWeight: 700, color: tokens.textSecondary }}>
+                      {plusQuoted}
+                    </Box>
+                  )}
+                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 11.5, lineHeight: 1.45, color: tokens.textSecondary }}>
+                  {rental
+                    ? rentalChosen.length
+                      ? `Items ${peso(quote.rental)}${delivered ? ` + delivery ${peso(quote.deliveryFee)}` : ', picked up for free'}.`
+                      : 'Type how many you need of each item to see your total'
+                    : !pkg
+                      ? 'Choose a package to see your total'
+                      : !form.serviceType
+                        ? `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Choose what you are booking to finish your total.${quotedNote}`
+                        : buffet && quote.plates
+                          ? `Buffet and standard setup for ${quote.plates} at ${peso(quote.pricePerPlate)} each${addonNote}.${quotedNote}`
+                          : buffet
+                            ? 'Enter your guest count to see the buffet price'
+                            : `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
+                </Typography>
+              </Box>
+
+              {!rental && <PackageBudgetSummary form={form} catalog={data} stock={avail} compact />}
               {pkg && (
-                <Box sx={{ mb: 2, pb: 2, borderBottom: `1px solid ${tokens.cardLightBorder}` }}>
-                  <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: tokens.goldText, mb: 1 }}>
+                <Box
+                  sx={{
+                    mb: 1.75,
+                    p: 1.5,
+                    borderRadius: 1.75,
+                    backgroundColor: tokens.surfaceSubtle,
+                    border: `1px solid ${tokens.cardLightBorder}`
+                  }}
+                >
+                  <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.goldText, mb: 0.75 }}>
                     Live estimate
                   </Typography>
                   {[
                     ...(rental
                       ? quote.rentalItems.map((line) => [`${line.name} × ${line.qty}`, peso(line.total)])
-                      : [['Setup package', peso(quote.packageTotal)]]),
+                      : [['Setup package', buffet ? 'Included in buffet rate' : peso(quote.packageTotal)]]),
                     ...(buffet
                       ? [[`Buffet · ${quote.plates || 0} × ${peso(quote.pricePerPlate)}`, peso(quote.food)]]
                       : []),
-                    ...(!rental && extraGuests ? [[`Equipment for ${extraGuests} extra guests`, 'To be quoted']] : []),
+                    ...(!rental && !buffet && extraGuests
+                      ? [[`Equipment for ${extraGuests} extra guests`, 'To be quoted']]
+                      : []),
                     ...(quote.durationCharge > 0 ? [['6-hour event charge', peso(quote.durationCharge)]] : []),
                     ...chosenAddons.map((a) => [a.name, a.price ? peso(quote.addonTotals[a.id]) : 'To be quoted']),
                     ...(rental && delivered ? [['Delivery', peso(quote.deliveryFee)]] : [])
                   ].map(([label, value], i) => (
                     <Box
                       key={`${label}-${i}`}
-                      sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, py: 0.5 }}
+                      sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, py: 0.4 }}
                     >
-                      <Typography sx={{ fontSize: 11.5, color: tokens.textSecondary }}>{label}</Typography>
-                      <Typography sx={{ fontSize: 11.5, fontWeight: 600, textAlign: 'right', flexShrink: 0 }}>
+                      <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>{label}</Typography>
+                      <Typography sx={{ fontSize: 12, fontWeight: 600, textAlign: 'right', flexShrink: 0 }}>
                         {value}
                       </Typography>
                     </Box>
                   ))}
-                  <Typography sx={{ mt: 1, fontSize: 11, color: tokens.textMuted }}>
+                  <Typography sx={{ mt: 0.75, fontSize: 11, color: tokens.textMuted }}>
                     Final charges are confirmed in the quotation you review and accept.
                   </Typography>
                 </Box>
               )}
-              {(rental
-                ? [
-                    ['Booking', form.serviceType],
-                    ['Date', form.date ? formatDate(form.date) : '—'],
-                    [
-                      'Items',
-                      rentalChosen.length ? `${rentalChosen.reduce((sum, line) => sum + line.qty, 0)} pcs` : '—'
-                    ],
-                    ['Pick up or delivery', delivered ? 'Delivery' : 'Pick up']
-                  ]
-                : [
-                    ['Booking', form.serviceType || '—'],
-                    ['Date', form.date ? formatDate(form.date) : '—'],
-                    ['Time', form.startTime && form.endTime ? formatEventTime(form) : '—'],
-                    ['Guests', form.guests ? `${form.guests}${extraGuests ? ` (${extraGuests} extra)` : ''}` : '—'],
-                    ['Package', pkg ? pkg.name : '—'],
-                    ['Theme', (styling && themeLabel(styling)) || '—'],
-                    ['Colors', styling && styling.colors.length ? `${styling.colors.length} chosen` : '—'],
-                    ...(buffet ? [['Menu', menuComplete ? 'Chosen' : '—']] : []),
-                    ['Additional charges', chosenAddons.length || 'None']
-                  ]
-              ).map(([label, value]) => (
-                <Box
-                  key={label}
-                  sx={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'space-between',
-                    columnGap: 1.5,
-                    rowGap: 0.25,
-                    py: 0.75
-                  }}
-                >
-                  <Typography sx={{ minWidth: 0, fontSize: 13, color: tokens.textSecondary }}>{label}</Typography>
-                  <Typography
-                    sx={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere', fontSize: 13, fontWeight: 700 }}
+              <Box sx={{ mb: 1.75 }}>
+                {(rental
+                  ? [
+                      ['Booking', form.serviceType],
+                      ['Date', form.date ? formatDate(form.date) : '—'],
+                      ['Items', rentalChosen.length ? `${totalRentalPieces} pcs` : '—'],
+                      ['Pick up or delivery', delivered ? 'Delivery' : 'Pick up']
+                    ]
+                  : [
+                      ['Booking', form.serviceType || '—'],
+                      ['Date', form.date ? formatDate(form.date) : '—'],
+                      ['Time', form.startTime && form.endTime ? formatEventTime(form) : '—'],
+                      ['Guests', form.guests ? `${form.guests}${extraGuests ? ` (${extraGuests} extra)` : ''}` : '—'],
+                      ['Package', pkg ? pkg.name : '—'],
+                      ['Theme', (styling && themeLabel(styling)) || '—'],
+                      ['Colors', styling && styling.colors.length ? `${styling.colors.length} chosen` : '—'],
+                      ...(buffet ? [['Menu', menuComplete ? 'Chosen' : '—']] : []),
+                      ['Additional charges', chosenAddons.length || 'None']
+                    ]
+                ).map(([label, value]) => (
+                  <Box
+                    key={label}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'baseline',
+                      gap: 1.5,
+                      py: 0.6,
+                      borderBottom: `1px solid ${tokens.dividerFaint}`
+                    }}
                   >
-                    {value}
-                  </Typography>
-                </Box>
-              ))}
-              <Divider sx={{ my: 1.5 }} />
-              <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.textMuted }}>
-                {rental ? 'Rental total' : 'Starting total'}
-              </Typography>
-              <Typography sx={{ fontSize: 28, fontWeight: 800, overflowWrap: 'anywhere' }}>
-                {pkg && (!rental || rentalChosen.length) ? peso(knownTotal) : '—'}
-                {pkg && plusQuoted && (
-                  <Box component="span" sx={{ fontSize: 15, fontWeight: 700, color: tokens.textSecondary }}>
-                    {plusQuoted}
+                    <Typography sx={{ fontSize: 12, color: tokens.textMuted, flexShrink: 0 }}>{label}</Typography>
+                    <Typography
+                      sx={{
+                        minWidth: 0,
+                        maxWidth: '65%',
+                        textAlign: 'right',
+                        overflowWrap: 'anywhere',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: tokens.textPrimary
+                      }}
+                    >
+                      {value}
+                    </Typography>
                   </Box>
-                )}
-              </Typography>
-              <Typography sx={{ fontSize: 12.5, color: tokens.textSecondary }}>
-                {rental
-                  ? rentalChosen.length
-                    ? `Items ${peso(quote.rental)}${delivered ? ` + delivery ${peso(quote.deliveryFee)}` : ', picked up for free'}.`
-                    : 'Type how many you need of each item to see your total'
-                  : !pkg
-                    ? 'Choose a package to see your total'
-                    : !form.serviceType
-                      ? `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Choose what you are booking to finish your total.${quotedNote}`
-                      : buffet && quote.plates
-                        ? `Package ${peso(quote.packageTotal)}${extraNote} + buffet for ${quote.plates} at ${peso(quote.pricePerPlate)} each${addonNote}.${quotedNote}`
-                        : buffet
-                          ? 'Enter your guest count to see the buffet price'
-                          : `Package ${peso(quote.packageTotal)}${extraNote}${addonNote}. Catering only, so there is no per-person charge.${quotedNote}`}
-              </Typography>
+                ))}
+              </Box>
               <BusyButton
                 fullWidth
                 size="large"
                 busy={busy}
                 disabled={photoBusy}
                 onClick={submit}
-                sx={{ mt: 2, display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}
+                sx={{ display: 'none', [SUMMARY_LAYOUT]: { display: 'inline-flex' } }}
               >
                 Submit request
               </BusyButton>
@@ -1959,7 +2924,7 @@ export default function BookEventPage() {
               {rental
                 ? 'Rental total'
                 : buffet && quote.plates
-                  ? `Package + buffet for ${quote.plates}`
+                  ? `Buffet and setup for ${quote.plates}`
                   : 'Starting total'}
             </Typography>
             <Typography
@@ -2013,6 +2978,6 @@ export default function BookEventPage() {
           </Box>
         </Box>
       )}
-    </>
+    </Box>
   );
 }

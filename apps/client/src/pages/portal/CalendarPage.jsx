@@ -91,7 +91,7 @@ export default function CalendarPage() {
     }
     const mine = byDate[iso];
     if (mine) navigate(`/portal/reservations/${mine[0].ref}`);
-    else navigate(`/portal/book?date=${iso}`);
+    else navigate(`/portal/plan-event?date=${iso}`);
   };
 
   const sorted = data ? data.reservations.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
@@ -176,7 +176,7 @@ export default function CalendarPage() {
                 title="No events yet"
                 description="Your reservations will appear here."
                 action={
-                  <Button variant="contained" onClick={() => navigate('/portal/book')}>
+                  <Button variant="contained" onClick={() => navigate('/portal/plan-event')}>
                     New reservation
                   </Button>
                 }

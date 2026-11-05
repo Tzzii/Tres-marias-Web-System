@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { REFERENCE_PHOTO_MAX_COUNT } from '@tm/shared/src/domain/referencePhoto.js';
+import { budgetRequestBody, addonSelectionBody } from '../budget/budget.submission.js';
 
 const text = (max) =>
   z
@@ -27,6 +28,15 @@ export const photoParams = z.object({
 
 export const createBody = z.object({
   packageId: passThrough,
+  packageProposalRef: z
+    .object({
+      proposalId: z.string().min(1).max(40),
+      optionId: z.string().min(1).max(255),
+      revision: z.number().int().positive()
+    })
+    .strict()
+    .nullable()
+    .optional(),
   serviceType: passThrough,
   eventName: text(120),
   occasion: text(40),
@@ -41,6 +51,7 @@ export const createBody = z.object({
   styling: passThrough,
   addonIds: passThrough,
   addonQty: passThrough,
+  budgetRequest: budgetRequestBody.nullable().optional(),
   venueName: text(160),
   venueAddress: text(255),
   city: text(120),
@@ -94,3 +105,4 @@ export const stylingBody = z.object({
 export const notesBody = z.object({ notes: text(2000) });
 
 export const rentalItemsBody = z.object({ items: passThrough });
+export const addonsBody = addonSelectionBody;

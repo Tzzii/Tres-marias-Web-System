@@ -1,6 +1,28 @@
 import { DEFAULT_PRICE_PER_PLATE, SIX_HOUR_FEE_RANGE, includesFood, isRental } from './config.js';
 import { eventMinutes } from '../domain/availability.js';
 
+export const LEGACY_PRICING_MODEL = 'legacy-package-plus-buffet-v1';
+export const INCLUSIVE_PRICING_MODEL = 'inclusive-buffet-v2';
+/** Missing markers always retain historical pricing, including when re-quoting. */
+export const reservationPricingModel = (reservation) =>
+  (reservation.quotation || reservation.estimate)?.pricingModel || LEGACY_PRICING_MODEL;
+export const isInclusiveBuffet = ({ serviceType, pricingModel }) =>
+  includesFood(serviceType) && pricingModel === INCLUSIVE_PRICING_MODEL;
+/** A stored package amount is a rate snapshot, not the current catalog's editable price. */
+export function reservationPackageForPricing(reservation, pkg = reservation.package) {
+  // Custom recipes are stored with the reservation, so catalog edits/deletion never replace their inclusions.
+  if (reservation.packageSource === 'custom' && reservation.packageSnapshot) {
+    pkg = reservation.quotation?.packageSnapshot || reservation.packageSnapshot;
+  }
+  const saved = reservation.quotation || reservation.estimate;
+  if (!pkg || pkg.kind === 'rental' || !saved || isInclusiveBuffet(saved)) return pkg;
+  return {
+    ...pkg,
+    price: Number.isFinite(saved.packageTotal) ? saved.packageTotal : pkg.price,
+    guests: saved.packageGuests > 0 ? saved.packageGuests : pkg.guests
+  };
+}
+
 export function sixHourFeeProblem(value) {
   const numeric = typeof value === 'number' || (typeof value === 'string' && /^\d{1,5}$/.test(value));
   const amount = numeric ? Number(value) : NaN;
@@ -49,6 +71,9 @@ export function otherChargeItemsFor(quote) {
 /**
  * Quotation maths shared by the customer form's summary, the admin quotation
  * panel and the printed documents, so all of them show the same figures.
+ * New inclusive buffet snapshots include the standard setup in the per-person rate:
+ * packageTotal and extraGuestsCharge are zero; extraGuests still supports quantity confirmation.
+ * The default remains legacy for unmarked historical callers and stored quotations.
  *
  *   package           = the package's flat price (0 for the Equipment Rental package). It covers the
  *                       package's default guest count; fewer guests still pay the full package price
@@ -86,6 +111,7 @@ export function otherChargeItemsFor(quote) {
  */
 export function computeQuote({
   pkg,
+  pricingModel = LEGACY_PRICING_MODEL,
   serviceType = 'Buffet and Catering',
   guests = 0,
   pricePerPlate = DEFAULT_PRICE_PER_PLATE,
@@ -109,11 +135,12 @@ export function computeQuote({
   // A quantity is at least 1, so an add-on is never priced as nothing
   const count = (value) => Math.max(1, Math.floor(Number(value) || 1));
 
-  const packageTotal = pkg ? pkg.price : 0;
+  const inclusive = isInclusiveBuffet({ serviceType, pricingModel });
+  const packageTotal = inclusive ? 0 : pkg ? pkg.price : 0;
   // Guests above the package's default; their equipment is only charged once the admin prices it
   const packageGuests = pkg && !isRentalPackage(pkg) ? Math.floor(Number(pkg.guests) || 0) : 0;
   const extraGuests = extraGuestsFor(pkg, guests);
-  const extraCharge = extraGuests ? amount(extraGuestsCharge) : 0;
+  const extraCharge = extraGuests && !inclusive ? amount(extraGuestsCharge) : 0;
   // Only a buffet is charged per person; catering only is the equipment alone
   const plates = includesFood(serviceType) ? Math.max(0, Math.floor(Number(guests) || 0)) : 0;
   const rate = includesFood(serviceType) ? amount(pricePerPlate) : 0;
@@ -171,6 +198,7 @@ export function computeQuote({
   );
 
   return {
+    pricingModel: pricingModel === INCLUSIVE_PRICING_MODEL ? INCLUSIVE_PRICING_MODEL : LEGACY_PRICING_MODEL,
     packageTotal,
     packageGuests,
     extraGuests,

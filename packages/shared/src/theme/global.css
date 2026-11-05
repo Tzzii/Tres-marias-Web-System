@@ -199,6 +199,15 @@ html[data-tm-mode='dark'] .tm-scroll::-webkit-scrollbar-thumb {
     box-shadow 350ms ease !important;
 }
 
+/* Hide the native scrollbar on the portal sidebar while keeping scroll support */
+.tm-portal-sidebar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tm-portal-sidebar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Thin, on-brand scrollbars inside panels */
 .tm-scroll::-webkit-scrollbar {
   width: 8px;

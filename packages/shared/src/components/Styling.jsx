@@ -318,18 +318,18 @@ function ThemeChip({ label, picked, dashed, onClick }) {
         display: 'flex',
         width: '100%',
         minWidth: 0,
-        minHeight: 54,
+        minHeight: 44,
         height: '100%',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 1,
-        px: 1.5,
-        py: 1.25,
+        px: 1.35,
+        py: 0.9,
         borderRadius: 1.5,
         fontFamily: 'inherit',
-        fontSize: 13,
+        fontSize: 12.5,
         fontWeight: 600,
-        lineHeight: 1.45,
+        lineHeight: 1.4,
         textAlign: 'left',
         color: dashed && !picked ? tokens.textSecondary : tokens.textPrimary,
         border: `1px ${dashed ? 'dashed' : 'solid'} ${picked ? tokens.goldDark : tokens.borderInput}`,
@@ -347,8 +347,8 @@ function ThemeChip({ label, picked, dashed, onClick }) {
         component="span"
         aria-hidden="true"
         sx={{
-          width: 18,
-          height: 18,
+          width: 17,
+          height: 17,
           flexShrink: 0,
           borderRadius: '50%',
           display: 'grid',
@@ -358,7 +358,7 @@ function ThemeChip({ label, picked, dashed, onClick }) {
           color: tokens.onStatus
         }}
       >
-        {picked && <CheckRoundedIcon sx={{ fontSize: 13 }} />}
+        {picked && <CheckRoundedIcon sx={{ fontSize: 12 }} />}
       </Box>
     </ButtonBase>
   );
@@ -369,17 +369,16 @@ const themeGridSx = {
   display: 'grid',
   gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
   gridAutoRows: '1fr',
-  gap: 1,
-  '@container (min-width: 600px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
-  '@container (min-width: 860px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+  gap: 1.15,
+  '@container (min-width: 560px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
   '@container (max-width: 279px)': { gridTemplateColumns: 'minmax(0, 1fr)' }
 };
 
 const Heading = ({ children, hint, sx }) => (
-  <Typography component="h3" sx={{ fontSize: 14, fontWeight: 700, color: tokens.textPrimary, ...sx }}>
+  <Typography component="h3" sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.textPrimary, ...sx }}>
     {children}
     {hint && (
-      <Box component="span" sx={{ ml: 0.75, fontSize: 12.5, fontWeight: 500, color: tokens.textSecondary }}>
+      <Box component="span" sx={{ ml: 0.75, fontSize: 12, fontWeight: 500, color: tokens.textSecondary }}>
         {hint}
       </Box>
     )}

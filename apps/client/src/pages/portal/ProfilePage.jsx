@@ -249,73 +249,79 @@ export default function ProfilePage() {
         </DashCard>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          {hasPassword ? <DashCard component="form" noValidate onSubmit={savePassword}>
-            <CardTitle subtitle="8 characters or more, with a lowercase and an uppercase letter, a number and a special character">
-              Change Password
-            </CardTitle>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box>
+          {hasPassword ? (
+            <DashCard component="form" noValidate onSubmit={savePassword}>
+              <CardTitle subtitle="8 characters or more, with a lowercase and an uppercase letter, a number and a special character">
+                Change Password
+              </CardTitle>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box>
+                  <PasswordField
+                    id="pw-current"
+                    label="Current password"
+                    autoComplete="current-password"
+                    value={pw.current}
+                    onChange={(e) => {
+                      setPw((p) => ({ ...p, current: e.target.value }));
+                      setPwErrors({});
+                    }}
+                    error={pwErrors.current}
+                  />
+                  <Link
+                    component="button"
+                    type="button"
+                    onClick={() => setResetOpen(true)}
+                    sx={{ mt: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.goldDark }}
+                  >
+                    Forgot your current password?
+                  </Link>
+                </Box>
+                <Box>
+                  <PasswordField
+                    id="pw-next"
+                    label="New password"
+                    autoComplete="new-password"
+                    value={pw.next}
+                    onChange={(e) => {
+                      setPw((p) => ({ ...p, next: e.target.value }));
+                      setPwErrors({});
+                    }}
+                    error={pwErrors.next}
+                  />
+                  <PasswordChecklist value={pw.next} />
+                </Box>
                 <PasswordField
-                  id="pw-current"
-                  label="Current password"
-                  autoComplete="current-password"
-                  value={pw.current}
-                  onChange={(e) => {
-                    setPw((p) => ({ ...p, current: e.target.value }));
-                    setPwErrors({});
-                  }}
-                  error={pwErrors.current}
-                />
-                <Link
-                  component="button"
-                  type="button"
-                  onClick={() => setResetOpen(true)}
-                  sx={{ mt: 0.75, fontSize: 12.5, fontWeight: 600, color: tokens.goldDark }}
-                >
-                  Forgot your current password?
-                </Link>
-              </Box>
-              <Box>
-                <PasswordField
-                  id="pw-next"
-                  label="New password"
+                  id="pw-confirm"
+                  label="Confirm new password"
                   autoComplete="new-password"
-                  value={pw.next}
+                  value={pw.confirm}
                   onChange={(e) => {
-                    setPw((p) => ({ ...p, next: e.target.value }));
+                    setPw((p) => ({ ...p, confirm: e.target.value }));
                     setPwErrors({});
                   }}
-                  error={pwErrors.next}
+                  error={pwErrors.confirm}
                 />
-                <PasswordChecklist value={pw.next} />
+                <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
+                  We email you a code to confirm the change before the new password is saved.
+                </Typography>
+                <Box>
+                  <BusyButton type="submit" busy={savingPw}>
+                    Update password
+                  </BusyButton>
+                </Box>
               </Box>
-              <PasswordField
-                id="pw-confirm"
-                label="Confirm new password"
-                autoComplete="new-password"
-                value={pw.confirm}
-                onChange={(e) => {
-                  setPw((p) => ({ ...p, confirm: e.target.value }));
-                  setPwErrors({});
-                }}
-                error={pwErrors.confirm}
-              />
-              <Typography sx={{ fontSize: 12.5, color: tokens.textMuted }}>
-                We email you a code to confirm the change before the new password is saved.
+            </DashCard>
+          ) : (
+            <DashCard>
+              <CardTitle subtitle="You currently sign in with Google.">Set a Password</CardTitle>
+              <Typography sx={{ mb: 2, fontSize: 13.5, color: tokens.textSecondary }}>
+                You can also sign in with email and password. We will email you a code to set your first password.
               </Typography>
-              <Box>
-                <BusyButton type="submit" busy={savingPw}>
-                  Update password
-                </BusyButton>
-              </Box>
-            </Box>
-          </DashCard> : <DashCard>
-            <CardTitle subtitle="You currently sign in with Google.">Set a Password</CardTitle>
-            <Typography sx={{ mb: 2, fontSize: 13.5, color: tokens.textSecondary }}>
-              You can also sign in with email and password. We will email you a code to set your first password.
-            </Typography>
-            <Button type="button" variant="outlined" onClick={() => setResetOpen(true)}>Set a password</Button>
-          </DashCard>}
+              <Button type="button" variant="outlined" onClick={() => setResetOpen(true)}>
+                Set a password
+              </Button>
+            </DashCard>
+          )}
 
           <DashCard>
             <CardTitle>Session</CardTitle>

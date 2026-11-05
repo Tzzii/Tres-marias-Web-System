@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 
-
 const PREFIX = /^[a-z]{1,19}$/;
 
 export function newId(prefix) {

@@ -10,7 +10,6 @@ import { ApiError } from '../../lib/ApiError.js';
 import { findReservations } from '../reservations/reservations.repo.js';
 import * as repo from './reports.repo.js';
 
-
 const toError = ({ code, message, meta }) => new ApiError(code, message, meta);
 
 async function records() {

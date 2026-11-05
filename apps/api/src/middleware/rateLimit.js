@@ -2,7 +2,6 @@ import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { ApiError } from '../lib/ApiError.js';
 import { readToken } from '../lib/tokens.js';
 
-
 const MINUTE = 60 * 1000;
 
 function refuse(req, res, next, options) {

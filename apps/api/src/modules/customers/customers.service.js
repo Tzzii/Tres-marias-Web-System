@@ -6,7 +6,6 @@ import { ApiError } from '../../lib/ApiError.js';
 import { findReservations } from '../reservations/reservations.repo.js';
 import * as repo from './customers.repo.js';
 
-
 const notFound = () => new ApiError('NOT_FOUND', 'Customer not found.');
 const emailTaken = () => new ApiError('EMAIL_TAKEN', 'Another account already uses this email.', { field: 'email' });
 

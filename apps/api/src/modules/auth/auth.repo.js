@@ -1,7 +1,5 @@
 import { pool } from '../../db.js';
 
-
-
 export const toCustomer = (row) =>
   row && {
     id: row.id,
@@ -145,7 +143,6 @@ export async function findSessionAccount(role, id) {
   return row && { name: row.name, passwordChangedAt: row.password_changed_at };
 }
 
-
 const toChallenge = (row) =>
   row && {
     id: row.id,
@@ -204,7 +201,6 @@ export async function markChallengeUsed(conn, id, at) {
   ]);
   return result.affectedRows === 1;
 }
-
 
 const toReset = (row) =>
   row && {
@@ -266,7 +262,6 @@ export async function markResetUsed(conn, id, at) {
   ]);
   return result.affectedRows === 1;
 }
-
 
 const toSignup = (row) =>
   row && {
@@ -343,7 +338,6 @@ export async function markSignupUsed(conn, id, at) {
   return result.affectedRows === 1;
 }
 
-
 const toChange = (row) =>
   row && {
     id: row.id,
@@ -400,7 +394,6 @@ export async function markChangeUsed(conn, id, at) {
   ]);
   return result.affectedRows === 1;
 }
-
 
 const toEmailChange = (row) =>
   row && {
@@ -471,7 +464,6 @@ export async function deleteWaitingPasswordRequests(customerId, conn) {
   await conn.query('DELETE FROM password_changes WHERE customer_id = ? AND used_at IS NULL', [customerId]);
   await conn.query('DELETE FROM password_resets WHERE customer_id = ? AND used_at IS NULL', [customerId]);
 }
-
 
 const toAttempt = (row) => row && { count: row.count, lockedUntil: row.locked_until, updatedAt: row.updated_at };
 

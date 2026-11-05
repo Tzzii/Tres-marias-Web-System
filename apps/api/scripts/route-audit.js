@@ -18,7 +18,6 @@ import {
   writeFile
 } from '../tests/helpers/harness.js';
 
-
 const ACCESS = {
   authRoutes: 'P',
   catalogRoutes: 'P',

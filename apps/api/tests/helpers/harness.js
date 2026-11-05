@@ -11,7 +11,6 @@ import { newId } from '../../src/lib/ids.js';
 import { hashSecret } from '../../src/lib/passwords.js';
 import { signToken } from '../../src/lib/tokens.js';
 
-
 export const API_DIR = config.apiRoot;
 export const REPO_DIR = path.resolve(API_DIR, '..', '..');
 
@@ -76,8 +75,7 @@ export async function startApi({ env = {}, preload = null, label = 'api' } = {})
     try {
       const res = await fetch(`${base}/health`);
       if (res.ok) break;
-    } catch {
-    }
+    } catch {}
     await wait(200);
   }
   if (exitCode !== null) {
@@ -136,8 +134,7 @@ export function client(base) {
     let json = null;
     try {
       json = text ? JSON.parse(text) : null;
-    } catch {
-    }
+    } catch {}
     return { status: res.status, body: json, text, headers: res.headers };
   };
 }

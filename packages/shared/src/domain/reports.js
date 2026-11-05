@@ -124,7 +124,7 @@ export function dashboardSummary(data) {
       return {
         ...r,
         customerName: customer ? customer.name : '',
-        packageName: pkg ? pkg.name : '',
+        packageName: r.packageSnapshot?.name || r.packageName || (pkg ? pkg.name : ''),
         ...financials(r, data.payments, data.refunds)
       };
     })
@@ -143,7 +143,7 @@ export function dashboardSummary(data) {
       guests: r.guests,
       createdAt: r.createdAt,
       customerName: (byId(data.customers, r.customerId) || {}).name,
-      packageName: (byId(data.packages, r.packageId) || {}).name
+      packageName: r.packageSnapshot?.name || r.packageName || (byId(data.packages, r.packageId) || {}).name
     }));
 
   // Payments verified in the current month, less refunds sent in it
@@ -246,6 +246,13 @@ export function report(data, range) {
       ).length
     }))
     .sort((a, b) => b.count - a.count);
+  const customCount = data.reservations.filter(
+    (r) => r.packageSource === 'custom' && !ENDED.includes(r.status) && inRange(r.date, range)
+  ).length;
+  if (customCount) {
+    packageCounts.push({ name: 'Customized packages', count: customCount });
+    packageCounts.sort((a, b) => b.count - a.count);
+  }
 
   return {
     range,

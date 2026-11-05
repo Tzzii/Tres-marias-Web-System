@@ -128,7 +128,7 @@ export default function ReservationsPage() {
         title="My Reservations"
         subtitle="Every request, booking and past event in one place."
         actions={
-          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/portal/book')}>
+          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/portal/plan-event')}>
             New reservation
           </Button>
         }
@@ -190,7 +190,7 @@ export default function ReservationsPage() {
                 }
                 action={
                   !rows.length && (
-                    <Button variant="contained" onClick={() => navigate('/portal/book')}>
+                    <Button variant="contained" onClick={() => navigate('/portal/plan-event')}>
                       New reservation
                     </Button>
                   )

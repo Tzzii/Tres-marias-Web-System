@@ -28,13 +28,11 @@ const toPackage = (row) =>
     archived: Boolean(row.archived)
   };
 
-export async function listPackages({ includeHidden = false, includeArchived = false } = {}) {
+export async function listPackages({ includeHidden = false, includeArchived = false } = {}, db = pool) {
   const conditions = [];
   if (!includeArchived) conditions.push('archived = 0');
   if (!includeHidden) conditions.push('visible = 1');
-  const [rows] = await pool.query(
-    `SELECT ${PACKAGE_COLUMNS} FROM packages ${where(conditions)} ORDER BY sort_order, id`
-  );
+  const [rows] = await db.query(`SELECT ${PACKAGE_COLUMNS} FROM packages ${where(conditions)} ORDER BY sort_order, id`);
   return rows.map(toPackage);
 }
 
@@ -127,12 +125,13 @@ const toAddonRow = (row) => ({
   hasQuantity: Boolean(row.has_quantity),
   hasPackages: Boolean(row.has_packages),
   archived: Boolean(row.archived),
-  inventoryItemId: row.inventory_item_id ?? null
+  inventoryItemId: row.inventory_item_id ?? null,
+  budgetPolicy: parseJson(row.budget_policy)
 });
 
 export async function listAddons({ includeArchived = false } = {}, db = pool) {
   const [rows] = await db.query(
-    `SELECT a.id, a.parent_id, a.name, a.description, a.price, a.has_quantity, a.has_packages, a.archived, i.id AS inventory_item_id
+    `SELECT a.id, a.parent_id, a.name, a.description, a.price, a.has_quantity, a.has_packages, a.archived, a.budget_policy, i.id AS inventory_item_id
        FROM addons a LEFT JOIN inventory_items i ON i.addon_id = a.id ORDER BY a.sort_order, a.id`
   );
   return nestAddons(rows.map(toAddonRow), { includeArchived });
@@ -140,6 +139,10 @@ export async function listAddons({ includeArchived = false } = {}, db = pool) {
 
 export async function findAddonById(id, db = pool) {
   return (await listAddons({ includeArchived: true }, db)).find((charge) => charge.id === id) || null;
+}
+
+export async function setBudgetPolicy(id, policy, db = pool) {
+  await db.query('UPDATE addons SET budget_policy = ? WHERE id = ?', [toJson(policy), id]);
 }
 
 export async function addonNameTaken(name, exceptId) {
@@ -232,8 +235,8 @@ const toDish = (row) =>
     archived: Boolean(row.archived)
   };
 
-export async function listDishes({ includeArchived = false } = {}) {
-  const [rows] = await pool.query(
+export async function listDishes({ includeArchived = false } = {}, db = pool) {
+  const [rows] = await db.query(
     `SELECT ${DISH_COLUMNS} FROM dishes ${where(includeArchived ? [] : ['archived = 0'])} ORDER BY sort_order, id`
   );
   return rows.map(toDish);
@@ -275,6 +278,19 @@ export async function setDishArchived(id, archived) {
 
 export async function deleteDish(id) {
   await pool.query('DELETE FROM dishes WHERE id = ?', [id]);
+}
+
+export async function getPackageProposalRules(db = pool) {
+  const row = first(await db.query('SELECT package_proposal_rules FROM catalog_settings WHERE id = 1'));
+  return parseJson(row?.package_proposal_rules);
+}
+
+export async function setPackageProposalRules(rules, at, db = pool) {
+  const [result] = await db.query(
+    'UPDATE catalog_settings SET package_proposal_rules = ?, updated_at = ? WHERE id = 1',
+    [toJson(rules), at]
+  );
+  if (!result.affectedRows) throw new Error('The catalog settings row is missing.');
 }
 
 export async function getPricePerPlate(db = pool) {

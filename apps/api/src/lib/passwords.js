@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 
-
 export const BCRYPT_ROUNDS = 10;
 
 const DUMMY_HASH = bcrypt.hashSync(crypto.randomUUID(), BCRYPT_ROUNDS);

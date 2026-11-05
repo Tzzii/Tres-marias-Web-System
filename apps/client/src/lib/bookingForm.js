@@ -1,4 +1,6 @@
-import { cleanStyling, initialEndTime } from '@tm/shared';
+import { cleanStyling } from '../../../../packages/shared/src/domain/styling.js';
+import { initialEndTime } from '../../../../packages/shared/src/domain/availability.js';
+import { blankBudgetDraft } from './budgetDraft.js';
 
 export const SECTIONS = [
   ['details', 'Event Details', 'Event'],
@@ -9,6 +11,7 @@ export const SECTIONS = [
   ['food', 'Your Menu', 'Menu'],
   ['venue', 'Venue and Logistics', 'Venue'],
   ['addons', 'Additional Charges', 'Add-ons'],
+  ['budget', 'Package and Budget', 'Budget'],
   ['review', 'Review and Submit', 'Review']
 ];
 
@@ -32,6 +35,8 @@ const FIELD_SECTION = {
 };
 
 export const sectionForField = (field) => {
+  if (field === 'budgetRequest' || field.startsWith('budgetRequest.')) return 'budget';
+  if (field === 'packageProposalRef' || field.startsWith('packageProposalRef.')) return 'budget';
   if (field.startsWith('menu.dessert.')) return 'addons';
   if (field.startsWith('menu.')) return 'food';
   if (field.startsWith('styling.')) return 'styling';
@@ -59,6 +64,10 @@ export const EMPTY = {
   guests: '',
   serviceType: '',
   packageId: '',
+  packageProposalRef: null,
+  packageProposalDisplay: null,
+  packageProposalContext: null,
+  packageProposalStale: false,
   menu: {},
   foodNotes: '',
   styling: EMPTY_STYLING,
@@ -69,6 +78,7 @@ export const EMPTY = {
   accessNotes: '',
   addonIds: [],
   addonQty: {},
+  budgetDraft: blankBudgetDraft(),
   fulfilment: 'pickup',
   rentalQty: {}
 };

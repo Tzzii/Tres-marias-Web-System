@@ -18,6 +18,7 @@ import {
 } from '@tm/shared/src/services/config.js';
 import { tx } from '../../db.js';
 import crypto from 'node:crypto';
+import { defaultPackageProposalRules, validatePackageProposalRules } from '@tm/shared/src/domain/packageProposal.js';
 import { storage } from '../../integrations/storage/index.js';
 import { readPhoto } from '../../lib/photos.js';
 import { ApiError } from '../../lib/ApiError.js';
@@ -25,6 +26,8 @@ import { newId } from '../../lib/ids.js';
 import { now } from '../../lib/time.js';
 import * as repo from './catalog.repo.js';
 import { sixHourFeeProblem } from '@tm/shared/src/services/pricing.js';
+import { budgetBookableAddons, readBudgetPolicy } from '@tm/shared/src/domain/budgetPolicy.js';
+import { budgetCatalogFingerprint } from '../../lib/budgetCatalogFingerprint.js';
 
 const MAX_PACKAGE_PRICE = 10_000_000;
 const MAX_ITEMS = 100;
@@ -78,8 +81,8 @@ export async function getSixHourFee() {
   return { sixHourFee: Number((await repo.getSixHourFee()) ?? DEFAULT_SIX_HOUR_FEE) };
 }
 
-export async function getPricingSettings() {
-  const settings = await repo.getPricingSettings();
+export async function getPricingSettings(db) {
+  const settings = await repo.getPricingSettings(db);
   return {
     pricePerPlate: Number(settings?.pricePerPlate) || DEFAULT_PRICE_PER_PLATE,
     minDownpayment: Number(settings?.minDownpayment) || DEFAULT_MIN_DOWNPAYMENT,
@@ -98,15 +101,70 @@ export async function listRentalItems() {
   return rentalPriceList(await repo.listRentableItems());
 }
 
-export async function getCatalog() {
-  const [packages, addons, dishes, pricing, rentals] = await Promise.all([
-    repo.listPackages(),
-    repo.listAddons(),
-    repo.listDishes(),
-    getPricingSettings(),
-    listRentalItems()
+// Sort object keys only. Recipe priority, dish order and component indexes affect the actual offer.
+export function proposalDigest(value) {
+  const serialized = JSON.stringify(value, (_key, item) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]])
+        )
+      : item
+  );
+  return crypto.createHash('sha256').update(serialized).digest('hex');
+}
+
+export function packageProposalCatalogFingerprint(catalog) {
+  const { packages, addons, dishes, pricePerPlate, sixHourFee, packageProposalRules } = catalog;
+  return proposalDigest({ packages, addons, dishes, pricePerPlate, sixHourFee, packageProposalRules });
+}
+
+export async function readPackageProposalCatalog(db) {
+  const [packages, addons, dishes, pricing, stored] = await Promise.all([
+    repo.listPackages({}, db),
+    repo.listAddons({}, db),
+    repo.listDishes({}, db),
+    getPricingSettings(db),
+    repo.getPackageProposalRules(db)
   ]);
-  return { packages, addons, dishes, ...pricing, rentals };
+  const catalog = {
+    packages,
+    addons,
+    dishes,
+    ...pricing,
+    packageProposalRules: stored ?? defaultPackageProposalRules()
+  };
+  return { ...catalog, packageProposalCatalogFingerprint: packageProposalCatalogFingerprint(catalog) };
+}
+
+export async function savePackageProposalRules(raw) {
+  return tx(async (conn) => {
+    const catalog = await readPackageProposalCatalog(conn);
+    const validated = validatePackageProposalRules(raw, catalog);
+    if (validated.problem) throw invalid(validated.problem, 'packageProposalRules');
+    await repo.setPackageProposalRules(validated.rules, now(), conn);
+    return { rules: validated.rules };
+  });
+}
+
+export async function getCatalog() {
+  const [catalog, rentals] = await Promise.all([readPackageProposalCatalog(), listRentalItems()]);
+  return { ...catalog, rentals, budgetCatalogFingerprint: budgetCatalogFingerprint(catalog) };
+}
+
+export async function saveBudgetPolicy(
+  id,
+  raw,
+  { readCatalog = () => repo.listAddons(), writePolicy = repo.setBudgetPolicy } = {}
+) {
+  const catalog = await readCatalog();
+  const addon = budgetBookableAddons(catalog).find((item) => item.id === id);
+  if (!addon) throw invalid('Choose an available bookable additional charge.', 'budgetPolicy');
+  const result = readBudgetPolicy(raw, addon, catalog);
+  if (result.problem) throw invalid(result.problem, 'budgetPolicy');
+  await writePolicy(id, result.policy);
+  return { id, budgetPolicy: result.policy };
 }
 
 function packageValues(values, rental) {

@@ -2,7 +2,6 @@ import { BUSINESS } from '@tm/shared/src/services/config.js';
 import { lightPalette } from '@tm/shared/src/theme/palettes.js';
 import { config } from '../../config.js';
 
-
 const C = {
   page: '#fbf7f0',
   card: '#ffffff',

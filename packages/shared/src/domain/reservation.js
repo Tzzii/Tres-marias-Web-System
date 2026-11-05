@@ -4,6 +4,7 @@ import { computeQuote, durationChargeFor, reservationSixHourFee } from '../servi
 import { formatDate, todayISO } from '../utils/format.js';
 import { HOLDS_DATE } from '../utils/status.js';
 import { cancelDeadline } from './cancellation.js';
+import { quoteSelection, selectionChanges } from './budgetRequest.js';
 
 /**
  * Reservation rules that need no stored data: whether a sent quotation is out of date, where a pending
@@ -46,6 +47,15 @@ export function quotationStaleReason(reservation) {
   }
   if (quote.serviceType !== reservation.serviceType)
     return `It was sent as ${quote.serviceType}, but this booking is now ${reservation.serviceType}.`;
+  const selection = quoteSelection(quote);
+  if (selection && selectionChanges(selection, reservation).length)
+    return 'The additional services or their quantities changed after it was sent.';
+  if (
+    !selection &&
+    reservation.estimate?.requiresQuoteSentAt != null &&
+    reservation.estimate.requiresQuoteSentAt === quote.sentAt
+  )
+    return 'The additional services changed after this older quotation was sent. A revised quotation is required.';
   if (
     (quote.durationCharge || 0) !==
     durationChargeFor({ ...reservation, sixHourFee: reservationSixHourFee(reservation) })

@@ -1,4 +1,3 @@
-
 const first = ([rows]) => rows[0] || null;
 
 const toFeedback = (row) => ({
@@ -18,7 +17,6 @@ const toFeedback = (row) => ({
   reply: row.reply_body === null ? null : { body: row.reply_body, at: row.reply_at, by: row.reply_by }
 });
 
-
 export async function findFeedbacks(db, { customerId, id, published = false, limit } = {}) {
   const conditions = [];
   const params = [];
@@ -36,7 +34,8 @@ export async function findFeedbacks(db, { customerId, id, published = false, lim
   if (limit != null) params.push(limit);
   const [rows] = await db.query(
     `SELECT t.*, c.name AS customer_name, c.email AS customer_email, c.mobile AS customer_mobile,
-            r.event_name, r.date AS event_date, r.occasion, r.guests, p.name AS package_name
+            r.event_name, r.date AS event_date, r.occasion, r.guests,
+            CASE WHEN r.package_source = 'custom' THEN JSON_UNQUOTE(JSON_EXTRACT(r.package_snapshot, '$.name')) ELSE p.name END AS package_name
        FROM testimonials t
        LEFT JOIN customers c ON c.id = t.customer_id
        LEFT JOIN reservations r ON r.ref = t.ref
@@ -72,7 +71,6 @@ export async function countUnread(db) {
   const row = first(await db.query('SELECT COUNT(*) AS n FROM testimonials WHERE read_by_admin = 0'));
   return Number(row.n);
 }
-
 
 export async function lockFeedback(conn, id) {
   const row = first(

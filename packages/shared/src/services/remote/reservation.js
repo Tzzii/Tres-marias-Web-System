@@ -35,6 +35,7 @@ const segment = (ref) => encodeURIComponent(String(ref || ''));
 // occasionOther the customer's own occasion when they picked "Other" (saved as the occasion: bookingOccasion in config.js)
 const BOOKING_FIELDS = [
   'packageId',
+  'packageProposalRef',
   'serviceType',
   'eventName',
   'occasion',
@@ -49,6 +50,7 @@ const BOOKING_FIELDS = [
   'styling',
   'addonIds',
   'addonQty',
+  'budgetRequest',
   'venueName',
   'venueAddress',
   'city',
@@ -159,6 +161,7 @@ const adminPath = (ref, action) => `/admin/reservations/${segment(ref)}/${action
 
 /** Price and send the quotation: { addonPrices, otherChargeItems: [{ amount, label }], discount, deliveryFee, note }. Returns the summary. */
 export const sendQuotation = (ref, values) => http.post(adminPath(ref, 'quotation'), values);
+export const updateAddons = (ref, selection) => http.put(adminPath(ref, 'addons'), selection);
 
 /** Decline a pending request with a reason shown to the customer. Returns the summary. */
 export const declineReservation = (ref, reason) => http.post(adminPath(ref, 'decline'), { reason });

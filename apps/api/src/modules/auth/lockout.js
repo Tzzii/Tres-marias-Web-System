@@ -4,7 +4,6 @@ import { ApiError } from '../../lib/ApiError.js';
 import { now } from '../../lib/time.js';
 import * as repo from './auth.repo.js';
 
-
 const LOGIN = { max: RULES.maxLoginAttempts, lockMinutes: RULES.loginLockMinutes };
 const CODE = { max: RULES.maxCodeAttempts, lockMinutes: RULES.codeLockMinutes };
 
@@ -12,6 +11,7 @@ export const SCOPES = {
   customer: { ...LOGIN, message: 'Too many failed attempts. This account is temporarily locked.' },
   admin: { ...LOGIN, message: 'Too many failed attempts. This account is temporarily locked.' },
   'admin-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
+  'google-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'reset-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'signup-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },
   'change-code': { ...CODE, message: 'Too many incorrect codes. Code entry is paused.' },

@@ -445,6 +445,7 @@ async function check() {
   for (const t of [
     'login_attempts',
     'auth_challenges',
+    'customer_google_signins',
     'password_resets',
     'signup_requests',
     'password_changes',

@@ -14,6 +14,7 @@ import { prepareSampleProofs } from './seedData/proofs.js';
 export const TABLES = [
   'admins',
   'customers',
+  'customer_google_signins',
   'packages',
   'addons',
   'dishes',

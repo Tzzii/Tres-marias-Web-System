@@ -257,7 +257,7 @@ export default function DashboardPage() {
                 <Button
                   variant="contained"
                   startIcon={<AddRoundedIcon />}
-                  onClick={() => navigate('/portal/book')}
+                  onClick={() => navigate('/portal/plan-event')}
                   sx={{ justifyContent: 'flex-start', py: 1.2 }}
                 >
                   New reservation

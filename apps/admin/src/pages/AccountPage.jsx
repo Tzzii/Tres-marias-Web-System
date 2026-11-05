@@ -549,7 +549,6 @@ function ChangeContactDialog({ open, field, onClose, profile, onSaved }) {
     }
   }, [open, field]);
 
-
   const sendCode = async (e) => {
     e.preventDefault();
     const found = {};

@@ -1,6 +1,6 @@
 {
   "name": "tres-marias",
-  "version": "1.29.2",
+  "version": "1.45.0",
   "private": true,
   "description": "Tres Marias Catering Services - Customer Portal and Admin Dashboard (React + Vite + MUI monorepo).",
   "workspaces": [
@@ -51,7 +51,7 @@
     "catalog:update": "npm run catalog:update -w apps/api --",
     "test:booking:db": "npm run test:booking:db -w apps/api",
     "test": "npm run check:versions && npm run test -w apps/api && npm run test -w apps/admin && npm run test -w apps/client",
-    "test:google": "node --test apps/api/tests/google-identity-tests.js apps/api/tests/google-auth-tests.js apps/api/tests/google-migration-tests.js apps/api/tests/google-routes-tests.js apps/client/tests/google-sdk.test.js",
+    "test:google": "node --test apps/api/tests/google-identity-tests.js apps/api/tests/google-auth-tests.js apps/api/tests/google-code-tests.js apps/api/tests/google-migration-tests.js apps/api/tests/google-routes-tests.js apps/client/tests/google-sdk.test.js",
     "test:google:db": "npm run test:google:db -w apps/api",
     "test:google-ui": "node scripts/google-auth-check.mjs",
     "test:duration": "npm run test:duration -w apps/api",
@@ -59,7 +59,16 @@
     "check:versions": "node scripts/check-workspace-versions.mjs",
     "test:auth-ui": "node scripts/auth-transition-check.mjs",
     "test:customer-code-ui": "node scripts/customer-code-check.mjs",
-    "test:portal-workflow-ui": "node scripts/portal-workflow-check.mjs"
+    "test:portal-workflow-ui": "node scripts/portal-workflow-check.mjs",
+    "test:budget": "npm run test:budget -w apps/api && node --test apps/client/tests/budget-api.test.js apps/client/tests/budget-draft.test.js apps/client/tests/budget-selection.test.js apps/client/tests/budget-submission.test.js apps/admin/tests/budget-request.test.js",
+    "test:budget:db": "npm run test:budget:db -w apps/api",
+    "test:assistant": "node --test apps/api/tests/assistant-tests.js apps/api/tests/assistant-booking-tests.js apps/api/tests/assistant-schedule-tests.js apps/api/tests/assistant-submission-tests.js apps/client/tests/assistant.test.js apps/client/tests/assistant-reservation.test.js apps/client/tests/assistant-handoff.test.js",
+    "test:assistant:db": "node --test apps/api/tests/assistant-db-tests.js apps/api/tests/assistant-submission-db-tests.js",
+    "test:assistant:ui": "node scripts/assistant-ui-check.mjs && node scripts/assistant-reservation-ui-check.mjs",
+    "evaluate:assistant": "node apps/api/scripts/assistant-evaluate.js",
+    "test:package-proposals": "npm run test:package-proposals -w apps/api && node --test apps/client/tests/package-proposal-draft.test.js",
+    "test:package-proposals:db": "npm run test:package-proposals:db -w apps/api",
+    "test:package-proposals:ui": "node scripts/package-proposal-ui-check.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -55,8 +55,18 @@ export default function AuthLayout() {
   const continuingBooking = isSignup
     ? params.get('continue') === 'booking'
     : safeNextPath(params.get('next'), '/portal').startsWith('/portal/book');
-  const loginPath = continuingBooking ? '/login?next=/portal/book' : '/login';
-  const signupPath = continuingBooking ? '/signup?continue=booking' : '/signup';
+  const continuingAssistant =
+    params.get('continue') === 'assistant' || safeNextPath(params.get('next'), '/portal') === '/portal/assistant';
+  const loginPath = continuingBooking
+    ? '/login?next=/portal/book'
+    : continuingAssistant
+      ? '/login?next=%2Fportal%2Fassistant'
+      : '/login';
+  const signupPath = continuingBooking
+    ? '/signup?continue=booking'
+    : continuingAssistant
+      ? '/signup?continue=assistant'
+      : '/signup';
 
   useLayoutEffect(() => {
     if (previousLocation.current.pathname !== location.pathname) {
