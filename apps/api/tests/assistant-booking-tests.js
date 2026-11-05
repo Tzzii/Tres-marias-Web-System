@@ -3,12 +3,20 @@ import assert from 'node:assert/strict';
 import { createAssistantTools, ASSISTANT_TOOLS } from '../src/modules/assistant/assistant.tools.js';
 import { bookingDraftFromForm, bookingPlan, validateBookingPatch } from '../src/modules/assistant/assistant.booking.js';
 import { createAssistantProvider } from '../src/integrations/ai/assistant.openai.js';
+import { withScopeVerdicts } from './helpers/assistant-scope-client.js';
+
 import { createAssistantService } from '../src/modules/assistant/assistant.service.js';
 import {
   cleanAssistantBooking,
   applyAssistantBooking,
   mergeAssistantBooking
 } from '@tm/shared/src/domain/assistantBooking.js';
+
+const providerWithScopeFixtures = (options) =>
+  createAssistantProvider({
+    ...options,
+    client: withScopeVerdicts(options.client)
+  });
 
 const catalog = {
   packages: [
@@ -369,7 +377,7 @@ test('resume maps an existing form to public selections and drops provider/actio
 
 test('provider retains the saved plan beyond truncated text history and takes draft values only from validated tools', async () => {
   const calls = [];
-  const provider = createAssistantProvider({
+  const provider = providerWithScopeFixtures({
     settings: { model: 'gpt-6-luna', maxCalls: 3, maxInputBytes: 64000, maxOutputTokens: 2048, timeoutMs: 1000 },
     client: {
       responses: {

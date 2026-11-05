@@ -6,6 +6,7 @@ import { ApiError } from '../../lib/ApiError.js';
 import { pcmWave } from '../../modules/assistant/assistant.audio.js';
 import { ASSISTANT_TOOLS } from '../../modules/assistant/assistant.tools.js';
 import { cleanAssistantIntent } from '@tm/shared/src/domain/assistant.js';
+import { checkAssistantScope, directEntertainmentQuestion, scopeFallback } from './assistantScope.js';
 
 const planningInstructions = `For reservation intent (including Filipino/Taglish), call prepare_reservation with planningStarted true even without details. Save all supplied details and explicit changes; use the saved plan to avoid repeating answers. Never invent selections, dates, quantities, personal details or consent.
 Use get_booking_guidance and search_catalog for rules and choices. Guided order: event name, occasion, service, date/exact times, catering guests, package, buffet menu, theme, colors, photos, design, venue/address/city, access, addons, relevant dietary requests, budget, review. Rentals need offered equipment quantities, pickup/delivery and delivery venue. Ask one or two focused questions. Mark discussed optional topics only when answered or explicitly skipped. Show names rather than IDs; visual selection controls are available. Menus need exactly four dishes, at most two per category; custom dishes need admin review. Private photo uploads attach references for the team; you cannot view them or infer uploads from typed text.
@@ -60,7 +61,26 @@ export function createAssistantProvider({
       const maxInputBytes = Math.min(settings.maxInputBytes, 64000);
       if (![maxCalls, maxOutputTokens, maxInputBytes].every((value) => Number.isSafeInteger(value) && value > 0))
         throw unavailable();
+      if (signal?.aborted) throw unavailable();
+      if (directEntertainmentQuestion(text)) return scopeFallback();
       const saved = cleanAssistantIntent(tools.bookingDraft || {});
+      const checkScope = (stage, data) =>
+        checkAssistantScope({
+          stage,
+          data,
+          settings,
+          create: (body, options) => provider().responses.create(body, options),
+          spend,
+          signal
+        });
+      const scope = await checkScope('input', { text, history: history.slice(-12), savedPlan: saved });
+      if (signal?.aborted) throw unavailable();
+      if (!scope) return scopeFallback('failed');
+      if (scope.decision === 'unrelated') return scopeFallback();
+      if (scope.decision === 'unclear') return scopeFallback('unclear');
+      const businessText = scope.decision === 'mixed' ? scope.businessText : text;
+      // Do not feed the rejected part or unrelated conversation history into generation.
+      const businessHistory = scope.decision === 'mixed' ? [] : history;
       const seenCalls = new Set();
       const messages = [
         ...(Object.keys(saved).length
@@ -71,8 +91,8 @@ export function createAssistantProvider({
               }
             ]
           : []),
-        ...history,
-        { role: 'user', content: text }
+        ...businessHistory,
+        { role: 'user', content: businessText }
       ];
       for (let step = 0; step < maxCalls; step++) {
         if (signal?.aborted) throw unavailable();
@@ -171,6 +191,10 @@ export function createAssistantProvider({
           result.estimateIds.some((id) => !tools.estimates.has(id))
         )
           throw unavailable();
+        const outputScope = await checkScope('output', { request: businessText, answer: result.answer });
+        if (signal?.aborted) throw unavailable();
+        if (!outputScope) return scopeFallback('failed');
+        if (!outputScope.allowed) return scopeFallback();
         return {
           bookingDraft: cleanAssistantIntent(tools.bookingDraft || {}),
           answer: result.answer.trim(),

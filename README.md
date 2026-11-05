@@ -6,7 +6,9 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.45.1**
+**System version: 1.45.2**
+
+The AI assistant enforces business scope on the server before answering or using booking tools, then independently checks the generated reply before saving or speaking it. Clear entertainment questions receive a fixed business redirect; mixed requests may continue only with a verbatim business excerpt. Unclear or failed checks return clarification. Rejected replies cannot update the booking draft or publish generated cards. Classifier calls share the existing spending controls and turn timeout; semantic accuracy still requires human-reviewed model evaluation.
 
 AI safety controls share a durable spending ledger across chat, audio and both recommendation endpoints. Persistent IP/account attempt limits, expiring global concurrency leases, a provider-failure circuit and per-request processing ceilings protect paid requests. The admin dashboard includes read-only USD usage estimates and alerts; see the API README's AI usage protections section before enabling live calls.
 

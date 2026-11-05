@@ -1,6 +1,6 @@
 {
   "name": "tres-marias",
-  "version": "1.45.1",
+  "version": "1.45.2",
   "private": true,
   "description": "Tres Marias Catering Services - Customer Portal and Admin Dashboard (React + Vite + MUI monorepo).",
   "workspaces": [
@@ -62,7 +62,7 @@
     "test:portal-workflow-ui": "node scripts/portal-workflow-check.mjs",
     "test:budget": "npm run test:budget -w apps/api && node --test apps/client/tests/budget-api.test.js apps/client/tests/budget-draft.test.js apps/client/tests/budget-selection.test.js apps/client/tests/budget-submission.test.js apps/admin/tests/budget-request.test.js",
     "test:budget:db": "npm run test:budget:db -w apps/api",
-    "test:assistant": "node --test apps/api/tests/assistant-tests.js apps/api/tests/assistant-booking-tests.js apps/api/tests/assistant-schedule-tests.js apps/api/tests/assistant-submission-tests.js apps/client/tests/assistant.test.js apps/client/tests/assistant-reservation.test.js apps/client/tests/assistant-handoff.test.js",
+    "test:assistant": "node --test apps/api/tests/assistant-tests.js apps/api/tests/assistant-scope-tests.js apps/api/tests/assistant-booking-tests.js apps/api/tests/assistant-schedule-tests.js apps/api/tests/assistant-submission-tests.js apps/client/tests/assistant.test.js apps/client/tests/assistant-reservation.test.js apps/client/tests/assistant-handoff.test.js",
     "test:assistant:db": "node --test apps/api/tests/assistant-db-tests.js apps/api/tests/assistant-submission-db-tests.js",
     "test:assistant:ui": "node scripts/assistant-ui-check.mjs && node scripts/assistant-reservation-ui-check.mjs",
     "evaluate:assistant": "node apps/api/scripts/assistant-evaluate.js",

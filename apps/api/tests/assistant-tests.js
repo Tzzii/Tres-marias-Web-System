@@ -6,12 +6,20 @@ import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createAssistantTools } from '../src/modules/assistant/assistant.tools.js';
 import { createAssistantProvider } from '../src/integrations/ai/assistant.openai.js';
+import { withScopeVerdicts } from './helpers/assistant-scope-client.js';
+
 import { createAssistantService } from '../src/modules/assistant/assistant.service.js';
 import { createAssistantRoutes } from '../src/modules/assistant/assistant.routes.js';
 import { readQuestionAudio, pcmWave } from '../src/modules/assistant/assistant.audio.js';
 import { errorHandler } from '../src/middleware/errors.js';
 import { ApiError } from '../src/lib/ApiError.js';
 import { computeQuote, INCLUSIVE_PRICING_MODEL } from '@tm/shared/src/services/pricing.js';
+
+const providerWithScopeFixtures = (options) =>
+  createAssistantProvider({
+    ...options,
+    client: withScopeVerdicts(options.client)
+  });
 
 const settings = {
   enabled: true,
@@ -170,7 +178,7 @@ test('provider completes a tool loop, validates returned cards and accounts for 
     },
     settle: async (...args) => settlements.push(args)
   };
-  const provider = createAssistantProvider({ settings, client });
+  const provider = providerWithScopeFixtures({ settings, client });
   const result = await provider.answer({
     text: 'Show a package',
     history: [],
@@ -179,14 +187,14 @@ test('provider completes a tool loop, validates returned cards and accounts for 
   });
   assert.equal(result.packages[0].id, 'pkg-a');
   assert.equal(calls.length, 2);
-  assert.equal(reservations.length, 2);
-  assert.equal(settlements.length, 2);
+  assert.equal(reservations.length, 4);
+  assert.equal(settlements.length, 4);
   assert.deepEqual(
     settlements.map((entry) => entry[1]),
-    [15, 30]
+    [0, 15, 30, 0]
   );
   assert.equal(
-    reservations[0][1],
+    reservations[1][1],
     Math.ceil((Buffer.byteLength(JSON.stringify(calls[0])) + 4096) * 0.1 + settings.maxOutputTokens * 0.5)
   );
   assert.equal(calls[0].store, false);
@@ -195,7 +203,7 @@ test('provider completes a tool loop, validates returned cards and accounts for 
     calls[1].input.some((m) => m.type === 'function_call_output'),
     true
   );
-  const forged = createAssistantProvider({
+  const forged = providerWithScopeFixtures({
     settings,
     client: {
       responses: {
@@ -299,7 +307,7 @@ test('voice adapters use the supported transcription and Realtime protocols with
     },
     settle: async () => {}
   };
-  const provider = createAssistantProvider({
+  const provider = providerWithScopeFixtures({
     settings: {
       ...settings,
       timeoutMs: 1000,
@@ -377,7 +385,12 @@ test('live evaluation scenarios cover both languages, prices, schedules, privacy
     'overnight',
     'availability',
     'privacy-other',
-    'prompt-injection'
+    'prompt-injection',
+    'scope-avengers',
+    'scope-anime-taglish',
+    'scope-theme-avengers',
+    'scope-theme-anime',
+    'scope-mixed'
   ])
     assert.ok(cases.some((c) => c.id === id));
 });
@@ -444,7 +457,7 @@ test('routes reject injected models, prices and narration text and gate audio be
 test('repeated equivalent tool calls stop a stalled loop before rerunning the tool or paying again', async () => {
   let calls = 0,
     catalogReads = 0;
-  const provider = createAssistantProvider({
+  const provider = providerWithScopeFixtures({
     settings,
     client: {
       responses: {
@@ -490,7 +503,7 @@ test('tool repetition after a changed saved plan is allowed and never reuses an 
   ];
   let calls = 0;
   const requests = [];
-  const provider = createAssistantProvider({
+  const provider = providerWithScopeFixtures({
     settings,
     client: {
       responses: {
@@ -529,7 +542,7 @@ test('tool repetition after a changed saved plan is allowed and never reuses an 
 
 test('provider caps paid loop calls and output tokens even when settings are raised accidentally', async () => {
   const requests = [];
-  const provider = createAssistantProvider({
+  const provider = providerWithScopeFixtures({
     settings: { ...settings, maxCalls: 100, maxOutputTokens: 1000000 },
     client: {
       responses: {
@@ -576,7 +589,7 @@ test('provider caps paid loop calls and output tokens even when settings are rai
 
 test('incomplete token usage retains the conservative assistant reservation', async () => {
   const settled = [];
-  const provider = createAssistantProvider({
+  const provider = providerWithScopeFixtures({
     settings,
     client: {
       responses: {
@@ -595,14 +608,14 @@ test('incomplete token usage retains the conservative assistant reservation', as
     tools: createAssistantTools(),
     spend: { reserve: async () => 'paid', settle: async (...args) => settled.push(args) }
   });
-  assert.equal(settled.length, 1);
-  assert.equal(settled[0][1], undefined);
+  assert.equal(settled.length, 3);
+  assert.equal(settled[1][1], undefined);
 });
 
 test('duplicate realtime session acknowledgements can create only one paid speech response', async () => {
   const commands = [],
     settled = [];
-  const provider = createAssistantProvider({
+  const provider = providerWithScopeFixtures({
     settings: { ...settings, speechModel: 'gpt-realtime-2.1-mini', voice: 'marin' },
     socketFactory: () => {
       const socket = new EventEmitter();

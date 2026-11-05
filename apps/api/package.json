@@ -1,6 +1,6 @@
 {
   "name": "@tm/api",
-  "version": "1.45.1",
+  "version": "1.45.2",
   "private": true,
   "type": "module",
   "description": "Tres Marias API - Express + MySQL backend for the Customer Portal and the Admin Dashboard.",
@@ -31,7 +31,7 @@
     "test:seed": "node --test tests/customer-seed-tests.js",
     "catalog:update": "node scripts/catalog-booking-update.js",
     "test:booking:db": "node --test tests/booking-options-db-tests.js",
-    "test": "node --test tests/booking-options-tests.js tests/calendar-tests.js tests/customer-seed-tests.js tests/helper-label-tests.js tests/hero-photo-tests.js tests/inventory-tests.js tests/mobile-tests.js tests/other-charges-tests.js tests/outsource-email-tests.js tests/outsource-tests.js tests/package-photo-tests.js tests/payment-details-tests.js tests/realtime-tests.js tests/receipt-proof-tests.js tests/reference-photo-tests.js tests/google-identity-tests.js tests/google-auth-tests.js tests/google-code-tests.js tests/google-migration-tests.js tests/google-routes-tests.js tests/duration-fee-tests.js tests/catalog-pricing-tests.js tests/budget-pricing-tests.js tests/budget-policy-tests.js tests/budget-schema-tests.js tests/budget-rules-tests.js tests/budget-ai-tests.js tests/budget-routes-tests.js tests/budget-proposal-repo-tests.js tests/budget-submission-tests.js tests/budget-admin-tests.js tests/assistant-tests.js tests/assistant-booking-tests.js tests/assistant-schedule-tests.js tests/assistant-submission-tests.js tests/package-proposal-engine-tests.js tests/package-proposal-policy-tests.js tests/package-proposal-backend-tests.js tests/package-proposal-compatibility-tests.js tests/package-proposal-revision-tests.js tests/package-proposal-offline-planning-tests.js tests/package-proposal-recovery-tests.js tests/ai-safety-tests.js tests/proxy-safety-tests.js",
+    "test": "node --test tests/booking-options-tests.js tests/calendar-tests.js tests/customer-seed-tests.js tests/helper-label-tests.js tests/hero-photo-tests.js tests/inventory-tests.js tests/mobile-tests.js tests/other-charges-tests.js tests/outsource-email-tests.js tests/outsource-tests.js tests/package-photo-tests.js tests/payment-details-tests.js tests/realtime-tests.js tests/receipt-proof-tests.js tests/reference-photo-tests.js tests/google-identity-tests.js tests/google-auth-tests.js tests/google-code-tests.js tests/google-migration-tests.js tests/google-routes-tests.js tests/duration-fee-tests.js tests/catalog-pricing-tests.js tests/budget-pricing-tests.js tests/budget-policy-tests.js tests/budget-schema-tests.js tests/budget-rules-tests.js tests/budget-ai-tests.js tests/budget-routes-tests.js tests/budget-proposal-repo-tests.js tests/budget-submission-tests.js tests/budget-admin-tests.js tests/assistant-tests.js tests/assistant-scope-tests.js tests/assistant-booking-tests.js tests/assistant-schedule-tests.js tests/assistant-submission-tests.js tests/package-proposal-engine-tests.js tests/package-proposal-policy-tests.js tests/package-proposal-backend-tests.js tests/package-proposal-compatibility-tests.js tests/package-proposal-revision-tests.js tests/package-proposal-offline-planning-tests.js tests/package-proposal-recovery-tests.js tests/ai-safety-tests.js tests/proxy-safety-tests.js",
     "test:google:db": "node --test tests/google-db-tests.js",
     "test:duration": "node --test tests/duration-fee-tests.js",
     "test:duration:db": "node --test tests/duration-fee-db-tests.js",
@@ -42,7 +42,7 @@
     "test:ai-safety:db": "node --test tests/ai-safety-db-tests.js"
   },
   "dependencies": {
-    "@tm/shared": "1.45.1",
+    "@tm/shared": "1.45.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.1",

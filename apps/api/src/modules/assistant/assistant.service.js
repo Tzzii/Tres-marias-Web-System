@@ -63,16 +63,19 @@ export function createAssistantService({
         'The AI assistant is temporarily unavailable. Please browse our packages or message the admin.'
       );
   };
-  const spendFor = (actor) =>
-    capTurnSpend({
-      reserve: (kind, amount) =>
-        repo.reserveSpend(
-          kind,
-          actor.customerId ? `c:${actor.customerId}` : `g:${actor.visitorHash}`,
-          Math.ceil(amount)
-        ),
-      settle: (id, actual, usage) => repo.settleSpend(id, actual, usage)
-    });
+  const spendFor = (actor, limits) =>
+    capTurnSpend(
+      {
+        reserve: (kind, amount) =>
+          repo.reserveSpend(
+            kind,
+            actor.customerId ? `c:${actor.customerId}` : `g:${actor.visitorHash}`,
+            Math.ceil(amount)
+          ),
+        settle: (id, actual, usage) => repo.settleSpend(id, actual, usage)
+      },
+      limits
+    );
   async function bounded(run) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), settings.turnTimeoutMs);
@@ -275,7 +278,8 @@ export function createAssistantService({
       if (turn.replay) return service.read(actor, id);
       try {
         const response = await bounded((signal) => {
-          const spend = spendFor(actor);
+          // Six answer rounds, two scope checks, and one nested package ranking share the same money cap.
+          const spend = spendFor(actor, { maxCalls: 9 });
           let generated;
           return provider.answer({
             text: input.text,

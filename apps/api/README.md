@@ -232,10 +232,42 @@ reservation rollback and concurrent submission checks), and
 `npm run test:assistant:ui` (isolated Playwright fixtures; set `PLAYWRIGHT_MODULE_PATH` if required).
 The database test removes its UUID-scoped records. Browser checks cover desktop/mobile guest gates,
 reloads, microphone/transcript review, signup continuation and preserved booking drafts.
-The 34 synthetic scenarios in `tests/fixtures/assistant-evaluation.json` are a human-reviewed live
+The 48 synthetic scenarios in `tests/fixtures/assistant-evaluation.json` are a human-reviewed live
 evaluation set, not training data. Run `npm run evaluate:assistant -- --allow-paid` only after explicitly
 configuring paid access. Reports go to ignored `tmp/assistant-evaluation/`. Tool-coverage flags are
 diagnostics; a business reviewer must assess correctness, relevance, Taglish and spoken pronunciation.
+
+### Assistant business scope
+
+Every chat answer passes a backend input gate before any answering model or booking tool runs.
+Narrow local intent rules redirect clear entertainment requests, including "who are the avenger"
+and "anong anime ang maganda kapag horror ang genre", without paid calls. Other messages use an
+independent tool-free structured classifier with the current message, recent history and saved plan
+as untrusted data. Valid event-theme inquiries and contextual short replies remain eligible;
+standalone ambiguous requests ask for clarification. Business wording does not authorize unrelated
+trivia, homework or entertainment recommendations.
+
+The server accepts only the documented allowed/unrelated/mixed/unclear decisions. Mixed requests
+must supply a nonempty verbatim business excerpt from the original message; answering receives
+only that excerpt, with no prior chat history. Missing or fabricated excerpts, classifier errors,
+refusals, malformed responses and oversized input return a fixed clarification instead of enabling
+unrestricted answering. Spend-limit and abort errors still stop the turn.
+
+A separate tool-free output check must approve the entire generated reply before it is saved.
+Rejected replies return a server-owned redirect with empty cards and no bookingDraft, preserving
+the saved draft and reference photos. Tool schemas, ownership checks, explicit proposal selection
+and submission controls remain enforced by the server. Scope checks do not grant tool permissions
+or undo valid tool-side proposal generation; rejected outputs do not display or select those proposals.
+Voice playback uses the stored checked answer. Both guard calls use the existing model, spend
+ledger, byte limits and abort signal, with at most 1,024 output tokens each. No new environment
+variables, dependencies or database migrations are needed.
+
+`npm run test:assistant` includes deterministic policy, provider and persistence regression tests.
+These tests mock provider responses and make no live requests. They prove gate enforcement,
+failure handling and state preservation, not perfect semantic classification. The paid human-review
+set includes direct entertainment questions, valid styling themes, mixed requests and prompt
+injection; run it only with explicit paid authorization. Model-based guards add latency/cost and
+cannot guarantee zero bypasses.
 
 ## Reservation options
 
@@ -253,7 +285,7 @@ Verification: `npm run test:booking`, `npm run test:booking:db` against local My
 
 All paid text paths (assistant, complete package ranking and the legacy budget endpoint), transcription and speech reserve cost in the same MySQL day/month ledger before contacting OpenAI. Set positive `AI_ASSISTANT_DAILY_BUDGET_CENTS` and `AI_ASSISTANT_MONTHLY_BUDGET_CENTS` deliberately. Zero or disabled flags block live calls. These are conservative application estimates, not an exact provider invoice; cached input is counted at uncached rates, uncertain calls retain the reservation, and price changes or use of the same key outside this API require separate provider-side controls.
 
-Each top-level request shares a processing ceiling of 250,000 microdollars (US$0.25) and seven provider reservations including nested ranking. Chat has at most six model requests, one package rank within a turn, 2,048 output tokens per chat call, 800 per package rank, bounded input and a 60-second turn deadline. Legacy ranking allows at most 1,000 output tokens. All SDK automatic retries are zero. Equivalent repeated tool calls with unchanged draft state terminate the turn. Completed request IDs replay the stored result; legacy cache/in-flight reuse is customer/input/catalog/stock scoped for 60 seconds. No cross-customer answer or stale availability cache was added. Stable prompt prefixes/cache keys support provider prompt caching without extended retention.
+Each top-level request shares a processing ceiling of 250,000 microdollars (US$0.25). Chat permits at most nine provider reservations: six answering requests, two scope checks and one nested package rank. Other paths retain the seven-reservation default. Output limits are 2,048 tokens per answering call, 1,024 per scope check, 800 per package rank and 1,000 for legacy ranking. Chat retains bounded input and a shared 60-second turn deadline. All SDK automatic retries are zero. Equivalent repeated tool calls with unchanged draft state terminate the turn. Completed request IDs replay the stored result; legacy cache/in-flight reuse is customer/input/catalog/stock scoped for 60 seconds. No cross-customer answer or stale availability cache was added. Stable answer prompt prefixes/cache keys support provider prompt caching without extended retention.
 
 Production routes add durable, atomic MySQL admission windows. Paid traffic is limited to 6 attempts/minute/account, 12/minute/IP subnet, 60/minute globally, 200/day/IP and six times the configured daily question allowance in daily attempts/account (12 for a guest IP identity). These attempts include rejected/failed/replayed HTTP calls, while completed-question allowance is charged only on success. Fresh guest sessions cannot reset the IP limits. Session creation has separate 8/minute/IP and 100/day/IP limits. Admission allows at most 3 concurrent paid requests globally and 1 per actor; leases expire after 120 seconds, covering an absolute 30-second body deadline plus bounded provider work. Persisted counters survive restarts and apply across API workers. If guard storage is unavailable, protected requests fail closed.
 
