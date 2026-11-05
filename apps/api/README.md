@@ -262,6 +262,11 @@ Voice playback uses the stored checked answer. Both guard calls use the existing
 ledger, byte limits and abort signal, with at most 1,024 output tokens each. No new environment
 variables, dependencies or database migrations are needed.
 
+Scope checks are stored under the existing `assistant_usage.kind = 'answer'` category, like other
+text answering work; `scope_input` and `scope_output` are not valid database enum values. The
+transactional MySQL regression in `npm run test:assistant:db` exercises both guards and the answer
+against the actual ledger, rolls back all test writes, and never contacts a model provider.
+
 `npm run test:assistant` includes deterministic policy, provider and persistence regression tests.
 These tests mock provider responses and make no live requests. They prove gate enforcement,
 failure handling and state preservation, not perfect semantic classification. The paid human-review

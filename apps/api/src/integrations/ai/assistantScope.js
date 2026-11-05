@@ -80,11 +80,9 @@ export async function checkAssistantScope({ stage, data, settings, create, spend
   };
   const bytes = Buffer.byteLength(JSON.stringify(body));
   if (bytes > Math.min(settings.maxInputBytes, 64000)) return null;
-  // Scope checks share the durable ledger and monetary/call ceiling with answering and nested ranking.
-  const reservation = await spend.reserve(
-    `scope_${stage}`,
-    textCostMicro(settings.model, bytes + 4096, maxOutputTokens)
-  );
+  // Scope checks are text answering work. Keep the persisted kind compatible with the
+  // existing answer/transcription/speech enum; the stage belongs to the request schema.
+  const reservation = await spend.reserve('answer', textCostMicro(settings.model, bytes + 4096, maxOutputTokens));
   let response;
   try {
     response = await create(body, { signal, timeout: settings.timeoutMs, maxRetries: 0 });

@@ -290,6 +290,15 @@ test('guard requests have no tools, share the abort signal, and reserve and sett
   assert.ok(h.settlements.every((entry) => entry[1] === 20));
 });
 
+test('scope checks reserve the existing database-supported answer usage kind', async () => {
+  const h = harness();
+  await h.ask('What catering packages do you currently offer?');
+  assert.deepEqual(
+    h.reservations.map((entry) => entry.kind),
+    ['answer', 'answer', 'answer']
+  );
+});
+
 test('oversized guard input fails closed before a paid call', async () => {
   const h = harness();
   assert.equal((await h.ask('x'.repeat(65000))).answer, clarification);
@@ -444,15 +453,6 @@ test('service permits six bounded answering rounds plus both guards on the share
   });
   await service.answer({ visitorHash: 'visitor' }, 'conversation', { text: 'Compare packages' });
   assert.equal(modelCalls, 6);
-  assert.deepEqual(paidKinds, [
-    'scope_input',
-    'answer',
-    'answer',
-    'answer',
-    'answer',
-    'answer',
-    'answer',
-    'scope_output'
-  ]);
+  assert.deepEqual(paidKinds, ['answer', 'answer', 'answer', 'answer', 'answer', 'answer', 'answer', 'answer']);
   assert.equal(stored.answer, 'Please review the published package options.');
 });
