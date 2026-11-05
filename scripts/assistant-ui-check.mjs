@@ -572,11 +572,14 @@ try {
     1,
     'portal uses full-page assistant layout'
   );
+  await customerPage.getByRole('button', { name: /Event details/ }).click();
   assert.equal(
     await customerPage.locator('[data-assistant-summary]').isVisible(),
     true,
-    'desktop assistant workspace shows the live celebration summary sidebar'
+    'saved celebration details remain available in the event-details drawer'
   );
+  await customerPage.getByRole('button', { name: 'Close event details', exact: true }).click();
+  await customerPage.getByRole('dialog', { name: 'Your event details' }).waitFor({ state: 'hidden' });
   for (const [sizeLabel, height, minThreadHeight] of [
     ['short-laptop', 768, 250],
     ['desktop', 1000, 420]

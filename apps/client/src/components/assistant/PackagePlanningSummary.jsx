@@ -39,7 +39,7 @@ export default function PackagePlanningSummary({ conversation }) {
           <Typography
             variant="overline"
             sx={{
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.1em',
               color: tokens.goldText,
@@ -126,14 +126,14 @@ export default function PackagePlanningSummary({ conversation }) {
               ) : (
                 <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 15, color: 'text.disabled', flexShrink: 0 }} />
               )}
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12, fontWeight: 500 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 13, fontWeight: 500 }}>
                 {label}
               </Typography>
             </Stack>
             <Typography
               variant="body2"
               sx={{
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: filled ? 600 : 400,
                 color: filled ? 'text.primary' : 'text.secondary',
                 textAlign: 'right',
@@ -151,7 +151,7 @@ export default function PackagePlanningSummary({ conversation }) {
           {venueLabel && (
             <Stack direction="row" spacing={1} alignItems="center">
               <PlaceOutlinedIcon sx={{ fontSize: 15, color: tokens.goldText, flexShrink: 0 }} />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, overflowWrap: 'anywhere' }}>
+              <Typography variant="caption" sx={{ fontSize: 13, fontWeight: 500, overflowWrap: 'anywhere' }}>
                 {venueLabel}
               </Typography>
             </Stack>
@@ -159,7 +159,7 @@ export default function PackagePlanningSummary({ conversation }) {
           {colorsLabel && (
             <Stack direction="row" spacing={1} alignItems="center">
               <PaletteOutlinedIcon sx={{ fontSize: 15, color: tokens.goldText, flexShrink: 0 }} />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, overflowWrap: 'anywhere' }}>
+              <Typography variant="caption" sx={{ fontSize: 13, fontWeight: 500, overflowWrap: 'anywhere' }}>
                 Motif: {colorsLabel}
               </Typography>
             </Stack>
@@ -172,7 +172,10 @@ export default function PackagePlanningSummary({ conversation }) {
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25, fontWeight: 600 }}>
             Priority notes
           </Typography>
-          <Typography variant="body2" sx={{ fontSize: 12.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          <Typography
+            variant="body2"
+            sx={{ fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+          >
             {budgetNotes}
           </Typography>
         </Box>
@@ -199,7 +202,7 @@ export default function PackagePlanningSummary({ conversation }) {
         </Box>
       )}
 
-      <Typography variant="caption" component="p" color="text.secondary" sx={{ lineHeight: 1.6, fontSize: 11.5 }}>
+      <Typography variant="caption" component="p" color="text.secondary" sx={{ lineHeight: 1.8, fontSize: 13 }}>
         Each guided answer is saved when you continue. You can also type or use the microphone below. Final services and
         availability require team review.
       </Typography>

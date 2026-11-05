@@ -35,6 +35,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import { PackagePhoto } from '@tm/shared';
 import { BUSINESS } from '@tm/shared/services/config.js';
 import {
@@ -79,7 +80,10 @@ export default function AssistantPanel({
   packagePlanning = false,
   proposalId = '',
   onConversationChange,
-  fullPage = false
+  fullPage = false,
+  onShowDetails,
+  savedDetailsCount = 0,
+  totalDetailsCount = 8
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -113,6 +117,9 @@ export default function AssistantPanel({
   const inFlight = useRef(false);
   const retry = useRef(null);
   const end = useRef(null);
+  const latestReply = useRef(null);
+  const lastScrolledReply = useRef('');
+  const openedConversation = useRef('');
   const scope = user?.id || 'guest';
   const draftWriter = useMemo(() => createAssistantDraftWriter(user?.id), [scope]);
   const remaining = conversation?.allowance.remaining ?? (user ? settings?.dailyLimit : 2);
@@ -185,9 +192,35 @@ export default function AssistantPanel({
     };
   }, [scope, attempt]);
   useEffect(() => {
+    if (fullPage) {
+      if (!conversation || busy || loading) return;
+      const opening = openedConversation.current !== conversation.conversationId;
+      openedConversation.current = conversation.conversationId;
+      const message = conversation?.messages.at(-1);
+      if (!message) return;
+      const key = `${message.id}:${message.status}`;
+      if (lastScrolledReply.current === key) return;
+      // Restoring a plan keeps its guided form in view; newly answered questions open at the reply.
+      if (opening && conversation.bookingDraft?.planningStarted) {
+        lastScrolledReply.current = key;
+        return;
+      }
+      const frame = requestAnimationFrame(() => {
+        latestReply.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+        lastScrolledReply.current = key;
+      });
+      return () => cancelAnimationFrame(frame);
+    }
     if (!conversation?.bookingDraft?.planningStarted && (conversation?.messages.length || busy))
       end.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-  }, [conversation?.messages.length, busy]);
+  }, [
+    conversation?.conversationId,
+    conversation?.messages.length,
+    conversation?.messages.at(-1)?.status,
+    busy,
+    loading,
+    fullPage
+  ]);
   useEffect(() => {
     if (!recording) return undefined;
     const start = Date.now();
@@ -382,12 +415,12 @@ export default function AssistantPanel({
       <Box component="header" className="tm-assistant-header">
         <Box className="tm-assistant-header__main">
           <Box className="tm-assistant-header__avatar">
-            <AssistantMascot portrait />
+            {fullPage ? <AutoAwesomeOutlinedIcon aria-hidden="true" /> : <AssistantMascot portrait />}
           </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography className="tm-assistant-eyebrow">TRES MARIAS</Typography>
             <Typography component="h2" id="assistant-panel-title" className="tm-assistant-header__title">
-              AI event assistant
+              {fullPage ? 'Your planning companion' : 'AI event assistant'}
             </Typography>
           </Box>
           <Tooltip title="Refresh conversation">
@@ -409,344 +442,398 @@ export default function AssistantPanel({
           )}
         </Box>
         <Box className="tm-assistant-header__meta">
-          <Typography className="tm-assistant-header__hint">Packages · Prices · Dates</Typography>
+          {!fullPage && <Typography className="tm-assistant-header__hint">Packages · Prices · Dates</Typography>}
           <Box component="span" className="tm-assistant-allowance">
             {user
               ? `${remaining ?? '…'} questions remaining today`
               : `${remaining ?? 2} free ${remaining === 1 ? 'question' : 'questions'} remaining`}
           </Box>
+          {fullPage && onShowDetails && (
+            <Button
+              className="tm-assistant-details-toggle"
+              startIcon={<TuneRoundedIcon />}
+              onClick={onShowDetails}
+              aria-haspopup="dialog"
+            >
+              Event details
+              <Box component="span" className="tm-assistant-details-count">
+                {savedDetailsCount}/{totalDetailsCount}
+              </Box>
+            </Button>
+          )}
         </Box>
       </Box>
     ),
-    [remaining, user, busy, recording, loading, onClose]
+    [remaining, user, busy, recording, loading, onClose, fullPage, onShowDetails, savedDetailsCount, totalDetailsCount]
   );
 
   const thread = useMemo(
     () => (
-      <Box className="tm-assistant-thread" data-assistant-thread>
-        {savedForm && conversation && (
-          <Box className="tm-assistant-plan tm-assistant-plan--resume">
-            <Box className="tm-assistant-plan__body">
-              <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 0.25 }}>
-                Already started a reservation? You can bring your saved form into this conversation.
-              </Typography>
-              <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
-                Review copied defaults and incomplete details. No request is submitted.
-              </Typography>
-            </Box>
-            <Button
-              size="small"
-              variant="outlined"
-              sx={{ flexShrink: 0 }}
-              disabled={busy || recording || loading}
-              onClick={() => (conversation.bookingPlan?.canReview ? setResumeReview(true) : void resumeSaved())}
-            >
-              Resume saved reservation
-            </Button>
-          </Box>
-        )}
-        {loading && (
-          <Stack direction="row" spacing={1} alignItems="center" role="status">
-            <CircularProgress size={18} />
-            <Typography variant="body2">Opening your assistant…</Typography>
-          </Stack>
-        )}
-        {!loading && !settings?.available && (
-          <Box role="status" className="tm-assistant-offline">
-            <InfoOutlinedIcon sx={{ fontSize: 18, flexShrink: 0 }} />
-            <Box>
-              <Typography component="p" sx={{ fontSize: 12, fontWeight: 600 }}>
-                {user
-                  ? 'AI replies and package generation are temporarily unavailable'
-                  : 'Assistant is temporarily unavailable'}
-              </Typography>
-              <Typography component="p" sx={{ fontSize: 11.5, lineHeight: 1.6 }}>
-                {user
-                  ? 'You can still save answers, complete the guided planning controls and manage reference photos. Your written question stays saved until AI replies are available again.'
-                  : 'Browse our packages or contact the team below.'}
-              </Typography>
-            </Box>
-          </Box>
-        )}
-        {!packagePlanning &&
-          conversation?.bookingDraft?.planningMode !== 'custom' &&
-          !conversation?.messages.length &&
-          !conversation?.bookingPlan?.canReview && (
-            <>
-              <Box className="tm-assistant-welcome">
-                <Box className="tm-assistant-welcome__badge">
-                  <AutoAwesomeOutlinedIcon sx={{ fontSize: 17 }} />
-                  <Typography component="span">A little help for your big day</Typography>
-                </Box>
-                <Typography component="h3">
-                  Let’s plan something
-                  <br />
-                  worth celebrating.
+      <Box
+        className="tm-assistant-thread"
+        data-assistant-thread
+        tabIndex={fullPage ? undefined : 0}
+        aria-label="Assistant workspace"
+      >
+        <Box className="tm-assistant-thread__content">
+          {savedForm && conversation && (
+            <Box className="tm-assistant-plan tm-assistant-plan--resume">
+              <Box className="tm-assistant-plan__body">
+                <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 0.25 }}>
+                  Already started a reservation? You can bring your saved form into this conversation.
                 </Typography>
-                <Typography component="p">Find your package, explore ideas, or ask where to begin.</Typography>
+                <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
+                  Review copied defaults and incomplete details. No request is submitted.
+                </Typography>
               </Box>
-              <Box className="tm-assistant-questions">
-                {(settings?.questions || ASSISTANT_QUESTIONS)
-                  .slice(0, moreQuestions ? undefined : 4)
-                  .map((question) => {
-                    const card = questionCards[ASSISTANT_QUESTIONS.indexOf(question)] || {
-                      title: 'Explore your options',
-                      icon: AutoAwesomeOutlinedIcon
-                    };
-                    const Icon = card.icon;
-                    return (
-                      <Button
-                        key={question}
-                        aria-label={question}
-                        className="tm-assistant-question"
-                        disabled={loading || !settings?.available || blocked || busy || recording}
-                        onClick={() => changeText(question)}
-                      >
-                        <Box className="tm-assistant-question__top">
-                          <Icon sx={{ fontSize: 19 }} />
-                          <ArrowForwardRoundedIcon sx={{ fontSize: 15 }} />
-                        </Box>
-                        <Typography component="span" className="tm-assistant-question__title">
-                          {card.title}
-                        </Typography>
-                        <Typography component="span" className="tm-assistant-question__text">
-                          {question}
-                        </Typography>
-                      </Button>
-                    );
-                  })}
-              </Box>
-              {(settings?.questions || ASSISTANT_QUESTIONS).length > 4 && (
-                <Button size="small" className="tm-assistant-more" onClick={() => setMoreQuestions((value) => !value)}>
-                  {moreQuestions ? 'Fewer suggestions' : 'More questions to explore'}
-                  <ArrowForwardRoundedIcon sx={{ fontSize: 14, ml: 0.75 }} />
-                </Button>
-              )}
-            </>
+              <Button
+                size="small"
+                variant="outlined"
+                sx={{ flexShrink: 0 }}
+                disabled={busy || recording || loading}
+                onClick={() => (conversation.bookingPlan?.canReview ? setResumeReview(true) : void resumeSaved())}
+              >
+                Resume saved reservation
+              </Button>
+            </Box>
           )}
-        <Box role="log" aria-label="Assistant conversation" aria-live="polite" aria-relevant="additions text">
-          {conversation?.messages.map((message) => (
-            <Box key={message.id} sx={{ mb: 3 }}>
-              <Box className="tm-assistant-message tm-assistant-message--user">
-                <Typography variant="caption" sx={{ color: 'inherit', opacity: 0.72 }}>
-                  You{message.source === 'voice' ? ' · voice transcript' : ''}
+          {loading && (
+            <Stack direction="row" spacing={1} alignItems="center" role="status">
+              <CircularProgress size={18} />
+              <Typography variant="body2">Opening your assistant…</Typography>
+            </Stack>
+          )}
+          {!loading && !settings?.available && (
+            <Box role="status" className="tm-assistant-offline">
+              <InfoOutlinedIcon sx={{ fontSize: 18, flexShrink: 0 }} />
+              <Box>
+                <Typography component="p" sx={{ fontSize: 12, fontWeight: 600 }}>
+                  {user
+                    ? 'AI replies and package generation are temporarily unavailable'
+                    : 'Assistant is temporarily unavailable'}
                 </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                  {message.text}
+                <Typography component="p" sx={{ fontSize: 11.5, lineHeight: 1.6 }}>
+                  {user
+                    ? 'You can still save answers, complete the guided planning controls and manage reference photos. Your written question stays saved until AI replies are available again.'
+                    : 'Browse our packages or contact the team below.'}
                 </Typography>
               </Box>
-              {message.response && (
-                <Box className="tm-assistant-message tm-assistant-message--reply">
-                  <Typography
-                    variant="caption"
-                    sx={{ color: '#8a6a2f', fontWeight: 600, display: 'flex', gap: 0.75, alignItems: 'center' }}
-                  >
-                    <AutoAwesomeOutlinedIcon sx={{ fontSize: 14 }} />
-                    Tres Marias assistant
+            </Box>
+          )}
+          {!packagePlanning &&
+            conversation?.bookingDraft?.planningMode !== 'custom' &&
+            !conversation?.messages.length &&
+            !conversation?.bookingPlan?.canReview && (
+              <>
+                <Box className="tm-assistant-welcome">
+                  <Box className="tm-assistant-welcome__badge">
+                    <AutoAwesomeOutlinedIcon sx={{ fontSize: 17 }} />
+                    <Typography component="span">A little help for your big day</Typography>
+                  </Box>
+                  <Typography component="h3">
+                    {fullPage ? (
+                      <>
+                        Good celebrations start
+                        <br />
+                        with a conversation.
+                      </>
+                    ) : (
+                      <>
+                        Let’s plan something
+                        <br />
+                        worth celebrating.
+                      </>
+                    )}
                   </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', mt: 0.5, lineHeight: 1.8 }}
-                  >
-                    {message.response.answer}
+                  <Typography component="p">
+                    {fullPage
+                      ? 'Tell us what you have in mind. We’ll help you explore packages, work out the details, and find your next step.'
+                      : 'Find your package, explore ideas, or ask where to begin.'}
                   </Typography>
-                  {settings?.voiceAvailable && (
-                    <Button
-                      size="small"
-                      startIcon={
-                        speechLoading === message.id ? (
-                          <CircularProgress size={14} />
-                        ) : playing === message.id ? (
-                          <StopRoundedIcon />
-                        ) : (
-                          <VolumeUpOutlinedIcon />
-                        )
-                      }
-                      disabled={Boolean(speechLoading)}
-                      onClick={() => (playing === message.id ? stopPlayback() : void play(message.id))}
-                    >
-                      {playing === message.id ? 'Stop voice' : 'Listen'}
-                    </Button>
-                  )}
-                  {message.response.packageProposals?.map((proposal) => (
-                    <Card key={proposal.id} variant="outlined" sx={{ my: 2, borderRadius: 2 }}>
-                      <CardContent>
-                        <Typography variant="subtitle2">Your custom package options</Typography>
-                        <Typography variant="body2" sx={{ my: 1 }}>
-                          {proposal.options?.length || 0} complete options ·{' '}
-                          {proposal.status === 'ready'
-                            ? 'Ready to review'
-                            : proposal.status === 'no-options'
-                              ? 'No matching setup yet'
-                              : 'Generation unavailable'}
-                        </Typography>
+                </Box>
+                <Box className="tm-assistant-questions">
+                  {(settings?.questions || ASSISTANT_QUESTIONS)
+                    .slice(0, moreQuestions ? undefined : 4)
+                    .map((question) => {
+                      const card = questionCards[ASSISTANT_QUESTIONS.indexOf(question)] || {
+                        title: 'Explore your options',
+                        icon: AutoAwesomeOutlinedIcon
+                      };
+                      const Icon = card.icon;
+                      return (
                         <Button
-                          component={RouterLink}
-                          to={`/portal/package-proposals/${encodeURIComponent(proposal.id)}?conversation=${encodeURIComponent(conversation.conversationId)}`}
-                          variant="outlined"
-                          size="small"
+                          key={question}
+                          aria-label={question}
+                          className="tm-assistant-question"
+                          disabled={loading || !settings?.available || blocked || busy || recording}
+                          onClick={() => changeText(question)}
                         >
-                          Review package options
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {message.response.packages
-                    ?.filter((p) => /^[a-z0-9-]+$/.test(p.slug))
-                    .map((pkg) => (
-                      <Card
-                        key={pkg.id}
-                        variant="outlined"
-                        sx={{ mt: 1.5, borderRadius: 3, borderColor: '#e8dcc6', boxShadow: 'none' }}
-                      >
-                        <PackagePhoto pkg={pkg} height={120} thumbnail />
-                        <CardContent sx={{ p: 2 }}>
-                          <Typography variant="subtitle2">{pkg.name}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {pkg.description}
+                          <Box className="tm-assistant-question__top">
+                            <Icon sx={{ fontSize: 19 }} />
+                            <ArrowForwardRoundedIcon sx={{ fontSize: 15 }} />
+                          </Box>
+                          <Typography component="span" className="tm-assistant-question__title">
+                            {card.title}
                           </Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                            <Button size="small" component={RouterLink} to={`/packages/${pkg.slug}`}>
-                              View package
-                            </Button>
-                            <Button size="small" onClick={() => review({ packageSlug: pkg.slug })}>
-                              Continue to booking
-                            </Button>
-                          </Stack>
+                          <Typography component="span" className="tm-assistant-question__text">
+                            {question}
+                          </Typography>
+                        </Button>
+                      );
+                    })}
+                </Box>
+                {(settings?.questions || ASSISTANT_QUESTIONS).length > 4 && (
+                  <Button
+                    size="small"
+                    className="tm-assistant-more"
+                    onClick={() => setMoreQuestions((value) => !value)}
+                  >
+                    {moreQuestions ? 'Fewer suggestions' : 'More questions to explore'}
+                    <ArrowForwardRoundedIcon sx={{ fontSize: 14, ml: 0.75 }} />
+                  </Button>
+                )}
+              </>
+            )}
+          <Box role="log" aria-label="Assistant conversation" aria-live="polite" aria-relevant="additions text">
+            {conversation?.messages.map((message, index) => (
+              <Box key={message.id} sx={{ mb: 3 }}>
+                <Box className="tm-assistant-message tm-assistant-message--user">
+                  <Typography variant="caption" sx={{ color: 'inherit', opacity: 0.72 }}>
+                    You{message.source === 'voice' ? ' · voice transcript' : ''}
+                  </Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                    {message.text}
+                  </Typography>
+                </Box>
+                {message.response && (
+                  <Box
+                    className="tm-assistant-message tm-assistant-message--reply"
+                    ref={index === conversation.messages.length - 1 ? latestReply : undefined}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{ color: '#8a6a2f', fontWeight: 600, display: 'flex', gap: 0.75, alignItems: 'center' }}
+                    >
+                      <AutoAwesomeOutlinedIcon sx={{ fontSize: 14 }} />
+                      Tres Marias assistant
+                    </Typography>
+                    {fullPage ? (
+                      <Box className="tm-assistant-answer">
+                        {message.response.answer
+                          .split(/\n\s*\n/)
+                          .filter(Boolean)
+                          .map((paragraph, paragraphIndex) => (
+                            <Typography component="p" variant="body2" key={paragraphIndex}>
+                              {paragraph}
+                            </Typography>
+                          ))}
+                      </Box>
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', mt: 0.5, lineHeight: 1.8 }}
+                      >
+                        {message.response.answer}
+                      </Typography>
+                    )}
+                    {settings?.voiceAvailable && (
+                      <Button
+                        size="small"
+                        startIcon={
+                          speechLoading === message.id ? (
+                            <CircularProgress size={14} />
+                          ) : playing === message.id ? (
+                            <StopRoundedIcon />
+                          ) : (
+                            <VolumeUpOutlinedIcon />
+                          )
+                        }
+                        disabled={Boolean(speechLoading)}
+                        onClick={() => (playing === message.id ? stopPlayback() : void play(message.id))}
+                      >
+                        {playing === message.id ? 'Stop voice' : 'Listen'}
+                      </Button>
+                    )}
+                    {message.response.packageProposals?.map((proposal) => (
+                      <Card key={proposal.id} variant="outlined" sx={{ my: 2, borderRadius: 2 }}>
+                        <CardContent>
+                          <Typography variant="subtitle2">Your custom package options</Typography>
+                          <Typography variant="body2" sx={{ my: 1 }}>
+                            {proposal.options?.length || 0} complete options ·{' '}
+                            {proposal.status === 'ready'
+                              ? 'Ready to review'
+                              : proposal.status === 'no-options'
+                                ? 'No matching setup yet'
+                                : 'Generation unavailable'}
+                          </Typography>
+                          <Button
+                            component={RouterLink}
+                            to={`/portal/package-proposals/${encodeURIComponent(proposal.id)}?conversation=${encodeURIComponent(conversation.conversationId)}`}
+                            variant="outlined"
+                            size="small"
+                          >
+                            Review package options
+                          </Button>
                         </CardContent>
                       </Card>
                     ))}
-                  {message.response.estimates?.map((estimate) => (
-                    <Card
-                      key={estimate.id}
-                      variant="outlined"
-                      sx={{ mt: 1.5, borderRadius: 3, borderColor: '#e8dcc6', boxShadow: 'none' }}
-                    >
-                      <CardContent sx={{ p: 2 }}>
-                        <Typography variant="subtitle2">
-                          {estimate.packageName}
-                          {estimate.guests ? ` · ${estimate.guests} guests` : ''}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {estimate.serviceType}
-                        </Typography>
-                        {estimate.lines.map((line) => (
-                          <Stack
-                            key={line.name}
-                            direction="row"
-                            justifyContent="space-between"
-                            spacing={1}
-                            sx={{ mt: 0.75 }}
-                          >
-                            <Typography variant="body2">{line.name}</Typography>
-                            <Typography variant="body2">{peso(line.amount)}</Typography>
-                          </Stack>
-                        ))}
-                        <Typography sx={{ mt: 1.5, fontWeight: 700 }}>
-                          Known estimate: {peso(estimate.knownSubtotal)}
-                        </Typography>
-                        {estimate.pendingQuotation.length > 0 && (
-                          <Alert severity="info" sx={{ mt: 1 }}>
-                            To be reviewed or quoted: {estimate.pendingQuotation.join('; ')}.
-                          </Alert>
-                        )}
-                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                          {estimate.note}
-                        </Typography>
-                        <Button size="small" onClick={() => review(estimate.intent, estimate.summary)} sx={{ mt: 1 }}>
-                          Continue to booking
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {message.response.needsAdmin && (
-                    <Button
-                      size="small"
-                      component={RouterLink}
-                      to={user ? '/portal/messages' : ASSISTANT_AUTH.signup}
-                      sx={{ mt: 1 }}
-                    >
-                      {user ? 'Message admin' : 'Create an account to message admin'}
-                    </Button>
-                  )}
-                </Box>
-              )}
-              {message.status === 'pending' && (
-                <Typography variant="body2" role="status">
-                  Your answer is being prepared. Refresh the conversation to check its progress.
-                </Typography>
-              )}
-              {message.status === 'failed' && (
-                <Typography variant="caption" color="text.secondary">
-                  No answer was completed. This question did not use your allowance.
-                </Typography>
-              )}
-            </Box>
-          ))}
-        </Box>
-        {conversation && (
-          <PackagePlanningPanel
-            conversation={conversation}
-            disabled={busy || recording || loading || conversation.allowance.pending}
-            onChange={setConversation}
-            onBusyChange={setBusy}
-            requested={packagePlanning}
-            proposalId={proposalId}
-            generationAvailable={Boolean(settings?.available)}
-          />
-        )}
-        {conversation &&
-          ((conversation.bookingDraft?.planningMode !== 'custom' && !packagePlanning) ||
-            conversation.selectedPackageProposal) && (
-            <AssistantReservationFlow
+                    {message.response.packages
+                      ?.filter((p) => /^[a-z0-9-]+$/.test(p.slug))
+                      .map((pkg) => (
+                        <Card
+                          key={pkg.id}
+                          variant="outlined"
+                          sx={{ mt: 1.5, borderRadius: 3, borderColor: '#e8dcc6', boxShadow: 'none' }}
+                        >
+                          <PackagePhoto pkg={pkg} height={120} thumbnail />
+                          <CardContent sx={{ p: 2 }}>
+                            <Typography variant="subtitle2">{pkg.name}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {pkg.description}
+                            </Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                              <Button size="small" component={RouterLink} to={`/packages/${pkg.slug}`}>
+                                View package
+                              </Button>
+                              <Button size="small" onClick={() => review({ packageSlug: pkg.slug })}>
+                                Continue to booking
+                              </Button>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    {message.response.estimates?.map((estimate) => (
+                      <Card
+                        key={estimate.id}
+                        variant="outlined"
+                        sx={{ mt: 1.5, borderRadius: 3, borderColor: '#e8dcc6', boxShadow: 'none' }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography variant="subtitle2">
+                            {estimate.packageName}
+                            {estimate.guests ? ` · ${estimate.guests} guests` : ''}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {estimate.serviceType}
+                          </Typography>
+                          {estimate.lines.map((line) => (
+                            <Stack
+                              key={line.name}
+                              direction="row"
+                              justifyContent="space-between"
+                              spacing={1}
+                              sx={{ mt: 0.75 }}
+                            >
+                              <Typography variant="body2">{line.name}</Typography>
+                              <Typography variant="body2">{peso(line.amount)}</Typography>
+                            </Stack>
+                          ))}
+                          <Typography sx={{ mt: 1.5, fontWeight: 700 }}>
+                            Known estimate: {peso(estimate.knownSubtotal)}
+                          </Typography>
+                          {estimate.pendingQuotation.length > 0 && (
+                            <Alert severity="info" sx={{ mt: 1 }}>
+                              To be reviewed or quoted: {estimate.pendingQuotation.join('; ')}.
+                            </Alert>
+                          )}
+                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                            {estimate.note}
+                          </Typography>
+                          <Button size="small" onClick={() => review(estimate.intent, estimate.summary)} sx={{ mt: 1 }}>
+                            Continue to booking
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                    {message.response.needsAdmin && (
+                      <Button
+                        size="small"
+                        component={RouterLink}
+                        to={user ? '/portal/messages' : ASSISTANT_AUTH.signup}
+                        sx={{ mt: 1 }}
+                      >
+                        {user ? 'Message admin' : 'Create an account to message admin'}
+                      </Button>
+                    )}
+                  </Box>
+                )}
+                {message.status === 'pending' && (
+                  <Typography variant="body2" role="status">
+                    Your answer is being prepared. Refresh the conversation to check its progress.
+                  </Typography>
+                )}
+                {message.status === 'failed' && (
+                  <Typography variant="caption" color="text.secondary">
+                    No answer was completed. This question did not use your allowance.
+                  </Typography>
+                )}
+              </Box>
+            ))}
+          </Box>
+          {conversation && (
+            <PackagePlanningPanel
               conversation={conversation}
-              user={user}
               disabled={busy || recording || loading || conversation.allowance.pending}
               onChange={setConversation}
               onBusyChange={setBusy}
-              onFormReview={() => void reviewPlan()}
+              requested={packagePlanning}
+              proposalId={proposalId}
+              generationAvailable={Boolean(settings?.available)}
             />
           )}
-        {!packagePlanning &&
-          conversation?.bookingDraft?.planningMode !== 'custom' &&
-          !conversation?.bookingDraft?.planningStarted &&
-          !conversation?.submittedRef && (
-            <AssistantBookingPlan
-              plan={conversation?.bookingPlan}
-              disabled={busy || recording || loading || conversation?.allowance.pending}
-              onReview={() => void reviewPlan()}
-              onEdit={() => changeText('I would like to change these reservation details: ')}
-            />
-          )}
-        {busy && !recording && (
-          <Typography variant="body2" role="status" sx={{ mt: 1 }}>
-            <CircularProgress size={14} sx={{ mr: 1 }} />
-            Please wait…
-          </Typography>
-        )}
-        {blocked && (
-          <Alert severity="info" sx={{ mt: 2 }}>
-            {user
-              ? 'Your daily assistant allowance has been reached. You can still browse packages or message the admin.'
-              : 'You have used your two free questions. Create a free account or log in to continue.'}
-            {!user && (
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Button component={RouterLink} to={ASSISTANT_AUTH.signup} variant="contained" size="small">
-                  Create account
-                </Button>
-                <Button component={RouterLink} to={ASSISTANT_AUTH.login} size="small">
-                  Log in
-                </Button>
-              </Stack>
+          {conversation &&
+            ((conversation.bookingDraft?.planningMode !== 'custom' && !packagePlanning) ||
+              conversation.selectedPackageProposal) && (
+              <AssistantReservationFlow
+                conversation={conversation}
+                user={user}
+                disabled={busy || recording || loading || conversation.allowance.pending}
+                onChange={setConversation}
+                onBusyChange={setBusy}
+                onFormReview={() => void reviewPlan()}
+              />
             )}
-          </Alert>
-        )}
-        {error && (
-          <Alert severity="warning" sx={{ mt: 2 }} role="alert">
-            {error}
-          </Alert>
-        )}
-        <Box ref={end} />
+          {!packagePlanning &&
+            conversation?.bookingDraft?.planningMode !== 'custom' &&
+            !conversation?.bookingDraft?.planningStarted &&
+            !conversation?.submittedRef && (
+              <AssistantBookingPlan
+                plan={conversation?.bookingPlan}
+                disabled={busy || recording || loading || conversation?.allowance.pending}
+                onReview={() => void reviewPlan()}
+                onEdit={() => changeText('I would like to change these reservation details: ')}
+              />
+            )}
+          {busy && !recording && (
+            <Typography variant="body2" role="status" sx={{ mt: 1 }}>
+              <CircularProgress size={14} sx={{ mr: 1 }} />
+              Please wait…
+            </Typography>
+          )}
+          {blocked && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              {user
+                ? 'Your daily assistant allowance has been reached. You can still browse packages or message the admin.'
+                : 'You have used your two free questions. Create a free account or log in to continue.'}
+              {!user && (
+                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                  <Button component={RouterLink} to={ASSISTANT_AUTH.signup} variant="contained" size="small">
+                    Create account
+                  </Button>
+                  <Button component={RouterLink} to={ASSISTANT_AUTH.login} size="small">
+                    Log in
+                  </Button>
+                </Stack>
+              )}
+            </Alert>
+          )}
+          {error && !fullPage && (
+            <Alert severity="warning" sx={{ mt: 2 }} role="alert">
+              {error}
+            </Alert>
+          )}
+          <Box ref={end} />
+        </Box>
       </Box>
     ),
     [
@@ -769,7 +856,8 @@ export default function AssistantPanel({
       reviewPlan,
       resumeSaved,
       packagePlanning,
-      proposalId
+      proposalId,
+      fullPage
     ]
   );
 
@@ -778,133 +866,145 @@ export default function AssistantPanel({
       {header}
       {thread}
       <Box component="form" onSubmit={send} className="tm-assistant-composer">
-        {recording && (
-          <Stack direction="row" spacing={1} alignItems="center" role="status" sx={{ mb: 1 }}>
-            <Chip color="error" size="small" label={`Recording · ${seconds}/30s`} />
-            <Button
-              size="small"
-              onClick={() => {
-                void recorder.current?.cancel();
-                recorder.current = null;
-                setRecording(false);
-              }}
-            >
-              Cancel recording
-            </Button>
-          </Stack>
-        )}
-        {source === 'voice' && text && (
-          <Typography variant="caption" display="block" sx={{ mb: 1 }}>
-            Review the transcript, especially dates, names and amounts, then send.
-          </Typography>
-        )}
-        <Box className="tm-assistant-composer__field">
-          <TextField
-            placeholder="Ask about your celebration…"
-            className="tm-assistant-composer__input"
-            multiline
-            minRows={1}
-            maxRows={4}
-            fullWidth
-            value={text}
-            disabled={
-              !settings?.available || blocked || busy || recording || loading || conversation?.allowance.pending
-            }
-            onChange={(event) => changeText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229)
-                return;
-              event.preventDefault();
-              if (!event.repeat) event.currentTarget.closest('form')?.requestSubmit();
-            }}
-            slotProps={{ htmlInput: { maxLength: ASSISTANT_TEXT_MAX, 'aria-label': 'Your question' } }}
-            inputProps={{ maxLength: ASSISTANT_TEXT_MAX, 'aria-label': 'Your question' }}
-          />
-          <Box className="tm-assistant-composer__toolbar">
-            <Tooltip title={settings?.voiceAvailable ? 'Record a voice question' : 'Voice is currently unavailable'}>
-              <span>
-                <IconButton
-                  aria-label={recording ? 'Stop recording' : 'Record a voice question'}
-                  className={`tm-assistant-mic${recording ? ' tm-assistant-mic--recording' : ''}`}
-                  disabled={!recording && (!canSend || !settings?.voiceAvailable)}
-                  onClick={() => void record()}
-                >
-                  {recording ? <StopRoundedIcon /> : <MicNoneRoundedIcon />}
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Typography component="span" className="tm-assistant-composer__hint">
-              {recording
-                ? 'Listening…'
-                : settings?.voiceAvailable
-                  ? 'Type or use your voice'
-                  : 'Your event starts with a question'}
+        <Box className="tm-assistant-composer__content">
+          {fullPage && error && (
+            <Alert severity="warning" sx={{ mb: 1 }} role="alert">
+              {error}
+            </Alert>
+          )}
+          {recording && (
+            <Stack direction="row" spacing={1} alignItems="center" role="status" sx={{ mb: 1 }}>
+              <Chip color="error" size="small" label={`Recording · ${seconds}/30s`} />
+              <Button
+                size="small"
+                onClick={() => {
+                  void recorder.current?.cancel();
+                  recorder.current = null;
+                  setRecording(false);
+                }}
+              >
+                Cancel recording
+              </Button>
+            </Stack>
+          )}
+          {source === 'voice' && text && (
+            <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+              Review the transcript, especially dates, names and amounts, then send.
             </Typography>
-            <IconButton
-              type="submit"
-              aria-label="Send question"
-              className="tm-assistant-send"
-              disabled={!canSend || !text.trim()}
-            >
-              <ArrowForwardRoundedIcon />
-            </IconButton>
+          )}
+          <Box className="tm-assistant-composer__field">
+            <TextField
+              placeholder="Ask about your celebration…"
+              className="tm-assistant-composer__input"
+              multiline
+              name="assistant-question"
+              minRows={1}
+              maxRows={4}
+              fullWidth
+              value={text}
+              disabled={
+                !settings?.available || blocked || busy || recording || loading || conversation?.allowance.pending
+              }
+              onChange={(event) => changeText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229)
+                  return;
+                event.preventDefault();
+                if (!event.repeat) event.currentTarget.closest('form')?.requestSubmit();
+              }}
+              slotProps={{ htmlInput: { maxLength: ASSISTANT_TEXT_MAX, 'aria-label': 'Your question' } }}
+              inputProps={{ maxLength: ASSISTANT_TEXT_MAX, 'aria-label': 'Your question' }}
+            />
+            <Box className="tm-assistant-composer__toolbar">
+              <Tooltip title={settings?.voiceAvailable ? 'Record a voice question' : 'Voice is currently unavailable'}>
+                <span>
+                  <IconButton
+                    aria-label={recording ? 'Stop recording' : 'Record a voice question'}
+                    className={`tm-assistant-mic${recording ? ' tm-assistant-mic--recording' : ''}`}
+                    disabled={!recording && (!canSend || !settings?.voiceAvailable)}
+                    onClick={() => void record()}
+                  >
+                    {recording ? <StopRoundedIcon /> : <MicNoneRoundedIcon />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Typography component="span" className="tm-assistant-composer__hint">
+                {recording
+                  ? 'Listening…'
+                  : fullPage
+                    ? 'Enter to send · Shift + Enter for a new line'
+                    : settings?.voiceAvailable
+                      ? 'Type or use your voice'
+                      : 'Your event starts with a question'}
+              </Typography>
+              <IconButton
+                type="submit"
+                aria-label="Send question"
+                className="tm-assistant-send"
+                disabled={!canSend || !text.trim()}
+              >
+                <ArrowForwardRoundedIcon />
+              </IconButton>
+            </Box>
           </Box>
-        </Box>
-        <Box className="tm-assistant-composer__meta-bar">
-          <Box className="tm-assistant-composer__options">
-            {settings?.voiceAvailable ? (
-              <FormControlLabel
-                control={
-                  <Switch
-                    size="small"
-                    checked={speakReplies}
-                    onChange={(event) => setSpeakReplies(event.target.checked)}
-                  />
-                }
-                label={<Typography sx={{ fontSize: 11 }}>Read replies aloud</Typography>}
-              />
-            ) : (
-              <Typography sx={{ fontSize: 11 }}>AI-powered · Conversations last 24h</Typography>
+          <Box className="tm-assistant-composer__meta-bar">
+            <Box className="tm-assistant-composer__options">
+              {settings?.voiceAvailable ? (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      size="small"
+                      checked={speakReplies}
+                      onChange={(event) => setSpeakReplies(event.target.checked)}
+                    />
+                  }
+                  label={<Typography sx={{ fontSize: 11 }}>Read replies aloud</Typography>}
+                />
+              ) : (
+                <Typography sx={{ fontSize: 11 }}>AI-powered · Conversations last 24h</Typography>
+              )}
+              <Button
+                size="small"
+                aria-expanded={showAbout}
+                aria-controls="assistant-about"
+                startIcon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
+                onClick={() => setShowAbout((value) => !value)}
+              >
+                About
+              </Button>
+            </Box>
+            <Box className="tm-assistant-footer-links">
+              <Button
+                size="small"
+                startIcon={<Inventory2OutlinedIcon />}
+                component={RouterLink}
+                to={user ? '/portal/packages' : '/#packages'}
+                onClick={onClose}
+              >
+                Browse packages
+              </Button>
+              <Button
+                size="small"
+                startIcon={<ChatBubbleOutlineRoundedIcon />}
+                component={user ? RouterLink : 'a'}
+                {...(user ? { to: '/portal/messages' } : { href: `tel:${BUSINESS.phone.replace(/[^+\d]/g, '')}` })}
+              >
+                {user ? 'Message admin' : 'Contact Tres Marias'}
+              </Button>
+            </Box>
+            {!fullPage && (
+              <Typography className="tm-assistant-disclosure">
+                Messages &amp; audio are processed by an external AI service.
+              </Typography>
             )}
-            <Button
-              size="small"
-              aria-expanded={showAbout}
-              aria-controls="assistant-about"
-              startIcon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
-              onClick={() => setShowAbout((value) => !value)}
-            >
-              About
-            </Button>
           </Box>
-          <Box className="tm-assistant-footer-links">
-            <Button
-              size="small"
-              startIcon={<Inventory2OutlinedIcon />}
-              component={RouterLink}
-              to={user ? '/portal/packages' : '/#packages'}
-              onClick={onClose}
-            >
-              Browse packages
-            </Button>
-            <Button
-              size="small"
-              startIcon={<ChatBubbleOutlineRoundedIcon />}
-              component={user ? RouterLink : 'a'}
-              {...(user ? { to: '/portal/messages' } : { href: `tel:${BUSINESS.phone.replace(/[^+\d]/g, '')}` })}
-            >
-              {user ? 'Message admin' : 'Contact Tres Marias'}
-            </Button>
-          </Box>
-          <Typography className="tm-assistant-disclosure">
-            Messages &amp; audio are processed by an external AI service.
-          </Typography>
+          <Collapse in={showAbout}>
+            <Typography id="assistant-about" className="tm-assistant-about">
+              Messages and recordings are processed by an external AI service. Conversations expire after 24 hours.
+              Voice replies are AI-generated. Final arrangements are confirmed by our admin.
+            </Typography>
+          </Collapse>
         </Box>
-        <Collapse in={showAbout}>
-          <Typography id="assistant-about" className="tm-assistant-about">
-            Messages and recordings are processed by an external AI service. Conversations expire after 24 hours. Voice
-            replies are AI-generated. Final arrangements are confirmed by our admin.
-          </Typography>
-        </Collapse>
       </Box>
       <Dialog open={resumeReview} onClose={() => setResumeReview(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Resume saved reservation?</DialogTitle>
