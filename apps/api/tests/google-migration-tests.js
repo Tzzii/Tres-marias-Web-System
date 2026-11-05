@@ -3,6 +3,12 @@ import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { migrateGooglePasswords } from '../scripts/lib/google-auth-migration.js';
 
+test('fresh database schema defines every table exactly once', async () => {
+  const sql = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
+  const names = [...sql.matchAll(/^CREATE TABLE (\w+)\s*\(/gm)].map((match) => match[1]);
+  assert.equal(names.length, new Set(names).size, 'Duplicate table definitions would break fresh database creation.');
+});
+
 test('Google password migration only changes nullability and is idempotent', async () => {
   const nullable = { customers: 'NO', signup_requests: 'NO' };
   const statements = [];
