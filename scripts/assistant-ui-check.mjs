@@ -374,7 +374,17 @@ try {
     await page.getByRole('button', { name: 'About', exact: true }).click();
     await page.screenshot({ path: path.join(output, `assistant-chat-welcome-${label}.png`) });
     await page.getByLabel('Your question', { exact: true }).fill('Show me a package for 100 guests');
-    await page.getByRole('button', { name: 'Send question', exact: true }).click();
+    await page.getByLabel('Your question', { exact: true }).press('Shift+Enter');
+    assert.equal(
+      await page.getByLabel('Your question', { exact: true }).inputValue(),
+      'Show me a package for 100 guests\n'
+    );
+    assert.equal(state.sends, 0, 'Shift+Enter inserts a newline without sending');
+    await page
+      .getByLabel('Your question', { exact: true })
+      .dispatchEvent('keydown', { key: 'Enter', isComposing: true });
+    assert.equal(state.sends, 0, 'IME composition does not send');
+    await page.getByLabel('Your question', { exact: true }).press('Enter');
     await page.getByText('1 free question remaining', { exact: true }).waitFor();
     await page.screenshot({ path: path.join(output, `assistant-chat-reply-${label}.png`) });
     await page.getByRole('button', { name: 'Listen', exact: true }).first().click();

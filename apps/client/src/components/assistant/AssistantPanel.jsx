@@ -811,6 +811,12 @@ export default function AssistantPanel({
               !settings?.available || blocked || busy || recording || loading || conversation?.allowance.pending
             }
             onChange={(event) => changeText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229)
+                return;
+              event.preventDefault();
+              if (!event.repeat) event.currentTarget.closest('form')?.requestSubmit();
+            }}
             slotProps={{ htmlInput: { maxLength: ASSISTANT_TEXT_MAX, 'aria-label': 'Your question' } }}
             inputProps={{ maxLength: ASSISTANT_TEXT_MAX, 'aria-label': 'Your question' }}
           />
