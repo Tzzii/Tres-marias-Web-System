@@ -34,6 +34,7 @@ import {
   useNotify,
   useResource
 } from '@tm/shared';
+import AIUsageCard from '../components/AIUsageCard.jsx';
 import { usePdfDocument } from '../components/PdfDocument.jsx';
 import ReportSheet from './reports/ReportSheet.jsx';
 
@@ -233,27 +234,32 @@ export default function ReportsPage() {
           <Box
             sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.7fr 1fr' }, gap: 2.5, alignItems: 'start' }}
           >
-            <DashCard>
-              <CardTitle subtitle="Verified payments less refunds sent. Updates automatically when payments are verified or refunds recorded.">
-                {byYear ? 'Revenue by Year' : 'Revenue by Month'}
-              </CardTitle>
-              {loading ? (
-                <ListSkeleton rows={1} height={240} />
-              ) : data.revenue === 0 && !data.refunds ? (
-                <EmptyState
-                  compact
-                  title="No revenue in this range"
-                  description="Verified payments will appear here."
-                />
-              ) : (
-                <BarChart
-                  data={data.revenueChart}
-                  height={240}
-                  format={shortPeso}
-                  ariaLabel={byYear ? 'Revenue by year' : 'Revenue by month'}
-                />
-              )}
-            </DashCard>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
+              <DashCard>
+                <CardTitle subtitle="Verified payments less refunds sent. Updates automatically when payments are verified or refunds recorded.">
+                  {byYear ? 'Revenue by Year' : 'Revenue by Month'}
+                </CardTitle>
+                {loading ? (
+                  <ListSkeleton rows={1} height={240} />
+                ) : data.revenue === 0 && !data.refunds ? (
+                  <EmptyState
+                    compact
+                    title="No revenue in this range"
+                    description="Verified payments will appear here."
+                  />
+                ) : (
+                  <BarChart
+                    data={data.revenueChart}
+                    height={240}
+                    format={shortPeso}
+                    ariaLabel={byYear ? 'Revenue by year' : 'Revenue by month'}
+                  />
+                )}
+              </DashCard>
+              <Box className="tm-no-print">
+                <AIUsageCard />
+              </Box>
+            </Box>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
               <DashCard>
@@ -294,6 +300,12 @@ export default function ReportsPage() {
             </Box>
           </Box>
         </>
+      )}
+
+      {error && (
+        <Box className="tm-no-print" sx={{ mt: 2.5 }}>
+          <AIUsageCard />
+        </Box>
       )}
 
       <AppDialog
