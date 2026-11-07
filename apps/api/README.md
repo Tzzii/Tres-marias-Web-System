@@ -134,7 +134,7 @@ fixture that is committed then removed in a finally block), and `npm run build`.
 
 ## Guest and customer AI assistant
 
-The landing-page assistant offers two completed guest questions across text and voice. Signed-in
+The landing-page assistant offers five completed guest questions across text and voice. Signed-in
 customers receive a configurable daily allowance and can complete a guided reservation inside chat,
 or carry reviewed selections into the booking form. The customer and administrator Messages
 conversations remain separate from AI conversations.

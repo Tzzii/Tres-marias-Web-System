@@ -126,9 +126,10 @@ export default function LoginPage() {
 
         <FormField
           id="login-email"
+          name="username"
           label="Email"
           type="email"
-          autoComplete="email"
+          autoComplete="username"
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
@@ -140,6 +141,7 @@ export default function LoginPage() {
         />
         <PasswordField
           id="login-password"
+          name="password"
           label="Password"
           autoComplete="current-password"
           value={password}

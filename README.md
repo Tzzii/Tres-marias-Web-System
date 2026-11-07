@@ -485,7 +485,7 @@ For an explicitly planned first production initialization, the API workspace's s
 ### AI booking assistant
 
 Visitors can ask the clearly identified AI assistant about published services in English, Filipino or
-Taglish. The guest trial permits two completed questions; signed-in customers use a configurable
+Taglish. The guest trial permits five completed questions; signed-in customers use a configurable
 20-question daily allowance. Conversation plans and messages expire 24 hours after creation. Human
 customer/admin Messages remain separate from AI conversations.
 

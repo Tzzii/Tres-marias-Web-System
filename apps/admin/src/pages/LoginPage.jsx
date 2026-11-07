@@ -270,6 +270,7 @@ export default function LoginPage() {
 
             <FormField
               id="admin-email"
+              name="username"
               label="Username"
               type="email"
               autoComplete="username"
@@ -285,6 +286,7 @@ export default function LoginPage() {
             />
             <PasswordField
               id="admin-password"
+              name="password"
               label="Password"
               autoComplete="current-password"
               value={password}

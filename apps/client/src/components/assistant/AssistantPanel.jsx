@@ -40,6 +40,7 @@ import { PackagePhoto } from '@tm/shared';
 import { BUSINESS } from '@tm/shared/services/config.js';
 import {
   ASSISTANT_AUTH,
+  ASSISTANT_GUEST_LIMIT,
   ASSISTANT_QUESTIONS,
   ASSISTANT_TEXT_MAX,
   cleanAssistantIntent
@@ -122,7 +123,7 @@ export default function AssistantPanel({
   const openedConversation = useRef('');
   const scope = user?.id || 'guest';
   const draftWriter = useMemo(() => createAssistantDraftWriter(user?.id), [scope]);
-  const remaining = conversation?.allowance.remaining ?? (user ? settings?.dailyLimit : 2);
+  const remaining = conversation?.allowance.remaining ?? (user ? settings?.dailyLimit : ASSISTANT_GUEST_LIMIT);
   const blocked = remaining === 0;
   const canSend = Boolean(
     settings?.available &&
@@ -446,7 +447,7 @@ export default function AssistantPanel({
           <Box component="span" className="tm-assistant-allowance">
             {user
               ? `${remaining ?? '…'} questions remaining today`
-              : `${remaining ?? 2} free ${remaining === 1 ? 'question' : 'questions'} remaining`}
+              : `${remaining ?? ASSISTANT_GUEST_LIMIT} free ${remaining === 1 ? 'question' : 'questions'} remaining`}
           </Box>
           {fullPage && onShowDetails && (
             <Button
@@ -814,7 +815,7 @@ export default function AssistantPanel({
             <Alert severity="info" sx={{ mt: 2 }}>
               {user
                 ? 'Your daily assistant allowance has been reached. You can still browse packages or message the admin.'
-                : 'You have used your two free questions. Create a free account or log in to continue.'}
+                : `You have used your ${ASSISTANT_GUEST_LIMIT} free questions. Create a free account or log in to continue.`}
               {!user && (
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                   <Button component={RouterLink} to={ASSISTANT_AUTH.signup} variant="contained" size="small">

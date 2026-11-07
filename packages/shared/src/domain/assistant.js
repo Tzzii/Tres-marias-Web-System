@@ -8,7 +8,7 @@ export const ASSISTANT_QUESTIONS = Object.freeze([
   'Paano mag-book sa Tres Marias?',
   'How can I check my preferred date?'
 ]);
-export const ASSISTANT_GUEST_LIMIT = 2;
+export const ASSISTANT_GUEST_LIMIT = 5;
 export const ASSISTANT_TEXT_MAX = 2000;
 export const ASSISTANT_RECORD_SECONDS = 30;
 export const ASSISTANT_PATH = '/portal/assistant';

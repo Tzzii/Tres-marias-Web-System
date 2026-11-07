@@ -26,7 +26,7 @@ test('durable assistant trial, concurrent reservations, claims and spending caps
     const opened = await repo.open({});
     sessions.push(opened);
     const actor = { visitorHash: visitorHash(opened.visitorToken) };
-    assert.equal((await repo.read(actor, opened.conversationId)).allowance.remaining, 2);
+    assert.equal((await repo.read(actor, opened.conversationId)).allowance.remaining, 5);
     await repo.updateDraft(actor, opened.conversationId, { guests: 100 }, 0);
     assert.equal((await repo.read(actor, opened.conversationId)).draftRevision, 1);
     await assert.rejects(
@@ -73,7 +73,12 @@ test('durable assistant trial, concurrent reservations, claims and spending caps
     );
     const second = await repo.begin(actor, opened.conversationId, input());
     await repo.finish(second.id, response);
-    assert.equal((await repo.read(actor, opened.conversationId)).allowance.remaining, 0);
+    assert.equal((await repo.read(actor, opened.conversationId)).allowance.remaining, 3);
+    for (let question = 3; question <= 5; question++) {
+      const turn = await repo.begin(actor, opened.conversationId, input());
+      await repo.finish(turn.id, response);
+      assert.equal((await repo.read(actor, opened.conversationId)).allowance.remaining, 5 - question);
+    }
     const restartedRepo = createAssistantRepository({ settings, clock: () => fixed });
     await assert.rejects(
       () => restartedRepo.begin(actor, opened.conversationId, input()),
@@ -95,7 +100,7 @@ test('durable assistant trial, concurrent reservations, claims and spending caps
       () => repo.read({ customerId: 'other' }, opened.conversationId),
       (e) => e.code === 'NOT_FOUND'
     );
-    assert.equal((await repo.read({ customerId: customer }, opened.conversationId)).messages.length, 2);
+    assert.equal((await repo.read({ customerId: customer }, opened.conversationId)).messages.length, 5);
     assert.equal(
       (await repo.read({ customerId: customer }, opened.conversationId)).bookingDraft.venueName,
       'Saved venue'

@@ -195,7 +195,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
             id="forgot-email"
             label="Email"
             type="email"
-            autoComplete="email"
+            autoComplete="username"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);

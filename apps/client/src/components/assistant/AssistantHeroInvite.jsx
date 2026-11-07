@@ -2,6 +2,7 @@ import { Box, ButtonBase, IconButton, Typography } from '@mui/material';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import { ASSISTANT_GUEST_LIMIT } from '@tm/shared/domain/assistant.js';
 import AssistantMascot from './AssistantMascot.jsx';
 import { site } from '../../theme/siteTheme.js';
 
@@ -63,7 +64,9 @@ export default function AssistantHeroInvite({ onClick, signedIn, paused, onToggl
             Need a hand with your celebration?
           </Typography>
           <Typography component="span" sx={{ display: 'block', color: site.inkSoft, fontSize: 11, mt: 0.4 }}>
-            {signedIn ? 'Ask about packages, prices and dates' : 'Try 2 free questions · Type or talk'}
+            {signedIn
+              ? 'Ask about packages, prices and dates'
+              : `Try ${ASSISTANT_GUEST_LIMIT} free questions · Type or talk`}
           </Typography>
         </Box>
         <ArrowForwardRoundedIcon

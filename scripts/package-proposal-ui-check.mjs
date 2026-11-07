@@ -177,7 +177,7 @@ async function fixture(
         enabled: available,
         voiceAvailable: false,
         dailyLimit: 20,
-        guestLimit: 2,
+        guestLimit: 5,
         questions: ASSISTANT_QUESTIONS
       });
     if (endpoint === '/assistant/session') return reply(snapshot());

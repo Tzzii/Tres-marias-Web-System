@@ -79,8 +79,8 @@ async function fixture(context, signedIn = false, voice = true, available = true
     allowance: {
       guest: !signedIn,
       used: state.turns.length,
-      limit: signedIn ? 20 : 2,
-      remaining: Math.max(0, (signedIn ? 20 : 2) - state.turns.length),
+      limit: signedIn ? 20 : 5,
+      remaining: Math.max(0, (signedIn ? 20 : 5) - state.turns.length),
       pending: false
     },
     messages: state.turns
@@ -123,7 +123,7 @@ async function fixture(context, signedIn = false, voice = true, available = true
         voiceAvailable: voice,
         questions: ASSISTANT_QUESTIONS,
         dailyLimit: 20,
-        guestLimit: 2
+        guestLimit: 5
       });
     if (endpoint === '/assistant/session') {
       state.visitorHeaders.push(request.headers()['x-assistant-visitor']);
@@ -151,7 +151,7 @@ async function fixture(context, signedIn = false, voice = true, available = true
         return reply(snapshot());
       }
       if (request.method() === 'POST' && endpoint.endsWith('/messages')) {
-        if (!signedIn && state.turns.length >= 2)
+        if (!signedIn && state.turns.length >= 5)
           return reply({ code: 'ASSISTANT_SIGN_IN_REQUIRED', message: 'Create an account to continue.' }, 403);
         const input = request.postDataJSON();
         state.sends++;
@@ -349,7 +349,7 @@ try {
     }
     await openAssistant(page);
     await page
-      .getByText('2 free questions remaining', { exact: true })
+      .getByText('5 free questions remaining', { exact: true })
       .waitFor({ timeout: 7000 })
       .catch(async () => {
         await page.screenshot({ path: path.join(output, `panel-failure-${label}.png`) });
@@ -385,7 +385,7 @@ try {
       .dispatchEvent('keydown', { key: 'Enter', isComposing: true });
     assert.equal(state.sends, 0, 'IME composition does not send');
     await page.getByLabel('Your question', { exact: true }).press('Enter');
-    await page.getByText('1 free question remaining', { exact: true }).waitFor();
+    await page.getByText('4 free questions remaining', { exact: true }).waitFor();
     await page.screenshot({ path: path.join(output, `assistant-chat-reply-${label}.png`) });
     await page.getByRole('button', { name: 'Listen', exact: true }).first().click();
     await page.waitForFunction(() =>
@@ -393,10 +393,18 @@ try {
     );
     await page.getByLabel('Your question', { exact: true }).fill('How do I book?');
     await page.getByRole('button', { name: 'Send question', exact: true }).click();
-    await page.getByText('0 free questions remaining', { exact: true }).waitFor();
+    await page.getByText('3 free questions remaining', { exact: true }).waitFor();
+    for (let question = 3; question <= 5; question++) {
+      await page.getByLabel('Your question', { exact: true }).fill(`Guest question ${question}`);
+      await page.getByRole('button', { name: 'Send question', exact: true }).click();
+      const remaining = 5 - question;
+      await page
+        .getByText(`${remaining} free ${remaining === 1 ? 'question' : 'questions'} remaining`, { exact: true })
+        .waitFor();
+    }
     assert.equal(await page.getByRole('button', { name: 'Send question', exact: true }).isDisabled(), true);
     assert.equal(await page.getByRole('button', { name: 'Record a voice question', exact: true }).isDisabled(), true);
-    assert.equal(state.sends, 2);
+    assert.equal(state.sends, 5);
     assert.equal(state.speech, 1);
     await page.screenshot({ path: path.join(output, `guest-${label}.png`), fullPage: false });
     await page.getByRole('button', { name: 'Close AI assistant', exact: true }).click();
@@ -420,7 +428,7 @@ try {
     await loginLink.waitFor();
     assert.equal(errors.length, 0, errors.join('\n'));
     results.push(
-      `${label}: single floating guide, section introductions, header scroll behavior, reduced-motion support, two guest questions, text/voice shared gate, reload persistence and signup return links`
+      `${label}: single floating guide, section introductions, header scroll behavior, reduced-motion support, five guest questions, text/voice shared gate, reload persistence and signup return links`
     );
     await context.close();
   }
@@ -501,7 +509,7 @@ try {
   assert.equal(voiceState.transcriptions, 1);
   assert.equal(await voicePage.getByLabel('Your question', { exact: true }).inputValue(), 'Birthday for 100 guests');
   await voicePage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await voicePage.getByText('1 free question remaining', { exact: true }).waitFor();
+  await voicePage.getByText('4 free questions remaining', { exact: true }).waitFor();
   assert.equal(voiceState.turns[0].source, 'voice');
   results.push(
     'animation: fixed bottom-right position across sections, automatic playback including open chat; voice: capture, transcript review and one question charge'

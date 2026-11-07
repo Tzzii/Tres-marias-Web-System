@@ -141,8 +141,8 @@ async function fixture(
     allowance: {
       guest: !signedIn,
       used: state.paidTurns,
-      limit: signedIn ? 20 : 2,
-      remaining: (signedIn ? 20 : 2) - state.paidTurns,
+      limit: signedIn ? 20 : 5,
+      remaining: (signedIn ? 20 : 5) - state.paidTurns,
       pending: false
     }
   });
@@ -173,7 +173,7 @@ async function fixture(
         voiceAvailable: false,
         questions: ASSISTANT_QUESTIONS,
         dailyLimit: 20,
-        guestLimit: 2
+        guestLimit: 5
       });
     if (endpoint === '/assistant/session') {
       if (req.postDataJSON()?.fresh) {
