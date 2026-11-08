@@ -136,7 +136,22 @@ export default function PortalLayout() {
       icon: EventNoteOutlinedIcon,
       section: 'My events',
       to: '/portal/reservations',
-      match: ['/portal/reservations', '/portal/book', '/portal/plan-event', '/portal/package-proposals']
+      match: ['/portal/reservations', '/portal/book', '/portal/plan-event']
+    },
+    {
+      key: 'ai-budgeting',
+      label: 'AI Budgeting & Package',
+      icon: AutoAwesomeOutlinedIcon,
+      section: 'My events',
+      to: '/portal/ai-budgeting',
+      match: ['/portal/ai-budgeting', '/portal/package-proposals']
+    },
+    {
+      key: 'assistant',
+      label: 'AI Assistant',
+      icon: AutoAwesomeOutlinedIcon,
+      section: 'My events',
+      to: '/portal/assistant'
     },
     {
       key: 'calendar',
@@ -176,13 +191,6 @@ export default function PortalLayout() {
       badge: unreadMessages
     },
     {
-      key: 'assistant',
-      label: 'AI Assistant',
-      icon: AutoAwesomeOutlinedIcon,
-      section: 'Help & feedback',
-      to: '/portal/assistant'
-    },
-    {
       key: 'testimonials',
       label: 'My Testimonials',
       icon: RateReviewOutlinedIcon,
@@ -198,7 +206,13 @@ export default function PortalLayout() {
       label: 'Reservations',
       icon: EventNoteOutlinedIcon,
       to: '/portal/reservations',
-      match: ['/portal/reservations', '/portal/book', '/portal/plan-event', '/portal/package-proposals']
+      match: [
+        '/portal/reservations',
+        '/portal/book',
+        '/portal/plan-event',
+        '/portal/ai-budgeting',
+        '/portal/package-proposals'
+      ]
     },
     { key: 'payments', label: 'Payments', icon: PaymentsOutlinedIcon, to: '/portal/payments', badge: paymentsDue },
     {

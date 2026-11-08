@@ -27,6 +27,7 @@ const PackagesPage = lazy(() => import('./pages/portal/PackagesPage.jsx'));
 const TestimonialsPage = lazy(() => import('./pages/portal/TestimonialsPage.jsx'));
 const SettingsPage = lazy(() => import('./pages/portal/SettingsPage.jsx'));
 const AssistantPage = lazy(() => import('./pages/portal/AssistantPage.jsx'));
+const AiBudgetingPage = lazy(() => import('./pages/portal/AiBudgetingPage.jsx'));
 const PlanEventPage = lazy(() => import('./pages/portal/PlanEventPage.jsx'));
 const PackageProposalsPage = lazy(() => import('./pages/portal/PackageProposalsPage.jsx'));
 
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="reservations" element={<Lazy page={ReservationsPage} />} />
           <Route path="reservations/:ref" element={<Lazy page={ReservationDetailPage} />} />
           <Route path="book" element={<Lazy page={BookEventPage} />} />
+          <Route path="ai-budgeting" element={<Lazy page={AiBudgetingPage} />} />
           <Route path="plan-event" element={<Lazy page={PlanEventPage} />} />
           <Route path="package-proposals/:id" element={<Lazy page={PackageProposalsPage} />} />
           <Route path="calendar" element={<Lazy page={CalendarPage} />} />

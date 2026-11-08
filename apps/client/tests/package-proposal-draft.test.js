@@ -9,6 +9,8 @@ import {
   loadProposalForRestore,
   packageContextFromDraft,
   packagePlanningValues,
+  packagePlanningStages,
+  savedPackagePlanningStage,
   reconcilePackagePlanningValues,
   proposalDraftConflicts,
   proposalConversationAnswers,
@@ -17,6 +19,28 @@ import {
   proposalFormPatch,
   proposalPatchIsStale
 } from '../src/lib/packageProposalDraft.js';
+
+test('custom catering skips food questions on forward, back and restored progress; buffet keeps them', () => {
+  const catering = packagePlanningStages('Catering only');
+  const buffet = packagePlanningStages('Buffet and Catering');
+  assert.deepEqual(catering, [0, 1, 2, 3, 4, 6, 7]);
+  assert.equal(catering[catering.indexOf(4) + 1], 6);
+  assert.equal(catering[catering.indexOf(6) - 1], 4);
+  assert.deepEqual(buffet, [0, 1, 2, 3, 4, 5, 6, 7]);
+  const draft = {
+    serviceType: 'Catering only',
+    guests: 100,
+    budget: 50000,
+    occasion: 'Birthday',
+    date: '2090-12-12',
+    startTime: '18:00',
+    endTime: '20:00',
+    discussed: ['styling']
+  };
+  assert.equal(savedPackagePlanningStage(draft), 6);
+  assert.equal(savedPackagePlanningStage({ ...draft, discussed: ['styling', 'addons'] }), 7);
+  assert.equal(savedPackagePlanningStage({ ...draft, serviceType: 'Buffet and Catering' }), 5);
+});
 
 test('lost manual response plus reload reads recovery before select and never reselects a submitted reference', async () => {
   const reference = { proposalId: 'owned', revision: 2, optionId: 'recipe/base' };

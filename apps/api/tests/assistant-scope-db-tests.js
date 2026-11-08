@@ -45,7 +45,7 @@ test('input guard, answer and output guard settle through the real strict MySQL 
             calls.push(name);
             const value =
               name === 'tres_marias_scope_input'
-                ? { decision: 'allowed', businessText: '' }
+                ? { decision: 'allowed', businessText: '', replyLanguage: 'english' }
                 : name === 'tres_marias_scope_output'
                   ? { allowed: true }
                   : {

@@ -32,7 +32,7 @@ export default function PlanEventPage() {
           [
             'Help me build a package',
             'Tell the assistant your service, guest count and budget. Review complete options with setup, menu and prices before choosing.',
-            '/portal/assistant?mode=package',
+            '/portal/ai-budgeting',
             'Build my package'
           ]
         ].map(([title, description, to, action]) => (

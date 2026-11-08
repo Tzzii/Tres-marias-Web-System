@@ -71,7 +71,7 @@ export default function PackageProposalsPage() {
   }, [id, user.id, attempt]);
   const submission = proposal?.submission;
   const expired = proposal && !submission && proposalExpired(proposal);
-  const adjustPath = `/portal/assistant?mode=package&proposal=${encodeURIComponent(id)}`;
+  const adjustPath = `/portal/ai-budgeting?proposal=${encodeURIComponent(id)}`;
   async function choose(option, confirmedReviewKey = '') {
     if (lock.current) return;
     lock.current = true;

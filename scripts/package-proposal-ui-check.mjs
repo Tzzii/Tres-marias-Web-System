@@ -180,7 +180,15 @@ async function fixture(
         guestLimit: 5,
         questions: ASSISTANT_QUESTIONS
       });
-    if (endpoint === '/assistant/session') return reply(snapshot());
+    if (endpoint === '/assistant/session') {
+      if (request.postDataJSON()?.fresh) {
+        state.id = randomUUID();
+        state.draft = {};
+        state.revision = 0;
+        state.selected = null;
+      }
+      return reply(snapshot());
+    }
     if (endpoint.startsWith('/assistant/conversations/')) {
       if (endpoint.endsWith('/booking-draft')) {
         const body = request.postDataJSON();
@@ -256,7 +264,23 @@ try {
       referencePhotos: [{ name: 'saved.png', dataUrl: 'data:image/png;base64,cGhvdG8=' }]
     }
   });
-  await check.page.goto(`${base}/portal/assistant?mode=package`, { waitUntil: 'networkidle' });
+  await check.page.goto(`${base}/portal/ai-budgeting`, { waitUntil: 'networkidle' });
+  await check.page.getByRole('heading', { name: 'AI Budgeting & Package', exact: true }).waitFor();
+  const sidebarLabels = await check.page
+    .locator('.tm-sidebar-link')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
+  assert.equal(sidebarLabels.indexOf('AI Budgeting & Package'), sidebarLabels.indexOf('My Reservations') + 1);
+  assert.equal(
+    await check.page.getByRole('button', { name: 'AI Budgeting & Package', exact: true }).getAttribute('aria-current'),
+    'page'
+  );
+  assert.equal(
+    await check.page.getByRole('button', { name: 'My Reservations', exact: true }).getAttribute('aria-current'),
+    null
+  );
+  await check.page.screenshot({ path: path.join(output, 'ai-budgeting-desktop.png'), fullPage: true });
+  assert.equal(await check.page.getByRole('log', { name: 'Assistant conversation' }).count(), 0);
+  passed.push('dedicated budgeting page opens directly below Reservations without the general assistant conversation');
   await check.page.getByRole('link', { name: 'I need equipment rental', exact: true }).click();
   await check.page.waitForURL('**/portal/book*');
   await check.page.waitForFunction(() =>
@@ -292,7 +316,7 @@ try {
 
   for (const mode of ['light', 'dark']) {
     const offline = await fixture(browser, { mode, available: false, viewport: { width: 390, height: 844 } });
-    await offline.page.goto(`${base}/portal/assistant?mode=package`, { waitUntil: 'networkidle' });
+    await offline.page.goto(`${base}/portal/ai-budgeting`, { waitUntil: 'networkidle' });
     const panel = offline.page.locator('.tm-assistant-plan').filter({ hasText: 'Your custom package' }).last();
     await panel.getByRole('button', { name: 'Catering only', exact: true }).click();
     await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
@@ -322,6 +346,21 @@ try {
     assert.equal(offline.state.paid, 0);
     assert.deepEqual(offline.errors, []);
     passed.push(`${mode} mobile: offline structured answers save/reload with no paid request or horizontal overflow`);
+    await offline.page.getByRole('button', { name: 'Cancel package plan', exact: true }).click();
+    const cancelDialog = offline.page.getByRole('dialog', { name: 'Cancel package plan?' });
+    await cancelDialog.getByRole('button', { name: 'Keep planning', exact: true }).click();
+    assert.equal(offline.state.draft.budget, 100000);
+    await offline.page.getByRole('button', { name: 'Cancel package plan', exact: true }).click();
+    await cancelDialog.getByRole('button', { name: 'Yes, cancel plan', exact: true }).click();
+    await offline.page.getByRole('button', { name: 'Start my package', exact: true }).waitFor();
+    assert.deepEqual(offline.state.draft, {});
+    assert.equal(offline.state.generates, 0);
+    assert.equal(offline.state.paid, 0);
+    await offline.page.reload({ waitUntil: 'networkidle' });
+    await offline.page.getByRole('button', { name: 'Start my package', exact: true }).waitFor();
+    passed.push(
+      `${mode} mobile: cancel can be dismissed or confirmed; a fresh package plan survives reload without generation`
+    );
     await offline.browserContext.close();
   }
 

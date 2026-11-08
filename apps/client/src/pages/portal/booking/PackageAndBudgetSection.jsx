@@ -77,7 +77,7 @@ export default function PackageAndBudgetSection({
           )}
           <Button
             component={RouterLink}
-            to={`/portal/assistant?mode=package&proposal=${encodeURIComponent(reference.proposalId)}`}
+            to={`/portal/ai-budgeting?proposal=${encodeURIComponent(reference.proposalId)}`}
             variant="outlined"
           >
             Adjust package and budget
@@ -89,12 +89,7 @@ export default function PackageAndBudgetSection({
             Your selected catalog package uses its current service prices. To compare complete setups around a total
             event budget, start the guided package builder. Your reservation details stay saved.
           </Typography>
-          <Button
-            component={RouterLink}
-            to="/portal/assistant?mode=package"
-            variant="outlined"
-            sx={{ alignSelf: 'flex-start' }}
-          >
+          <Button component={RouterLink} to="/portal/ai-budgeting" variant="outlined" sx={{ alignSelf: 'flex-start' }}>
             Build a package around my budget
           </Button>
         </Stack>

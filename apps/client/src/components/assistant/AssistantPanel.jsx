@@ -57,6 +57,8 @@ import { carryAssistantPhotos } from '../../lib/assistantBookingHandoff.js';
 import { readDraft, saveAssistantIntent } from '../../lib/booking.js';
 import { useAuth } from '../../auth.js';
 import AssistantMascot from './AssistantMascot.jsx';
+import AssistantAnswer from './AssistantAnswer.jsx';
+import CancelAiPlanButton from './CancelAiPlanButton.jsx';
 import AssistantBookingPlan from './AssistantBookingPlan.jsx';
 import AssistantReservationFlow from './AssistantReservationFlow.jsx';
 import PackagePlanningPanel from './PackagePlanningPanel.jsx';
@@ -102,6 +104,10 @@ export default function AssistantPanel({
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [speakReplies, setSpeakReplies] = useState(false);
+  const speakRepliesRef = useRef(false);
+  const playbackRevision = useRef(0);
+  const [pendingMessage, setPendingMessage] = useState(null);
+  const [revealingMessage, setRevealingMessage] = useState('');
   const [playing, setPlaying] = useState('');
   const [speechLoading, setSpeechLoading] = useState('');
   const [intent, setIntent] = useState(null);
@@ -119,6 +125,7 @@ export default function AssistantPanel({
   const retry = useRef(null);
   const end = useRef(null);
   const latestReply = useRef(null);
+  const outgoingMessage = useRef(null);
   const lastScrolledReply = useRef('');
   const openedConversation = useRef('');
   const attemptedGuestReset = useRef(null);
@@ -159,6 +166,8 @@ export default function AssistantPanel({
   );
 
   const stopPlayback = useCallback(() => {
+    playbackRevision.current += 1;
+    setSpeechLoading('');
     audio.current?.pause();
     audio.current = null;
     setPlaying('');
@@ -215,6 +224,10 @@ export default function AssistantPanel({
     };
   }, [scope, attempt]);
   useEffect(() => {
+    if (pendingMessage) {
+      outgoingMessage.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+      return;
+    }
     if (fullPage) {
       if (!conversation || busy || loading) return;
       const opening = openedConversation.current !== conversation.conversationId;
@@ -241,6 +254,7 @@ export default function AssistantPanel({
     conversation?.messages.length,
     conversation?.messages.at(-1)?.status,
     busy,
+    pendingMessage,
     loading,
     fullPage
   ]);
@@ -254,16 +268,18 @@ export default function AssistantPanel({
   const play = useCallback(
     async (messageId) => {
       stopPlayback();
+      const revision = playbackRevision.current;
       setError('');
       try {
         let url = urls.current.get(messageId);
         if (!url) {
           setSpeechLoading(messageId);
           const blob = await assistantApi.speech(conversation.conversationId, messageId, controller.current.signal);
-          if (!alive.current) return;
+          if (!alive.current || revision !== playbackRevision.current) return;
           url = URL.createObjectURL(blob);
           urls.current.set(messageId, url);
         }
+        if (!alive.current || revision !== playbackRevision.current) return;
         const player = new Audio(url);
         audio.current = player;
         player.onended = () => {
@@ -276,15 +292,32 @@ export default function AssistantPanel({
           }
         };
         await player.play();
-        if (alive.current) setPlaying(messageId);
+        if (alive.current && revision === playbackRevision.current) setPlaying(messageId);
       } catch (failure) {
-        if (alive.current && failure.name !== 'AbortError')
+        if (alive.current && revision === playbackRevision.current && failure.name !== 'AbortError')
           setError('Voice playback is unavailable. You can read the answer or tap Listen to try again.');
       } finally {
-        if (alive.current) setSpeechLoading('');
+        if (alive.current && revision === playbackRevision.current) setSpeechLoading('');
       }
     },
     [conversation?.conversationId, stopPlayback]
+  );
+
+  const cancelPlan = useCallback(
+    (fresh) => {
+      stopPlayback();
+      setConversation(fresh);
+      setText('');
+      setSource('text');
+      setError('');
+      setRevealingMessage('');
+      setIntent(null);
+      setIntentSummary([]);
+      setResumeReview(false);
+      retry.current = null;
+      draftWriter.write(null);
+    },
+    [stopPlayback, draftWriter]
   );
 
   async function send(event) {
@@ -299,22 +332,26 @@ export default function AssistantPanel({
         ? retry.current
         : { text: text.trim(), source, requestId: crypto.randomUUID() };
     retry.current = draft;
+    setPendingMessage(draft);
+    setText('');
     draftWriter.write(draft);
     try {
       const updated = await assistantApi.send(conversation.conversationId, draft, controller.current.signal);
       if (!alive.current) return;
+      const answer = updated.messages.find((message) => message.requestId === draft.requestId);
+      if (answer?.status === 'completed') setRevealingMessage(answer.id);
       setConversation(updated);
       setText('');
       setSource('text');
       retry.current = null;
       draftWriter.write(null);
-      if (speakReplies && settings.voiceAvailable) {
-        const answer = updated.messages.find((m) => m.requestId === draft.requestId);
+      if (speakRepliesRef.current && settings.voiceAvailable) {
         if (answer?.status === 'completed') void play(answer.id);
       }
     } catch (failure) {
       if (alive.current && failure.name !== 'AbortError') {
         setError(failure.message);
+        setText(draft.text);
         try {
           setConversation(await assistantApi.read(conversation.conversationId, controller.current.signal));
         } catch {
@@ -323,7 +360,10 @@ export default function AssistantPanel({
       }
     } finally {
       inFlight.current = false;
-      if (alive.current) setBusy(false);
+      if (alive.current) {
+        setPendingMessage(null);
+        setBusy(false);
+      }
     }
   }
 
@@ -640,26 +680,12 @@ export default function AssistantPanel({
                       <AutoAwesomeOutlinedIcon sx={{ fontSize: 14 }} />
                       Tres Marias assistant
                     </Typography>
-                    {fullPage ? (
-                      <Box className="tm-assistant-answer">
-                        {message.response.answer
-                          .split(/\n\s*\n/)
-                          .filter(Boolean)
-                          .map((paragraph, paragraphIndex) => (
-                            <Typography component="p" variant="body2" key={paragraphIndex}>
-                              {paragraph}
-                            </Typography>
-                          ))}
-                      </Box>
-                    ) : (
-                      <Typography
-                        variant="body2"
-                        sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', mt: 0.5, lineHeight: 1.8 }}
-                      >
-                        {message.response.answer}
-                      </Typography>
-                    )}
-                    {settings?.voiceAvailable && (
+                    <AssistantAnswer
+                      answer={message.response.answer}
+                      animate={message.id === revealingMessage}
+                      fullPage={fullPage}
+                    />
+                    {settings?.voiceAvailable && !speakReplies && (
                       <Button
                         size="small"
                         startIcon={
@@ -792,7 +818,34 @@ export default function AssistantPanel({
                 )}
               </Box>
             ))}
+            {pendingMessage &&
+              !conversation?.messages.some((message) => message.requestId === pendingMessage.requestId) && (
+                <Box ref={outgoingMessage} className="tm-assistant-message tm-assistant-message--user" sx={{ mb: 3 }}>
+                  <Typography variant="caption" sx={{ color: 'inherit', opacity: 0.72 }}>
+                    You{pendingMessage.source === 'voice' ? ' · voice transcript' : ''}
+                  </Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                    {pendingMessage.text}
+                  </Typography>
+                </Box>
+              )}
+            {(pendingMessage || conversation?.allowance.pending) && (
+              <Box className="tm-assistant-message tm-assistant-message--reply" role="status" sx={{ mt: 1 }}>
+                <CircularProgress size={14} sx={{ mr: 1 }} /> AI is replying…
+              </Box>
+            )}
           </Box>
+          {conversation && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+              <CancelAiPlanButton
+                key={conversation.conversationId}
+                conversation={conversation}
+                disabled={busy || recording || loading || Boolean(conversation.allowance?.pending)}
+                onChange={cancelPlan}
+                onBusyChange={setBusy}
+              />
+            </Box>
+          )}
           {conversation && (
             <PackagePlanningPanel
               conversation={conversation}
@@ -808,6 +861,7 @@ export default function AssistantPanel({
             ((conversation.bookingDraft?.planningMode !== 'custom' && !packagePlanning) ||
               conversation.selectedPackageProposal) && (
               <AssistantReservationFlow
+                key={conversation.conversationId}
                 conversation={conversation}
                 user={user}
                 disabled={busy || recording || loading || conversation.allowance.pending}
@@ -827,7 +881,7 @@ export default function AssistantPanel({
                 onEdit={() => changeText('I would like to change these reservation details: ')}
               />
             )}
-          {busy && !recording && (
+          {busy && !recording && !pendingMessage && (
             <Typography variant="body2" role="status" sx={{ mt: 1 }}>
               <CircularProgress size={14} sx={{ mr: 1 }} />
               Please wait…
@@ -874,6 +928,10 @@ export default function AssistantPanel({
       stopPlayback,
       playing,
       speechLoading,
+      speakReplies,
+      pendingMessage,
+      revealingMessage,
+      cancelPlan,
       error,
       savedForm,
       reviewPlan,
@@ -978,7 +1036,20 @@ export default function AssistantPanel({
                     <Switch
                       size="small"
                       checked={speakReplies}
-                      onChange={(event) => setSpeakReplies(event.target.checked)}
+                      onChange={(event) => {
+                        const enabled = event.target.checked;
+                        speakRepliesRef.current = enabled;
+                        setSpeakReplies(enabled);
+                        if (!enabled) {
+                          stopPlayback();
+                          setSpeechLoading('');
+                        } else {
+                          const latest = conversation?.messages.findLast(
+                            (message) => message.status === 'completed' && message.response
+                          );
+                          if (latest && !busy) void play(latest.id);
+                        }
+                      }}
                     />
                   }
                   label={<Typography sx={{ fontSize: 11 }}>Read replies aloud</Typography>}

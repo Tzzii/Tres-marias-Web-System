@@ -1,6 +1,7 @@
 import { cleanPackageProposalContext } from '../../../../packages/shared/src/domain/packageProposal.js';
 import { cleanStyling, THEME_UNDECIDED } from '../../../../packages/shared/src/domain/styling.js';
 import { cleanMenu } from '../../../../packages/shared/src/domain/menu.js';
+import { SERVICE_TYPES, includesFood } from '../../../../packages/shared/src/services/config.js';
 import {
   cleanAssistantBooking,
   proposalOccasionFields
@@ -16,6 +17,20 @@ export const packagePlanningValues = (draft = {}) => ({
   addonIds: draft.addonIds || [],
   addonQty: draft.addonQty || {}
 });
+
+export const packagePlanningStages = (serviceType) =>
+  includesFood(serviceType) ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3, 4, 6, 7];
+
+export const savedPackagePlanningStage = (draft) => {
+  if (!SERVICE_TYPES.includes(draft.serviceType)) return 0;
+  if (!draft.guests || !draft.budget) return 1;
+  if (!draft.occasion) return 2;
+  if (!draft.date || !draft.startTime || !draft.endTime) return 3;
+  if (!draft.discussed?.includes('styling')) return 4;
+  if (includesFood(draft.serviceType) && !draft.discussed?.includes('menu')) return 5;
+  if (!draft.discussed?.includes('addons')) return 6;
+  return 7;
+};
 
 /** Attachment revisions must not replace unsaved answers; a different saved plan does. */
 export function reconcilePackagePlanningValues(current, previous, next) {

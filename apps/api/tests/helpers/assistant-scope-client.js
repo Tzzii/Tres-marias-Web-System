@@ -13,7 +13,9 @@ export function withScopeVerdicts(client) {
             output: [],
             usage: { input_tokens: 0, output_tokens: 0 },
             output_text: JSON.stringify(
-              name === 'tres_marias_scope_input' ? { decision: 'allowed', businessText: '' } : { allowed: true }
+              name === 'tres_marias_scope_input'
+                ? { decision: 'allowed', businessText: '', replyLanguage: 'english' }
+                : { allowed: true }
             )
           });
         }

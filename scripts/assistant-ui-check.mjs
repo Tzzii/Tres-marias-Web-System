@@ -63,6 +63,7 @@ async function fixture(context, signedIn = false, voice = true, available = true
   const state = {
     id: randomUUID(),
     turns: [],
+    priorUsed: 0,
     sends: 0,
     speech: 0,
     transcriptions: 0,
@@ -78,9 +79,9 @@ async function fixture(context, signedIn = false, voice = true, available = true
     expiresAt: Date.now() + 86400000,
     allowance: {
       guest: !signedIn,
-      used: state.turns.length,
+      used: state.priorUsed + state.turns.length,
       limit: signedIn ? 20 : 5,
-      remaining: Math.max(0, (signedIn ? 20 : 5) - state.turns.length),
+      remaining: Math.max(0, (signedIn ? 20 : 5) - state.priorUsed - state.turns.length),
       pending: false,
       ...(!signedIn && state.resetsAt ? { resetsAt: state.resetsAt } : {})
     },
@@ -128,6 +129,13 @@ async function fixture(context, signedIn = false, voice = true, available = true
       });
     if (endpoint === '/assistant/session') {
       state.visitorHeaders.push(request.headers()['x-assistant-visitor']);
+      if (request.postDataJSON()?.fresh) {
+        state.id = randomUUID();
+        state.priorUsed += state.turns.length;
+        state.turns = [];
+        state.bookingDraft = {};
+        state.draftRevision = 0;
+      }
       return reply({ ...snapshot(), ...(!signedIn ? { visitorToken: 'v'.repeat(43) } : {}) });
     }
     if (endpoint.endsWith('/transcriptions')) {
@@ -152,7 +160,7 @@ async function fixture(context, signedIn = false, voice = true, available = true
         return reply(snapshot());
       }
       if (request.method() === 'POST' && endpoint.endsWith('/messages')) {
-        if (!signedIn && state.turns.length >= 5)
+        if (!signedIn && state.priorUsed + state.turns.length >= 5)
           return reply({ code: 'ASSISTANT_SIGN_IN_REQUIRED', message: 'Create an account to continue.' }, 403);
         const input = request.postDataJSON();
         state.sends++;
@@ -247,6 +255,97 @@ const browser = await chromium.launch({
 });
 const results = [];
 try {
+  const chatContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const chatState = await fixture(chatContext, true);
+  await chatContext.addInitScript(() => {
+    window.__audioPlays = 0;
+    window.__audioPauses = 0;
+    window.Audio = class {
+      async play() {
+        window.__audioPlays++;
+      }
+      pause() {
+        window.__audioPauses++;
+      }
+    };
+  });
+  let releaseReply;
+  const waitingReply = new Promise((resolve) => {
+    releaseReply = resolve;
+  });
+  chatState.onSend = async () => {
+    await waitingReply;
+    return {
+      answer: 'Hello there customer we can help you choose a package for your celebration today.',
+      packages: [],
+      estimates: []
+    };
+  };
+  const chatPage = await chatContext.newPage();
+  await chatPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+  const navLabels = await chatPage
+    .locator('.tm-sidebar-link')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
+  assert.equal(navLabels.indexOf('AI Assistant'), navLabels.indexOf('AI Budgeting & Package') + 1);
+  await chatPage.getByLabel('Your question', { exact: true }).fill('Help me plan my party');
+  await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
+  await chatPage.locator('.tm-assistant-message--user').getByText('Help me plan my party', { exact: true }).waitFor();
+  await chatPage.getByRole('status').filter({ hasText: 'AI is replying' }).waitFor();
+  assert.equal(await chatPage.getByLabel('Your question', { exact: true }).inputValue(), '');
+  releaseReply();
+  await chatPage.locator('[data-word-reveal="active"]').waitFor();
+  const partial = await chatPage.locator('[data-word-reveal="active"]').innerText();
+  assert.ok(partial.length < 97);
+  assert.ok(/^(Hello(?: there(?: customer)?)?)$/.test(partial.trim()), `Only whole words appear: ${partial}`);
+  await chatPage
+    .getByText('Hello there customer we can help you choose a package for your celebration today.', { exact: true })
+    .waitFor();
+  await chatPage.getByRole('button', { name: 'Listen', exact: true }).waitFor();
+  await chatPage.getByRole('checkbox', { name: 'Read replies aloud' }).check();
+  assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 0);
+  await chatPage.waitForFunction(() => window.__audioPlays === 1);
+  chatState.onSend = async () => ({
+    answer: 'Another complete reply for automatic reading.',
+    packages: [],
+    estimates: []
+  });
+  await chatPage.getByLabel('Your question', { exact: true }).fill('Show me more options');
+  await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
+  await chatPage.waitForFunction(() => window.__audioPlays === 2);
+  assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 0);
+  await chatPage.getByRole('checkbox', { name: 'Read replies aloud' }).uncheck();
+  assert.ok(await chatPage.evaluate(() => window.__audioPauses > 0));
+  assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 2);
+  assert.equal(chatState.speech, 2);
+  await chatPage.screenshot({ path: path.join(output, 'chat-word-reveal-and-voice.png'), fullPage: true });
+  chatState.bookingDraft = { planningStarted: true, eventName: 'Unfinished party', guests: 100 };
+  await chatPage.reload({ waitUntil: 'networkidle' });
+  const previousConversationId = chatState.id;
+  await chatPage.getByRole('button', { name: 'Cancel guided reservation', exact: true }).click();
+  const cancellation = chatPage.getByRole('dialog', { name: 'Cancel guided reservation?' });
+  await cancellation.getByRole('button', { name: 'Keep planning', exact: true }).click();
+  assert.equal(chatState.bookingDraft.eventName, 'Unfinished party');
+  await chatPage.getByRole('button', { name: 'Cancel guided reservation', exact: true }).click();
+  await cancellation.getByRole('button', { name: 'Yes, cancel plan', exact: true }).click();
+  await chatPage.getByRole('heading', { name: /Good celebrations start/ }).waitFor();
+  assert.notEqual(chatState.id, previousConversationId);
+  assert.deepEqual(chatState.bookingDraft, {});
+  assert.equal(chatState.sends, 2);
+  await chatPage.getByText('18 questions remaining today', { exact: true }).waitFor();
+  assert.equal(await chatPage.locator('.tm-assistant-message--user').count(), 0);
+  assert.equal(
+    await chatPage.evaluate((id) => JSON.parse(localStorage.getItem(`tm.client.draft.${id}`)).form.venueName, user.id),
+    'Keep this venue'
+  );
+  await chatPage.reload({ waitUntil: 'networkidle' });
+  await chatPage.getByRole('heading', { name: /Good celebrations start/ }).waitFor();
+  results.push(
+    'cancel guided reservation confirms before starting fresh, preserves allowance and manual draft, and remains cancelled after reload'
+  );
+  await chatContext.close();
+  results.push(
+    'optimistic customer message, AI loading, whole-word reply reveal, automatic voice toggle, and sidebar order'
+  );
   for (const [label, viewport] of [
     ['desktop', { width: 1440, height: 1000 }],
     ['mobile', { width: 390, height: 844 }]

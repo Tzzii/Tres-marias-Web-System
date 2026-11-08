@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Chip,
+  FormControlLabel,
+  MenuItem,
+  Stack,
+  TextField,
+  Typography
+} from '@mui/material';
 import {
   catalogApi,
   packageProposalApi,
@@ -13,6 +24,8 @@ import {
 import {
   packageContextFromDraft,
   packagePlanningValues,
+  packagePlanningStages,
+  savedPackagePlanningStage,
   reconcilePackagePlanningValues
 } from '../../lib/packageProposalDraft.js';
 import { mergeAssistantBooking } from '@tm/shared/domain/assistantBooking.js';
@@ -23,6 +36,12 @@ import PackageProposalOption from './PackageProposalOption.jsx';
 import { ReservationThemes, ReservationColors, ReservationAddons } from './AssistantReservationChoices.jsx';
 import AssistantReferencePhotos from './AssistantReferencePhotos.jsx';
 import { menuCount } from '@tm/shared/domain/menu.js';
+import { formatTime } from '@tm/shared/utils/format.js';
+
+const timeOptions = Array.from(
+  { length: 48 },
+  (_, index) => `${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}`
+);
 
 const stages = [
   'Service',
@@ -44,16 +63,6 @@ const planningSurfaceSx = {
   },
   '& .tm-assistant-package-choice.is-selected': { borderColor: 'primary.main', boxShadow: 'none' }
 };
-const savedStage = (draft) => {
-  if (!SERVICE_TYPES.includes(draft.serviceType)) return 0;
-  if (!draft.guests || !draft.budget) return 1;
-  if (!draft.occasion) return 2;
-  if (!draft.date || !draft.startTime || !draft.endTime) return 3;
-  if (!draft.discussed?.includes('styling')) return 4;
-  if (!draft.discussed?.includes('menu')) return 5;
-  if (!draft.discussed?.includes('addons')) return 6;
-  return 7;
-};
 
 export default function PackagePlanningPanel({
   conversation,
@@ -68,7 +77,9 @@ export default function PackagePlanningPanel({
   const draft = conversation.bookingDraft || {};
   const catalog = useResource(() => catalogApi.getCatalog(), [], { live: false });
   const [values, setValues] = useState(() => packagePlanningValues(draft));
-  const [step, setStep] = useState(() => savedStage(draft));
+  const [currentStep, setStep] = useState(() => savedPackagePlanningStage(draft));
+  const visibleStages = packagePlanningStages(values.serviceType);
+  const step = visibleStages.includes(currentStep) ? currentStep : 6;
   const [error, setError] = useState('');
   const [prior, setPrior] = useState(null);
   const [reviewing, setReviewing] = useState(false);
@@ -85,7 +96,7 @@ export default function PackagePlanningPanel({
     const previous = previousPlan.current;
     setValues((local) => reconcilePackagePlanningValues(local, previous, conversation));
     if (previous.conversationId !== conversation.conversationId) {
-      setStep(savedStage(draft));
+      setStep(savedPackagePlanningStage(draft));
       setReviewing(false);
       setError('');
     }
@@ -140,7 +151,7 @@ export default function PackagePlanningPanel({
       );
       if (active.current) {
         onChange(updated);
-        if (next) setStep((n) => Math.min(7, n + 1));
+        if (next) setStep(visibleStages[Math.min(visibleStages.length - 1, visibleStages.indexOf(step) + 1)]);
       }
       return updated;
     });
@@ -268,7 +279,10 @@ export default function PackagePlanningPanel({
     <Box className="tm-assistant-plan" sx={planningSurfaceSx}>
       <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
         <Typography variant="h6">Your custom package</Typography>
-        <Chip label={selected && !reviewing ? 'Selected' : `${step + 1} of 8`} size="small" />
+        <Chip
+          label={selected && !reviewing ? 'Selected' : `${visibleStages.indexOf(step) + 1} of ${visibleStages.length}`}
+          size="small"
+        />
       </Stack>
       {conversation.packageProposalIssue && (
         <Alert severity="warning" sx={{ mt: 2 }}>
@@ -423,7 +437,7 @@ export default function PackagePlanningPanel({
                       <TextField
                         key={key}
                         label={key === 'startTime' ? 'Start time' : 'End time'}
-                        type="time"
+                        select
                         value={values[key] || ''}
                         onChange={(e) =>
                           change({
@@ -432,9 +446,21 @@ export default function PackagePlanningPanel({
                           })
                         }
                         InputLabelProps={{ shrink: true }}
-                        inputProps={{ step: 1800 }}
+                        SelectProps={{ MenuProps: { PaperProps: { sx: { maxHeight: 288 } } } }}
                         fullWidth
-                      />
+                      >
+                        <MenuItem value="" disabled>
+                          Choose a time
+                        </MenuItem>
+                        {values[key] && !timeOptions.includes(values[key]) && (
+                          <MenuItem value={values[key]}>{formatTime(values[key]).toUpperCase()}</MenuItem>
+                        )}
+                        {timeOptions.map((time) => (
+                          <MenuItem key={time} value={time}>
+                            {formatTime(time).toUpperCase()}
+                          </MenuItem>
+                        ))}
+                      </TextField>
                     ))}
                   </Stack>
                 </>
@@ -480,52 +506,48 @@ export default function PackagePlanningPanel({
                   />
                 </>
               )}
-              {step === 5 && (
+              {step === 5 && values.serviceType === 'Buffet and Catering' && (
                 <>
-                  {values.serviceType === 'Buffet and Catering' ? (
-                    <>
-                      <Typography variant="body2">
-                        Choose offered dishes you want to keep, or leave them blank so the package can complete four
-                        dishes.
-                      </Typography>
-                      {DISH_CATEGORIES.map(({ key: category, label }) => {
-                        const dishes =
-                          catalog.data?.dishes?.filter(
-                            (dish) => !dish.archived && [category, label].includes(dish.category)
-                          ) || [];
-                        return dishes.length ? (
-                          <Box key={category}>
-                            <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
-                              {category}
-                            </Typography>
-                            {dishes.map((dish) => (
-                              <FormControlLabel
-                                key={dish.id || dish.name}
-                                label={dish.name}
-                                control={
-                                  <Checkbox
-                                    checked={values.menu[category]?.includes(dish.name) || false}
-                                    onChange={(e) =>
-                                      change({
-                                        menu: {
-                                          ...values.menu,
-                                          [category]: e.target.checked
-                                            ? [...(values.menu[category] || []), dish.name]
-                                            : values.menu[category].filter((name) => name !== dish.name)
-                                        }
-                                      })
-                                    }
-                                  />
-                                }
-                              />
-                            ))}
-                          </Box>
-                        ) : null;
-                      })}
-                    </>
-                  ) : (
-                    <Typography variant="body2">Catering only provides the setup; buffet food is excluded.</Typography>
-                  )}
+                  <>
+                    <Typography variant="body2">
+                      Choose offered dishes you want to keep, or leave them blank so the package can complete four
+                      dishes.
+                    </Typography>
+                    {DISH_CATEGORIES.map(({ key: category, label }) => {
+                      const dishes =
+                        catalog.data?.dishes?.filter(
+                          (dish) => !dish.archived && [category, label].includes(dish.category)
+                        ) || [];
+                      return dishes.length ? (
+                        <Box key={category}>
+                          <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
+                            {category}
+                          </Typography>
+                          {dishes.map((dish) => (
+                            <FormControlLabel
+                              key={dish.id || dish.name}
+                              label={dish.name}
+                              control={
+                                <Checkbox
+                                  checked={values.menu[category]?.includes(dish.name) || false}
+                                  onChange={(e) =>
+                                    change({
+                                      menu: {
+                                        ...values.menu,
+                                        [category]: e.target.checked
+                                          ? [...(values.menu[category] || []), dish.name]
+                                          : values.menu[category].filter((name) => name !== dish.name)
+                                      }
+                                    })
+                                  }
+                                />
+                              }
+                            />
+                          ))}
+                        </Box>
+                      ) : null;
+                    })}
+                  </>
                   <TextField
                     label="Food and dietary notes (optional)"
                     value={values.foodNotes || ''}
@@ -600,7 +622,10 @@ export default function PackagePlanningPanel({
             </Stack>
           </Box>
           <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
-            <Button disabled={disabled || step === 0} onClick={() => setStep((n) => n - 1)}>
+            <Button
+              disabled={disabled || step === 0}
+              onClick={() => setStep(visibleStages[visibleStages.indexOf(step) - 1])}
+            >
               Back
             </Button>
             {step < 7 && (
