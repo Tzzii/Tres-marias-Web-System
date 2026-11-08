@@ -81,7 +81,8 @@ async function fixture(context, signedIn = false, voice = true, available = true
       used: state.turns.length,
       limit: signedIn ? 20 : 5,
       remaining: Math.max(0, (signedIn ? 20 : 5) - state.turns.length),
-      pending: false
+      pending: false,
+      ...(!signedIn && state.resetsAt ? { resetsAt: state.resetsAt } : {})
     },
     messages: state.turns
   });
@@ -432,6 +433,47 @@ try {
     );
     await context.close();
   }
+  for (const failureMode of ['failed', 'disabled']) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+    const state = await fixture(context, false, false);
+    state.resetsAt = Date.now() + 60000;
+    let configReads = 0;
+    let failRefresh = false;
+    await context.route('**/api/assistant/config', async (route) => {
+      configReads += 1;
+      if (!failRefresh) return route.fallback();
+      return route.fulfill({
+        status: failureMode === 'failed' ? 503 : 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          failureMode === 'failed'
+            ? { message: 'Reset service unavailable' }
+            : { available: false, enabled: false, voiceAvailable: false }
+        )
+      });
+    });
+    const page = await context.newPage();
+    await page.clock.install({ time: new Date() });
+    await page.goto(base, { waitUntil: 'networkidle' });
+    await openAssistant(page);
+    await page.getByLabel('Your question', { exact: true }).fill('Keep my celebration question');
+    const initialReads = configReads;
+    failRefresh = true;
+    const refresh = page.waitForResponse(
+      (response) => response.url().endsWith('/assistant/config') && configReads > initialReads
+    );
+    await page.clock.fastForward(60001);
+    await refresh;
+    await page.waitForTimeout(600);
+    assert.equal(
+      configReads,
+      initialReads + 1,
+      failureMode + ': an expired visitor reset triggers only one automatic refresh'
+    );
+    assert.equal(await page.getByLabel('Your question', { exact: true }).inputValue(), 'Keep my celebration question');
+    results.push(failureMode + ': failed visitor reset stays bounded and preserves the question');
+    await context.close();
+  }
   for (const [label, viewport] of [
     ['desktop', { width: 1440, height: 1000 }],
     ['mobile', { width: 390, height: 844 }],
@@ -588,9 +630,9 @@ try {
   );
   await customerPage.getByRole('button', { name: 'Close event details', exact: true }).click();
   await customerPage.getByRole('dialog', { name: 'Your event details' }).waitFor({ state: 'hidden' });
-  for (const [sizeLabel, height, minThreadHeight] of [
-    ['short-laptop', 768, 250],
-    ['desktop', 1000, 420]
+  for (const [sizeLabel, height] of [
+    ['short-laptop', 768],
+    ['desktop', 1000]
   ]) {
     await customerPage.setViewportSize({ width: 1440, height });
     const panelBox = await customerPage.locator('.tm-assistant-panel--page').boundingBox();
@@ -598,8 +640,8 @@ try {
     const sendBox = await customerPage.getByRole('button', { name: 'Send question', exact: true }).boundingBox();
     assert.ok(panelBox.width >= 680, `${sizeLabel}: full-page assistant panel is spacious (${panelBox.width}px)`);
     assert.ok(
-      threadBox.height >= minThreadHeight,
-      `${sizeLabel}: assistant thread has generous vertical room (${threadBox.height}px)`
+      threadBox.height > 0 && threadBox.y + threadBox.height <= height,
+      `${sizeLabel}: compact welcome thread fits without clipping (${threadBox.height}px)`
     );
     assert.ok(
       sendBox.y + sendBox.height <= height,

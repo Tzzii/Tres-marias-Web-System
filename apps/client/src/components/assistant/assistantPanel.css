@@ -462,7 +462,7 @@
 
 .tm-assistant-page__heading {
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .tm-assistant-page .tm-assistant-page__contact {
@@ -479,10 +479,7 @@
 }
 
 .tm-assistant-page__workspace {
-  border: 1px solid var(--tm-divider, #e8dcc6);
-  border-radius: 20px;
-  background: var(--tm-card-light, #fff);
-  box-shadow: 0 8px 32px -24px #2b26222e;
+  min-width: 0;
 }
 
 .tm-assistant-panel--page {
@@ -491,9 +488,8 @@
   --assistant-gold: var(--tm-gold-text, #8a6a2f);
   --assistant-border: var(--tm-divider, #e8dcc6);
   height: auto;
-  min-height: calc(100dvh - 230px - var(--tm-bottom-nav, 0px));
-  border-radius: inherit;
-  background: var(--tm-card-light, #fff);
+  min-height: 0;
+  background: transparent;
   color-scheme: light;
 }
 
@@ -502,17 +498,16 @@
 }
 
 .tm-assistant-panel--page .tm-assistant-header {
-  position: sticky;
-  top: 70px;
+  position: relative;
+  top: auto;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px 24px;
-  padding: 18px 28px;
-  border-radius: 20px 20px 0 0;
-  background: var(--tm-card-light, #fff);
+  gap: 10px 20px;
+  padding: 6px 0 8px;
+  background: transparent;
 }
 
 .tm-assistant-panel--page .tm-assistant-header__main {
@@ -586,7 +581,7 @@
 .tm-assistant-panel--page .tm-assistant-thread {
   flex: 1 0 auto;
   overflow: visible;
-  padding: 28px 32px;
+  padding: 14px 0 0;
   contain: none;
   background: none;
   scrollbar-gutter: auto;
@@ -595,19 +590,19 @@
 .tm-assistant-panel--page .tm-assistant-thread__content,
 .tm-assistant-panel--page .tm-assistant-composer__content {
   width: 100%;
-  max-width: 820px;
+  max-width: 920px;
   min-width: 0;
   margin-inline: auto;
 }
 
 .tm-assistant-panel--page .tm-assistant-welcome {
-  padding: 4px 0 24px;
+  padding: 0 0 16px;
   text-align: center;
 }
 
 .tm-assistant-panel--page .tm-assistant-welcome__badge {
   justify-content: center;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .tm-assistant-panel--page .tm-assistant-welcome__badge .MuiTypography-root {
@@ -616,9 +611,9 @@
 }
 
 .tm-assistant-panel--page .tm-assistant-welcome h3 {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
   color: var(--assistant-ink);
-  font-size: clamp(30px, 3vw, 40px);
+  font-size: clamp(28px, 2.5vw, 36px);
   font-weight: 500;
   letter-spacing: -1.2px;
   line-height: 1.2;
@@ -629,7 +624,7 @@
   max-width: 520px;
   margin-inline: auto;
   font-size: 14px;
-  line-height: 1.8;
+  line-height: 1.6;
 }
 
 .tm-assistant-panel--page .tm-assistant-questions {
@@ -639,9 +634,9 @@
 
 .tm-assistant-panel--page .tm-assistant-questions .tm-assistant-question {
   position: relative;
-  padding: 18px 20px;
+  padding: 10px 14px;
   border-radius: 12px;
-  background: var(--tm-card-light, #fff);
+  background: var(--tm-gold-wash, #fcf9f4);
   box-shadow: none;
 }
 
@@ -653,7 +648,7 @@
 
 .tm-assistant-panel--page .tm-assistant-question__top {
   position: absolute;
-  inset: 20px 18px auto;
+  inset: 12px 12px auto;
   margin: 0;
 }
 
@@ -668,7 +663,7 @@
 .tm-assistant-panel--page .tm-assistant-question .tm-assistant-question__text {
   padding-inline: 32px 14px;
   font-size: 13px;
-  line-height: 1.75;
+  line-height: 1.55;
 }
 
 .tm-assistant-panel--page .tm-assistant-more {
@@ -676,6 +671,42 @@
   margin: 8px auto 0;
   padding: 4px 12px;
   font-size: 12px;
+}
+
+.tm-assistant-panel--page .tm-assistant-reservation.tm-assistant-reservation--intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 20px;
+  margin: 12px 0 4px;
+  padding: 12px 16px;
+  border: 0;
+  border-left: 3px solid var(--assistant-gold);
+  border-radius: 0;
+  background: var(--tm-gold-wash, #fcf9f4);
+}
+
+.tm-assistant-panel--page .tm-assistant-reservation--intro > .MuiTypography-root:nth-child(2) {
+  grid-column: 1;
+  margin: 0;
+}
+
+.tm-assistant-panel--page .tm-assistant-reservation--intro > .MuiButton-root {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+
+.tm-assistant-panel--page .tm-assistant-reservation--intro > .MuiAlert-root {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 719px) {
+  .tm-assistant-panel--page .tm-assistant-reservation.tm-assistant-reservation--intro {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }
 
 .tm-assistant-panel--page .tm-assistant-message {
@@ -761,10 +792,10 @@
   position: sticky;
   bottom: var(--tm-bottom-nav, 0px);
   z-index: 4;
-  padding: 16px 32px max(12px, env(safe-area-inset-bottom));
-  border-radius: 0 0 20px 20px;
-  background: var(--tm-card-light, #fff);
-  box-shadow: 0 -12px 24px -20px #2b26222e;
+  padding: 10px 0 max(4px, env(safe-area-inset-bottom));
+  border-top: 0;
+  background: var(--tm-bg-base, #fbf7f0);
+  box-shadow: none;
 }
 
 .tm-assistant-panel--page .tm-assistant-composer__field {
@@ -869,6 +900,35 @@
   outline-offset: 3px;
 }
 
+/* Use the available width so the welcome, actions and composer fit at normal laptop zoom. */
+@media (min-width: 1000px) {
+  .tm-assistant-panel--page .tm-assistant-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+    align-items: center;
+    gap: 0 32px;
+  }
+
+  .tm-assistant-panel--page .tm-assistant-welcome {
+    grid-row: 1 / 3;
+    text-align: left;
+    padding: 12px 0;
+  }
+
+  .tm-assistant-panel--page .tm-assistant-welcome__badge {
+    justify-content: flex-start;
+  }
+
+  .tm-assistant-panel--page .tm-assistant-welcome > p {
+    margin-inline: 0;
+  }
+
+  .tm-assistant-panel--page .tm-assistant-questions,
+  .tm-assistant-panel--page .tm-assistant-more {
+    grid-column: 2;
+  }
+}
+
 @media (min-width: 720px) {
   .tm-assistant-panel--page .tm-assistant-choice-grid {
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -892,7 +952,7 @@
 
   .tm-assistant-panel--page .tm-assistant-header {
     gap: 10px;
-    padding: 14px 16px;
+    padding: 10px 0;
   }
 
   .tm-assistant-panel--page .tm-assistant-header__main {
@@ -921,7 +981,7 @@
   }
 
   .tm-assistant-panel--page .tm-assistant-thread {
-    padding: 28px 18px 24px;
+    padding: 20px 0 12px;
   }
 
   .tm-assistant-panel--page .tm-assistant-welcome {
@@ -953,7 +1013,7 @@
   }
 
   .tm-assistant-panel--page .tm-assistant-composer {
-    padding: 12px 14px max(10px, env(safe-area-inset-bottom));
+    padding: 10px 0 max(10px, env(safe-area-inset-bottom));
   }
 
   .tm-assistant-panel--page .tm-assistant-composer__field {

@@ -189,6 +189,7 @@ export { EquipmentPhoto } from './components/EquipmentPhoto.jsx';
 export {
   MAX_ADDON_SIZES,
   PACKAGE_INCLUDES_MAX,
+  packageAllowsOccasion,
   addonPriceMap,
   flattenAddons,
   readAddonPrice,

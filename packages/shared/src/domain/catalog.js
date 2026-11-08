@@ -1,5 +1,10 @@
 import { ADDON_PRICE_RANGE, INVENTORY_CATEGORIES } from '../services/config.js';
 
+/** The two wedding setups are bookable only when the selected occasion is Wedding. */
+export const packageAllowsOccasion = (pkg, occasion) =>
+  occasion === 'Wedding' ||
+  !(['pkg-wedding-1', 'pkg-wedding-2'].includes(pkg?.id) || ['signature-wedding', 'royal-wedding'].includes(pkg?.slug));
+
 /**
  * Catalogue rules that need no stored data: how a package name becomes the URL name (slug) that
  * also keeps package names unique, which inventory items make up the Equipment Rental price

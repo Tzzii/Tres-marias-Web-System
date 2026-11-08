@@ -256,8 +256,8 @@ const endText = (option) => `${formatTime(option.value)}${option.nextDay ? ' (ne
  * 12:00 pm, and a 10:00 pm start 12:00 am to 4:00 am the next day. Picking an hour also picks its AM/PM.
  * `value` and `onChange` use 24-hour "HH:MM"; without a start time the field is disabled and asks for one.
  *
- * The line under it says what was picked, e.g. "6:00 am – 12:00 pm · 6 hours" or "10:00 pm – 2:00 am
- * (next day) · 4 hours"; before a pick it shows `hint` (or the 2-to-6-hours rule) and the range to choose
+ * With a configured duration fee, a valid selection shows a short six-hour charge notice.
+ * Otherwise it describes the selected time and duration; before a pick it shows `hint` and the range to choose
  * from. A saved end time that no longer fits the start (e.g. an old booking) is named there instead of
  * showing blank dropdowns without a word.
  */
@@ -289,7 +289,11 @@ export function EndTimeField({
     below = `${hint || `Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`} Choose ${endText(first)} to ${endText(last)}.`;
 
   if (sixHourFee !== undefined) {
-    below += ` Default: ${RULES.initialEventHours} hours. ${Number(sixHourFee) > 0 ? `Exactly 6 hours adds ${peso(sixHourFee)}; under 6 hours has no duration charge.` : 'No duration charge for events up to 6 hours.'}`;
+    const notice =
+      Number(sixHourFee) > 0
+        ? `A ${peso(sixHourFee)} additional charge applies to a 6-hour event.`
+        : 'No duration charge for events up to 6 hours.';
+    below = picked ? notice : `${below} ${notice}`;
   }
 
   return (

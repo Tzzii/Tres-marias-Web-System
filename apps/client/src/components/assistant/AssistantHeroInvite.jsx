@@ -66,7 +66,7 @@ export default function AssistantHeroInvite({ onClick, signedIn, paused, onToggl
           <Typography component="span" sx={{ display: 'block', color: site.inkSoft, fontSize: 11, mt: 0.4 }}>
             {signedIn
               ? 'Ask about packages, prices and dates'
-              : `Try ${ASSISTANT_GUEST_LIMIT} free questions · Type or talk`}
+              : `Try ${ASSISTANT_GUEST_LIMIT} free questions every 3 days · Type or talk`}
           </Typography>
         </Box>
         <ArrowForwardRoundedIcon

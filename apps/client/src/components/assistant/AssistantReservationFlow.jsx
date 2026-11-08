@@ -204,7 +204,7 @@ export default function AssistantReservationFlow({
     );
   if (!draft.planningStarted)
     return (
-      <Box className="tm-assistant-reservation" data-assistant-reservation>
+      <Box className="tm-assistant-reservation tm-assistant-reservation--intro" data-assistant-reservation>
         <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Let me help you make a reservation</Typography>
         <Typography sx={{ fontSize: 12, my: 1 }}>
           I will ask for your details, show your choices, and help you send a request when you are ready.

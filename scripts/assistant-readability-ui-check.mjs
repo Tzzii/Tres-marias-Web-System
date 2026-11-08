@@ -53,7 +53,7 @@ async function fixture(context, mode, planningStarted = false) {
   const snapshot = () => ({
     conversationId: 'readability-conversation',
     bookingDraft: draft,
-    bookingCatalog: planningStarted ? catalog : undefined,
+    bookingCatalog: catalog,
     bookingPlan: planningStarted ? bookingPlan(draft, catalog) : null,
     draftRevision: 0,
     expiresAt: Date.now() + 86400000,
@@ -120,6 +120,7 @@ try {
   for (const [label, viewport, mode, planningStarted] of [
     ['desktop', { width: 1440, height: 900 }, 'light'],
     ['short-laptop', { width: 1366, height: 768 }, 'light'],
+    ['compact-laptop', { width: 1280, height: 720 }, 'light'],
     ['tablet', { width: 768, height: 1024 }, 'light'],
     ['phone', { width: 390, height: 844 }, 'light'],
     ['small-phone', { width: 320, height: 568 }, 'light'],
@@ -148,6 +149,40 @@ try {
       });
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: path.join(output, `${label}-welcome.png`) });
+    if (!planningStarted && viewport.width >= 1000) {
+      const welcome = await page.locator('.tm-assistant-page').evaluate((el) => {
+        const rect = (selector) => el.querySelector(selector).getBoundingClientRect();
+        const workspace = getComputedStyle(el.querySelector('.tm-assistant-page__workspace'));
+        return {
+          top: el.getBoundingClientRect().top,
+          bottom: el.getBoundingClientRect().bottom,
+          moreBottom: rect('.tm-assistant-more').bottom,
+          reservationBottom: rect('[data-assistant-reservation]').bottom,
+          composerTop: rect('.tm-assistant-composer').top,
+          background: workspace.backgroundColor,
+          border: workspace.borderTopWidth,
+          shadow: workspace.boxShadow,
+          scroll: window.scrollY
+        };
+      });
+      check(
+        welcome.top >= 70 && welcome.bottom <= viewport.height,
+        'the complete welcome workspace fits at normal desktop zoom (' + welcome.bottom + 'px)'
+      );
+      check(welcome.scroll === 0, 'the welcome page opens without scrolling');
+      check(
+        welcome.moreBottom <= welcome.composerTop && welcome.reservationBottom <= welcome.composerTop,
+        'the composer does not cover suggestions or the reservation action'
+      );
+      check(
+        welcome.background === 'rgba(0, 0, 0, 0)' && welcome.border === '0px' && welcome.shadow === 'none',
+        'the workspace has no enclosing white card'
+      );
+      check(
+        await page.getByRole('button', { name: 'Start reservation', exact: true }).isVisible(),
+        'the reservation action is included in the first screen'
+      );
+    }
     const details = page.getByRole('button', { name: /Event details/ });
     check((await details.count()) === 1, 'event details are available on demand');
     check(

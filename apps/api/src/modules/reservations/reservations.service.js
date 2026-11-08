@@ -6,7 +6,13 @@ import {
   timeUnavailableReason
 } from '@tm/shared/src/domain/availability.js';
 import { cancelDeadline, onlineCancellation } from '@tm/shared/src/domain/cancellation.js';
-import { addonPriceMap, bookableAddons, flattenAddons, packagePickProblem } from '@tm/shared/src/domain/catalog.js';
+import {
+  addonPriceMap,
+  bookableAddons,
+  flattenAddons,
+  packageAllowsOccasion,
+  packagePickProblem
+} from '@tm/shared/src/domain/catalog.js';
 import { downpaymentDueFor, dueAfterMove, financials, statusForPayments } from '@tm/shared/src/domain/money.js';
 import {
   addonShortfall,
@@ -449,6 +455,11 @@ async function book(
     (typeof form.packageId === 'string' ? await catalogRepo.findPackageById(form.packageId, conn) : null);
   if (!pkg || (!custom && (!pkg.visible || pkg.archived)))
     throw invalid('Please choose an available package.', 'packageId');
+  if (!custom && !packageAllowsOccasion(pkg, form.occasion))
+    throw invalid(
+      'This wedding package is available only for Wedding occasions. Please choose another package.',
+      'packageId'
+    );
   const booking = pkg.kind === 'rental' ? await rentalBooking(conn, pkg, form) : await eventBooking(conn, pkg, form);
   if (custom) {
     booking.fields.packageId = null;

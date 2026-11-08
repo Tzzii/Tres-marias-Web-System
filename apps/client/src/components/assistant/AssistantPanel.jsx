@@ -121,10 +121,32 @@ export default function AssistantPanel({
   const latestReply = useRef(null);
   const lastScrolledReply = useRef('');
   const openedConversation = useRef('');
+  const attemptedGuestReset = useRef(null);
   const scope = user?.id || 'guest';
   const draftWriter = useMemo(() => createAssistantDraftWriter(user?.id), [scope]);
   const remaining = conversation?.allowance.remaining ?? (user ? settings?.dailyLimit : ASSISTANT_GUEST_LIMIT);
   const blocked = remaining === 0;
+  const resetsAt = !user ? conversation?.allowance.resetsAt : null;
+  const resetLabel = resetsAt
+    ? new Date(resetsAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+    : '';
+  useEffect(() => {
+    if (!resetsAt || busy || recording || loading) return undefined;
+    const refreshIfDue = () => {
+      if (Date.now() < resetsAt || attemptedGuestReset.current === resetsAt) return;
+      // A failed or disabled refresh keeps the old deadline; do not retry it in a tight loop.
+      attemptedGuestReset.current = resetsAt;
+      setAttempt((value) => value + 1);
+    };
+    const timer = setTimeout(refreshIfDue, Math.max(0, resetsAt - Date.now()));
+    window.addEventListener('focus', refreshIfDue);
+    document.addEventListener('visibilitychange', refreshIfDue);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', refreshIfDue);
+      document.removeEventListener('visibilitychange', refreshIfDue);
+    };
+  }, [resetsAt, busy, recording, loading]);
   const canSend = Boolean(
     settings?.available &&
     conversation &&
@@ -525,7 +547,7 @@ export default function AssistantPanel({
             conversation?.bookingDraft?.planningMode !== 'custom' &&
             !conversation?.messages.length &&
             !conversation?.bookingPlan?.canReview && (
-              <>
+              <Box className="tm-assistant-intro">
                 <Box className="tm-assistant-welcome">
                   <Box className="tm-assistant-welcome__badge">
                     <AutoAwesomeOutlinedIcon sx={{ fontSize: 17 }} />
@@ -593,7 +615,7 @@ export default function AssistantPanel({
                     <ArrowForwardRoundedIcon sx={{ fontSize: 14, ml: 0.75 }} />
                   </Button>
                 )}
-              </>
+              </Box>
             )}
           <Box role="log" aria-label="Assistant conversation" aria-live="polite" aria-relevant="additions text">
             {conversation?.messages.map((message, index) => (
@@ -815,7 +837,7 @@ export default function AssistantPanel({
             <Alert severity="info" sx={{ mt: 2 }}>
               {user
                 ? 'Your daily assistant allowance has been reached. You can still browse packages or message the admin.'
-                : `You have used your ${ASSISTANT_GUEST_LIMIT} free questions. Create a free account or log in to continue.`}
+                : `You have used your ${ASSISTANT_GUEST_LIMIT} free questions. Your five free questions reset every three days${resetLabel ? `; next reset: ${resetLabel}` : ''}. No account is required. You can also create an account or log in to ask more questions now.`}
               {!user && (
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                   <Button component={RouterLink} to={ASSISTANT_AUTH.signup} variant="contained" size="small">

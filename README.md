@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.45.9**
+**System version: 1.46.1**
 
 The AI assistant enforces business scope on the server before answering or using booking tools, then independently checks the generated reply before saving or speaking it. Clear entertainment questions receive a fixed business redirect; mixed requests may continue only with a verbatim business excerpt. Unclear or failed checks return clarification. Rejected replies cannot update the booking draft or publish generated cards. Classifier calls share the existing spending controls and turn timeout; semantic accuracy still requires human-reviewed model evaluation.
 
@@ -485,7 +485,11 @@ For an explicitly planned first production initialization, the API workspace's s
 ### AI booking assistant
 
 Visitors can ask the clearly identified AI assistant about published services in English, Filipino or
-Taglish. The guest trial permits five completed questions; signed-in customers use a configurable
+Taglish. Visitors receive five completed questions across text and voice every three days (72 hours),
+without needing an account. The window starts when their allowance is created and renews on their
+first visit after it expires; unused questions do not accumulate. The same browser visitor identity
+preserves usage across reloads and new chats. The assistant shows the next reset time and refreshes
+an open chat when it is due. Signed-in customers use a configurable
 20-question daily allowance. Conversation plans and messages expire 24 hours after creation. Human
 customer/admin Messages remain separate from AI conversations.
 

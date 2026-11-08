@@ -12,6 +12,23 @@ import { menuDishes } from '@tm/shared/src/domain/reservation.js';
 import { cleanStyling, stylingProblem, STYLING_THEMES, METALLICS } from '@tm/shared/src/domain/styling.js';
 import { themeColorSchemes, RAINBOW_COLORS } from '@tm/shared/src/domain/themeColors.js';
 import { computeQuote } from '@tm/shared/src/services/pricing.js';
+import * as catalogRules from '@tm/shared/src/domain/catalog.js';
+
+test('wedding packages are available only for the Wedding occasion', () => {
+  for (const slug of ['signature-wedding', 'royal-wedding']) {
+    const pkg = { slug };
+    assert.equal(catalogRules.packageAllowsOccasion(pkg, 'Wedding'), true);
+    for (const occasion of ['', 'Birthday', 'Debut', 'Other'])
+      assert.equal(catalogRules.packageAllowsOccasion(pkg, occasion), false);
+  }
+});
+
+test('regular and rental packages remain available for all occasions', () => {
+  for (const slug of ['classic', 'grand-full-service', 'equipment-rental'])
+    for (const occasion of ['', 'Wedding', 'Birthday', 'Debut', 'Other'])
+      assert.equal(catalogRules.packageAllowsOccasion({ slug }, occasion), true);
+});
+
 const menu = {
   pork: ['Lechon Kawali', 'Kare-Kare'],
   chicken: ['Inasal'],

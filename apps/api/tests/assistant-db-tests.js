@@ -8,7 +8,7 @@ import { createAssistantRepository, visitorHash, manilaDay } from '../src/module
 test('durable assistant trial, concurrent reservations, claims and spending caps', async (t) => {
   assert.equal(config.isProduction, false);
   assert.ok(['localhost', '127.0.0.1', '::1'].includes(config.db.host));
-  const fixed = Date.now() + 100 * 366 * 86400000;
+  let fixed = Date.now() + 100 * 366 * 86400000;
   const settings = {
     ...config.assistant,
     dailyLimit: 3,
@@ -82,14 +82,45 @@ test('durable assistant trial, concurrent reservations, claims and spending caps
     const restartedRepo = createAssistantRepository({ settings, clock: () => fixed });
     await assert.rejects(
       () => restartedRepo.begin(actor, opened.conversationId, input()),
-      (e) => e.code === 'ASSISTANT_SIGN_IN_REQUIRED'
+      (e) => e.code === 'RATE_LIMITED'
     );
     await assert.rejects(
       () => repo.voiceAttempt(actor, opened.conversationId),
-      (e) => e.code === 'ASSISTANT_SIGN_IN_REQUIRED'
+      (e) => e.code === 'RATE_LIMITED'
     );
     const resumed = await repo.open(actor);
     assert.equal(resumed.conversationId, opened.conversationId);
+    const startedAt = fixed;
+    assert.equal(resumed.allowance.resetsAt, startedAt + 3 * 86400000);
+    await pool.query('UPDATE assistant_allowances SET voice_tries = 10 WHERE id = ?', [`g:${actor.visitorHash}`]);
+    for (const elapsed of [86400000, 2 * 86400000, 3 * 86400000 - 1]) {
+      fixed = startedAt + elapsed;
+      const waiting = await repo.open(actor);
+      sessions.push(waiting);
+      assert.equal(waiting.allowance.remaining, 0);
+      assert.equal(waiting.allowance.resetsAt, startedAt + 3 * 86400000);
+    }
+    fixed = startedAt + 3 * 86400000;
+    const renewed = await repo.open(actor);
+    sessions.push(renewed);
+    assert.equal(renewed.visitorToken, undefined);
+    assert.equal(renewed.allowance.remaining, 5);
+    assert.equal(renewed.allowance.resetsAt, fixed + 3 * 86400000);
+    await repo.voiceAttempt(actor, renewed.conversationId);
+    const renewedTurn = await repo.begin(actor, renewed.conversationId, input());
+    await repo.finish(renewedTurn.id, response);
+    assert.equal((await repo.read(actor, renewed.conversationId)).allowance.remaining, 4);
+    const fresh = await repo.open(actor, undefined, { fresh: true });
+    sessions.push(fresh);
+    assert.equal(fresh.allowance.remaining, 4);
+    fixed = startedAt + 6 * 86400000;
+    const renewedAgain = await repo.open(actor);
+    sessions.push(renewedAgain);
+    assert.equal(renewedAgain.visitorToken, undefined);
+    assert.equal(renewedAgain.allowance.remaining, 5, 'unused questions do not accumulate across windows');
+    assert.equal(renewedAgain.allowance.resetsAt, fixed + 3 * 86400000);
+    // Return to the original clock for the independent customer/claim checks below.
+    fixed = startedAt;
     const claimed = await repo.open({ ...actor, customerId: customer }, opened.conversationId);
     assert.equal(claimed.allowance.remaining, 3);
     await assert.rejects(

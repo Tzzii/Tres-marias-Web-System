@@ -9,6 +9,7 @@ export const ASSISTANT_QUESTIONS = Object.freeze([
   'How can I check my preferred date?'
 ]);
 export const ASSISTANT_GUEST_LIMIT = 5;
+export const ASSISTANT_GUEST_RESET_MS = 3 * 24 * 60 * 60 * 1000;
 export const ASSISTANT_TEXT_MAX = 2000;
 export const ASSISTANT_RECORD_SECONDS = 30;
 export const ASSISTANT_PATH = '/portal/assistant';

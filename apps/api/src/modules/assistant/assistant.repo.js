@@ -2,7 +2,7 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { pool, tx } from '../../db.js';
 import { config } from '../../config.js';
 import { ApiError } from '../../lib/ApiError.js';
-import { ASSISTANT_GUEST_LIMIT } from '@tm/shared/src/domain/assistant.js';
+import { ASSISTANT_GUEST_LIMIT, ASSISTANT_GUEST_RESET_MS } from '@tm/shared/src/domain/assistant.js';
 import { cleanReferencePhotos, REFERENCE_PHOTO_MAX_COUNT } from '@tm/shared/src/domain/referencePhoto.js';
 import { isRental } from '@tm/shared/src/services/config.js';
 import { storage } from '../../integrations/storage/index.js';
@@ -26,7 +26,10 @@ const editable = (conversation) => {
 const photosOf = (conversation) => cleanReferencePhotos(decode(conversation.reference_photos) || []);
 export const limitError = (guest) =>
   guest
-    ? new ApiError('ASSISTANT_SIGN_IN_REQUIRED', 'Create an account or log in to continue asking questions.')
+    ? new ApiError(
+        'RATE_LIMITED',
+        'You have used your five free questions. Your visitor allowance resets every three days; no account is required.'
+      )
     : new ApiError(
         'RATE_LIMITED',
         'Your daily assistant allowance has been reached. Please try again tomorrow or message the admin.'
@@ -44,6 +47,9 @@ export function createAssistantRepository({
     limit: actor.customerId ? settings.dailyLimit : ASSISTANT_GUEST_LIMIT,
     expires: clock() + (actor.customerId ? 3 * 86400000 : settings.visitorTtlMs)
   });
+  // expires_at retains the visitor record for cleanup; its original start also
+  // anchors the shorter allowance window, including existing visitor records.
+  const guestResetAt = (row) => Number(row.expires_at) - settings.visitorTtlMs + ASSISTANT_GUEST_RESET_MS;
   async function ensureQuota(db, actor) {
     const q = quota(actor);
     await db.query('INSERT INTO assistant_allowances (id, expires_at) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = id', [
@@ -51,6 +57,17 @@ export function createAssistantRepository({
       q.expires
     ]);
     const [[row]] = await db.query('SELECT * FROM assistant_allowances WHERE id = ? FOR UPDATE', [q.key]);
+    if (
+      !actor.customerId &&
+      guestResetAt(row) <= clock() &&
+      !(row.active_request && Number(row.lease_until) > clock())
+    ) {
+      await db.query(
+        'UPDATE assistant_allowances SET used = 0, voice_tries = 0, active_request = NULL, lease_until = 0, expires_at = ? WHERE id = ?',
+        [q.expires, q.key]
+      );
+      Object.assign(row, { used: 0, voice_tries: 0, active_request: null, lease_until: 0, expires_at: q.expires });
+    }
     return { ...q, row };
   }
   async function removePhotos(photos) {
@@ -100,6 +117,9 @@ export function createAssistantRepository({
       limit: q.limit,
       used: Number(row?.used || 0),
       remaining: Math.max(0, q.limit - Number(row?.used || 0) - Number(pending)),
+      ...(!actor.customerId && row
+        ? { resetsAt: Math.max(guestResetAt(row), pending ? Number(row.lease_until) : 0) }
+        : {}),
       pending
     };
   }
@@ -183,7 +203,7 @@ export function createAssistantRepository({
         'SELECT id, request_id, user_text, source, status, response, created_at FROM assistant_turns WHERE conversation_id = ? ORDER BY created_at, id',
         [id]
       );
-      const [[q]] = await query('SELECT * FROM assistant_allowances WHERE id = ?', [quota(actor).key]);
+      const { row: q } = await transact((db) => ensureQuota(db, actor));
       return {
         conversationId: id,
         expiresAt: Number(conversation.expires_at),

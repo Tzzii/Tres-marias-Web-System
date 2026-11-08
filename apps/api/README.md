@@ -136,7 +136,13 @@ fixture that is committed then removed in a finally block), and `npm run build`.
 
 ## Guest and customer AI assistant
 
-The landing-page assistant offers five completed guest questions across text and voice. Signed-in
+The landing-page assistant offers five completed guest questions across text and voice per 72-hour
+window, without requiring registration. The server resets completed-question and voice-attempt
+counts on the first allowance access after the window expires, retaining the visitor identity.
+Existing visitor records use their original allowance start as the reset anchor. Visitor records
+retain their 90-day cleanup lifetime independently of the three-day allowance; conversations still
+expire after 24 hours. Opening another conversation does not refill an active allowance. Responses
+include `allowance.resetsAt`; exhausted visitors receive `RATE_LIMITED` with reset guidance. Signed-in
 customers receive a configurable daily allowance and can complete a guided reservation inside chat,
 or carry reviewed selections into the booking form. The customer and administrator Messages
 conversations remain separate from AI conversations.

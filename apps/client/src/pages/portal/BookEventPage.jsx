@@ -83,6 +83,7 @@ import {
   isRental,
   isRentalPackage,
   packageItemsFor,
+  packageAllowsOccasion,
   peso,
   reservationApi,
   shiftEndTime,
@@ -371,7 +372,17 @@ export default function BookEventPage() {
       ? data.packages.find((p) => p.id === form.packageId)
       : null;
   const rentalPkg = data ? data.packages.find(isRentalPackage) || null : null;
-  const packages = data ? data.packages.filter((p) => !isRentalPackage(p)) : [];
+  const packages = data
+    ? data.packages.filter((p) => !isRentalPackage(p) && packageAllowsOccasion(p, form.occasion))
+    : [];
+  useEffect(() => {
+    if (!data) return;
+    setForm((current) => {
+      const selected = data.packages.find((p) => p.id === current.packageId);
+      if (!selected || current.packageProposalRef || packageAllowsOccasion(selected, current.occasion)) return current;
+      return { ...current, packageId: '' };
+    });
+  }, [data, form.occasion, form.packageId]);
   const rental = isRental(form.serviceType);
   const buffet = includesFood(form.serviceType);
   const addonById = data ? Object.fromEntries(flattenAddons(data.addons).map((a) => [a.id, a])) : {};
@@ -1463,7 +1474,7 @@ export default function BookEventPage() {
                 id="package"
                 index={sectionNo('package')}
                 title="Package"
-                subtitle="Any package works for any occasion. Each one shows its default guest count, so pick the one closest to yours."
+                subtitle="Choose a package closest to your guest count. Signature Wedding and Royal Wedding are available only for Wedding occasions."
                 error={errors.packageId}
                 done={sectionDone.package}
                 active={active === 'package'}
