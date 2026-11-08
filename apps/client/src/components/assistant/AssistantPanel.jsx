@@ -43,7 +43,8 @@ import {
   ASSISTANT_GUEST_LIMIT,
   ASSISTANT_QUESTIONS,
   ASSISTANT_TEXT_MAX,
-  cleanAssistantIntent
+  cleanAssistantIntent,
+  ASSISTANT_BUDGET_PATH
 } from '@tm/shared/domain/assistant.js';
 import {
   assistantApi,
@@ -61,7 +62,6 @@ import AssistantAnswer from './AssistantAnswer.jsx';
 import CancelAiPlanButton from './CancelAiPlanButton.jsx';
 import AssistantBookingPlan from './AssistantBookingPlan.jsx';
 import AssistantReservationFlow from './AssistantReservationFlow.jsx';
-import PackagePlanningPanel from './PackagePlanningPanel.jsx';
 import { assistantBookingSummary } from '@tm/shared/domain/assistantBooking.js';
 import './assistantPanel.css';
 
@@ -80,8 +80,6 @@ const peso = (value) => pesoFormatter.format(Number(value) || 0);
 export default function AssistantPanel({
   initialQuestion = '',
   onClose,
-  packagePlanning = false,
-  proposalId = '',
   onConversationChange,
   fullPage = false,
   onShowDetails,
@@ -90,6 +88,7 @@ export default function AssistantPanel({
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const budgetPath = user ? ASSISTANT_BUDGET_PATH : `/login?next=${encodeURIComponent(ASSISTANT_BUDGET_PATH)}`;
   const [attempt, setAttempt] = useState(0);
   const [settings, setSettings] = useState(null);
   const [conversation, setConversation] = useState(null);
@@ -345,6 +344,10 @@ export default function AssistantPanel({
       setSource('text');
       retry.current = null;
       draftWriter.write(null);
+      if (answer?.response?.navigation?.intent === 'package_build' && answer.response.navigation.automatic === true) {
+        navigate(budgetPath);
+        return;
+      }
       if (speakRepliesRef.current && settings.voiceAvailable) {
         if (answer?.status === 'completed') void play(answer.id);
       }
@@ -571,20 +574,17 @@ export default function AssistantPanel({
               <InfoOutlinedIcon sx={{ fontSize: 18, flexShrink: 0 }} />
               <Box>
                 <Typography component="p" sx={{ fontSize: 12, fontWeight: 600 }}>
-                  {user
-                    ? 'AI replies and package generation are temporarily unavailable'
-                    : 'Assistant is temporarily unavailable'}
+                  {user ? 'AI replies are temporarily unavailable' : 'Assistant is temporarily unavailable'}
                 </Typography>
                 <Typography component="p" sx={{ fontSize: 11.5, lineHeight: 1.6 }}>
                   {user
-                    ? 'You can still save answers, complete the guided planning controls and manage reference photos. Your written question stays saved until AI replies are available again.'
+                    ? 'You can still review reservation details and manage reference photos. Your written question stays saved until AI replies are available again.'
                     : 'Browse our packages or contact the team below.'}
                 </Typography>
               </Box>
             </Box>
           )}
-          {!packagePlanning &&
-            conversation?.bookingDraft?.planningMode !== 'custom' &&
+          {conversation?.bookingDraft?.planningMode !== 'custom' &&
             !conversation?.messages.length &&
             !conversation?.bookingPlan?.canReview && (
               <Box className="tm-assistant-intro">
@@ -703,29 +703,11 @@ export default function AssistantPanel({
                         {playing === message.id ? 'Stop voice' : 'Listen'}
                       </Button>
                     )}
-                    {message.response.packageProposals?.map((proposal) => (
-                      <Card key={proposal.id} variant="outlined" sx={{ my: 2, borderRadius: 2 }}>
-                        <CardContent>
-                          <Typography variant="subtitle2">Your custom package options</Typography>
-                          <Typography variant="body2" sx={{ my: 1 }}>
-                            {proposal.options?.length || 0} complete options ·{' '}
-                            {proposal.status === 'ready'
-                              ? 'Ready to review'
-                              : proposal.status === 'no-options'
-                                ? 'No matching setup yet'
-                                : 'Generation unavailable'}
-                          </Typography>
-                          <Button
-                            component={RouterLink}
-                            to={`/portal/package-proposals/${encodeURIComponent(proposal.id)}?conversation=${encodeURIComponent(conversation.conversationId)}`}
-                            variant="outlined"
-                            size="small"
-                          >
-                            Review package options
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
+                    {message.response.navigation?.path === ASSISTANT_BUDGET_PATH && (
+                      <Button component={RouterLink} to={budgetPath} sx={{ mt: 1 }}>
+                        Open AI Budgeting &amp; Package
+                      </Button>
+                    )}
                     {message.response.packages
                       ?.filter((p) => /^[a-z0-9-]+$/.test(p.slug))
                       .map((pkg) => (
@@ -835,7 +817,7 @@ export default function AssistantPanel({
               </Box>
             )}
           </Box>
-          {conversation && (
+          {conversation && conversation.bookingDraft?.planningMode !== 'custom' && (
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
               <CancelAiPlanButton
                 key={conversation.conversationId}
@@ -846,20 +828,16 @@ export default function AssistantPanel({
               />
             </Box>
           )}
-          {conversation && (
-            <PackagePlanningPanel
-              conversation={conversation}
-              disabled={busy || recording || loading || conversation.allowance.pending}
-              onChange={setConversation}
-              onBusyChange={setBusy}
-              requested={packagePlanning}
-              proposalId={proposalId}
-              generationAvailable={Boolean(settings?.available)}
-            />
+          {conversation?.bookingDraft?.planningMode === 'custom' && !conversation.selectedPackageProposal && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Continue building your package on AI Budgeting &amp; Package.
+              <Button component={RouterLink} to={budgetPath}>
+                Continue package plan
+              </Button>
+            </Alert>
           )}
           {conversation &&
-            ((conversation.bookingDraft?.planningMode !== 'custom' && !packagePlanning) ||
-              conversation.selectedPackageProposal) && (
+            (conversation.bookingDraft?.planningMode !== 'custom' || conversation.selectedPackageProposal) && (
               <AssistantReservationFlow
                 key={conversation.conversationId}
                 conversation={conversation}
@@ -870,8 +848,7 @@ export default function AssistantPanel({
                 onFormReview={() => void reviewPlan()}
               />
             )}
-          {!packagePlanning &&
-            conversation?.bookingDraft?.planningMode !== 'custom' &&
+          {conversation?.bookingDraft?.planningMode !== 'custom' &&
             !conversation?.bookingDraft?.planningStarted &&
             !conversation?.submittedRef && (
               <AssistantBookingPlan
@@ -936,8 +913,7 @@ export default function AssistantPanel({
       savedForm,
       reviewPlan,
       resumeSaved,
-      packagePlanning,
-      proposalId,
+      budgetPath,
       fullPage
     ]
   );

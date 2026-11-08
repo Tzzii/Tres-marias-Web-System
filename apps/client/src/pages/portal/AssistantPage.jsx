@@ -1,6 +1,6 @@
 import { Box, Button, Drawer, IconButton, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, Navigate, useSearchParams } from 'react-router-dom';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { tokens, useDocumentTitle } from '@tm/shared';
@@ -16,6 +16,13 @@ export default function AssistantPage() {
   const [conversation, setConversation] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const summary = buildCelebrationSummary(conversation);
+
+  if (params.get('mode') === 'package' || params.get('proposal')) {
+    const proposal = params.get('proposal');
+    return (
+      <Navigate replace to={`/portal/ai-budgeting${proposal ? `?proposal=${encodeURIComponent(proposal)}` : ''}`} />
+    );
+  }
 
   return (
     <Box className="tm-assistant-page">
@@ -43,11 +50,9 @@ export default function AssistantPage() {
 
       <Box className="tm-assistant-page__workspace">
         <AssistantPanel
-          key={`${user.id}:${params.get('mode') || ''}:${params.get('proposal') || ''}`}
+          key={user.id}
           fullPage
           initialQuestion={(params.get('question') || '').slice(0, 2000)}
-          packagePlanning={params.get('mode') === 'package'}
-          proposalId={params.get('proposal') || ''}
           onConversationChange={setConversation}
           onShowDetails={() => setDetailsOpen(true)}
           savedDetailsCount={summary.completedCount}

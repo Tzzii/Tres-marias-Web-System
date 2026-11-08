@@ -131,23 +131,24 @@ const descriptions = {
     'Calculate the saved plan from current system prices, including selected additional services or rental quantities. Ask for missing service/package/guests or rental quantities. Returns a reviewable estimate with the complete current draft; never submits.',
   recommend_budget:
     'Compare up to three published packages against the saved target budget, guest count, service and selections, using the system calculator. Returns known subtotals; pending prices mean final affordability is not established. Never automatically select a recommendation.',
-  generate_package_proposals:
-    'Build up to three approved custom package options from the saved service, guest count, budget, date, times, food choices and preferences. No published package is required. Save these customer details first. Requires sign-in. The customer chooses a returned option using the controls; generation never selects or submits.',
+  generate_package_proposals: 'Unavailable in chat. Refer custom package construction to AI Budgeting & Package.',
   alternative_dates:
     'Check up to fourteen later dates near an explicit preferred date and time range. Returns at most three calendar alternatives; never selects one, reserves a slot or establishes equipment/staff availability.'
 };
-export const ASSISTANT_TOOLS = Object.keys(parameters).map((name) => ({
-  type: 'function',
-  name,
-  description: descriptions[name],
-  strict: true,
-  parameters: {
-    type: 'object',
-    properties: parameters[name],
-    required: Object.keys(parameters[name]),
-    additionalProperties: false
-  }
-}));
+export const ASSISTANT_TOOLS = Object.keys(parameters)
+  .filter((name) => name !== 'generate_package_proposals')
+  .map((name) => ({
+    type: 'function',
+    name,
+    description: descriptions[name],
+    strict: true,
+    parameters: {
+      type: 'object',
+      properties: parameters[name],
+      required: Object.keys(parameters[name]),
+      additionalProperties: false
+    }
+  }));
 
 const publicPackage = (p) => ({
   id: p.id,
@@ -172,7 +173,6 @@ export function createAssistantTools({
     return { date, startTime, endTime: null, available: !reason, reason };
   },
   draft = {},
-  generatePackageProposal,
   readPackageProposal
 } = {}) {
   const packages = new Map();
@@ -195,43 +195,16 @@ export function createAssistantTools({
           fields: parsed.error.issues.map((e) => e.path.join('.'))
         };
       const args = parsed.data;
-      if (name === 'generate_package_proposals') {
-        if (!generatePackageProposal) return { error: 'Sign in to build custom package options.' };
-        const d = bookingDraft;
-        if (
-          isRental(d.serviceType) ||
-          !d.serviceType ||
-          !d.guests ||
-          !d.budget ||
-          !d.date ||
-          !d.startTime ||
-          !d.endTime
-        )
-          return { error: 'Ask for event service, guest count, target budget, date, and exact start/end times first.' };
-        const catalog = await getCatalog();
-        const proposal = await generatePackageProposal(
-          {
-            serviceType: d.serviceType,
-            guests: d.guests,
-            budget: d.budget,
-            date: d.date,
-            startTime: d.startTime,
-            endTime: d.endTime,
-            occasion: d.occasion || '',
-            preferences: d.budgetNotes || '',
-            foodNotes: d.foodNotes || '',
-            menu: d.menu || {},
-            styling: d.styling || {},
-            addonIds: d.addonIds || [],
-            addonQty: d.addonQty || {},
-            protectedAddonIds: []
-          },
-          catalog.packageProposalCatalogFingerprint
-        );
-        packageProposals.set(proposal.id, proposal);
-        bookingDraft = cleanAssistantIntent({ ...bookingDraft, planningMode: 'custom', packageSlug: undefined });
-        return { ...proposal, selectionChanged: false, customerMustSelect: true };
-      }
+      if (
+        name === 'generate_package_proposals' ||
+        (name === 'prepare_reservation' &&
+          (args.patch?.planningMode === 'custom' ||
+            (bookingDraft.planningMode === 'custom' && !bookingDraft.packageProposalRef)))
+      )
+        return {
+          error: 'Build or customize packages on the AI Budgeting & Package page.',
+          path: '/portal/ai-budgeting'
+        };
       if (name === 'check_reservation_availability') {
         const d = bookingDraft,
           rental = isRental(d.serviceType);
@@ -346,8 +319,7 @@ export function createAssistantTools({
         if (bookingDraft.planningMode === 'custom' && !isRental(bookingDraft.serviceType)) {
           if (name === 'recommend_budget' || !bookingDraft.packageProposalRef)
             return {
-              error:
-                'Use generate_package_proposals to prepare custom options, then let the customer choose using the controls.'
+              error: 'Continue on AI Budgeting & Package to build and choose custom options.'
             };
           const option = await readPackageProposal?.(bookingDraft.packageProposalRef);
           if (!option) return { error: 'Review and choose a current custom package option.' };

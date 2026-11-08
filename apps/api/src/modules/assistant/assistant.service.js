@@ -19,13 +19,8 @@ import { inspectReferencePhoto, storeReferencePhoto } from '../reservations/refe
 import { createAssistedReservation } from '../reservations/reservations.service.js';
 import { storage } from '../../integrations/storage/index.js';
 import { readBudgetCatalog } from '../budget/budget.submission.js';
-import {
-  createPackageProposal,
-  selectPackageProposal,
-  readSelectedPackageOption
-} from '../package-proposals/packageProposal.service.js';
+import { selectPackageProposal, readSelectedPackageOption } from '../package-proposals/packageProposal.service.js';
 import { assistantPackageProposalDraft, mergeAssistantBooking } from '@tm/shared/src/domain/assistantBooking.js';
-import { randomUUID } from 'node:crypto';
 import { findOwned as findOwnedProposal } from '../package-proposals/packageProposal.repo.js';
 
 async function readSubmissionCatalog(conn) {
@@ -47,7 +42,6 @@ export function createAssistantService({
   createReservation = createAssistedReservation,
   storePhoto = storeReferencePhoto,
   inspectPhoto = inspectReferencePhoto,
-  createProposal = createPackageProposal,
   selectProposal = selectPackageProposal,
   readProposal = readSelectedPackageOption,
   removePhoto = (key) => storage.remove(key)
@@ -278,30 +272,15 @@ export function createAssistantService({
       if (turn.replay) return service.read(actor, id);
       try {
         const response = await bounded((signal) => {
-          // Six answer rounds, two scope checks, and one nested package ranking share the same money cap.
-          const spend = spendFor(actor, { maxCalls: 9 });
-          let generated;
+          // Six answer rounds and two scope checks share the same money cap. Custom generation is a separate workflow.
+          const spend = spendFor(actor, { maxCalls: 8 });
           return provider.answer({
             text: input.text,
             history: turn.history,
             tools: toolsFactory({
               draft: turn.bookingDraft || {},
               getCatalog,
-              readPackageProposal: (reference) => (actor.customerId ? readProposal(actor.customerId, reference) : null),
-              generatePackageProposal: (context, fingerprint) => {
-                if (!actor.customerId)
-                  throw new ApiError('UNAUTHENTICATED', 'Sign in to build custom package options.');
-                return (generated ||= createProposal(
-                  actor.customerId,
-                  {
-                    requestId: randomUUID(),
-                    conversationId: id,
-                    context,
-                    reviewedCatalogFingerprint: fingerprint
-                  },
-                  { assistant: repo, activeTurn: { spend, signal } }
-                ));
-              }
+              readPackageProposal: (reference) => (actor.customerId ? readProposal(actor.customerId, reference) : null)
             }),
             spend,
             signal

@@ -255,694 +255,765 @@ const browser = await chromium.launch({
 });
 const results = [];
 try {
-  const chatContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  const chatState = await fixture(chatContext, true);
-  await chatContext.addInitScript(() => {
-    window.__audioPlays = 0;
-    window.__audioPauses = 0;
-    window.Audio = class {
-      async play() {
-        window.__audioPlays++;
-      }
-      pause() {
-        window.__audioPauses++;
-      }
-    };
-  });
-  let releaseReply;
-  const waitingReply = new Promise((resolve) => {
-    releaseReply = resolve;
-  });
-  chatState.onSend = async () => {
-    await waitingReply;
-    return {
-      answer: 'Hello there customer we can help you choose a package for your celebration today.',
-      packages: [],
-      estimates: []
-    };
-  };
-  const chatPage = await chatContext.newPage();
-  await chatPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
-  const navLabels = await chatPage
-    .locator('.tm-sidebar-link')
-    .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
-  assert.equal(navLabels.indexOf('AI Assistant'), navLabels.indexOf('AI Budgeting & Package') + 1);
-  await chatPage.getByLabel('Your question', { exact: true }).fill('Help me plan my party');
-  await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await chatPage.locator('.tm-assistant-message--user').getByText('Help me plan my party', { exact: true }).waitFor();
-  await chatPage.getByRole('status').filter({ hasText: 'AI is replying' }).waitFor();
-  assert.equal(await chatPage.getByLabel('Your question', { exact: true }).inputValue(), '');
-  releaseReply();
-  await chatPage.locator('[data-word-reveal="active"]').waitFor();
-  const partial = await chatPage.locator('[data-word-reveal="active"]').innerText();
-  assert.ok(partial.length < 97);
-  assert.ok(/^(Hello(?: there(?: customer)?)?)$/.test(partial.trim()), `Only whole words appear: ${partial}`);
-  await chatPage
-    .getByText('Hello there customer we can help you choose a package for your celebration today.', { exact: true })
-    .waitFor();
-  await chatPage.getByRole('button', { name: 'Listen', exact: true }).waitFor();
-  await chatPage.getByRole('checkbox', { name: 'Read replies aloud' }).check();
-  assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 0);
-  await chatPage.waitForFunction(() => window.__audioPlays === 1);
-  chatState.onSend = async () => ({
-    answer: 'Another complete reply for automatic reading.',
-    packages: [],
-    estimates: []
-  });
-  await chatPage.getByLabel('Your question', { exact: true }).fill('Show me more options');
-  await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await chatPage.waitForFunction(() => window.__audioPlays === 2);
-  assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 0);
-  await chatPage.getByRole('checkbox', { name: 'Read replies aloud' }).uncheck();
-  assert.ok(await chatPage.evaluate(() => window.__audioPauses > 0));
-  assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 2);
-  assert.equal(chatState.speech, 2);
-  await chatPage.screenshot({ path: path.join(output, 'chat-word-reveal-and-voice.png'), fullPage: true });
-  chatState.bookingDraft = { planningStarted: true, eventName: 'Unfinished party', guests: 100 };
-  await chatPage.reload({ waitUntil: 'networkidle' });
-  const previousConversationId = chatState.id;
-  await chatPage.getByRole('button', { name: 'Cancel guided reservation', exact: true }).click();
-  const cancellation = chatPage.getByRole('dialog', { name: 'Cancel guided reservation?' });
-  await cancellation.getByRole('button', { name: 'Keep planning', exact: true }).click();
-  assert.equal(chatState.bookingDraft.eventName, 'Unfinished party');
-  await chatPage.getByRole('button', { name: 'Cancel guided reservation', exact: true }).click();
-  await cancellation.getByRole('button', { name: 'Yes, cancel plan', exact: true }).click();
-  await chatPage.getByRole('heading', { name: /Good celebrations start/ }).waitFor();
-  assert.notEqual(chatState.id, previousConversationId);
-  assert.deepEqual(chatState.bookingDraft, {});
-  assert.equal(chatState.sends, 2);
-  await chatPage.getByText('18 questions remaining today', { exact: true }).waitFor();
-  assert.equal(await chatPage.locator('.tm-assistant-message--user').count(), 0);
-  assert.equal(
-    await chatPage.evaluate((id) => JSON.parse(localStorage.getItem(`tm.client.draft.${id}`)).form.venueName, user.id),
-    'Keep this venue'
-  );
-  await chatPage.reload({ waitUntil: 'networkidle' });
-  await chatPage.getByRole('heading', { name: /Good celebrations start/ }).waitFor();
-  results.push(
-    'cancel guided reservation confirms before starting fresh, preserves allowance and manual draft, and remains cancelled after reload'
-  );
-  await chatContext.close();
-  results.push(
-    'optimistic customer message, AI loading, whole-word reply reveal, automatic voice toggle, and sidebar order'
-  );
-  for (const [label, viewport] of [
-    ['desktop', { width: 1440, height: 1000 }],
-    ['mobile', { width: 390, height: 844 }]
-  ]) {
-    const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
-    const state = await fixture(context);
-    if (label === 'desktop') await context.addInitScript(trackLandingRenders);
-    const page = await context.newPage();
-    const errors = [];
-    page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(base, { waitUntil: 'networkidle' });
-    if (label === 'desktop') {
-      const development = await page.evaluate(() =>
-        [...window.__REACT_DEVTOOLS_GLOBAL_HOOK__.renderers.values()].some((renderer) => renderer.bundleType === 1)
-      );
-      if (development) {
-        await page.locator('#packages [aria-busy="false"]').waitFor();
-        await page.evaluate(() => document.fonts.ready);
-        await page.waitForFunction(() => performance.now() - window.__landingRenders.lastCommit >= 250);
-        await page.evaluate(() => {
-          window.__landingRenders.start = performance.now();
-          window.__landingRenders.enabled = true;
-        });
-        for (let cycle = 0; cycle < 2; cycle++) {
-          await page.evaluate(() => window.scrollTo({ top: 150, behavior: 'instant' }));
-          await page.locator('[data-site-navigation][data-hidden="true"]').waitFor();
-          await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-          await page.locator('[data-site-navigation][data-hidden="false"]').waitFor();
-        }
-        const renders = await page.evaluate(() => {
-          window.__landingRenders.enabled = false;
-          return window.__landingRenders.count;
-        });
-        assert.equal(renders, 0, 'header visibility changes must not render the full landing page');
-        results.push('header performance: hide/show updates do not render the landing-page content');
-      }
-    }
-    if (!(await page.getByRole('button', { name: 'Open AI assistant', exact: true }).count())) {
-      await page.screenshot({ path: path.join(output, `load-failure-${label}.png`) });
-      throw new Error(JSON.stringify({ errors, body: (await page.locator('body').innerText()).slice(0, 1500) }));
-    }
-    assert.equal(state.sends, 0);
-    assert.equal(
-      await page.locator('[data-assistant-hero], #ai-assistant').count(),
-      0,
-      'only the floating assistant remains'
-    );
-    assert.equal(await page.getByRole('button', { name: 'Open AI assistant', exact: true }).count(), 1);
-    const invite = page.locator('[data-assistant-character]');
-    const inviteBox = await invite.boundingBox();
-    assert.ok(
-      inviteBox.y >= 0 && inviteBox.y + inviteBox.height <= viewport.height,
-      `${label}: floating assistant is visible on arrival`
-    );
-    assert.equal(
-      await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
-      false,
-      `${label}: no horizontal overflow`
-    );
-    assert.equal(
-      await invite.locator('.tm-assistant-mascot__eyes').evaluate((el) => getComputedStyle(el).animationName),
-      'none'
-    );
-    await page.screenshot({ path: path.join(output, `assistant-hero-${label}.png`) });
-    for (const id of ['packages', 'gallery', 'services', 'booking-journey', 'availability', 'faq', 'contact']) {
-      await page.locator('#' + id).evaluate((el) => el.scrollIntoView({ behavior: 'instant', block: 'start' }));
-      await page.locator('[data-assistant-guide="' + id + '"]').waitFor();
-      const bubble = await page.locator('[data-assistant-guide]').boundingBox();
-      assert.ok(
-        bubble.x >= 0 && bubble.x + bubble.width <= viewport.width,
-        label + ': guide stays inside the viewport'
-      );
-      await page.locator('[data-site-navigation][data-hidden="true"]').waitFor();
-      assert.equal(await page.locator('[data-site-navigation]').getAttribute('inert'), '');
-      if (id === 'gallery' || id === 'packages')
-        await page.screenshot({ path: path.join(output, `guide-${id}-${label}.png`) });
-    }
-    assert.equal(state.sends, 0, 'scroll guidance does not send a question or consume allowance');
-    assert.equal(state.speech, 0, 'scroll guidance does not play unsolicited audio');
-    await page.evaluate(() => window.scrollBy({ top: -100, behavior: 'instant' }));
-    await page.locator('[data-site-navigation][data-hidden="false"]').waitFor();
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-    await page.locator('[data-assistant-guide="welcome"]').waitFor({ state: 'attached' });
-    if (label === 'desktop') {
-      const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
-      await nav.getByRole('button', { name: 'Packages', exact: true }).focus();
-      await page.keyboard.press('Tab');
-      await page.evaluate(async () => {
-        window.scrollBy({ top: 300, behavior: 'instant' });
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      });
-      assert.equal(
-        await page.locator('[data-site-navigation]').getAttribute('data-hidden'),
-        'false',
-        'keyboard focus keeps navigation available'
-      );
-      await page.evaluate(() => document.activeElement.blur());
-      await page.locator('[data-site-navigation][data-hidden="true"]').waitFor();
-      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-      await page.locator('[data-site-navigation][data-hidden="false"]').waitFor();
-    }
-    await openAssistant(page);
-    await page
-      .getByText('5 free questions remaining', { exact: true })
-      .waitFor({ timeout: 7000 })
-      .catch(async () => {
-        await page.screenshot({ path: path.join(output, `panel-failure-${label}.png`) });
-        throw new Error(JSON.stringify({ errors, body: (await page.locator('body').innerText()).slice(-1800) }));
-      });
-    assert.equal(await page.locator('.tm-assistant-question').count(), 4);
-    const draft = `Keep this ${label} draft when I leave immediately`;
-    await page.getByLabel('Your question', { exact: true }).fill(draft);
-    if (label === 'desktop') await page.getByRole('button', { name: 'Close AI assistant', exact: true }).click();
-    else await page.reload({ waitUntil: 'networkidle' });
-    await openAssistant(page);
-    await page.waitForFunction((text) => document.querySelector('[aria-label="Your question"]')?.value === text, draft);
-    assert.equal(state.sends, 0, 'closing/reloading preserves a draft without sending it');
-    await page.getByRole('button', { name: ASSISTANT_QUESTIONS[0], exact: true }).click();
-    assert.equal(await page.getByLabel('Your question', { exact: true }).inputValue(), ASSISTANT_QUESTIONS[0]);
-    assert.equal(state.sends, 0, 'suggestions prepare a question without sending it');
-    await page.getByRole('button', { name: 'More questions to explore', exact: true }).click();
-    assert.equal(await page.locator('.tm-assistant-question').count(), 6);
-    await page.getByRole('button', { name: 'Fewer suggestions', exact: true }).click();
-    await page.getByRole('button', { name: 'About', exact: true }).click();
-    await page.locator('#assistant-about').waitFor({ state: 'visible' });
-    await page.getByRole('button', { name: 'About', exact: true }).click();
-    await page.screenshot({ path: path.join(output, `assistant-chat-welcome-${label}.png`) });
-    await page.getByLabel('Your question', { exact: true }).fill('Show me a package for 100 guests');
-    await page.getByLabel('Your question', { exact: true }).press('Shift+Enter');
-    assert.equal(
-      await page.getByLabel('Your question', { exact: true }).inputValue(),
-      'Show me a package for 100 guests\n'
-    );
-    assert.equal(state.sends, 0, 'Shift+Enter inserts a newline without sending');
-    await page
-      .getByLabel('Your question', { exact: true })
-      .dispatchEvent('keydown', { key: 'Enter', isComposing: true });
-    assert.equal(state.sends, 0, 'IME composition does not send');
-    await page.getByLabel('Your question', { exact: true }).press('Enter');
-    await page.getByText('4 free questions remaining', { exact: true }).waitFor();
-    await page.screenshot({ path: path.join(output, `assistant-chat-reply-${label}.png`) });
-    await page.getByRole('button', { name: 'Listen', exact: true }).first().click();
-    await page.waitForFunction(() =>
-      Boolean(document.querySelector('[aria-label="Your question"]') || document.querySelector('textarea'))
-    );
-    await page.getByLabel('Your question', { exact: true }).fill('How do I book?');
-    await page.getByRole('button', { name: 'Send question', exact: true }).click();
-    await page.getByText('3 free questions remaining', { exact: true }).waitFor();
-    for (let question = 3; question <= 5; question++) {
-      await page.getByLabel('Your question', { exact: true }).fill(`Guest question ${question}`);
-      await page.getByRole('button', { name: 'Send question', exact: true }).click();
-      const remaining = 5 - question;
-      await page
-        .getByText(`${remaining} free ${remaining === 1 ? 'question' : 'questions'} remaining`, { exact: true })
-        .waitFor();
-    }
-    assert.equal(await page.getByRole('button', { name: 'Send question', exact: true }).isDisabled(), true);
-    assert.equal(await page.getByRole('button', { name: 'Record a voice question', exact: true }).isDisabled(), true);
-    assert.equal(state.sends, 5);
-    assert.equal(state.speech, 1);
-    await page.screenshot({ path: path.join(output, `guest-${label}.png`), fullPage: false });
-    await page.getByRole('button', { name: 'Close AI assistant', exact: true }).click();
-    if (label === 'mobile') {
-      await page.locator('#packages').scrollIntoViewIfNeeded();
-      await page.getByRole('button', { name: 'Open AI assistant', exact: true }).waitFor({ state: 'visible' });
-      const launcher = await page.getByRole('button', { name: 'Open AI assistant', exact: true }).boundingBox();
-      assert.ok(launcher.y + launcher.height < viewport.height - 64, 'mobile: character clears the bottom signup bar');
-      await page.screenshot({ path: path.join(output, 'assistant-mobile-scrolled.png') });
-      await page.getByRole('button', { name: 'Open AI assistant', exact: true }).click();
-      await page.getByText('0 free questions remaining', { exact: true }).waitFor();
-      await page.getByRole('button', { name: 'Close AI assistant', exact: true }).click();
-    }
-    await page.reload({ waitUntil: 'networkidle' });
-    await openAssistant(page);
-    await page.getByText('0 free questions remaining', { exact: true }).waitFor();
-    assert.equal(state.visitorHeaders.at(-1), 'v'.repeat(43));
-    await page.getByRole('link', { name: 'Create account', exact: true }).click();
-    await page.waitForURL('**/signup?continue=assistant');
-    const loginLink = page.locator('a[href="/login?next=%2Fportal%2Fassistant"]');
-    await loginLink.waitFor();
-    assert.equal(errors.length, 0, errors.join('\n'));
-    results.push(
-      `${label}: single floating guide, section introductions, header scroll behavior, reduced-motion support, five guest questions, text/voice shared gate, reload persistence and signup return links`
-    );
-    await context.close();
-  }
-  for (const failureMode of ['failed', 'disabled']) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
-    const state = await fixture(context, false, false);
-    state.resetsAt = Date.now() + 60000;
-    let configReads = 0;
-    let failRefresh = false;
-    await context.route('**/api/assistant/config', async (route) => {
-      configReads += 1;
-      if (!failRefresh) return route.fallback();
-      return route.fulfill({
-        status: failureMode === 'failed' ? 503 : 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          failureMode === 'failed'
-            ? { message: 'Reset service unavailable' }
-            : { available: false, enabled: false, voiceAvailable: false }
-        )
-      });
-    });
-    const page = await context.newPage();
-    await page.clock.install({ time: new Date() });
-    await page.goto(base, { waitUntil: 'networkidle' });
-    await openAssistant(page);
-    await page.getByLabel('Your question', { exact: true }).fill('Keep my celebration question');
-    const initialReads = configReads;
-    failRefresh = true;
-    const refresh = page.waitForResponse(
-      (response) => response.url().endsWith('/assistant/config') && configReads > initialReads
-    );
-    await page.clock.fastForward(60001);
-    await refresh;
-    await page.waitForTimeout(600);
-    assert.equal(
-      configReads,
-      initialReads + 1,
-      failureMode + ': an expired visitor reset triggers only one automatic refresh'
-    );
-    assert.equal(await page.getByLabel('Your question', { exact: true }).inputValue(), 'Keep my celebration question');
-    results.push(failureMode + ': failed visitor reset stays bounded and preserves the question');
-    await context.close();
-  }
-  for (const [label, viewport] of [
-    ['desktop', { width: 1440, height: 1000 }],
-    ['mobile', { width: 390, height: 844 }],
-    ['small-phone', { width: 320, height: 568 }]
-  ]) {
-    const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
-    await fixture(context, false, false, false);
-    const page = await context.newPage();
-    await page.goto(base, { waitUntil: 'networkidle' });
-    await openAssistant(page);
-    await page.getByText('Assistant is temporarily unavailable', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Send question', exact: true }).isDisabled(), true);
-    assert.equal(await page.getByRole('button', { name: 'Record a voice question', exact: true }).isDisabled(), true);
-    const compose = await page.getByRole('button', { name: 'Send question', exact: true }).boundingBox();
-    assert.ok(compose.y >= 0 && compose.y + compose.height <= viewport.height, `${label}: composer stays in view`);
-    assert.equal(
-      await page.getByRole('dialog').evaluate((el) => el.scrollHeight > el.clientHeight),
-      false,
-      `${label}: only the conversation scrolls`
-    );
-    await page.screenshot({ path: path.join(output, `assistant-chat-unavailable-${label}.png`) });
-    await page.getByRole('link', { name: 'Browse packages', exact: true }).click();
-    await page.waitForURL('**/#packages');
-    await page.getByRole('dialog').waitFor({ state: 'hidden' });
-    await context.close();
-  }
-  results.push(
-    'redesigned chat: suggestion cards, more questions, disclosure, unavailable state and visible composer down to 320px'
-  );
-  const voiceContext = await browser.newContext({
-    viewport: { width: 1280, height: 900 },
-    permissions: ['microphone']
-  });
-  const voiceState = await fixture(voiceContext);
-  const voicePage = await voiceContext.newPage();
-  await voicePage.goto(base, { waitUntil: 'networkidle' });
-  const wave = voicePage.locator('[data-assistant-character] .tm-assistant-mascot__wave');
-  assert.equal(await wave.evaluate((el) => getComputedStyle(el).animationName), 'tm-assistant-wave');
-  assert.equal(await wave.evaluate((el) => getComputedStyle(el).animationPlayState), 'running');
-  await voicePage.waitForFunction(() =>
-    document
-      .querySelector('.tm-assistant-mascot__wave')
-      .getAnimations()
-      .some((animation) => animation.currentTime > 100)
-  );
-  assert.equal(await voicePage.getByRole('button', { name: /(?:Pause|Resume) assistant animation/ }).count(), 0);
-  const companion = voicePage.locator('[data-assistant-character]');
-  const originalPosition = await companion.boundingBox();
-  for (const id of ['packages', 'gallery', 'services']) {
-    await voicePage.locator('#' + id).evaluate((el) => el.scrollIntoView({ behavior: 'instant', block: 'start' }));
-    await voicePage.locator('[data-assistant-guide="' + id + '"]').waitFor();
-    const position = await companion.boundingBox();
-    assert.ok(
-      Math.abs(position.x - originalPosition.x) < 1 && Math.abs(position.y - originalPosition.y) < 1,
-      'assistant stays at the bottom right across sections'
-    );
-    assert.equal(await wave.evaluate((el) => getComputedStyle(el).animationPlayState), 'running');
-  }
-  assert.equal(voiceState.sends, 0);
-  await voicePage.goto(base, { waitUntil: 'networkidle' });
-  await voicePage.screenshot({ path: path.join(output, 'assistant-hero-animated.png') });
-  await voicePage.getByRole('button', { name: 'Open AI assistant', exact: true }).click();
-  const chatHead = voicePage.locator('.tm-assistant-header__avatar .tm-assistant-mascot__head');
-  await chatHead.waitFor();
-  assert.notEqual(await chatHead.evaluate((el) => getComputedStyle(el).animationName), 'none');
-  assert.equal(await chatHead.evaluate((el) => getComputedStyle(el).animationPlayState), 'running');
-  await voicePage.getByRole('button', { name: 'Record a voice question', exact: true }).click();
-  await voicePage.getByText('Cancel recording', { exact: true }).waitFor();
-  await new Promise((r) => setTimeout(r, 500));
-  await voicePage.getByRole('button', { name: 'Stop recording', exact: true }).click();
-  await voicePage
-    .getByText('Review the transcript, especially dates, names and amounts, then send.', { exact: true })
-    .waitFor();
-  assert.equal(voiceState.sends, 0);
-  assert.equal(voiceState.transcriptions, 1);
-  assert.equal(await voicePage.getByLabel('Your question', { exact: true }).inputValue(), 'Birthday for 100 guests');
-  await voicePage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await voicePage.getByText('4 free questions remaining', { exact: true }).waitFor();
-  assert.equal(voiceState.turns[0].source, 'voice');
-  results.push(
-    'animation: fixed bottom-right position across sections, automatic playback including open chat; voice: capture, transcript review and one question charge'
-  );
-  await voiceContext.close();
-  for (const [label, viewport] of [
-    ['small-phone', { width: 320, height: 568 }],
-    ['phone-360', { width: 360, height: 740 }],
-    ['phone-375', { width: 375, height: 812 }],
-    ['tablet', { width: 768, height: 1024 }],
-    ['short-laptop', { width: 1366, height: 768 }],
-    ['wide-desktop', { width: 1920, height: 900 }]
-  ]) {
-    const context = await browser.newContext({ viewport, reducedMotion: 'no-preference' });
-    await fixture(context);
-    const page = await context.newPage();
-    await page.goto(base, { waitUntil: 'networkidle' });
-    assert.equal(
-      await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
-      false,
-      `${label}: no horizontal overflow`
-    );
-    const launcher = page.getByRole('button', { name: 'Open AI assistant', exact: true });
-    const launcherBox = await launcher.boundingBox();
-    assert.ok(await launcher.isVisible(), label + ': floating assistant is visible');
-    assert.ok(
-      launcherBox.y >= 0 && launcherBox.y + launcherBox.height <= viewport.height,
-      label + ': assistant stays on screen'
-    );
-    const primaryButton = await page.getByRole('button', { name: 'See our packages', exact: true }).boundingBox();
-    assert.ok(
-      primaryButton.x + primaryButton.width <= launcherBox.x ||
-        launcherBox.x + launcherBox.width <= primaryButton.x ||
-        primaryButton.y + primaryButton.height <= launcherBox.y ||
-        launcherBox.y + launcherBox.height <= primaryButton.y,
-      label + ': floating assistant leaves the primary hero button clear'
-    );
-    await page.screenshot({ path: path.join(output, `assistant-${label}.png`) });
-    await context.close();
-  }
-  results.push('responsive: 320px phone, tablet, short laptop and wide desktop without horizontal overflow');
-  const customerContext = await browser.newContext({
-    viewport: { width: 1440, height: 1000 },
-    reducedMotion: 'reduce'
-  });
-  await fixture(customerContext, true);
-  const customerPage = await customerContext.newPage();
-  const customerErrors = [];
-  customerPage.on('pageerror', (e) => customerErrors.push(e.message));
-  await customerPage.goto(base, { waitUntil: 'networkidle' });
-  await openAssistant(customerPage);
-  await customerPage.waitForURL('**/portal/assistant');
-  await customerPage
-    .getByText('20 questions remaining today', { exact: true })
-    .waitFor({ timeout: 7000 })
-    .catch(async () => {
-      await customerPage.screenshot({ path: path.join(output, 'customer-load-failure.png') });
-      throw new Error(
-        JSON.stringify({
-          url: customerPage.url(),
-          errors: customerErrors,
-          body: (await customerPage.locator('body').innerText()).slice(-2000)
-        })
-      );
-    });
-  assert.equal(
-    await customerPage.locator('.tm-assistant-panel--page').count(),
-    1,
-    'portal uses full-page assistant layout'
-  );
-  await customerPage.getByRole('button', { name: /Event details/ }).click();
-  assert.equal(
-    await customerPage.locator('[data-assistant-summary]').isVisible(),
-    true,
-    'saved celebration details remain available in the event-details drawer'
-  );
-  await customerPage.getByRole('button', { name: 'Close event details', exact: true }).click();
-  await customerPage.getByRole('dialog', { name: 'Your event details' }).waitFor({ state: 'hidden' });
-  for (const [sizeLabel, height] of [
-    ['short-laptop', 768],
-    ['desktop', 1000]
-  ]) {
-    await customerPage.setViewportSize({ width: 1440, height });
-    const panelBox = await customerPage.locator('.tm-assistant-panel--page').boundingBox();
-    const threadBox = await customerPage.locator('[data-assistant-thread]').boundingBox();
-    const sendBox = await customerPage.getByRole('button', { name: 'Send question', exact: true }).boundingBox();
-    assert.ok(panelBox.width >= 680, `${sizeLabel}: full-page assistant panel is spacious (${panelBox.width}px)`);
-    assert.ok(
-      threadBox.height > 0 && threadBox.y + threadBox.height <= height,
-      `${sizeLabel}: compact welcome thread fits without clipping (${threadBox.height}px)`
-    );
-    assert.ok(
-      sendBox.y + sendBox.height <= height,
-      `${sizeLabel}: composer stays fully visible inside the viewport (${sendBox.y + sendBox.height} <= ${height})`
-    );
-  }
-  await customerPage.getByLabel('Your question', { exact: true }).fill('Estimate catering only for 100 guests');
-  await customerPage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await customerPage.getByText('19 questions remaining today', { exact: true }).waitFor();
-  await customerPage.getByRole('button', { name: 'Continue to booking', exact: true }).last().click();
-  await customerPage.getByText(/You have a saved booking draft/).waitFor();
-  await customerPage.screenshot({ path: path.join(output, 'customer-handoff.png'), fullPage: false });
-  await customerPage.getByRole('button', { name: 'Use selections', exact: true }).click();
-  await customerPage.waitForURL('**/portal/book');
-  const preserved = await customerPage.evaluate(() => ({
-    intent: JSON.parse(sessionStorage.getItem('tm.client.bookingIntent')),
-    draft: JSON.parse(localStorage.getItem('tm.client.draft.assistant-ui-fixture'))
-  }));
-  assert.equal(preserved.intent.serviceType, 'Catering only');
-  assert.equal(preserved.draft.form.venueName, 'Keep this venue');
-  results.push('customer: daily allowance, estimate handoff and saved venue preservation');
-  await customerContext.close();
-  const guidedContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
-  const guidedState = await fixture(guidedContext, true);
-  const addon = bookableAddons(seed.addons).find((v) => !v.archived);
-  const fullPlan = {
-    eventName: 'Fixture celebration',
-    occasion: 'Birthday',
-    guests: 100,
-    serviceType: 'Buffet and Catering',
-    packageSlug: pkg.slug,
-    date: '2090-12-12',
-    startTime: '12:00',
-    endTime: '16:00',
-    venueName: 'Fixture event hall',
-    venueAddress: '123 Test Street',
-    city: 'Malvar',
-    menu: { pork: ['Pork BBQ'], chicken: ['Chicken BBQ'], fish: ['Sweet and sour fish'], vegetable: ['Chopsuey'] },
-    styling: {
-      theme: 'Rustic',
-      colors: [
-        { hex: '#FFFFFF', name: 'White' },
-        { hex: '#9CAF88', name: 'Sage Green' }
-      ],
-      notes: 'Ivory linens'
-    },
-    addonIds: addon ? [addon.id] : [],
-    addonQty: addon ? { [addon.id]: addon.hasQuantity ? 2 : 1 } : {},
-    budget: 100000,
-    budgetNotes: 'Simple styling',
-    foodNotes: 'No peanuts',
-    accessNotes: 'Use the side entrance',
-    discussed: ['menu', 'styling', 'addons', 'notes', 'budget']
-  };
-  guidedState.onSend = async (input, state) => {
-    const tools = createAssistantTools({ getCatalog: async () => planningCatalog, draft: state.bookingDraft });
-    const patch = input.text.includes('120')
-      ? { guests: 120 }
-      : input.text.includes('complete')
-        ? fullPlan
-        : { guests: 100 };
-    await tools.run('prepare_reservation', { patch, clearFields: [] });
-    return {
-      answer:
-        'Your reservation plan has been updated. Review it whenever you are ready; you can finish missing details in the form.',
-      bookingDraft: tools.bookingDraft,
+  for (const automatic of [false, true]) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+    const state = await fixture(context, true);
+    state.onSend = () => ({
+      answer: 'AI Budgeting & Package can help you customize your package.',
       packages: [],
       estimates: [],
-      needsAdmin: false
+      needsAdmin: false,
+      navigation: { path: '/portal/ai-budgeting', intent: automatic ? 'package_build' : 'budget_inquiry', automatic }
+    });
+    const page = await context.newPage();
+    await page.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    assert.equal(await page.getByText('Your custom package', { exact: true }).count(), 0);
+    await page
+      .getByPlaceholder('Ask about your celebration…')
+      .fill(automatic ? 'Help me build a package' : 'Which package is good for 50000?');
+    await page.getByRole('button', { name: 'Send question', exact: true }).click();
+    if (automatic) {
+      await page.waitForURL('**/portal/ai-budgeting');
+      await page.getByRole('heading', { name: 'AI Budgeting & Package', exact: true }).waitFor();
+    } else {
+      await page.getByRole('link', { name: 'Open AI Budgeting & Package', exact: true }).waitFor();
+      assert.equal(new URL(page.url()).pathname, '/portal/assistant');
+    }
+    await context.close();
+  }
+  {
+    const context = await browser.newContext({ reducedMotion: 'reduce' });
+    const state = await fixture(context, true);
+    state.bookingDraft = { planningMode: 'custom', planningStarted: true, guests: 100, budget: 50000 };
+    const page = await context.newPage();
+    await page.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    await page.getByRole('link', { name: 'Continue package plan', exact: true }).waitFor();
+    assert.equal(await page.getByText('Your custom package', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Cancel package plan', exact: true }).count(), 0);
+    await page.goto(`${base}/portal/assistant?mode=package`, { waitUntil: 'networkidle' });
+    await page.waitForURL('**/portal/ai-budgeting');
+    await context.close();
+  }
+  results.push(
+    'package building redirects to budgeting, inquiries stay in chat with a link, and legacy custom controls are absent'
+  );
+  if (process.env.UI_SCENARIO === 'package-routing') {
+    console.log(JSON.stringify({ passed: results }, null, 2));
+  } else {
+    const chatContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const chatState = await fixture(chatContext, true);
+    await chatContext.addInitScript(() => {
+      window.__audioPlays = 0;
+      window.__audioPauses = 0;
+      window.Audio = class {
+        async play() {
+          window.__audioPlays++;
+        }
+        pause() {
+          window.__audioPauses++;
+        }
+      };
+    });
+    let releaseReply;
+    const waitingReply = new Promise((resolve) => {
+      releaseReply = resolve;
+    });
+    chatState.onSend = async () => {
+      await waitingReply;
+      return {
+        answer: 'Hello there customer we can help you choose a package for your celebration today.',
+        packages: [],
+        estimates: []
+      };
     };
-  };
-  const guidedPage = await guidedContext.newPage();
-  const guidedErrors = [];
-  guidedPage.on('pageerror', (e) => guidedErrors.push(e.message));
-  await guidedPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
-  await guidedPage.getByLabel('Your question', { exact: true }).fill('Please reserve for 100 guests');
-  await guidedPage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await guidedPage.getByRole('button', { name: 'Review reservation', exact: true }).waitFor();
-  await guidedPage.reload({ waitUntil: 'networkidle' });
-  await guidedPage.getByRole('button', { name: 'Review reservation', exact: true }).waitFor();
-  assert.equal(guidedState.bookingDraft.guests, 100);
-  await guidedPage.getByLabel('Your question', { exact: true }).fill('Please complete the rest of my details');
-  await guidedPage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await guidedPage.getByText('18 questions remaining today', { exact: true }).waitFor();
-  await guidedPage.getByLabel('Your question', { exact: true }).fill('Change the count to 120 guests');
-  await guidedPage.getByRole('button', { name: 'Send question', exact: true }).click();
-  await guidedPage.getByText('17 questions remaining today', { exact: true }).waitFor();
-  assert.equal(guidedState.bookingDraft.venueName, fullPlan.venueName);
-  await guidedPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
-  await guidedPage.getByRole('dialog', { name: 'Review booking selections' }).waitFor();
-  await guidedPage.screenshot({ path: path.join(output, 'guided-reservation-review.png') });
-  await guidedPage.getByRole('button', { name: 'Use selections', exact: true }).click();
-  await guidedPage.waitForURL('**/portal/book');
-  await guidedPage.getByLabel('Event name', { exact: false }).waitFor();
-  assert.equal(await guidedPage.getByLabel('Event name', { exact: false }).inputValue(), fullPlan.eventName);
-  assert.equal(await guidedPage.getByLabel('Venue name', { exact: false }).inputValue(), fullPlan.venueName);
-  const guidedIntent = await guidedPage.evaluate(() => JSON.parse(sessionStorage.getItem('tm.client.bookingIntent')));
-  assert.equal(guidedIntent.guests, 120);
-  assert.equal(guidedIntent.budget, 100000);
-  assert.deepEqual(guidedIntent.menu.pork, ['Pork BBQ']);
-  assert.equal(guidedIntent.styling.theme, 'Rustic');
-  assert.equal(guidedIntent.agreeTerms, undefined);
-  assert.equal(await guidedPage.getByRole('checkbox', { name: /Terms of Service/i }).isChecked(), false);
-  assert.equal(guidedErrors.length, 0, guidedErrors.join('\n'));
-  await guidedContext.close();
-  const resumeContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  const resumeState = await fixture(resumeContext, true);
-  const resumePage = await resumeContext.newPage();
-  await resumePage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
-  await resumePage.getByRole('button', { name: 'Resume saved reservation', exact: true }).click();
-  await resumePage.getByRole('button', { name: 'Review reservation', exact: true }).waitFor();
-  assert.equal(resumeState.sends, 0);
-  assert.equal(resumeState.bookingDraft.guests, 150);
-  assert.equal(resumeState.bookingDraft.venueName, 'Keep this venue');
-  // A later form edit can replace an existing assistant plan after an explicit review.
-  await resumePage.evaluate(() => {
-    const key = 'tm.client.draft.assistant-ui-fixture';
-    const current = JSON.parse(localStorage.getItem(key));
-    current.form.guests = '175';
-    localStorage.setItem(key, JSON.stringify(current));
-  });
-  await resumePage.reload({ waitUntil: 'networkidle' });
-  await resumePage.getByRole('button', { name: 'Resume saved reservation', exact: true }).click();
-  await resumePage.getByRole('dialog', { name: 'Resume saved reservation?', exact: true }).waitFor();
-  await resumePage.getByRole('button', { name: 'Use saved form', exact: true }).click();
-  await resumePage.getByRole('dialog', { name: 'Resume saved reservation?', exact: true }).waitFor({ state: 'hidden' });
-  assert.equal(resumeState.bookingDraft.guests, 175);
-  assert.equal(resumeState.sends, 0);
-  await resumePage.getByRole('button', { name: 'Review reservation', exact: true }).click();
-  await resumePage.getByRole('button', { name: 'Use selections', exact: true }).click();
-  await resumePage.waitForURL('**/portal/book');
-  await resumePage.waitForFunction(() => document.getElementById('f-venueName')?.value === 'Keep this venue');
-  assert.equal(await resumePage.getByLabel('Venue name', { exact: false }).inputValue(), 'Keep this venue');
-  await resumeContext.close();
-  const rentalContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
-  const rentalState = await fixture(rentalContext, true);
-  const rentalTools = createAssistantTools({ getCatalog: async () => planningCatalog });
-  await rentalTools.run('prepare_reservation', {
-    patch: {
-      eventName: 'Rental fixture',
+    const chatPage = await chatContext.newPage();
+    await chatPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    const navLabels = await chatPage
+      .locator('.tm-sidebar-link')
+      .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
+    assert.equal(navLabels.indexOf('AI Assistant'), navLabels.indexOf('AI Budgeting & Package') + 1);
+    await chatPage.getByLabel('Your question', { exact: true }).fill('Help me plan my party');
+    await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
+    await chatPage.locator('.tm-assistant-message--user').getByText('Help me plan my party', { exact: true }).waitFor();
+    await chatPage.getByRole('status').filter({ hasText: 'AI is replying' }).waitFor();
+    assert.equal(await chatPage.getByLabel('Your question', { exact: true }).inputValue(), '');
+    releaseReply();
+    await chatPage.locator('[data-word-reveal="active"]').waitFor();
+    const partial = await chatPage.locator('[data-word-reveal="active"]').innerText();
+    assert.ok(partial.length < 97);
+    assert.ok(/^(Hello(?: there(?: customer)?)?)$/.test(partial.trim()), `Only whole words appear: ${partial}`);
+    await chatPage
+      .getByText('Hello there customer we can help you choose a package for your celebration today.', { exact: true })
+      .waitFor();
+    await chatPage.getByRole('button', { name: 'Listen', exact: true }).waitFor();
+    await chatPage.getByRole('checkbox', { name: 'Read replies aloud' }).check();
+    assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 0);
+    await chatPage.waitForFunction(() => window.__audioPlays === 1);
+    chatState.onSend = async () => ({
+      answer: 'Another complete reply for automatic reading.',
+      packages: [],
+      estimates: []
+    });
+    await chatPage.getByLabel('Your question', { exact: true }).fill('Show me more options');
+    await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
+    await chatPage.waitForFunction(() => window.__audioPlays === 2);
+    assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 0);
+    await chatPage.getByRole('checkbox', { name: 'Read replies aloud' }).uncheck();
+    assert.ok(await chatPage.evaluate(() => window.__audioPauses > 0));
+    assert.equal(await chatPage.getByRole('button', { name: 'Listen', exact: true }).count(), 2);
+    assert.equal(chatState.speech, 2);
+    await chatPage.screenshot({ path: path.join(output, 'chat-word-reveal-and-voice.png'), fullPage: true });
+    chatState.bookingDraft = { planningStarted: true, eventName: 'Unfinished party', guests: 100 };
+    await chatPage.reload({ waitUntil: 'networkidle' });
+    const previousConversationId = chatState.id;
+    await chatPage.getByRole('button', { name: 'Cancel guided reservation', exact: true }).click();
+    const cancellation = chatPage.getByRole('dialog', { name: 'Cancel guided reservation?' });
+    await cancellation.getByRole('button', { name: 'Keep planning', exact: true }).click();
+    assert.equal(chatState.bookingDraft.eventName, 'Unfinished party');
+    await chatPage.getByRole('button', { name: 'Cancel guided reservation', exact: true }).click();
+    await cancellation.getByRole('button', { name: 'Yes, cancel plan', exact: true }).click();
+    await chatPage.getByRole('heading', { name: /Good celebrations start/ }).waitFor();
+    assert.notEqual(chatState.id, previousConversationId);
+    assert.deepEqual(chatState.bookingDraft, {});
+    assert.equal(chatState.sends, 2);
+    await chatPage.getByText('18 questions remaining today', { exact: true }).waitFor();
+    assert.equal(await chatPage.locator('.tm-assistant-message--user').count(), 0);
+    assert.equal(
+      await chatPage.evaluate(
+        (id) => JSON.parse(localStorage.getItem(`tm.client.draft.${id}`)).form.venueName,
+        user.id
+      ),
+      'Keep this venue'
+    );
+    await chatPage.reload({ waitUntil: 'networkidle' });
+    await chatPage.getByRole('heading', { name: /Good celebrations start/ }).waitFor();
+    results.push(
+      'cancel guided reservation confirms before starting fresh, preserves allowance and manual draft, and remains cancelled after reload'
+    );
+    await chatContext.close();
+    results.push(
+      'optimistic customer message, AI loading, whole-word reply reveal, automatic voice toggle, and sidebar order'
+    );
+    for (const [label, viewport] of [
+      ['desktop', { width: 1440, height: 1000 }],
+      ['mobile', { width: 390, height: 844 }]
+    ]) {
+      const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+      const state = await fixture(context);
+      if (label === 'desktop') await context.addInitScript(trackLandingRenders);
+      const page = await context.newPage();
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.goto(base, { waitUntil: 'networkidle' });
+      if (label === 'desktop') {
+        const development = await page.evaluate(() =>
+          [...window.__REACT_DEVTOOLS_GLOBAL_HOOK__.renderers.values()].some((renderer) => renderer.bundleType === 1)
+        );
+        if (development) {
+          await page.locator('#packages [aria-busy="false"]').waitFor();
+          await page.evaluate(() => document.fonts.ready);
+          await page.waitForFunction(() => performance.now() - window.__landingRenders.lastCommit >= 250);
+          await page.evaluate(() => {
+            window.__landingRenders.start = performance.now();
+            window.__landingRenders.enabled = true;
+          });
+          for (let cycle = 0; cycle < 2; cycle++) {
+            await page.evaluate(() => window.scrollTo({ top: 150, behavior: 'instant' }));
+            await page.locator('[data-site-navigation][data-hidden="true"]').waitFor();
+            await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+            await page.locator('[data-site-navigation][data-hidden="false"]').waitFor();
+          }
+          const renders = await page.evaluate(() => {
+            window.__landingRenders.enabled = false;
+            return window.__landingRenders.count;
+          });
+          assert.equal(renders, 0, 'header visibility changes must not render the full landing page');
+          results.push('header performance: hide/show updates do not render the landing-page content');
+        }
+      }
+      if (!(await page.getByRole('button', { name: 'Open AI assistant', exact: true }).count())) {
+        await page.screenshot({ path: path.join(output, `load-failure-${label}.png`) });
+        throw new Error(JSON.stringify({ errors, body: (await page.locator('body').innerText()).slice(0, 1500) }));
+      }
+      assert.equal(state.sends, 0);
+      assert.equal(
+        await page.locator('[data-assistant-hero], #ai-assistant').count(),
+        0,
+        'only the floating assistant remains'
+      );
+      assert.equal(await page.getByRole('button', { name: 'Open AI assistant', exact: true }).count(), 1);
+      const invite = page.locator('[data-assistant-character]');
+      const inviteBox = await invite.boundingBox();
+      assert.ok(
+        inviteBox.y >= 0 && inviteBox.y + inviteBox.height <= viewport.height,
+        `${label}: floating assistant is visible on arrival`
+      );
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+        false,
+        `${label}: no horizontal overflow`
+      );
+      assert.equal(
+        await invite.locator('.tm-assistant-mascot__eyes').evaluate((el) => getComputedStyle(el).animationName),
+        'none'
+      );
+      await page.screenshot({ path: path.join(output, `assistant-hero-${label}.png`) });
+      for (const id of ['packages', 'gallery', 'services', 'booking-journey', 'availability', 'faq', 'contact']) {
+        await page.locator('#' + id).evaluate((el) => el.scrollIntoView({ behavior: 'instant', block: 'start' }));
+        await page.locator('[data-assistant-guide="' + id + '"]').waitFor();
+        const bubble = await page.locator('[data-assistant-guide]').boundingBox();
+        assert.ok(
+          bubble.x >= 0 && bubble.x + bubble.width <= viewport.width,
+          label + ': guide stays inside the viewport'
+        );
+        await page.locator('[data-site-navigation][data-hidden="true"]').waitFor();
+        assert.equal(await page.locator('[data-site-navigation]').getAttribute('inert'), '');
+        if (id === 'gallery' || id === 'packages')
+          await page.screenshot({ path: path.join(output, `guide-${id}-${label}.png`) });
+      }
+      assert.equal(state.sends, 0, 'scroll guidance does not send a question or consume allowance');
+      assert.equal(state.speech, 0, 'scroll guidance does not play unsolicited audio');
+      await page.evaluate(() => window.scrollBy({ top: -100, behavior: 'instant' }));
+      await page.locator('[data-site-navigation][data-hidden="false"]').waitFor();
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+      await page.locator('[data-assistant-guide="welcome"]').waitFor({ state: 'attached' });
+      if (label === 'desktop') {
+        const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
+        await nav.getByRole('button', { name: 'Packages', exact: true }).focus();
+        await page.keyboard.press('Tab');
+        await page.evaluate(async () => {
+          window.scrollBy({ top: 300, behavior: 'instant' });
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
+        assert.equal(
+          await page.locator('[data-site-navigation]').getAttribute('data-hidden'),
+          'false',
+          'keyboard focus keeps navigation available'
+        );
+        await page.evaluate(() => document.activeElement.blur());
+        await page.locator('[data-site-navigation][data-hidden="true"]').waitFor();
+        await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+        await page.locator('[data-site-navigation][data-hidden="false"]').waitFor();
+      }
+      await openAssistant(page);
+      await page
+        .getByText('5 free questions remaining', { exact: true })
+        .waitFor({ timeout: 7000 })
+        .catch(async () => {
+          await page.screenshot({ path: path.join(output, `panel-failure-${label}.png`) });
+          throw new Error(JSON.stringify({ errors, body: (await page.locator('body').innerText()).slice(-1800) }));
+        });
+      assert.equal(await page.locator('.tm-assistant-question').count(), 4);
+      const draft = `Keep this ${label} draft when I leave immediately`;
+      await page.getByLabel('Your question', { exact: true }).fill(draft);
+      if (label === 'desktop') await page.getByRole('button', { name: 'Close AI assistant', exact: true }).click();
+      else await page.reload({ waitUntil: 'networkidle' });
+      await openAssistant(page);
+      await page.waitForFunction(
+        (text) => document.querySelector('[aria-label="Your question"]')?.value === text,
+        draft
+      );
+      assert.equal(state.sends, 0, 'closing/reloading preserves a draft without sending it');
+      await page.getByRole('button', { name: ASSISTANT_QUESTIONS[0], exact: true }).click();
+      assert.equal(await page.getByLabel('Your question', { exact: true }).inputValue(), ASSISTANT_QUESTIONS[0]);
+      assert.equal(state.sends, 0, 'suggestions prepare a question without sending it');
+      await page.getByRole('button', { name: 'More questions to explore', exact: true }).click();
+      assert.equal(await page.locator('.tm-assistant-question').count(), 6);
+      await page.getByRole('button', { name: 'Fewer suggestions', exact: true }).click();
+      await page.getByRole('button', { name: 'About', exact: true }).click();
+      await page.locator('#assistant-about').waitFor({ state: 'visible' });
+      await page.getByRole('button', { name: 'About', exact: true }).click();
+      await page.screenshot({ path: path.join(output, `assistant-chat-welcome-${label}.png`) });
+      await page.getByLabel('Your question', { exact: true }).fill('Show me a package for 100 guests');
+      await page.getByLabel('Your question', { exact: true }).press('Shift+Enter');
+      assert.equal(
+        await page.getByLabel('Your question', { exact: true }).inputValue(),
+        'Show me a package for 100 guests\n'
+      );
+      assert.equal(state.sends, 0, 'Shift+Enter inserts a newline without sending');
+      await page
+        .getByLabel('Your question', { exact: true })
+        .dispatchEvent('keydown', { key: 'Enter', isComposing: true });
+      assert.equal(state.sends, 0, 'IME composition does not send');
+      await page.getByLabel('Your question', { exact: true }).press('Enter');
+      await page.getByText('4 free questions remaining', { exact: true }).waitFor();
+      await page.screenshot({ path: path.join(output, `assistant-chat-reply-${label}.png`) });
+      await page.getByRole('button', { name: 'Listen', exact: true }).first().click();
+      await page.waitForFunction(() =>
+        Boolean(document.querySelector('[aria-label="Your question"]') || document.querySelector('textarea'))
+      );
+      await page.getByLabel('Your question', { exact: true }).fill('How do I book?');
+      await page.getByRole('button', { name: 'Send question', exact: true }).click();
+      await page.getByText('3 free questions remaining', { exact: true }).waitFor();
+      for (let question = 3; question <= 5; question++) {
+        await page.getByLabel('Your question', { exact: true }).fill(`Guest question ${question}`);
+        await page.getByRole('button', { name: 'Send question', exact: true }).click();
+        const remaining = 5 - question;
+        await page
+          .getByText(`${remaining} free ${remaining === 1 ? 'question' : 'questions'} remaining`, { exact: true })
+          .waitFor();
+      }
+      assert.equal(await page.getByRole('button', { name: 'Send question', exact: true }).isDisabled(), true);
+      assert.equal(await page.getByRole('button', { name: 'Record a voice question', exact: true }).isDisabled(), true);
+      assert.equal(state.sends, 5);
+      assert.equal(state.speech, 1);
+      await page.screenshot({ path: path.join(output, `guest-${label}.png`), fullPage: false });
+      await page.getByRole('button', { name: 'Close AI assistant', exact: true }).click();
+      if (label === 'mobile') {
+        await page.locator('#packages').scrollIntoViewIfNeeded();
+        await page.getByRole('button', { name: 'Open AI assistant', exact: true }).waitFor({ state: 'visible' });
+        const launcher = await page.getByRole('button', { name: 'Open AI assistant', exact: true }).boundingBox();
+        assert.ok(
+          launcher.y + launcher.height < viewport.height - 64,
+          'mobile: character clears the bottom signup bar'
+        );
+        await page.screenshot({ path: path.join(output, 'assistant-mobile-scrolled.png') });
+        await page.getByRole('button', { name: 'Open AI assistant', exact: true }).click();
+        await page.getByText('0 free questions remaining', { exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Close AI assistant', exact: true }).click();
+      }
+      await page.reload({ waitUntil: 'networkidle' });
+      await openAssistant(page);
+      await page.getByText('0 free questions remaining', { exact: true }).waitFor();
+      assert.equal(state.visitorHeaders.at(-1), 'v'.repeat(43));
+      await page.getByRole('link', { name: 'Create account', exact: true }).click();
+      await page.waitForURL('**/signup?continue=assistant');
+      const loginLink = page.locator('a[href="/login?next=%2Fportal%2Fassistant"]');
+      await loginLink.waitFor();
+      assert.equal(errors.length, 0, errors.join('\n'));
+      results.push(
+        `${label}: single floating guide, section introductions, header scroll behavior, reduced-motion support, five guest questions, text/voice shared gate, reload persistence and signup return links`
+      );
+      await context.close();
+    }
+    for (const failureMode of ['failed', 'disabled']) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+      const state = await fixture(context, false, false);
+      state.resetsAt = Date.now() + 60000;
+      let configReads = 0;
+      let failRefresh = false;
+      await context.route('**/api/assistant/config', async (route) => {
+        configReads += 1;
+        if (!failRefresh) return route.fallback();
+        return route.fulfill({
+          status: failureMode === 'failed' ? 503 : 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            failureMode === 'failed'
+              ? { message: 'Reset service unavailable' }
+              : { available: false, enabled: false, voiceAvailable: false }
+          )
+        });
+      });
+      const page = await context.newPage();
+      await page.clock.install({ time: new Date() });
+      await page.goto(base, { waitUntil: 'networkidle' });
+      await openAssistant(page);
+      await page.getByLabel('Your question', { exact: true }).fill('Keep my celebration question');
+      const initialReads = configReads;
+      failRefresh = true;
+      const refresh = page.waitForResponse(
+        (response) => response.url().endsWith('/assistant/config') && configReads > initialReads
+      );
+      await page.clock.fastForward(60001);
+      await refresh;
+      await page.waitForTimeout(600);
+      assert.equal(
+        configReads,
+        initialReads + 1,
+        failureMode + ': an expired visitor reset triggers only one automatic refresh'
+      );
+      assert.equal(
+        await page.getByLabel('Your question', { exact: true }).inputValue(),
+        'Keep my celebration question'
+      );
+      results.push(failureMode + ': failed visitor reset stays bounded and preserves the question');
+      await context.close();
+    }
+    for (const [label, viewport] of [
+      ['desktop', { width: 1440, height: 1000 }],
+      ['mobile', { width: 390, height: 844 }],
+      ['small-phone', { width: 320, height: 568 }]
+    ]) {
+      const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+      await fixture(context, false, false, false);
+      const page = await context.newPage();
+      await page.goto(base, { waitUntil: 'networkidle' });
+      await openAssistant(page);
+      await page.getByText('Assistant is temporarily unavailable', { exact: true }).waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Send question', exact: true }).isDisabled(), true);
+      assert.equal(await page.getByRole('button', { name: 'Record a voice question', exact: true }).isDisabled(), true);
+      const compose = await page.getByRole('button', { name: 'Send question', exact: true }).boundingBox();
+      assert.ok(compose.y >= 0 && compose.y + compose.height <= viewport.height, `${label}: composer stays in view`);
+      assert.equal(
+        await page.getByRole('dialog').evaluate((el) => el.scrollHeight > el.clientHeight),
+        false,
+        `${label}: only the conversation scrolls`
+      );
+      await page.screenshot({ path: path.join(output, `assistant-chat-unavailable-${label}.png`) });
+      await page.getByRole('link', { name: 'Browse packages', exact: true }).click();
+      await page.waitForURL('**/#packages');
+      await page.getByRole('dialog').waitFor({ state: 'hidden' });
+      await context.close();
+    }
+    results.push(
+      'redesigned chat: suggestion cards, more questions, disclosure, unavailable state and visible composer down to 320px'
+    );
+    const voiceContext = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      permissions: ['microphone']
+    });
+    const voiceState = await fixture(voiceContext);
+    const voicePage = await voiceContext.newPage();
+    await voicePage.goto(base, { waitUntil: 'networkidle' });
+    const wave = voicePage.locator('[data-assistant-character] .tm-assistant-mascot__wave');
+    assert.equal(await wave.evaluate((el) => getComputedStyle(el).animationName), 'tm-assistant-wave');
+    assert.equal(await wave.evaluate((el) => getComputedStyle(el).animationPlayState), 'running');
+    await voicePage.waitForFunction(() =>
+      document
+        .querySelector('.tm-assistant-mascot__wave')
+        .getAnimations()
+        .some((animation) => animation.currentTime > 100)
+    );
+    assert.equal(await voicePage.getByRole('button', { name: /(?:Pause|Resume) assistant animation/ }).count(), 0);
+    const companion = voicePage.locator('[data-assistant-character]');
+    const originalPosition = await companion.boundingBox();
+    for (const id of ['packages', 'gallery', 'services']) {
+      await voicePage.locator('#' + id).evaluate((el) => el.scrollIntoView({ behavior: 'instant', block: 'start' }));
+      await voicePage.locator('[data-assistant-guide="' + id + '"]').waitFor();
+      const position = await companion.boundingBox();
+      assert.ok(
+        Math.abs(position.x - originalPosition.x) < 1 && Math.abs(position.y - originalPosition.y) < 1,
+        'assistant stays at the bottom right across sections'
+      );
+      assert.equal(await wave.evaluate((el) => getComputedStyle(el).animationPlayState), 'running');
+    }
+    assert.equal(voiceState.sends, 0);
+    await voicePage.goto(base, { waitUntil: 'networkidle' });
+    await voicePage.screenshot({ path: path.join(output, 'assistant-hero-animated.png') });
+    await voicePage.getByRole('button', { name: 'Open AI assistant', exact: true }).click();
+    const chatHead = voicePage.locator('.tm-assistant-header__avatar .tm-assistant-mascot__head');
+    await chatHead.waitFor();
+    assert.notEqual(await chatHead.evaluate((el) => getComputedStyle(el).animationName), 'none');
+    assert.equal(await chatHead.evaluate((el) => getComputedStyle(el).animationPlayState), 'running');
+    await voicePage.getByRole('button', { name: 'Record a voice question', exact: true }).click();
+    await voicePage.getByText('Cancel recording', { exact: true }).waitFor();
+    await new Promise((r) => setTimeout(r, 500));
+    await voicePage.getByRole('button', { name: 'Stop recording', exact: true }).click();
+    await voicePage
+      .getByText('Review the transcript, especially dates, names and amounts, then send.', { exact: true })
+      .waitFor();
+    assert.equal(voiceState.sends, 0);
+    assert.equal(voiceState.transcriptions, 1);
+    assert.equal(await voicePage.getByLabel('Your question', { exact: true }).inputValue(), 'Birthday for 100 guests');
+    await voicePage.getByRole('button', { name: 'Send question', exact: true }).click();
+    await voicePage.getByText('4 free questions remaining', { exact: true }).waitFor();
+    assert.equal(voiceState.turns[0].source, 'voice');
+    results.push(
+      'animation: fixed bottom-right position across sections, automatic playback including open chat; voice: capture, transcript review and one question charge'
+    );
+    await voiceContext.close();
+    for (const [label, viewport] of [
+      ['small-phone', { width: 320, height: 568 }],
+      ['phone-360', { width: 360, height: 740 }],
+      ['phone-375', { width: 375, height: 812 }],
+      ['tablet', { width: 768, height: 1024 }],
+      ['short-laptop', { width: 1366, height: 768 }],
+      ['wide-desktop', { width: 1920, height: 900 }]
+    ]) {
+      const context = await browser.newContext({ viewport, reducedMotion: 'no-preference' });
+      await fixture(context);
+      const page = await context.newPage();
+      await page.goto(base, { waitUntil: 'networkidle' });
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+        false,
+        `${label}: no horizontal overflow`
+      );
+      const launcher = page.getByRole('button', { name: 'Open AI assistant', exact: true });
+      const launcherBox = await launcher.boundingBox();
+      assert.ok(await launcher.isVisible(), label + ': floating assistant is visible');
+      assert.ok(
+        launcherBox.y >= 0 && launcherBox.y + launcherBox.height <= viewport.height,
+        label + ': assistant stays on screen'
+      );
+      const primaryButton = await page.getByRole('button', { name: 'See our packages', exact: true }).boundingBox();
+      assert.ok(
+        primaryButton.x + primaryButton.width <= launcherBox.x ||
+          launcherBox.x + launcherBox.width <= primaryButton.x ||
+          primaryButton.y + primaryButton.height <= launcherBox.y ||
+          launcherBox.y + launcherBox.height <= primaryButton.y,
+        label + ': floating assistant leaves the primary hero button clear'
+      );
+      await page.screenshot({ path: path.join(output, `assistant-${label}.png`) });
+      await context.close();
+    }
+    results.push('responsive: 320px phone, tablet, short laptop and wide desktop without horizontal overflow');
+    const customerContext = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      reducedMotion: 'reduce'
+    });
+    await fixture(customerContext, true);
+    const customerPage = await customerContext.newPage();
+    const customerErrors = [];
+    customerPage.on('pageerror', (e) => customerErrors.push(e.message));
+    await customerPage.goto(base, { waitUntil: 'networkidle' });
+    await openAssistant(customerPage);
+    await customerPage.waitForURL('**/portal/assistant');
+    await customerPage
+      .getByText('20 questions remaining today', { exact: true })
+      .waitFor({ timeout: 7000 })
+      .catch(async () => {
+        await customerPage.screenshot({ path: path.join(output, 'customer-load-failure.png') });
+        throw new Error(
+          JSON.stringify({
+            url: customerPage.url(),
+            errors: customerErrors,
+            body: (await customerPage.locator('body').innerText()).slice(-2000)
+          })
+        );
+      });
+    assert.equal(
+      await customerPage.locator('.tm-assistant-panel--page').count(),
+      1,
+      'portal uses full-page assistant layout'
+    );
+    await customerPage.getByRole('button', { name: /Event details/ }).click();
+    assert.equal(
+      await customerPage.locator('[data-assistant-summary]').isVisible(),
+      true,
+      'saved celebration details remain available in the event-details drawer'
+    );
+    await customerPage.getByRole('button', { name: 'Close event details', exact: true }).click();
+    await customerPage.getByRole('dialog', { name: 'Your event details' }).waitFor({ state: 'hidden' });
+    for (const [sizeLabel, height] of [
+      ['short-laptop', 768],
+      ['desktop', 1000]
+    ]) {
+      await customerPage.setViewportSize({ width: 1440, height });
+      const panelBox = await customerPage.locator('.tm-assistant-panel--page').boundingBox();
+      const threadBox = await customerPage.locator('[data-assistant-thread]').boundingBox();
+      const sendBox = await customerPage.getByRole('button', { name: 'Send question', exact: true }).boundingBox();
+      assert.ok(panelBox.width >= 680, `${sizeLabel}: full-page assistant panel is spacious (${panelBox.width}px)`);
+      assert.ok(
+        threadBox.height > 0 && threadBox.y + threadBox.height <= height,
+        `${sizeLabel}: compact welcome thread fits without clipping (${threadBox.height}px)`
+      );
+      assert.ok(
+        sendBox.y + sendBox.height <= height,
+        `${sizeLabel}: composer stays fully visible inside the viewport (${sendBox.y + sendBox.height} <= ${height})`
+      );
+    }
+    await customerPage.getByLabel('Your question', { exact: true }).fill('Estimate catering only for 100 guests');
+    await customerPage.getByRole('button', { name: 'Send question', exact: true }).click();
+    await customerPage.getByText('19 questions remaining today', { exact: true }).waitFor();
+    await customerPage.getByRole('button', { name: 'Continue to booking', exact: true }).last().click();
+    await customerPage.getByText(/You have a saved booking draft/).waitFor();
+    await customerPage.screenshot({ path: path.join(output, 'customer-handoff.png'), fullPage: false });
+    await customerPage.getByRole('button', { name: 'Use selections', exact: true }).click();
+    await customerPage.waitForURL('**/portal/book');
+    const preserved = await customerPage.evaluate(() => ({
+      intent: JSON.parse(sessionStorage.getItem('tm.client.bookingIntent')),
+      draft: JSON.parse(localStorage.getItem('tm.client.draft.assistant-ui-fixture'))
+    }));
+    assert.equal(preserved.intent.serviceType, 'Catering only');
+    assert.equal(preserved.draft.form.venueName, 'Keep this venue');
+    results.push('customer: daily allowance, estimate handoff and saved venue preservation');
+    await customerContext.close();
+    const guidedContext = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      reducedMotion: 'reduce'
+    });
+    const guidedState = await fixture(guidedContext, true);
+    const addon = bookableAddons(seed.addons).find((v) => !v.archived);
+    const fullPlan = {
+      eventName: 'Fixture celebration',
       occasion: 'Birthday',
-      serviceType: 'Equipment rental',
+      guests: 100,
+      serviceType: 'Buffet and Catering',
+      packageSlug: pkg.slug,
       date: '2090-12-12',
       startTime: '12:00',
       endTime: '16:00',
-      rentals: [{ itemId: rentalItem.id, quantity: 100 }],
-      fulfilment: 'delivery',
-      venueName: 'Rental venue',
-      venueAddress: '123 Rental St',
-      city: 'Malvar'
-    },
-    clearFields: []
-  });
-  rentalState.bookingDraft = rentalTools.bookingDraft;
-  const rentalPage = await rentalContext.newPage();
-  const rentalErrors = [];
-  rentalPage.on('pageerror', (e) => rentalErrors.push(e.message));
-  await rentalPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
-  await rentalPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
-  await rentalPage.getByRole('button', { name: 'Use selections', exact: true }).click();
-  await rentalPage.waitForURL('**/portal/book');
-  await rentalPage.waitForFunction(() => document.getElementById('f-eventName')?.value === 'Rental fixture');
-  assert.equal(await rentalPage.getByLabel('Place name', { exact: false }).inputValue(), 'Rental venue');
-  assert.equal(await rentalPage.getByLabel('How many Chair', { exact: true }).inputValue(), '100');
-  const rentalIntent = await rentalPage.evaluate(() => JSON.parse(sessionStorage.getItem('tm.client.bookingIntent')));
-  assert.equal(rentalIntent.serviceType, 'Equipment rental');
-  assert.equal(rentalIntent.rentalQty[rentalItem.id], 100);
-  assert.equal(rentalIntent.guests, undefined);
-  assert.equal(rentalErrors.length, 0, rentalErrors.join('\n'));
-  await rentalPage.screenshot({ path: path.join(output, 'guided-rental-handoff.png') });
-  await rentalContext.close();
-  const partialContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  const partialState = await fixture(partialContext, true);
-  partialState.bookingDraft = mergeAssistantBooking({ ...fullPlan, guests: 100 }, {}, ['venueName', 'endTime']);
-  const partialPage = await partialContext.newPage();
-  await partialPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
-  await partialPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
-  await partialPage.getByRole('button', { name: 'Use selections', exact: true }).click();
-  await partialPage.waitForURL('**/portal/book');
-  await partialPage.waitForFunction(() => document.getElementById('f-eventName')?.value === 'Fixture celebration');
-  assert.equal(await partialPage.getByLabel('Venue name', { exact: false }).inputValue(), '');
-  assert.equal(await partialPage.getByRole('combobox', { name: 'End time — Hour', exact: true }).innerText(), '--');
-  await partialContext.close();
-  const guestPlanContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  const guestPlanState = await fixture(guestPlanContext);
-  guestPlanState.bookingDraft = { guests: 100, occasion: 'Birthday' };
-  const guestPlanPage = await guestPlanContext.newPage();
-  await guestPlanPage.goto(base, { waitUntil: 'networkidle' });
-  await openAssistant(guestPlanPage);
-  await guestPlanPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
-  await guestPlanPage.getByRole('button', { name: 'Create account and continue', exact: true }).click();
-  await guestPlanPage.waitForURL('**/signup?continue=booking');
-  const guestIntent = await guestPlanPage.evaluate(() => JSON.parse(sessionStorage.getItem('tm.client.bookingIntent')));
-  assert.equal(guestIntent.guests, 100);
-  assert.equal(guestIntent.occasion, 'Birthday');
-  assert.equal(guestIntent.assistantCustomerId, null);
-  assert.equal(guestPlanState.sends, 0);
-  await guestPlanContext.close();
-  results.push(
-    'guided reservation: saved 100 guests, reload/resume, change to 120, complete menu/theme/venue/addons/budget handoff, unchecked terms, and mobile partial-form resume without an AI charge'
-  );
-  console.log(JSON.stringify({ passed: results, screenshots: output }, null, 2));
+      venueName: 'Fixture event hall',
+      venueAddress: '123 Test Street',
+      city: 'Malvar',
+      menu: { pork: ['Pork BBQ'], chicken: ['Chicken BBQ'], fish: ['Sweet and sour fish'], vegetable: ['Chopsuey'] },
+      styling: {
+        theme: 'Rustic',
+        colors: [
+          { hex: '#FFFFFF', name: 'White' },
+          { hex: '#9CAF88', name: 'Sage Green' }
+        ],
+        notes: 'Ivory linens'
+      },
+      addonIds: addon ? [addon.id] : [],
+      addonQty: addon ? { [addon.id]: addon.hasQuantity ? 2 : 1 } : {},
+      budget: 100000,
+      budgetNotes: 'Simple styling',
+      foodNotes: 'No peanuts',
+      accessNotes: 'Use the side entrance',
+      discussed: ['menu', 'styling', 'addons', 'notes', 'budget']
+    };
+    guidedState.onSend = async (input, state) => {
+      const tools = createAssistantTools({ getCatalog: async () => planningCatalog, draft: state.bookingDraft });
+      const patch = input.text.includes('120')
+        ? { guests: 120 }
+        : input.text.includes('complete')
+          ? fullPlan
+          : { guests: 100 };
+      await tools.run('prepare_reservation', { patch, clearFields: [] });
+      return {
+        answer:
+          'Your reservation plan has been updated. Review it whenever you are ready; you can finish missing details in the form.',
+        bookingDraft: tools.bookingDraft,
+        packages: [],
+        estimates: [],
+        needsAdmin: false
+      };
+    };
+    const guidedPage = await guidedContext.newPage();
+    const guidedErrors = [];
+    guidedPage.on('pageerror', (e) => guidedErrors.push(e.message));
+    await guidedPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    await guidedPage.getByLabel('Your question', { exact: true }).fill('Please reserve for 100 guests');
+    await guidedPage.getByRole('button', { name: 'Send question', exact: true }).click();
+    await guidedPage.getByRole('button', { name: 'Review reservation', exact: true }).waitFor();
+    await guidedPage.reload({ waitUntil: 'networkidle' });
+    await guidedPage.getByRole('button', { name: 'Review reservation', exact: true }).waitFor();
+    assert.equal(guidedState.bookingDraft.guests, 100);
+    await guidedPage.getByLabel('Your question', { exact: true }).fill('Please complete the rest of my details');
+    await guidedPage.getByRole('button', { name: 'Send question', exact: true }).click();
+    await guidedPage.getByText('18 questions remaining today', { exact: true }).waitFor();
+    await guidedPage.getByLabel('Your question', { exact: true }).fill('Change the count to 120 guests');
+    await guidedPage.getByRole('button', { name: 'Send question', exact: true }).click();
+    await guidedPage.getByText('17 questions remaining today', { exact: true }).waitFor();
+    assert.equal(guidedState.bookingDraft.venueName, fullPlan.venueName);
+    await guidedPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
+    await guidedPage.getByRole('dialog', { name: 'Review booking selections' }).waitFor();
+    await guidedPage.screenshot({ path: path.join(output, 'guided-reservation-review.png') });
+    await guidedPage.getByRole('button', { name: 'Use selections', exact: true }).click();
+    await guidedPage.waitForURL('**/portal/book');
+    await guidedPage.getByLabel('Event name', { exact: false }).waitFor();
+    assert.equal(await guidedPage.getByLabel('Event name', { exact: false }).inputValue(), fullPlan.eventName);
+    assert.equal(await guidedPage.getByLabel('Venue name', { exact: false }).inputValue(), fullPlan.venueName);
+    const guidedIntent = await guidedPage.evaluate(() => JSON.parse(sessionStorage.getItem('tm.client.bookingIntent')));
+    assert.equal(guidedIntent.guests, 120);
+    assert.equal(guidedIntent.budget, 100000);
+    assert.deepEqual(guidedIntent.menu.pork, ['Pork BBQ']);
+    assert.equal(guidedIntent.styling.theme, 'Rustic');
+    assert.equal(guidedIntent.agreeTerms, undefined);
+    assert.equal(await guidedPage.getByRole('checkbox', { name: /Terms of Service/i }).isChecked(), false);
+    assert.equal(guidedErrors.length, 0, guidedErrors.join('\n'));
+    await guidedContext.close();
+    const resumeContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+    const resumeState = await fixture(resumeContext, true);
+    const resumePage = await resumeContext.newPage();
+    await resumePage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    await resumePage.getByRole('button', { name: 'Resume saved reservation', exact: true }).click();
+    await resumePage.getByRole('button', { name: 'Review reservation', exact: true }).waitFor();
+    assert.equal(resumeState.sends, 0);
+    assert.equal(resumeState.bookingDraft.guests, 150);
+    assert.equal(resumeState.bookingDraft.venueName, 'Keep this venue');
+    // A later form edit can replace an existing assistant plan after an explicit review.
+    await resumePage.evaluate(() => {
+      const key = 'tm.client.draft.assistant-ui-fixture';
+      const current = JSON.parse(localStorage.getItem(key));
+      current.form.guests = '175';
+      localStorage.setItem(key, JSON.stringify(current));
+    });
+    await resumePage.reload({ waitUntil: 'networkidle' });
+    await resumePage.getByRole('button', { name: 'Resume saved reservation', exact: true }).click();
+    await resumePage.getByRole('dialog', { name: 'Resume saved reservation?', exact: true }).waitFor();
+    await resumePage.getByRole('button', { name: 'Use saved form', exact: true }).click();
+    await resumePage
+      .getByRole('dialog', { name: 'Resume saved reservation?', exact: true })
+      .waitFor({ state: 'hidden' });
+    assert.equal(resumeState.bookingDraft.guests, 175);
+    assert.equal(resumeState.sends, 0);
+    await resumePage.getByRole('button', { name: 'Review reservation', exact: true }).click();
+    await resumePage.getByRole('button', { name: 'Use selections', exact: true }).click();
+    await resumePage.waitForURL('**/portal/book');
+    await resumePage.waitForFunction(() => document.getElementById('f-venueName')?.value === 'Keep this venue');
+    assert.equal(await resumePage.getByLabel('Venue name', { exact: false }).inputValue(), 'Keep this venue');
+    await resumeContext.close();
+    const rentalContext = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      reducedMotion: 'reduce'
+    });
+    const rentalState = await fixture(rentalContext, true);
+    const rentalTools = createAssistantTools({ getCatalog: async () => planningCatalog });
+    await rentalTools.run('prepare_reservation', {
+      patch: {
+        eventName: 'Rental fixture',
+        occasion: 'Birthday',
+        serviceType: 'Equipment rental',
+        date: '2090-12-12',
+        startTime: '12:00',
+        endTime: '16:00',
+        rentals: [{ itemId: rentalItem.id, quantity: 100 }],
+        fulfilment: 'delivery',
+        venueName: 'Rental venue',
+        venueAddress: '123 Rental St',
+        city: 'Malvar'
+      },
+      clearFields: []
+    });
+    rentalState.bookingDraft = rentalTools.bookingDraft;
+    const rentalPage = await rentalContext.newPage();
+    const rentalErrors = [];
+    rentalPage.on('pageerror', (e) => rentalErrors.push(e.message));
+    await rentalPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    await rentalPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
+    await rentalPage.getByRole('button', { name: 'Use selections', exact: true }).click();
+    await rentalPage.waitForURL('**/portal/book');
+    await rentalPage.waitForFunction(() => document.getElementById('f-eventName')?.value === 'Rental fixture');
+    assert.equal(await rentalPage.getByLabel('Place name', { exact: false }).inputValue(), 'Rental venue');
+    assert.equal(await rentalPage.getByLabel('How many Chair', { exact: true }).inputValue(), '100');
+    const rentalIntent = await rentalPage.evaluate(() => JSON.parse(sessionStorage.getItem('tm.client.bookingIntent')));
+    assert.equal(rentalIntent.serviceType, 'Equipment rental');
+    assert.equal(rentalIntent.rentalQty[rentalItem.id], 100);
+    assert.equal(rentalIntent.guests, undefined);
+    assert.equal(rentalErrors.length, 0, rentalErrors.join('\n'));
+    await rentalPage.screenshot({ path: path.join(output, 'guided-rental-handoff.png') });
+    await rentalContext.close();
+    const partialContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+    const partialState = await fixture(partialContext, true);
+    partialState.bookingDraft = mergeAssistantBooking({ ...fullPlan, guests: 100 }, {}, ['venueName', 'endTime']);
+    const partialPage = await partialContext.newPage();
+    await partialPage.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    await partialPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
+    await partialPage.getByRole('button', { name: 'Use selections', exact: true }).click();
+    await partialPage.waitForURL('**/portal/book');
+    await partialPage.waitForFunction(() => document.getElementById('f-eventName')?.value === 'Fixture celebration');
+    assert.equal(await partialPage.getByLabel('Venue name', { exact: false }).inputValue(), '');
+    assert.equal(await partialPage.getByRole('combobox', { name: 'End time — Hour', exact: true }).innerText(), '--');
+    await partialContext.close();
+    const guestPlanContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      reducedMotion: 'reduce'
+    });
+    const guestPlanState = await fixture(guestPlanContext);
+    guestPlanState.bookingDraft = { guests: 100, occasion: 'Birthday' };
+    const guestPlanPage = await guestPlanContext.newPage();
+    await guestPlanPage.goto(base, { waitUntil: 'networkidle' });
+    await openAssistant(guestPlanPage);
+    await guestPlanPage.getByRole('button', { name: 'Review reservation', exact: true }).click();
+    await guestPlanPage.getByRole('button', { name: 'Create account and continue', exact: true }).click();
+    await guestPlanPage.waitForURL('**/signup?continue=booking');
+    const guestIntent = await guestPlanPage.evaluate(() =>
+      JSON.parse(sessionStorage.getItem('tm.client.bookingIntent'))
+    );
+    assert.equal(guestIntent.guests, 100);
+    assert.equal(guestIntent.occasion, 'Birthday');
+    assert.equal(guestIntent.assistantCustomerId, null);
+    assert.equal(guestPlanState.sends, 0);
+    await guestPlanContext.close();
+    results.push(
+      'guided reservation: saved 100 guests, reload/resume, change to 120, complete menu/theme/venue/addons/budget handoff, unchecked terms, and mobile partial-form resume without an AI charge'
+    );
+    console.log(JSON.stringify({ passed: results, screenshots: output }, null, 2));
+  }
 } finally {
   await browser.close();
 }
