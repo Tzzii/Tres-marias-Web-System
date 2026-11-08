@@ -2,6 +2,7 @@ import { OCCASIONS, RULES, RENTAL, DISH_CATEGORIES, includesFood, isRental } fro
 import { cleanMenu, menuProblem, DESSERT_ADDON_ID } from './menu.js';
 import { cleanStyling, stylingProblem, themeLabel } from './styling.js';
 import { endTimeProblem } from './availability.js';
+import { cleanSetupPreferences } from './packageSetup.js';
 
 const object = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const word = (v, max) =>
@@ -26,6 +27,7 @@ export function assistantPackageProposalDraft(previous, context, option, referen
   return cleanAssistantBooking({
     ...previous,
     ...context,
+    eventName: previous?.eventName || context.eventName,
     ...proposalOccasionFields(context.occasion),
     budgetNotes: context.preferences,
     packageSlug: undefined,
@@ -69,6 +71,7 @@ export const ASSISTANT_BOOKING_FIELDS = Object.freeze([
   'packageSlug',
   'packageProposalRef',
   'planningMode',
+  'setupPreferences',
   'serviceType',
   'occasion',
   'guests',
@@ -114,6 +117,7 @@ export function cleanAssistantBooking(value) {
   if (['Buffet and Catering', 'Catering only', 'Equipment rental'].includes(raw.serviceType))
     clean.serviceType = raw.serviceType;
   if (['catalog', 'custom'].includes(raw.planningMode)) clean.planningMode = raw.planningMode;
+  if (raw.setupPreferences != null) clean.setupPreferences = cleanSetupPreferences(raw.setupPreferences);
   const reference = cleanPackageProposalRef(raw.packageProposalRef);
   if (reference && clean.planningMode !== 'catalog' && !isRental(clean.serviceType)) {
     clean.packageProposalRef = reference;
@@ -165,6 +169,15 @@ export function cleanAssistantBooking(value) {
 export function mergeAssistantBooking(previous, patch, clearFields = []) {
   const base = cleanAssistantBooking(previous);
   const next = cleanAssistantBooking(patch);
+  const reviewedValue = (key, value) =>
+    key === 'menu'
+      ? cleanMenu(value, {
+          buffet: includesFood(next.serviceType || base.serviceType),
+          dessert: Boolean(value?.dessert)
+        })
+      : value;
+  const differs = (key) =>
+    JSON.stringify(reviewedValue(key, next[key])) !== JSON.stringify(reviewedValue(key, base[key]));
   const cleared = new Set([
     ...(base.clearedFields || []),
     ...(next.clearedFields || []),
@@ -182,11 +195,12 @@ export function mergeAssistantBooking(previous, patch, clearFields = []) {
     'addonQty',
     'foodNotes',
     'budget',
-    'budgetNotes'
+    'budgetNotes',
+    'setupPreferences'
   ];
   const changed = reviewed.some(
     (key) =>
-      (Object.hasOwn(next, key) && JSON.stringify(next[key]) !== JSON.stringify(base[key])) ||
+      (Object.hasOwn(next, key) && differs(key)) ||
       (cleared.has(key) && Object.hasOwn(base, key) && !Object.hasOwn(next, key))
   );
   if (
@@ -197,12 +211,15 @@ export function mergeAssistantBooking(previous, patch, clearFields = []) {
     delete base.packageProposalRef;
   if (next.packageSlug && !next.packageProposalRef) base.planningMode = 'catalog';
   if (next.serviceType && base.serviceType && next.serviceType !== base.serviceType) {
+    delete base.setupPreferences;
     delete base.menu;
     delete base.discussed;
     if (isRental(next.serviceType) !== isRental(base.serviceType))
       for (const key of ['packageSlug', 'guests', 'styling', 'addonIds', 'addonQty', 'rentalQty', 'fulfilment'])
         delete base[key];
   }
+  if (['guests', 'menu'].some((key) => Object.hasOwn(next, key) && differs(key)) && !next.setupPreferences)
+    delete base.setupPreferences;
   for (const key of cleared) delete base[key];
   for (const key of Object.keys(next)) if (key !== 'clearedFields') cleared.delete(key);
   const combined = { ...base, ...next };

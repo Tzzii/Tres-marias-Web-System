@@ -7,9 +7,30 @@ import {
   resolveProposal
 } from './packageProposalEngine.js';
 import { proposalAddonLookup, validatePackageProposalRules } from './packageProposalPolicy.js';
+import { setupQuestions, validateSetupAnswers } from './packageSetup.js';
 
 export { cleanPackageProposalContext } from './packageProposalEngine.js';
 export { defaultPackageProposalRules, validatePackageProposalRules } from './packageProposalPolicy.js';
+
+/** Fill a short model ranking with distinct, server-priced candidates; never manufacture unavailable options. */
+export function selectRankedPackageOptions(ranked, candidates) {
+  if (
+    !Array.isArray(ranked) ||
+    !ranked.length ||
+    new Set(ranked).size !== ranked.length ||
+    ranked.some((id) => !candidates.some((c) => c.id === id))
+  )
+    throw new Error('Choose distinct available custom package options.');
+  const status = { within: 0, incomplete: 1, over: 2 };
+  const remaining = candidates
+    .filter((c) => !ranked.includes(c.id))
+    .sort(
+      (a, b) =>
+        status[a.estimate.budgetStatus] - status[b.estimate.budgetStatus] ||
+        a.estimate.knownTotal - b.estimate.knownTotal
+    );
+  return [...ranked, ...remaining.map((c) => c.id)].slice(0, 3);
+}
 
 function currentRules(inputs, addons) {
   const { rules, problem } = validatePackageProposalRules(inputs.rules, inputs.catalog, addons);
@@ -22,7 +43,7 @@ function resolveReference(reference, raw, inputs, checkStock) {
   const addons = proposalAddonLookup(inputs.catalog);
   const context = cleanPackageProposalContext(raw, inputs.catalog, addons);
   const recipe = recipeFor(reference, context, currentRules(inputs, addons));
-  const menu = completeProposalMenu(context, inputs.catalog);
+  const menu = completeProposalMenu(context, inputs.catalog, reference.menuVariant || 0);
   return resolveProposal(reference, recipe, context, menu, inputs, addons, checkStock);
 }
 
@@ -70,6 +91,8 @@ function contentsKey(candidate) {
   return JSON.stringify([
     items,
     candidate.packageSnapshot.price,
+    candidate.packageSnapshot.setupAdjustment || 0,
+    candidate.menu,
     candidate.addonIds.map((id) => [id, candidate.addonQty[id]])
   ]);
 }
@@ -78,6 +101,8 @@ function contentsKey(candidate) {
 export function buildPackageCandidates(raw, inputs) {
   const addons = proposalAddonLookup(inputs.catalog);
   const context = cleanPackageProposalContext(raw, inputs.catalog, addons);
+  if (context.setupPreferences)
+    validateSetupAnswers(context.setupPreferences, setupQuestions(inputs.catalog, context, inputs.rules));
   const candidates = [];
   let rules, menu;
   try {
@@ -88,8 +113,15 @@ export function buildPackageCandidates(raw, inputs) {
   }
   const seen = new Set();
   const reasons = new Set();
-  function append(recipe, change) {
-    const candidate = resolveProposal({ recipeId: recipe.id, change }, recipe, context, menu, inputs, addons);
+  function append(recipe, change, menuVariant = 0) {
+    const candidate = resolveProposal(
+      { recipeId: recipe.id, change, ...(menuVariant ? { menuVariant } : {}) },
+      recipe,
+      context,
+      menuVariant ? completeProposalMenu(context, inputs.catalog, menuVariant) : menu,
+      inputs,
+      addons
+    );
     const key = contentsKey(candidate);
     if (!seen.has(key)) {
       seen.add(key);
@@ -102,6 +134,10 @@ export function buildPackageCandidates(raw, inputs) {
       recipeFor({ recipeId: recipe.id }, context, rules);
       iterators.push({ recipe, changes: changesFor(recipe, context, addons) });
       append(recipe, null);
+      if (context.setupPreferences && context.serviceType === 'Buffet and Catering') {
+        append(recipe, null, 1);
+        append(recipe, null, 2);
+      }
     } catch (err) {
       reasons.add(err.message);
     }
@@ -130,7 +166,12 @@ export function buildPackageCandidates(raw, inputs) {
     if (!noFitReasons.length) noFitReasons.push('No approved setup covers the requested event.');
   } else if (!candidates.some((c) => c.estimate.budgetStatus === 'within')) {
     const minimum = Math.min(...candidates.map((c) => c.estimate.baseTotal));
-    if (minimum > context.budget)
+    const pendingSetup = candidates.some((c) =>
+      c.estimate.unknownCharges.some((charge) => charge.id.startsWith('setup-'))
+    );
+    if (pendingSetup)
+      noFitReasons.push('Setup adjustments still need a quotation before the final budget fit can be confirmed.');
+    else if (minimum > context.budget)
       noFitReasons.push('The required setup, meals when included, and schedule charges already exceed your budget.');
     else if (candidates.every((c) => c.estimate.knownTotal > context.budget))
       noFitReasons.push('Even the lowest known subtotal for the proposed combinations exceeds your budget.');

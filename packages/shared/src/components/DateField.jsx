@@ -78,6 +78,7 @@ export function DateField({
   dark = false,
   disabled = false,
   inline = false,
+  compact = false,
   rental = false
 }) {
   const [anchor, setAnchor] = useState(null); // element the calendar popup opens under (null = closed)
@@ -196,6 +197,7 @@ export function DateField({
     <>
       <MonthCalendar
         size="sm"
+        compact={compact}
         year={view.year}
         month={view.month}
         onMonthChange={(year, month) => setView({ year, month })}
@@ -328,9 +330,11 @@ export function DateField({
         >
           {loadingDates
             ? 'Loading available dates…'
-            : rental
-              ? 'Tap a date to see the times already booked. A gold dot means that day has an event. Striped dates are blocked and greyed-out ones are too soon to prepare for: tap one to see why.'
-              : 'Tap a date to see the times already booked. A gold dot means that day has an event. Striped dates are blocked, red ones are fully booked and greyed-out ones are too soon to prepare for: tap one to see why.'}
+            : compact
+              ? 'Tap a date for availability. Gold dot: booked event; stripes: blocked; red: full; grey: unavailable.'
+              : rental
+                ? 'Tap a date to see the times already booked. A gold dot means that day has an event. Striped dates are blocked and greyed-out ones are too soon to prepare for: tap one to see why.'
+                : 'Tap a date to see the times already booked. A gold dot means that day has an event. Striped dates are blocked, red ones are fully booked and greyed-out ones are too soon to prepare for: tap one to see why.'}
         </Typography>
       )}
     </>
@@ -351,7 +355,7 @@ export function DateField({
           tabIndex={-1}
           aria-invalid={Boolean(error)}
           sx={{
-            p: { xs: 1.5, sm: 2 },
+            p: compact ? 1 : { xs: 1.5, sm: 2 },
             borderRadius: 1.5,
             backgroundColor: tokens.cardLight,
             border: `1px solid ${error ? errorColor : tokens.borderInput}`,

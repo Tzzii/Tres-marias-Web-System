@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildPackageCandidates,
+  selectRankedPackageOptions,
   estimatePackageProposal,
   validatePackageRecipe
 } from '@tm/shared/src/domain/packageProposal.js';
@@ -45,6 +46,119 @@ function fixture() {
   };
   return { context, catalog, recipe, inputs: { catalog, rules: { enabled: true, recipes: [recipe] } } };
 }
+
+function setupFixture() {
+  const f = fixture();
+  const names = ['Chairs with cloth', 'Tiffany chairs', 'Spoons and forks', 'Glasses', 'Food warmers', 'Water table'];
+  f.catalog.packages.push({ id: 'equipment', items: names.map((name) => ({ name, qty: 1 })) });
+  f.recipe.components.push(
+    ...names
+      .map((itemName, itemIndex) => ({
+        packageId: 'equipment',
+        itemIndex,
+        itemName,
+        mode: 'fixed',
+        qty: itemName === 'Food warmers' ? 5 : 100,
+        ...(itemName === 'Water table' ? { qty: 1, optional: true, unitPrice: 200 } : {}),
+        ...(itemName === 'Chairs with cloth' ? { unitPrice: 10 } : {}),
+        ...(itemName === 'Tiffany chairs' ? { unitPrice: 30 } : {})
+      }))
+      .filter((c) => c.itemName !== 'Tiffany chairs')
+  );
+  f.inputs.rules.recipes.push({
+    ...structuredClone(f.recipe),
+    id: 'tiffany',
+    components: f.recipe.components.map((c) =>
+      c.itemName === 'Chairs with cloth' ? { ...c, itemIndex: 1, itemName: 'Tiffany chairs', unitPrice: 30 } : c
+    )
+  });
+  f.context.guests = 100;
+  f.context.setupPreferences = {
+    reviewed: true,
+    chairName: 'Chairs with cloth',
+    items: [{ itemName: 'Water table', included: false }]
+  };
+  return f;
+}
+
+test('custom setup follows guest count, actual dishes and explicitly excluded optional equipment', () => {
+  const { context, inputs } = setupFixture();
+  const result = buildPackageCandidates(context, inputs);
+  assert.ok(result.candidates.length);
+  for (const candidate of result.candidates) {
+    const items = candidate.packageSnapshot.items;
+    for (const name of ['Plates', 'Chairs with cloth', 'Spoons and forks', 'Glasses'])
+      assert.equal(items.find((i) => i.name === name)?.qty, 100);
+    assert.equal(items.find((i) => i.name === 'Food warmers')?.qty, 4);
+    assert.ok(!items.some((i) => ['Water table', 'Tiffany chairs'].includes(i.name)));
+    assert.match(candidate.packageSnapshot.name, /custom/i);
+  }
+});
+
+test('setup adjustments recalculate using approved unit prices and survive shared quote recomputation', async () => {
+  const { context, inputs } = setupFixture();
+  const { computeQuote } = await import('@tm/shared/src/services/pricing.js');
+  const standard = buildPackageCandidates(context, inputs).candidates[0];
+  context.setupPreferences.chairName = 'Tiffany chairs';
+  const upgraded = buildPackageCandidates(context, inputs).candidates.find((c) => c.recipe.recipeId === 'mixed');
+  assert.ok(upgraded.packageSnapshot.items.some((i) => i.name === 'Tiffany chairs' && i.qty === 100));
+  assert.equal(upgraded.estimate.knownTotal - standard.estimate.knownTotal, 2000);
+  assert.equal(
+    computeQuote({ ...upgraded.estimate.quote, pkg: upgraded.packageSnapshot, guests: 100 }).net,
+    upgraded.estimate.knownTotal
+  );
+});
+
+test('identical buffet equipment has one price regardless of which reference recipe resolves it', () => {
+  const { context, inputs } = setupFixture();
+  const standard = estimatePackageProposal({ recipeId: 'mixed' }, context, inputs);
+  const alternate = estimatePackageProposal({ recipeId: 'tiffany' }, context, inputs);
+  assert.deepEqual(alternate, standard);
+  const base = buildPackageCandidates(context, inputs).candidates.filter(
+    (c) => !c.recipe.change && !c.recipe.menuVariant
+  );
+  assert.equal(base.length, 1, 'Identical delivered setups must not count as multiple package choices');
+});
+
+test('unpriced setup changes remain pending and essential dining items cannot be excluded', () => {
+  const { context, inputs, recipe } = setupFixture();
+  delete recipe.components.find((c) => c.itemName === 'Water table').unitPrice;
+  const candidate = buildPackageCandidates(context, inputs).candidates[0];
+  assert.equal(candidate.estimate.budgetStatus, 'incomplete');
+  assert.ok(candidate.estimate.unknownCharges.some((c) => /water table/i.test(c.label)));
+  context.setupPreferences.items.push({ itemName: 'Plates', included: false });
+  assert.throws(() => buildPackageCandidates(context, inputs), /optional|essential/i);
+});
+
+test('custom buffet can build distinct menu alternatives while keeping explicit dishes and equipment answers', () => {
+  const { context, inputs } = setupFixture();
+  context.menu = { pork: ['Adobo'] };
+  inputs.catalog.dishes.push(
+    { category: 'chicken', name: 'Fried chicken' },
+    { category: 'vegetable', name: 'Pinakbet' }
+  );
+  const options = buildPackageCandidates(context, inputs).candidates.filter(
+    (c) => c.recipe.recipeId === 'mixed' && !c.recipe.change
+  );
+  assert.ok(new Set(options.map((o) => JSON.stringify(o.menu))).size >= 3);
+  for (const option of options) {
+    assert.ok(option.menu.pork.includes('Adobo'));
+    assert.ok(!option.packageSnapshot.items.some((i) => i.name === 'Water table'));
+    assert.deepEqual(estimatePackageProposal(option.recipe, context, inputs), option.estimate);
+  }
+});
+
+test('three available custom options are returned even when ranking supplies only one ID', () => {
+  const candidates = [
+    { id: 'over', estimate: { budgetStatus: 'over', knownTotal: 20000 } },
+    { id: 'fit-b', estimate: { budgetStatus: 'within', knownTotal: 12000 } },
+    { id: 'fit-a', estimate: { budgetStatus: 'within', knownTotal: 10000 } },
+    { id: 'unknown', estimate: { budgetStatus: 'incomplete', knownTotal: 8000 } }
+  ];
+  assert.deepEqual(selectRankedPackageOptions(['fit-b'], candidates), ['fit-b', 'fit-a', 'unknown']);
+  assert.deepEqual(selectRankedPackageOptions(['fit-b'], candidates.slice(1, 2)), ['fit-b']);
+  assert.throws(() => selectRankedPackageOptions(['invented'], candidates));
+});
 
 test('builds a mixed complete setup at exactly the buffet budget without a selected package', () => {
   const { context, inputs } = fixture();

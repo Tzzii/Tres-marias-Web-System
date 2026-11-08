@@ -31,11 +31,11 @@ export default function PackageProposalOption({ option, context, index, disabled
       </Typography>
       <Typography sx={{ fontSize: 26, fontWeight: 700 }}>
         {peso(estimate.knownTotal)}
-        {estimate.unknownCharges?.length > 0 ? ' + pending charges' : ''}
+        {estimate.unknownCharges?.length > 0 ? ' · adjustments pending' : ''}
       </Typography>
       <Typography variant="caption">
         {estimate.budgetStatus === 'incomplete'
-          ? 'Known subtotal only. The final total is not yet known.'
+          ? 'Priced estimate before pending adjustments. The final total is not yet known.'
           : estimate.difference > 0
             ? `${peso(estimate.difference)} above your ${peso(context?.budget)} budget`
             : `${peso(Math.abs(estimate.difference))} below your ${peso(context?.budget)} budget`}
@@ -101,6 +101,9 @@ export default function PackageProposalOption({ option, context, index, disabled
         </Typography>
         {estimate.quote?.durationCharge > 0 && (
           <Typography variant="body2">Six-hour event charge: {peso(estimate.quote.durationCharge)}</Typography>
+        )}
+        {Boolean(estimate.quote?.setupAdjustment) && (
+          <Typography variant="body2">Equipment adjustment: {peso(estimate.quote.setupAdjustment)}</Typography>
         )}
         <Typography variant="body2">Known additional services: {peso(estimate.knownAddonsTotal)}</Typography>
         {estimate.unknownCharges?.map((charge) => (

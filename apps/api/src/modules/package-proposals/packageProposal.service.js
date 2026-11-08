@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import {
   buildPackageCandidates,
   cleanPackageProposalContext,
-  estimatePackageProposal
+  estimatePackageProposal,
+  selectRankedPackageOptions
 } from '@tm/shared/src/domain/packageProposal.js';
 import { rentalAvailability } from '@tm/shared/src/domain/reservation.js';
 import { dateUnavailableReason, timeUnavailableReason, eventHours } from '@tm/shared/src/domain/availability.js';
@@ -169,6 +170,12 @@ export async function createPackageProposal(
   { assistant = createAssistantRepository(), rank = rankPackageOptions, activeTurn } = {}
 ) {
   if (!customerId) throw new ApiError('UNAUTHENTICATED', 'Sign in to build a custom package.');
+  if (!input.context?.setupPreferences?.reviewed || !input.context.eventName?.trim() || !input.context.occasion?.trim())
+    throw new ApiError(
+      'INVALID',
+      'Enter the event name and occasion, then review setup equipment before generating custom packages.',
+      { field: 'context.setupPreferences' }
+    );
   const fingerprint = input.reviewedCatalogFingerprint;
   const inputFingerprint = proposalDigest(input);
   const replay = (row) => {
@@ -205,7 +212,10 @@ export async function createPackageProposal(
         config.assistant.monthlyBudgetMicro <= 0
       )
         throw new ApiError('ASSISTANT_UNAVAILABLE', unavailable);
-      const ranked = await rankForOwner(customerId, input, prepared, { assistant, rank, activeTurn });
+      const ranked = selectRankedPackageOptions(
+        await rankForOwner(customerId, input, prepared, { assistant, rank, activeTurn }),
+        prepared.candidates
+      );
       await tx(async (conn) => {
         const fresh = await current(conn, prepared.context, fingerprint);
         const options = ranked.map((key) => {
@@ -214,7 +224,12 @@ export async function createPackageProposal(
             throw stale();
           return { ...c, reason: optionReason(c) };
         });
-        await repo.finish(id, { status: 'ready', options, noFitReasons: fresh.noFitReasons }, conn);
+        const noFitReasons = [...fresh.noFitReasons];
+        if (options.length < 3)
+          noFitReasons.push(
+            `Only ${options.length} distinct approved custom option${options.length === 1 ? '' : 's'} can currently meet these setup answers. The team can help prepare more alternatives.`
+          );
+        await repo.finish(id, { status: 'ready', options, noFitReasons }, conn);
       });
     } else await repo.finish(id, result);
   } catch (error) {

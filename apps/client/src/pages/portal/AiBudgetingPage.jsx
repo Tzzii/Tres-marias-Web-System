@@ -55,7 +55,7 @@ export default function AiBudgetingPage() {
         title="AI Budgeting & Package"
         subtitle="Plan your budget, build a package, and compare options based on current catalog prices."
       />
-      <Stack spacing={3} sx={{ maxWidth: 960, mx: 'auto', mt: 3 }}>
+      <Stack spacing={1} sx={{ maxWidth: 960, mx: 'auto', mt: 1.5 }}>
         {loading && <CircularProgress aria-label="Loading your package plan" sx={{ alignSelf: 'center' }} />}
         {error && (
           <Alert severity="error" action={<Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}>
@@ -63,8 +63,24 @@ export default function AiBudgetingPage() {
           </Alert>
         )}
         {!loading && conversation && (
-          <DashCard sx={{ p: { xs: 2, sm: 3 } }}>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <DashCard
+            sx={{
+              p: 1.5,
+              position: 'relative',
+              '& .tm-assistant-plan': { p: 0, mb: 0, border: 0 },
+              '@media (min-width: 900px)': {
+                '&:has(#package-plan-date) .tm-package-cancel': {
+                  position: 'absolute',
+                  bottom: 12,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  mb: 0,
+                  zIndex: 1
+                }
+              }
+            }}
+          >
+            <Box className="tm-package-cancel" sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
               <CancelAiPlanButton
                 conversation={conversation}
                 disabled={busy || Boolean(conversation.allowance?.pending)}
@@ -107,7 +123,7 @@ export default function AiBudgetingPage() {
             )}
           </DashCard>
         )}
-        <Alert severity="info">
+        <Alert severity="info" sx={{ py: 0.5, fontSize: 12 }}>
           Package estimates use current catalog prices. Availability and final charges are confirmed by the team before
           your booking is finalized.
         </Alert>

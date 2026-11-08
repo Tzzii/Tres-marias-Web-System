@@ -22,6 +22,7 @@ import {
   planningGuide
 } from './assistant.booking.js';
 import { isRental, RENTAL } from '@tm/shared/src/services/config.js';
+import { setupQuestions } from '@tm/shared/src/domain/packageSetup.js';
 
 const id = z.string().min(1).max(128);
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[03]0$/);
@@ -407,6 +408,7 @@ export function createAssistantTools({
       }
       if (name === 'get_booking_guidance')
         return {
+          customSetup: setupQuestions(await getCatalog(), bookingDraft),
           planning: planningGuide(),
           business: BUSINESS,
           timezone: 'Asia/Manila',

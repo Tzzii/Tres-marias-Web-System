@@ -2816,6 +2816,7 @@ export default function BookEventPage() {
                       ? [[`Equipment for ${extraGuests} extra guests`, 'To be quoted']]
                       : []),
                     ...(quote.durationCharge > 0 ? [['6-hour event charge', peso(quote.durationCharge)]] : []),
+                    ...(quote.setupAdjustment ? [['Equipment adjustment', peso(quote.setupAdjustment)]] : []),
                     ...chosenAddons.map((a) => [a.name, a.price ? peso(quote.addonTotals[a.id]) : 'To be quoted']),
                     ...(rental && delivered ? [['Delivery', peso(quote.deliveryFee)]] : [])
                   ].map(([label, value], i) => (

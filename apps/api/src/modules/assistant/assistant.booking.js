@@ -21,7 +21,7 @@ import { endTimeProblem } from '@tm/shared/src/domain/availability.js';
 import { validAssistantDate } from '@tm/shared/src/domain/assistant.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { menuCount } from '@tm/shared/src/domain/menu.js';
-import { packageProposalRefSchema } from '../package-proposals/packageProposal.schemas.js';
+import { packageProposalRefSchema, setupPreferencesSchema } from '../package-proposals/packageProposal.schemas.js';
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const clock = z.string().regex(/^(?:[01]\d|2[0-3]):[03]0$/);
@@ -30,6 +30,7 @@ export const bookingPatchSchema = z
     clearedFields: z.array(z.enum(ASSISTANT_BOOKING_FIELDS)).max(30).optional(),
     planningStarted: z.boolean().nullable().optional(),
     planningMode: z.enum(['catalog', 'custom']).nullable().optional(),
+    setupPreferences: setupPreferencesSchema.nullable().optional(),
     packageProposalRef: packageProposalRefSchema.nullable().optional(),
     ...Object.fromEntries(
       Object.entries(ASSISTANT_BOOKING_TEXT).map(([key, max]) => [key, z.string().max(max).nullable().optional()])
@@ -101,6 +102,20 @@ const strictObject = (properties) => ({
 });
 // Quantities are arrays in the model interface; the app's dictionary keys are never an open JSON schema.
 export const bookingPatchParameters = strictObject({
+  setupPreferences: strictObject({
+    reviewed: { type: 'boolean', enum: [true] },
+    chairName: string,
+    items: {
+      type: 'array',
+      maxItems: 40,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['itemName', 'included'],
+        properties: { itemName: string, included: { type: 'boolean' } }
+      }
+    }
+  }),
   planningStarted: scalar('boolean'),
   planningMode: scalar('string', { enum: ['catalog', 'custom', null] }),
   ...Object.fromEntries(

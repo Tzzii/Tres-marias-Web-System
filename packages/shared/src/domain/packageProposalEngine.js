@@ -6,6 +6,7 @@ import { isBudgetFoodAddon } from './budgetPolicy.js';
 import { DESSERT_ADDON_ID, cleanMenu, menuCount, menuProblem } from './menu.js';
 import { cleanStyling, stylingProblem } from './styling.js';
 import { componentQuantity, hasOnlyKeys, proposalAddonLookup } from './packageProposalPolicy.js';
+import { cleanSetupPreferences, resolveCustomSetup, setupQuestions, validateSetupAnswers } from './packageSetup.js';
 
 const fail = (message) => {
   throw new Error(message);
@@ -94,7 +95,12 @@ export function cleanPackageProposalContext(raw, catalog, addons = proposalAddon
   const stylingIssue = stylingProblem(styling);
   if (stylingIssue) fail(stylingIssue.message);
   const dessert = selected.some((a) => a.id === DESSERT_ADDON_ID || a.parentId === DESSERT_ADDON_ID);
+  const setupPreferences = cleanSetupPreferences(raw.setupPreferences);
+  if (setupPreferences && catalog.packageProposalRules?.enabled)
+    validateSetupAnswers(setupPreferences, setupQuestions(catalog, raw));
   return {
+    ...(setupPreferences ? { setupPreferences } : {}),
+    ...(raw.eventName ? { eventName: text(raw.eventName, 120, 'the event name') } : {}),
     serviceType: raw.serviceType,
     guests: raw.guests,
     budget: raw.budget,
@@ -112,11 +118,17 @@ export function cleanPackageProposalContext(raw, catalog, addons = proposalAddon
 }
 
 /** Match distinct dishes to category slots, keeping explicit choices fixed and preferring empty categories. */
-export function completeProposalMenu(context, catalog) {
+export function completeProposalMenu(context, catalog, variant = 0) {
   if (!includesFood(context.serviceType)) return context.menu;
   const menu = cleanMenu(context.menu, { buffet: true, dessert: Boolean(context.menu.dessert) });
   const explicit = new Set(DISH_CATEGORIES.flatMap(({ key }) => menu[key].map(dishKey)));
-  const offered = new Map(DISH_CATEGORIES.map((category) => [category.key, offeredDishes(catalog, category)]));
+  const offered = new Map(
+    DISH_CATEGORIES.map((category, index) => {
+      const choices = offeredDishes(catalog, category);
+      const offset = variant === 1 || (variant === 2 && index === 1) ? 1 : 0;
+      return [category.key, choices.length ? [...choices.slice(offset), ...choices.slice(0, offset)] : choices];
+    })
+  );
   const slots = [1, 2].flatMap((limit) =>
     DISH_CATEGORIES.filter(({ key }) => menu[key].length < limit).map(({ key }) => key)
   );
@@ -143,7 +155,11 @@ export function completeProposalMenu(context, catalog) {
 }
 
 export function recipeFor(reference, context, rules) {
-  if (!hasOnlyKeys(reference, ['recipeId', 'change'])) fail('Choose a server-approved package recipe.');
+  if (
+    !hasOnlyKeys(reference, ['recipeId', 'change', 'menuVariant']) ||
+    (reference.menuVariant != null && (!context.setupPreferences || ![0, 1, 2].includes(reference.menuVariant)))
+  )
+    fail('Choose a server-approved package recipe.');
   const recipe = rules.recipes.find((r) => r.id === reference.recipeId);
   if (
     !recipe ||
@@ -215,9 +231,10 @@ function serviceSelection(reference, recipe, context, inputs, checkStock, addons
   return selection;
 }
 
-function priceProposal(context, catalog, snapshot, selection, addons) {
+function priceProposal(context, catalog, snapshot, selection, addons, setup) {
   const known = (price) => Number.isSafeInteger(price) && price >= 0;
   const unknownCharges = addons.filter((a) => !known(a.price)).map((a) => ({ id: a.id, label: a.name }));
+  unknownCharges.push(...(setup?.unknownCharges || []));
   const buffet = includesFood(context.serviceType);
   const rateKnown = known(catalog.pricePerPlate) && catalog.pricePerPlate > 0;
   if (buffet && !rateKnown) unknownCharges.push({ id: 'buffet-rate', label: 'Buffet rate per guest' });
@@ -238,7 +255,7 @@ function priceProposal(context, catalog, snapshot, selection, addons) {
   return {
     pricingModel: quote.pricingModel,
     budget: context.budget,
-    baseTotal: quote.food + quote.packageTotal + quote.durationCharge,
+    baseTotal: quote.food + quote.packageTotal + quote.durationCharge + (quote.setupAdjustment || 0),
     knownTotal: quote.net,
     knownAddonsTotal: quote.addons,
     unknownCharges,
@@ -253,21 +270,25 @@ export function resolveProposal(reference, recipe, context, menu, inputs, lookup
   const { byId } = lookup;
   const selection = serviceSelection(reference, recipe, context, inputs, checkStock, lookup);
   const buffet = includesFood(context.serviceType);
+  const setup = resolveCustomSetup(recipe, context, menu, inputs.catalog, inputs.rules);
   const packageSnapshot = {
     id: `custom-${recipe.id}`,
     slug: `custom-${recipe.id}`,
-    name: recipe.name,
+    name: setup ? `Custom ${context.occasion || 'event'} dining · ${recipe.name}` : recipe.name,
     kind: 'package',
     price: buffet ? 0 : recipe.cateringSetupPrice,
     guests: context.guests,
     description: recipe.description || `${recipe.name} for ${context.guests} guests.`,
-    items: recipe.components.map((c) => ({ name: c.itemName, qty: componentQuantity(c, context.guests), grows: false }))
+    items:
+      setup?.items ||
+      recipe.components.map((c) => ({ name: c.itemName, qty: componentQuantity(c, context.guests), grows: false })),
+    ...(setup ? { setupAdjustment: setup.adjustment } : {})
   };
   const addons = selection.addonIds.map((id) => {
     const a = byId.get(id);
     return { id, name: a.name, qty: selection.addonQty[id], price: a.price ?? null };
   });
-  const estimate = priceProposal(context, inputs.catalog, packageSnapshot, selection, addons);
+  const estimate = priceProposal(context, inputs.catalog, packageSnapshot, selection, addons, setup);
   const pending = ['The team will confirm setup equipment, staffing and the event schedule.'];
   if (context.foodNotes) pending.push('The catering team must confirm the food notes and dietary requests.');
   for (const addon of addons) {
@@ -281,6 +302,7 @@ export function resolveProposal(reference, recipe, context, menu, inputs, lookup
       : `Includes the required catering setup for ${context.guests} guests.`
   ];
   const change = reference.change;
+  tradeoffs.push(...(setup?.changes || []));
   if (change) {
     const name = byId.get(change.addonId).name;
     if (change.type === 'remove') tradeoffs.push(`Leaves out ${name}.`);
@@ -289,13 +311,24 @@ export function resolveProposal(reference, recipe, context, menu, inputs, lookup
     if (change.type === 'reduce')
       tradeoffs.push(`Reduces ${name} from ${context.addonQty[change.addonId]} to ${change.quantity}.`);
   }
-  const id = [recipe.id, change?.type || 'base', change?.addonId, change?.replacementId, change?.quantity]
+  const id = [
+    recipe.id,
+    change?.type || 'base',
+    change?.addonId,
+    change?.replacementId,
+    change?.quantity,
+    reference.menuVariant ? `menu-${reference.menuVariant}` : null
+  ]
     .filter((v) => v != null)
     .map(encodeURIComponent)
     .join('/');
   return {
     id,
-    recipe: { recipeId: recipe.id, change: change || null },
+    recipe: {
+      recipeId: recipe.id,
+      change: change || null,
+      ...(reference.menuVariant ? { menuVariant: reference.menuVariant } : {})
+    },
     packageSnapshot,
     menu,
     styling: context.styling,

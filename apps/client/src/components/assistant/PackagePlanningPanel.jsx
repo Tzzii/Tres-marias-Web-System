@@ -29,6 +29,7 @@ import PackageProposalOption from './PackageProposalOption.jsx';
 import { ReservationThemes, ReservationColors, ReservationAddons } from './AssistantReservationChoices.jsx';
 import AssistantReferencePhotos from './AssistantReferencePhotos.jsx';
 import { menuCount } from '@tm/shared/domain/menu.js';
+import { setupQuestions, validateSetupAnswers } from '@tm/shared/domain/packageSetup.js';
 const stages = [
   'Service',
   'Guests and budget',
@@ -37,7 +38,8 @@ const stages = [
   'Theme and colors',
   'Menu and food notes',
   'Additional services',
-  'Review'
+  'Review',
+  'Your setup and equipment'
 ];
 // Override only the new guided surface, leaving the public landing assistant's fixed light styling intact.
 const planningSurfaceSx = {
@@ -63,6 +65,7 @@ export default function PackagePlanningPanel({
   const draft = conversation.bookingDraft || {};
   const catalog = useResource(() => catalogApi.getCatalog(), [], { live: false });
   const [values, setValues] = useState(() => packagePlanningValues(draft));
+  const setup = setupQuestions(catalog.data, values);
   const [currentStep, setStep] = useState(() => savedPackagePlanningStage(draft));
   const visibleStages = packagePlanningStages(values.serviceType);
   const step = visibleStages.includes(currentStep) ? currentStep : 6;
@@ -162,12 +165,14 @@ export default function PackagePlanningPanel({
       patch = { guests, budget };
     }
     if (step === 2) {
+      if (!(values.eventName || '').trim()) return setError('Enter your event name.');
       if (
         !OCCASIONS.includes(values.occasion) ||
         (values.occasion === 'Other' && (values.occasionOther || '').trim().length < 2)
       )
         return setError('Choose your occasion, or specify it under Other.');
       patch = {
+        eventName: values.eventName.trim(),
         occasion: values.occasion,
         occasionOther: values.occasionOther || '',
         budgetNotes: values.budgetNotes || ''
@@ -207,6 +212,23 @@ export default function PackagePlanningPanel({
         addonQty: values.addonQty,
         discussed: [...new Set([...(draft.discussed || []), 'addons', 'budget'])]
       };
+    if (step === 8) {
+      if (!catalog.data || !setup.recipes.length)
+        return setError(
+          'No approved setup reference covers this service and guest count yet. Your answers stay saved.'
+        );
+      const answers = {
+        reviewed: true,
+        chairName: values.setupPreferences?.chairName || '',
+        items: values.setupPreferences?.items || []
+      };
+      try {
+        validateSetupAnswers(answers, setup);
+      } catch (failure) {
+        return setError(failure.message);
+      }
+      patch = { setupPreferences: answers };
+    }
     if (patch) await save(patch);
   }
   async function generate() {
@@ -216,6 +238,7 @@ export default function PackagePlanningPanel({
           'Package generation is temporarily unavailable. Your answers remain saved, and you can continue editing them.'
         );
       if (!catalog.data) throw new Error('Current catalog is still loading. Your answers remain saved.');
+      if (!draft.setupPreferences?.reviewed) throw new Error('Review your setup equipment before generating packages.');
       const context = packageContextFromDraft(draft, catalog.data);
       const result = await packageProposalApi.generate({
         requestId: crypto.randomUUID(),
@@ -238,7 +261,7 @@ export default function PackagePlanningPanel({
         <Typography variant="body2" sx={{ my: 1.5 }}>
           {incompatible
             ? 'You have a reservation plan in this conversation. Switching to a custom package replaces its package selection; your other event details and photos stay saved.'
-            : 'I’ll ask about your service, guests and budget, then help you review complete options.'}
+            : 'I’ll ask about your event, guests and budget, then your chair and equipment preferences before building three custom options.'}
         </Typography>
         <Button
           disabled={disabled}
@@ -262,7 +285,7 @@ export default function PackagePlanningPanel({
     (pkg) => pkg.kind === 'rental' && pkg.visible !== false && !pkg.archived
   );
   return (
-    <Box className="tm-assistant-plan" sx={planningSurfaceSx}>
+    <Box className="tm-assistant-plan" sx={[planningSurfaceSx, step === 3 && { p: 1.5, mb: 0 }]}>
       <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
         <Typography variant="h6">Your custom package</Typography>
         <Chip
@@ -326,9 +349,11 @@ export default function PackagePlanningPanel({
         </>
       ) : (
         <>
-          <Typography variant="subtitle2" sx={{ my: 2 }}>
-            {stages[step]}
-          </Typography>
+          {step !== 3 && (
+            <Typography variant="subtitle2" sx={{ my: 2 }}>
+              {stages[step]}
+            </Typography>
+          )}
           <Box component="fieldset" disabled={disabled} sx={{ p: 0, m: 0, border: 0, minWidth: 0 }}>
             <Stack spacing={2}>
               {step === 0 && (
@@ -375,6 +400,13 @@ export default function PackagePlanningPanel({
               {step === 2 && (
                 <>
                   <TextField
+                    label="Event name"
+                    value={values.eventName || ''}
+                    onChange={(e) => change({ eventName: e.target.value })}
+                    inputProps={{ maxLength: 120 }}
+                    required
+                  />
+                  <TextField
                     select
                     label="Occasion"
                     value={values.occasion || ''}
@@ -407,17 +439,28 @@ export default function PackagePlanningPanel({
                 </>
               )}
               {step === 3 && (
-                <>
-                  <DateField
-                    id="package-plan-date"
-                    label="Event date"
-                    required
-                    inline
-                    disabled={disabled}
-                    value={values.date || ''}
-                    onChange={(date) => change({ date })}
-                  />
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 360px) minmax(0, 1fr)' },
+                    alignItems: 'start',
+                    gap: 2,
+                    mt: 1
+                  }}
+                >
+                  <Box sx={{ width: '100%', maxWidth: 360, mx: 'auto' }}>
+                    <DateField
+                      id="package-plan-date"
+                      label="Event date"
+                      required
+                      inline
+                      compact
+                      disabled={disabled}
+                      value={values.date || ''}
+                      onChange={(date) => change({ date })}
+                    />
+                  </Box>
+                  <Stack spacing={2}>
                     <TimeField
                       id="package-plan-startTime"
                       label="Start time"
@@ -446,8 +489,8 @@ export default function PackagePlanningPanel({
                       sixHourFee={catalog.data?.sixHourFee}
                       hint={`Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`}
                     />
-                  </Box>
-                </>
+                  </Stack>
+                </Box>
               )}
               {step === 4 && (
                 <>
@@ -565,6 +608,77 @@ export default function PackagePlanningPanel({
                   )}
                 </>
               )}
+              {step === 8 && (
+                <>
+                  <Typography variant="body2">
+                    I’ll plan seating and dining essentials for {values.guests} guests. Reference packages help me build
+                    your setup; your answers decide what is included.
+                  </Typography>
+                  {catalog.loading && <Typography>Loading setup equipment…</Typography>}
+                  {!setup.recipes.length && (
+                    <Alert severity="info">
+                      No approved setup reference is available for this service and guest count yet.
+                    </Alert>
+                  )}
+                  {setup.chairs.length > 0 && (
+                    <TextField
+                      select
+                      label="What chairs would you like for your guests?"
+                      value={values.setupPreferences?.chairName || ''}
+                      SelectProps={{ native: true }}
+                      InputLabelProps={{ shrink: true }}
+                      onChange={(e) =>
+                        change({ setupPreferences: { ...values.setupPreferences, chairName: e.target.value } })
+                      }
+                    >
+                      <option value="">Choose your guest chairs</option>
+                      {setup.chairs.map((c) => (
+                        <option key={c.itemName} value={c.itemName}>
+                          {c.itemName} · {values.guests} guests
+                        </option>
+                      ))}
+                    </TextField>
+                  )}
+                  {setup.optional.map((c) => {
+                    const answer = values.setupPreferences?.items?.find((i) => i.itemName === c.itemName);
+                    return (
+                      <TextField
+                        key={c.itemName}
+                        select
+                        label={`Include ${c.itemName}?`}
+                        value={answer ? String(answer.included) : ''}
+                        SelectProps={{ native: true }}
+                        InputLabelProps={{ shrink: true }}
+                        onChange={(e) =>
+                          change({
+                            setupPreferences: {
+                              ...values.setupPreferences,
+                              items: [
+                                ...(values.setupPreferences?.items || []).filter((i) => i.itemName !== c.itemName),
+                                { itemName: c.itemName, included: e.target.value === 'true' }
+                              ]
+                            }
+                          })
+                        }
+                      >
+                        <option value="" disabled>
+                          Choose whether you need this
+                        </option>
+                        <option value="true">Yes, include it</option>
+                        <option value="false">No, leave it out</option>
+                      </TextField>
+                    );
+                  })}
+                  <Typography variant="subtitle2">Included essentials from the setup references</Typography>
+                  <Typography variant="body2">
+                    {setup.essentials.map((c) => c.itemName).join(', ') || 'No setup essentials available yet.'}
+                  </Typography>
+                  <Typography variant="caption">
+                    Chairs, plates, glasses and cutlery follow the guest count. Buffet warmers follow the completed
+                    menu. Adjustments use approved equipment prices; unpriced changes require a quotation.
+                  </Typography>
+                </>
+              )}
               {step === 7 && (
                 <>
                   <Typography variant="body2">
@@ -574,10 +688,21 @@ export default function PackagePlanningPanel({
                   <Typography variant="body2">
                     {draft.date} · {draft.startTime}–{draft.endTime}
                   </Typography>
+                  <Typography variant="body2">
+                    {draft.eventName} · {draft.occasion === 'Other' ? draft.occasionOther : draft.occasion}
+                  </Typography>
                   <Typography variant="body2">{draft.budgetNotes || 'No additional priorities saved.'}</Typography>
+                  <Typography variant="body2">
+                    Guest chairs: {draft.setupPreferences?.chairName || 'No chair reference offered'}
+                  </Typography>
+                  {draft.setupPreferences?.items?.map((item) => (
+                    <Typography key={item.itemName} variant="body2">
+                      {item.itemName}: {item.included ? 'Include' : 'Leave out'}
+                    </Typography>
+                  ))}
                   <Typography variant="caption">
-                    The assistant uses approved setup recipes and current catalog prices. Pending charges are shown
-                    separately. Your answers stay saved if generation is unavailable.
+                    The assistant builds custom packages using your equipment answers and current catalog references.
+                    Pending charges are shown separately. Your answers stay saved if generation is unavailable.
                   </Typography>
                   {catalog.error && (
                     <Alert severity="warning">
@@ -597,7 +722,7 @@ export default function PackagePlanningPanel({
                     variant="contained"
                     onClick={() => void generate()}
                   >
-                    Generate package options
+                    Build my three custom options
                   </Button>
                   {!generationAvailable && (
                     <Alert severity="info">
@@ -616,7 +741,7 @@ export default function PackagePlanningPanel({
             >
               Back
             </Button>
-            {step < 7 && (
+            {step !== 7 && (
               <Button variant="contained" disabled={disabled} onClick={() => void next()}>
                 Save and continue
               </Button>

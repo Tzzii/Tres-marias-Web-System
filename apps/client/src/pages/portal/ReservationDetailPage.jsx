@@ -716,6 +716,9 @@ function ChargeLines({ r, rental, delivered }) {
         ...(quote.durationCharge > 0
           ? [{ key: 'duration', label: '6-hour event charge', value: peso(quote.durationCharge) }]
           : []),
+        ...(quote.setupAdjustment
+          ? [{ key: 'setup-adjustment', label: 'Equipment adjustment', value: peso(quote.setupAdjustment) }]
+          : []),
         ...(extraGuests > 0
           ? [
               {

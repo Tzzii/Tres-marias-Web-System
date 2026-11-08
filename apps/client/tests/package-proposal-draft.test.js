@@ -23,15 +23,17 @@ import {
 test('custom catering skips food questions on forward, back and restored progress; buffet keeps them', () => {
   const catering = packagePlanningStages('Catering only');
   const buffet = packagePlanningStages('Buffet and Catering');
-  assert.deepEqual(catering, [0, 1, 2, 3, 4, 6, 7]);
-  assert.equal(catering[catering.indexOf(4) + 1], 6);
-  assert.equal(catering[catering.indexOf(6) - 1], 4);
-  assert.deepEqual(buffet, [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(catering, [0, 2, 1, 3, 4, 8, 6, 7]);
+  assert.equal(catering[catering.indexOf(4) + 1], 8);
+  assert.equal(catering[catering.indexOf(6) - 1], 8);
+  assert.deepEqual(buffet, [0, 2, 1, 3, 4, 5, 8, 6, 7]);
   const draft = {
     serviceType: 'Catering only',
     guests: 100,
     budget: 50000,
     occasion: 'Birthday',
+    eventName: 'Birthday celebration',
+    setupPreferences: { reviewed: true, chairName: '', items: [] },
     date: '2090-12-12',
     startTime: '18:00',
     endTime: '20:00',
@@ -40,6 +42,40 @@ test('custom catering skips food questions on forward, back and restored progres
   assert.equal(savedPackagePlanningStage(draft), 6);
   assert.equal(savedPackagePlanningStage({ ...draft, discussed: ['styling', 'addons'] }), 7);
   assert.equal(savedPackagePlanningStage({ ...draft, serviceType: 'Buffet and Catering' }), 5);
+});
+
+test('setup answers survive draft reload but guest, menu and service changes require a new review', () => {
+  const setupPreferences = {
+    reviewed: true,
+    chairName: 'Tiffany chairs',
+    items: [{ itemName: 'Water table', included: false }]
+  };
+  const draft = {
+    serviceType: 'Buffet and Catering',
+    guests: 100,
+    setupPreferences,
+    packageProposalRef: { proposalId: 'owned', optionId: 'custom/base', revision: 1 }
+  };
+  assert.deepEqual(packagePlanningValues(draft).setupPreferences, setupPreferences);
+  for (const patch of [{ guests: 120 }, { menu: { pork: ['Adobo'] } }, { serviceType: 'Catering only' }]) {
+    const next = mergeAssistantBooking(draft, patch);
+    assert.equal(next.setupPreferences, undefined);
+    assert.equal(next.packageProposalRef, undefined);
+  }
+  const updated = mergeAssistantBooking(draft, {
+    setupPreferences: { ...setupPreferences, chairName: 'Standard chairs' }
+  });
+  assert.equal(updated.packageProposalRef, undefined);
+  assert.equal(updated.setupPreferences.chairName, 'Standard chairs');
+  const catering = mergeAssistantBooking(
+    { ...draft, serviceType: 'Catering only', menu: {} },
+    { menu: {}, addonIds: [], addonQty: {} }
+  );
+  assert.deepEqual(
+    catering.setupPreferences,
+    setupPreferences,
+    'Saving unchanged catering-only additional services must retain equipment review'
+  );
 });
 
 test('lost manual response plus reload reads recovery before select and never reselects a submitted reference', async () => {

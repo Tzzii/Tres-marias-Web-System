@@ -6,10 +6,14 @@ import { rankingInput, rankPackageOptions } from '../src/integrations/ai/package
 import { cleanAssistantBooking, mergeAssistantBooking } from '@tm/shared/src/domain/assistantBooking.js';
 import { assistantReservationForm } from '@tm/shared/src/domain/assistantReservation.js';
 import { modelBookingPatch } from '../src/modules/assistant/assistant.booking.js';
+import { createPackageProposal } from '../src/modules/package-proposals/packageProposal.service.js';
 
 const reference = { proposalId: 'proposal-1', optionId: 'mixed/replace/premium/basic', revision: 1 };
 const context = {
   serviceType: 'Catering only',
+  eventName: 'Customer celebration',
+  occasion: 'Birthday',
+  setupPreferences: { reviewed: true, chairName: '', items: [] },
   guests: 100,
   budget: 15000,
   date: '2030-12-20',
@@ -31,10 +35,20 @@ test('proposal requests reject client prices/snapshots and references retain opa
     reviewedCatalogFingerprint: 'a'.repeat(64)
   };
   assert.equal(createBody.safeParse(input).success, true);
+  const { setupPreferences, ...unreviewed } = context;
+  assert.equal(createBody.safeParse({ ...input, context: unreviewed }).success, false);
+  assert.equal(createBody.safeParse({ ...input, context: { ...context, eventName: '' } }).success, false);
   assert.equal(createBody.safeParse({ ...input, packageSnapshot: option.packageSnapshot }).success, false);
   assert.equal(createBody.safeParse({ ...input, context: { ...context, price: 1 } }).success, false);
   assert.deepEqual(packageProposalRefSchema.parse(reference), reference);
   assert.equal(packageProposalRefSchema.safeParse({ ...reference, option }).success, false);
+});
+
+test('new generation rejects missing setup review before any database or provider work', async () => {
+  await assert.rejects(
+    createPackageProposal('customer', { context: { serviceType: 'Catering only' } }),
+    (error) => error.code === 'INVALID' && /setup/i.test(error.message)
+  );
 });
 
 test('proposal fingerprint retains component positions and approved recipe priority', () => {

@@ -20,6 +20,20 @@ await fs.mkdir(output, { recursive: true });
 const seed = buildBusinessSeed();
 const packages = seed.packages.map((p) => ({ ...p, visible: true, archived: false }));
 const source = packages.find((p) => p.kind !== 'rental' && p.items?.length);
+packages.push({
+  id: 'fixture-equipment',
+  slug: 'fixture-equipment',
+  kind: 'package',
+  guests: 100,
+  price: 1000,
+  name: 'Equipment reference',
+  visible: true,
+  items: [
+    { name: 'Standard chairs', qty: 100 },
+    { name: 'Tiffany chairs', qty: 100 },
+    { name: 'Water table', qty: 1 }
+  ]
+});
 const catalog = {
   packages,
   addons: seed.addons,
@@ -39,17 +53,46 @@ const catalog = {
         minGuests: RULES.minGuests,
         maxGuests: RULES.maxGuests,
         cateringSetupPrice: 20000,
-        components: [{ packageId: source.id, itemIndex: 0, itemName: source.items[0].name, mode: 'fixed', qty: 100 }],
+        components: [
+          { packageId: source.id, itemIndex: 0, itemName: source.items[0].name, mode: 'fixed', qty: 1 },
+          {
+            packageId: 'fixture-equipment',
+            itemIndex: 0,
+            itemName: 'Standard chairs',
+            mode: 'perGuests',
+            perGuests: 1,
+            qty: 1,
+            unitPrice: 10
+          },
+          {
+            packageId: 'fixture-equipment',
+            itemIndex: 2,
+            itemName: 'Water table',
+            mode: 'fixed',
+            qty: 1,
+            optional: true,
+            unitPrice: 200
+          }
+        ],
         optionalAddonIds: []
       }
     ]
   }
 };
+catalog.packageProposalRules.recipes.push({
+  ...structuredClone(catalog.packageProposalRules.recipes[0]),
+  id: 'fixture-tiffany',
+  name: 'Chair upgrade reference',
+  components: catalog.packageProposalRules.recipes[0].components.map((c) =>
+    c.itemName === 'Standard chairs' ? { ...c, itemIndex: 1, itemName: 'Tiffany chairs', unitPrice: 30 } : c
+  )
+});
 const context = {
   serviceType: 'Catering only',
   guests: 100,
   budget: 100000,
   occasion: 'Baby shower',
+  eventName: 'Custom celebration',
   date: '2090-12-12',
   startTime: '12:00',
   endTime: '16:00',
@@ -211,6 +254,7 @@ async function fixture(
     }
     if (endpoint === '/package-proposals' && request.method() === 'POST') {
       state.generates++;
+      state.generatedContext = request.postDataJSON().context;
       return reply(envelope());
     }
     if (endpoint.endsWith('/select') && endpoint.startsWith('/package-proposals/')) {
@@ -320,6 +364,10 @@ try {
     const panel = offline.page.locator('.tm-assistant-plan').filter({ hasText: 'Your custom package' }).last();
     await panel.getByRole('button', { name: 'Catering only', exact: true }).click();
     await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
+    await panel.getByLabel(/^Event name/).fill('Baby shower celebration');
+    await panel.getByLabel('Occasion', { exact: true }).selectOption('Other');
+    await panel.getByLabel('Your occasion', { exact: true }).fill('Baby shower');
+    await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
     await panel.getByLabel('How many guests?', { exact: true }).fill('100');
     const budgetField = panel.getByLabel('Total event budget (₱)', { exact: true });
     await budgetField.fill('200000');
@@ -337,11 +385,9 @@ try {
     assert.equal(await budgetField.inputValue(), '');
     await budgetField.fill('100000');
     await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
-    await panel.getByLabel('Occasion', { exact: true }).selectOption('Other');
-    await panel.getByLabel('Your occasion', { exact: true }).fill('Baby shower');
-    await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
     assert.equal(offline.state.draft.occasionOther, 'Baby shower');
     assert.equal(offline.state.draft.budget, 100000);
+    await panel.getByRole('grid').waitFor({ state: 'visible' });
     assert.equal(await panel.getByRole('grid').count(), 1, 'Use the inline Book an Event calendar');
     assert.equal(await panel.getByRole('combobox', { name: /^(Start|End) time —/ }).count(), 6);
     await panel.getByRole('button', { name: 'Next month', exact: true }).click();
@@ -406,7 +452,9 @@ try {
   await styling.page.getByText('Recommended color schemes for Enchanted Garden', { exact: true }).waitFor();
   await styling.page.getByRole('button', { name: 'Back', exact: true }).click();
   await styling.page.getByRole('button', { name: 'Back', exact: true }).click();
+  await styling.page.getByRole('button', { name: 'Back', exact: true }).click();
   await styling.page.getByLabel('Occasion', { exact: true }).selectOption('Christening');
+  await styling.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
   await styling.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
   await styling.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
   const christening = styling.page.getByRole('group', { name: 'Recommended themes for Christening', exact: true });
@@ -418,6 +466,38 @@ try {
   assert.deepEqual(styling.errors, []);
   passed.push('occasion-specific theme groups and palettes update when the customer changes occasion or theme');
   await styling.browserContext.close();
+
+  const equipment = await fixture(browser, {
+    draft: { ...context, occasion: 'Birthday', planningStarted: true, planningMode: 'custom', discussed: ['styling'] }
+  });
+  await equipment.page.goto(`${base}/portal/ai-budgeting`, { waitUntil: 'networkidle' });
+  await equipment.page.getByText('Your setup and equipment', { exact: true }).waitFor();
+  await equipment.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
+  await equipment.page.getByText('Choose an offered guest chair for this setup.', { exact: true }).waitFor();
+  await equipment.page
+    .getByLabel('What chairs would you like for your guests?', { exact: true })
+    .selectOption('Tiffany chairs');
+  await equipment.page.getByLabel('Include Water table?', { exact: true }).selectOption('false');
+  await equipment.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
+  assert.equal(equipment.state.draft.setupPreferences.reviewed, true);
+  assert.equal(equipment.state.draft.setupPreferences.chairName, 'Tiffany chairs');
+  assert.deepEqual(equipment.state.draft.setupPreferences.items, [{ itemName: 'Water table', included: false }]);
+  await equipment.page.reload({ waitUntil: 'networkidle' });
+  await equipment.page.getByText('Additional services', { exact: true }).waitFor();
+  await equipment.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
+  await equipment.page.getByRole('button', { name: 'Build my three custom options', exact: true }).waitFor();
+  await equipment.page.getByText('Water table: Leave out', { exact: true }).waitFor();
+  assert.equal(equipment.state.generates, 0);
+  await equipment.page.screenshot({ path: path.join(output, 'custom-setup-review.png'), fullPage: true });
+  await equipment.page.getByRole('button', { name: 'Build my three custom options', exact: true }).click();
+  await equipment.page.waitForURL('**/portal/package-proposals/**');
+  assert.equal(equipment.state.generates, 1);
+  assert.deepEqual(equipment.state.generatedContext.setupPreferences, equipment.state.draft.setupPreferences);
+  assert.deepEqual(equipment.errors, []);
+  passed.push(
+    'chair and optional water-table answers are required, survive reload and reach the custom generation request'
+  );
+  await equipment.browserContext.close();
 
   const handoff = await fixture(browser, {
     draft: {
@@ -510,10 +590,9 @@ try {
     )
   });
   await staleChat.page.goto(`${base}/portal/assistant?mode=package`, { waitUntil: 'networkidle' });
-  await staleChat.page
-    .locator('[data-assistant-reservation]')
-    .getByText('Your guided reservation', { exact: true })
-    .waitFor();
+  await staleChat.page.waitForURL('**/portal/ai-budgeting');
+  await staleChat.page.getByText('The reviewed catalog changed. Choose fresh options.', { exact: true }).waitFor();
+  await staleChat.page.getByRole('button', { name: 'Adjust answers and regenerate', exact: true }).waitFor();
   assert.equal(
     await staleChat.page.getByRole('checkbox', { name: /Terms of Service/ }).count(),
     0,

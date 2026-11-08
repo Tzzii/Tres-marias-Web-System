@@ -6,6 +6,9 @@ import { includesFood, isInclusiveBuffet, peso, tokens } from '@tm/shared';
 export function QuoteLines({ quote, pkg, serviceType, addons, addonQty }) {
   const inclusive = isInclusiveBuffet(quote);
   const rows = [
+    ...(quote.setupAdjustment
+      ? [['Equipment adjustment', peso(quote.setupAdjustment), 'Reviewed custom setup changes']]
+      : []),
     [
       pkg ? `Package · ${pkg.name}` : 'Package',
       pkg ? (inclusive ? 'Included in buffet rate' : peso(quote.packageTotal)) : '—',

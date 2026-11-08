@@ -457,6 +457,9 @@ export function DocumentDialog({ open, onClose, detail, doc }) {
                     />
                   ))}
                   {quote.durationCharge > 0 && <Line label="6-hour event charge" value={peso(quote.durationCharge)} />}
+                  {Boolean(quote.setupAdjustment) && (
+                    <Line label="Equipment adjustment" value={peso(quote.setupAdjustment)} />
+                  )}
                   {otherChargeItemsFor(quote)
                     .filter((line) => line.amount > 0)
                     .map((line, index) => (

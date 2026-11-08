@@ -5,6 +5,13 @@ const id = z.string().min(1).max(40);
 const optionId = z.string().min(1).max(255);
 const ids = z.array(id).max(100);
 const quantities = z.record(id, z.number().int().min(1).max(99));
+export const setupPreferencesSchema = z
+  .object({
+    reviewed: z.literal(true),
+    chairName: z.string().max(200),
+    items: z.array(z.object({ itemName: z.string().min(1).max(200), included: z.boolean() }).strict()).max(40)
+  })
+  .strict();
 const menu = z
   .object({
     ...Object.fromEntries(
@@ -42,6 +49,8 @@ export const contextBody = z
     startTime: z.string().length(5),
     endTime: z.string().length(5),
     occasion: z.string().max(80).optional(),
+    eventName: z.string().max(120).optional(),
+    setupPreferences: setupPreferencesSchema.optional(),
     preferences: z.string().max(1000).optional(),
     foodNotes: z.string().max(1000).optional(),
     menu: menu.nullish(),
@@ -55,7 +64,11 @@ export const createBody = z
   .object({
     requestId: z.string().uuid(),
     conversationId: z.string().uuid().optional(),
-    context: contextBody,
+    context: contextBody.extend({
+      eventName: z.string().trim().min(1).max(120),
+      occasion: z.string().trim().min(1).max(80),
+      setupPreferences: setupPreferencesSchema
+    }),
     reviewedCatalogFingerprint: z.string().regex(/^[a-f0-9]{64}$/)
   })
   .strict();

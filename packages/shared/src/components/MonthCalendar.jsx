@@ -60,6 +60,7 @@ export function monthGrid(year, month) {
 export function MonthCalendar({
   year,
   month,
+  compact = false,
   onMonthChange,
   getDay,
   onSelect,
@@ -223,8 +224,8 @@ export function MonthCalendar({
                   justifyContent: small ? 'center' : 'flex-start',
                   gap: 0.25,
                   // Scale date-picker cells with their container, including wider inline calendars.
-                  aspectRatio: small ? '1 / 1' : undefined,
-                  minHeight: small ? { xs: 36, sm: 44 } : { xs: 52, sm: 76, md: 88 },
+                  aspectRatio: small && !compact ? '1 / 1' : undefined,
+                  minHeight: small ? (compact ? { xs: 36, md: 32 } : { xs: 36, sm: 44 }) : { xs: 52, sm: 76, md: 88 },
                   p: small ? 0 : { xs: 0.5, sm: 0.9 },
                   borderRadius: 1.25,
                   fontFamily: 'inherit',

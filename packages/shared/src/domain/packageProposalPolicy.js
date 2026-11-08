@@ -71,7 +71,9 @@ function validatedRecipe(recipe, catalog, addons) {
   const names = new Set();
   for (const item of recipe.components) {
     if (
-      !hasOnlyKeys(item, ['packageId', 'itemIndex', 'itemName', 'mode', 'qty', 'perGuests']) ||
+      !hasOnlyKeys(item, ['packageId', 'itemIndex', 'itemName', 'mode', 'qty', 'perGuests', 'optional', 'unitPrice']) ||
+      (item.optional != null && typeof item.optional !== 'boolean') ||
+      (item.unitPrice != null && !bounded(item.unitPrice, 0, 10000000)) ||
       typeof item.packageId !== 'string' ||
       !Number.isInteger(item.itemIndex) ||
       item.itemIndex < 0 ||

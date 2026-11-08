@@ -102,7 +102,8 @@ test('dedicated selection maps Other text and supported occasions before cleanin
     guests: 80,
     budget: 20000,
     occasion: 'Baby shower',
-    preferences: 'Keep guest seating'
+    preferences: 'Keep guest seating',
+    eventName: 'Earlier proposal event name'
   };
   const option = { menu: {}, styling: {}, addonIds: [], addonQty: {} };
   const reference = { proposalId: 'proposal', revision: 2, optionId: 'recipe/base' };

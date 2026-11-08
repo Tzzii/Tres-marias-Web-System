@@ -23,6 +23,7 @@ import {
   packageProposalApi
 } from '@tm/shared';
 import { defaultPackageProposalRules, validatePackageProposalRules } from '@tm/shared/domain/packageProposal.js';
+import { optionalSetupItem } from '@tm/shared/domain/packageSetup.js';
 
 const blankRecipe = () => ({
   id: '',
@@ -110,7 +111,7 @@ export default function PackageProposalRulesDialog({ onClose, onSaved }) {
       busy={busy}
       maxWidth="md"
       title="Custom package recipes"
-      description="Approve complete setup combinations for the package builder. New recipes stay unavailable to customers until you explicitly enable these rules."
+      description="Approve setup references for custom packages. For buffet pricing, the first applicable reference defines the standard setup included in the per-guest rate; its equipment adjustment rates take priority. New references stay unavailable until you enable these rules."
       actions={
         <>
           <Button disabled={busy} onClick={onClose}>
@@ -181,7 +182,7 @@ export default function PackageProposalRulesDialog({ onClose, onSaved }) {
                       fullWidth
                     />
                     <TextField
-                      label="Customer-facing name"
+                      label="Setup reference name"
                       value={recipe.name}
                       onChange={(e) => change(index, { name: e.target.value })}
                       inputProps={{ maxLength: 100 }}
@@ -355,6 +356,31 @@ export default function PackageProposalRulesDialog({ onClose, onSaved }) {
                         >
                           Remove component
                         </Button>
+                        <FormControlLabel
+                          label="Optional setup equipment (ask the customer)"
+                          control={
+                            <Checkbox
+                              checked={optionalSetupItem(item)}
+                              onChange={(e) => component(index, itemIndex, { optional: e.target.checked })}
+                            />
+                          }
+                        />
+                        <TextField
+                          label="Approved adjustment price per piece (₱)"
+                          type="number"
+                          value={item.unitPrice ?? ''}
+                          helperText="Used only for quantities added or removed from this reference. Leave blank when the team must quote the adjustment."
+                          inputProps={{ min: 0, max: 10000000, step: 1 }}
+                          size="small"
+                          onChange={(e) => {
+                            const next = { ...item };
+                            if (e.target.value === '') delete next.unitPrice;
+                            else next.unitPrice = Number(e.target.value);
+                            change(index, {
+                              components: recipe.components.map((existing, i) => (i === itemIndex ? next : existing))
+                            });
+                          }}
+                        />
                       </Stack>
                     );
                   })}

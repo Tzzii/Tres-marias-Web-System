@@ -182,10 +182,15 @@ export function computeQuote({
   const otherLines = otherChargeItemsFor({ otherChargeItems, otherCharges, otherLabel });
   const other = otherLines.reduce((sum, line) => sum + line.amount, 0);
   const cleanDiscount = amount(discount);
+  const setupAdjustment =
+    pkg?.slug?.startsWith('custom-') && Number.isSafeInteger(pkg.setupAdjustment)
+      ? Math.max(-(packageTotal + foodTotal), pkg.setupAdjustment)
+      : 0;
   // The total can't go below 0
   const net = Math.max(
     0,
     packageTotal +
+      setupAdjustment +
       extraCharge +
       foodTotal +
       durationCharge +
@@ -198,6 +203,7 @@ export function computeQuote({
   );
 
   return {
+    ...(setupAdjustment ? { setupAdjustment } : {}),
     pricingModel: pricingModel === INCLUSIVE_PRICING_MODEL ? INCLUSIVE_PRICING_MODEL : LEGACY_PRICING_MODEL,
     packageTotal,
     packageGuests,

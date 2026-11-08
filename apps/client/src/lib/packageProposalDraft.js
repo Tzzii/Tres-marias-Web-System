@@ -19,15 +19,16 @@ export const packagePlanningValues = (draft = {}) => ({
 });
 
 export const packagePlanningStages = (serviceType) =>
-  includesFood(serviceType) ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3, 4, 6, 7];
+  includesFood(serviceType) ? [0, 2, 1, 3, 4, 5, 8, 6, 7] : [0, 2, 1, 3, 4, 8, 6, 7];
 
 export const savedPackagePlanningStage = (draft) => {
   if (!SERVICE_TYPES.includes(draft.serviceType)) return 0;
+  if (!draft.eventName || !draft.occasion) return 2;
   if (!draft.guests || !draft.budget) return 1;
-  if (!draft.occasion) return 2;
   if (!draft.date || !draft.startTime || !draft.endTime) return 3;
   if (!draft.discussed?.includes('styling')) return 4;
   if (includesFood(draft.serviceType) && !draft.discussed?.includes('menu')) return 5;
+  if (!draft.setupPreferences?.reviewed) return 8;
   if (!draft.discussed?.includes('addons')) return 6;
   return 7;
 };
@@ -47,6 +48,8 @@ export function packageContextFromDraft(draft, catalog) {
   return cleanPackageProposalContext(
     {
       serviceType: draft.serviceType,
+      eventName: draft.eventName,
+      setupPreferences: draft.setupPreferences,
       guests: Number(draft.guests),
       budget: Number(draft.budget),
       date: draft.date,

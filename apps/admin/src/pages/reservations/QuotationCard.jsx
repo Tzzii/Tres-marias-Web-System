@@ -156,6 +156,7 @@ export default function QuotationCard({ r, closed, onSend }) {
       ? `Enter a whole number from 1 to ${ITEM_COUNT_MAX.toLocaleString('en-PH')}.`
       : '';
   const gross =
+    (preview.setupAdjustment || 0) +
     preview.packageTotal +
     preview.extraGuestsCharge +
     preview.food +
@@ -239,6 +240,9 @@ export default function QuotationCard({ r, closed, onSend }) {
             <DetailRow label="Food">Catering only</DetailRow>
           )}
         </>
+      )}
+      {Boolean(preview.setupAdjustment) && (
+        <DetailRow label="Equipment adjustment">{peso(preview.setupAdjustment)}</DetailRow>
       )}
       {closed ? (
         <>
