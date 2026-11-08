@@ -4,20 +4,22 @@ The API uses Express and MySQL. Start it from the project root with `npm run dev
 
 ## Google sign-in verification
 
-Every Google customer sign-in requires an emailed six-digit code. `POST /api/auth/customer/google`
-returns `code_required` and challenge metadata for an existing customer, never a session. Complete it
-with `POST /api/auth/customer/google/:id/verify` and `{ code }`; request another code with
-`POST /api/auth/customer/google/:id/resend`. Both routes require an allowed customer origin and use
-the authentication rate limiter. The server preserves the initial remember preference and current
-account email, checks code and account lockouts, invalidates pending codes after email/password/Google
-identity changes, and consumes each verified challenge in a transaction before issuing a session.
+`POST /api/auth/customer/google` verifies the Google credential and returns `{ token, user }`
+for an existing linked customer. Matching an existing account by email first returns `link_required`;
+after the current account password is verified, Google is linked and a session is issued directly.
+Both paths preserve the remember preference and enforce customer account lockouts. They do not
+create or send a login code.
 
-New Google customers return `email_required` after profile completion and use the existing signup
-verify/resend routes, including Gmail addresses. No new account exists before the signup code is
-verified. Run `npm run db:migrate` before starting this API version to create
-`customer_google_signins` without changing existing customer rows. `npm run test:google` covers code
-lifecycle and HTTP validation; `npm run test:google:db` checks local MySQL persistence and concurrent
-single-use verification with test fixtures cleaned up afterward.
+New Google customers return `profile_required`, then `email_required` after profile completion,
+and use the existing signup verify/resend routes, including Gmail addresses. No new account exists
+before the signup code is verified.
+
+The legacy `/customer/google/:id/verify` and `/resend` endpoints remain available for pending
+sign-in challenges created before this change. They retain origin validation, authentication rate
+limits, code expiry, account checks and single-use verification. The existing
+`customer_google_signins` migration remains compatible; no new database migration is required.
+`npm run test:google` covers direct login, signup verification, legacy code lifecycle and HTTP
+validation. `npm run test:google-ui` checks signup and direct login using isolated browser fixtures.
 
 ## Folder layout
 

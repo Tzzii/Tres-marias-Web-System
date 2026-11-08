@@ -25,7 +25,8 @@ export function createGoogleCustomerService({
   verify,
   repo,
   transaction,
-  startSignInCode,
+  session,
+  clearAttempts,
   checkPassword,
   assertNotLocked,
   reserveAttempt,
@@ -39,7 +40,8 @@ export function createGoogleCustomerService({
       const linked = await repo.findGoogleCustomer(identity.sub);
       if (linked) {
         await assertNotLocked('customer', linked.email);
-        return { status: 'code_required', ...(await startSignInCode(linked, remember, identity.sub)) };
+        await clearAttempts('customer', linked.email);
+        return session(linked, remember);
       }
       const existing = await repo.findCustomerByEmail(identity.email);
       if (existing) {
@@ -65,7 +67,8 @@ export function createGoogleCustomerService({
           if (error.code === 'ER_DUP_ENTRY') throw changed();
           throw error;
         }
-        return { status: 'code_required', ...(await startSignInCode(customer, remember, identity.sub)) };
+        await clearAttempts('customer', customer.email);
+        return session(customer, remember);
       }
       if (!profile)
         return {

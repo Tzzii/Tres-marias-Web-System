@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.45.8**
+**System version: 1.45.9**
 
 The AI assistant enforces business scope on the server before answering or using booking tools, then independently checks the generated reply before saving or speaking it. Clear entertainment questions receive a fixed business redirect; mixed requests may continue only with a verbatim business excerpt. Unclear or failed checks return clarification. Rejected replies cannot update the booking draft or publish generated cards. Classifier calls share the existing spending controls and turn timeout; semantic accuracy still requires human-reviewed model evaluation.
 
@@ -279,11 +279,11 @@ absent, the API does not accept Google login. A mismatched configuration shows a
 New customers complete their name, mobile number, and current Terms/Privacy agreement. An existing
 account requires its current password before Google is linked, preserving its account ID and bookings.
 Returning Google users are identified by their Google subject, even if their application email changes.
-Every Google sign-in requires the application's six-digit email code before a customer session is
-issued, including returning users and accounts just connected to Google. Codes go to the customer's
-current application email. New Google customers, including Gmail users, confirm the emailed signup
-code before their account is created. Code expiry, resend cooldowns and attempt limits apply; sign-in
-codes are hashed, bound to the account and password version, and consumed once. Google-only users can set their first password through **My profile → Set a
+Existing Google customers receive a session immediately after Google identity verification, without
+an additional email code. Accounts just connected to Google also sign in directly after their current
+password is verified. New Google customers, including Gmail users, confirm the emailed signup code
+before their account is created. Signup code expiry, resend cooldowns and attempt limits apply.
+Google-only users can set their first password through **My profile - Set a
 password**, using an emailed code. The admin authentication flow remains separate.
 
 The additive migration also creates `customer_google_signins` for pending sign-in codes.

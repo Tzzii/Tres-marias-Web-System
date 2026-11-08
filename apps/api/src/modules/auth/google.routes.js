@@ -7,9 +7,9 @@ import { validate } from '../../middleware/validate.js';
 import { createGoogleIdentity, requireGoogleOrigin } from './google.identity.js';
 import { createGoogleCustomerService } from './google.service.js';
 import { createGoogleSignInCodeService } from './google-code.service.js';
-import { startGoogleEmailSignup } from './auth.service.js';
+import { customerSession, startGoogleEmailSignup } from './auth.service.js';
 import { customerGoogle, codeBody, requestParams } from './auth.schemas.js';
-import { assertNotLocked, reserveAttempt, wrongAnswer } from './lockout.js';
+import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
 import * as repo from './google.repo.js';
 
 export function createGoogleRoutes({
@@ -20,7 +20,8 @@ export function createGoogleRoutes({
     verify: identity.verify,
     repo,
     transaction: tx,
-    startSignInCode: codes.start,
+    session: customerSession,
+    clearAttempts,
     checkPassword: checkSecret,
     assertNotLocked,
     reserveAttempt,

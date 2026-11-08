@@ -77,7 +77,7 @@ export const customerLogin = ({ email, password, remember = false }) =>
 
 export const getGoogleSignInConfig = () => http.get('/auth/customer/google/config', { quiet: true });
 export const customerGoogleLogin = (values) => http.post('/auth/customer/google', values, { quiet: true });
-/** Complete Google sign-in only after entering the application's emailed code. */
+/** Complete a pending legacy Google login code challenge issued before direct login. */
 export const verifyGoogleSignInCode = ({ challengeId, code }) =>
   http.post(`/auth/customer/google/${segment(challengeId)}/verify`, { code }, { quiet: true });
 export const resendGoogleSignInCode = (challengeId) =>

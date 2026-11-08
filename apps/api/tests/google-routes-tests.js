@@ -5,7 +5,7 @@ import express from 'express';
 import { createGoogleRoutes } from '../src/modules/auth/google.routes.js';
 import { errorHandler } from '../src/middleware/errors.js';
 
-test('Google HTTP routes protect origin, validate bodies and require uncached code verification before sessions', async (t) => {
+test('Google HTTP routes protect origin, validate bodies and return uncached sessions or legacy challenges', async (t) => {
   const received = [];
   const app = express();
   app.use(express.json());
@@ -27,7 +27,7 @@ test('Google HTTP routes protect origin, validate bodies and require uncached co
       service: {
         signIn: async (values) => {
           received.push(values);
-          return { status: 'code_required', challengeId: 'signin-1' };
+          return { token: 'direct-session', user: { id: 'cus-1' } };
         }
       }
     })
@@ -54,7 +54,7 @@ test('Google HTTP routes protect origin, validate bodies and require uncached co
   const result = await post('https://tresmariascater.com', { ...body, role: 'admin', email: 'injected@example.com' });
   assert.equal(result.status, 200);
   assert.equal(result.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await result.json(), { status: 'code_required', challengeId: 'signin-1' });
+  assert.deepEqual(await result.json(), { token: 'direct-session', user: { id: 'cus-1' } });
   assert.deepEqual(received, [body]);
   assert.equal((await post('https://attacker.example', { code: '123456' }, '/signin-1/verify')).status, 403);
   assert.equal((await post('https://tresmariascater.com', { code: '12' }, '/signin-1/verify')).status, 400);

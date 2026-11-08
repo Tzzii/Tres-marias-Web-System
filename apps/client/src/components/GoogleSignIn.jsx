@@ -69,7 +69,10 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
     try {
       const result = await authApi.customerGoogleLogin({ ...values, remember: latest.current.remember });
       if (!active.current) return;
-      if (result.status === 'profile_required') {
+      if (result.token && result.user) {
+        close();
+        latest.current.onSignedIn(result, { remember: latest.current.remember });
+      } else if (result.status === 'profile_required') {
         setProfile({
           firstName: result.profile.firstName || '',
           middleName: '',

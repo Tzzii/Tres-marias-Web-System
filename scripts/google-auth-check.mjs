@@ -159,10 +159,6 @@ try {
     'existing-customer-link-and-remember',
     { width: 1366, height: 900 },
     (url, body, writes) => {
-      if (url.endsWith('/google/signin-fixture/verify')) {
-        assert.equal(body.code, '123456');
-        return { ...session, user: { ...fixtureUser, hasPassword: true } };
-      }
       if (writes.length === 1) return { status: 'link_required', email: fixtureUser.email };
       if (body.password !== 'correct-password')
         return {
@@ -174,7 +170,7 @@ try {
           }
         };
       assert.equal(body.remember, true);
-      return challenge('code_required');
+      return { ...session, user: { ...fixtureUser, hasPassword: true } };
     },
     async ({ page }) => {
       await page.getByRole('checkbox', { name: 'Remember me' }).check();
@@ -184,57 +180,47 @@ try {
       await page.getByText('The existing account password is incorrect.', { exact: true }).waitFor();
       await page.locator('#google-link-password').fill('correct-password');
       await page.getByRole('button', { name: 'Connect and sign in' }).click();
-      await enterCode(page, 'Verify Your Sign-In');
       await page.waitForURL((url) => url.pathname === '/portal/book');
       const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tm.client.session')));
       assert.equal(saved.user.id, fixtureUser.id);
     }
   );
-  await scenario(
-    'returning-google-user-wrong-code-resend-and-verify',
-    { width: 390, height: 844 },
-    (url, body) => {
-      if (url.endsWith('/customer/google')) return challenge('code_required');
-      if (url.endsWith('/google/signin-fixture/resend'))
-        return { expiresAt: Date.now() + 300000, resendAt: Date.now() + 60000 };
-      assert.ok(url.endsWith('/google/signin-fixture/verify'));
-      if (body.code === '000000')
-        return {
-          status: 400,
-          body: { code: 'INVALID_CODE', message: 'That code is incorrect.', meta: { remaining: 2 } }
-        };
-      assert.equal(body.code, '123456');
-      return session;
-    },
-    async ({ page, writes }) => {
-      await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
-      await enterCode(page, 'Verify Your Sign-In', '000000');
-      await page.getByText('That code is incorrect. 2 attempts left.', { exact: true }).waitFor();
-      await assertSignedOut(page);
-      await page.locator('.tm-code-verification[data-state="idle"]').waitFor();
-      await page.getByRole('button', { name: 'Resend code', exact: true }).click();
-      await page.getByText(/Resend code in/).waitFor();
-      await page.screenshot({ path: path.join(output, 'google-signin-code-mobile.png'), fullPage: true });
-      await enterCode(page, 'Verify Your Sign-In');
-      await page.waitForURL((url) => url.pathname === '/portal/book');
-      assert.equal(writes.filter((entry) => entry.path.endsWith('/customer/google')).length, 1);
-      assert.equal(writes.filter((entry) => entry.path.endsWith('/verify')).length, 2);
-    }
-  );
-  await scenario(
-    'returning-google-user-can-cancel-without-session',
+  for (const viewport of [
     { width: 1366, height: 900 },
-    () => challenge('code_required'),
+    { width: 390, height: 844 }
+  ]) {
+    await scenario(
+      `returning-google-user-direct-login-${viewport.width}`,
+      viewport,
+      (url) => {
+        assert.ok(url.endsWith('/customer/google'), 'returning login never requests or verifies an email code');
+        return session;
+      },
+      async ({ page, writes }) => {
+        await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
+        await page.waitForURL((url) => url.pathname === '/portal/book');
+        assert.equal(writes.length, 1);
+        assert.equal(await page.getByRole('dialog').count(), 0);
+        const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('tm.client.session')));
+        assert.equal(saved.user.id, fixtureUser.id);
+        assert.equal(await page.evaluate(() => localStorage.getItem('tm.client.session')), null);
+      }
+    );
+  }
+  await scenario(
+    'new-google-user-can-cancel-without-session',
+    { width: 1366, height: 900 },
+    () => ({ status: 'profile_required', profile: fixtureUser }),
     async ({ page, writes }) => {
       await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
-      await page.getByRole('heading', { name: 'Verify Your Sign-In' }).waitFor();
+      await page.getByRole('heading', { name: 'Complete your account' }).waitFor();
       await page.evaluate(() => window.googleFixtureOptions.callback({ credential: 'fixture-google-token' }));
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       await assertSignedOut(page);
-      assert.equal(writes.length, 1, 'open verification dialogs suppress duplicate Google callbacks');
+      assert.equal(writes.length, 1, 'open signup dialogs suppress duplicate Google callbacks');
       await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
-      await page.getByRole('heading', { name: 'Verify Your Sign-In' }).waitFor();
-      assert.equal(writes.length, 2, 'cancel allows starting Google login again');
+      await page.getByRole('heading', { name: 'Complete your account' }).waitFor();
+      assert.equal(writes.length, 2, 'cancel allows starting Google signup again');
     }
   );
   await scenario(
