@@ -30,7 +30,7 @@ export {
   FeedbackStatusChip
 } from './components/Pill.jsx';
 export { StatusPipeline } from './components/StatusPipeline.jsx';
-export { FieldLabel, FormField, SelectField, PasswordField, MobileField } from './components/FormField.jsx';
+export { FieldLabel, FormField, SelectField, PasswordField, MobileField, PesoInput } from './components/FormField.jsx';
 export { IntegerAmountField } from './components/IntegerAmountField.jsx';
 // The live "Password needs" list (and strength bar) under every new-password field
 export { PasswordChecklist } from './components/PasswordChecklist.jsx';

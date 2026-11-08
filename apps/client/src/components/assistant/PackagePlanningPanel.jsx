@@ -1,18 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, TextField, Typography } from '@mui/material';
 import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  Chip,
-  FormControlLabel,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography
-} from '@mui/material';
-import {
+  DateField,
+  TimeField,
+  EndTimeField,
+  PesoInput,
   catalogApi,
   packageProposalApi,
   RULES,
@@ -29,20 +22,13 @@ import {
   reconcilePackagePlanningValues
 } from '../../lib/packageProposalDraft.js';
 import { mergeAssistantBooking } from '@tm/shared/domain/assistantBooking.js';
-import { earliestBookableDate, endTimeProblem, initialEndTime } from '@tm/shared/domain/availability.js';
+import { earliestBookableDate, endTimeProblem, initialEndTime, shiftEndTime } from '@tm/shared/domain/availability.js';
 import { stylingProblem } from '@tm/shared/domain/styling.js';
 import { assistantApi } from '../../lib/assistantApi.js';
 import PackageProposalOption from './PackageProposalOption.jsx';
 import { ReservationThemes, ReservationColors, ReservationAddons } from './AssistantReservationChoices.jsx';
 import AssistantReferencePhotos from './AssistantReferencePhotos.jsx';
 import { menuCount } from '@tm/shared/domain/menu.js';
-import { formatTime } from '@tm/shared/utils/format.js';
-
-const timeOptions = Array.from(
-  { length: 48 },
-  (_, index) => `${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}`
-);
-
 const stages = [
   'Service',
   'Guests and budget',
@@ -378,12 +364,10 @@ export default function PackagePlanningPanel({
                     onChange={(e) => change({ guests: e.target.value })}
                     inputProps={{ min: RULES.minGuests, max: RULES.maxGuests }}
                   />
-                  <TextField
+                  <PesoInput
                     label="Total event budget (₱)"
-                    type="number"
                     value={values.budget}
                     onChange={(e) => change({ budget: e.target.value })}
-                    inputProps={{ min: 1, max: 10000000, step: 1 }}
                     helperText="Include setup, food when applicable, and additional services."
                   />
                 </>
@@ -424,45 +408,45 @@ export default function PackagePlanningPanel({
               )}
               {step === 3 && (
                 <>
-                  <TextField
+                  <DateField
+                    id="package-plan-date"
                     label="Event date"
-                    type="date"
+                    required
+                    inline
+                    disabled={disabled}
                     value={values.date || ''}
-                    onChange={(e) => change({ date: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{ min: earliestBookableDate() }}
+                    onChange={(date) => change({ date })}
                   />
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                    {['startTime', 'endTime'].map((key) => (
-                      <TextField
-                        key={key}
-                        label={key === 'startTime' ? 'Start time' : 'End time'}
-                        select
-                        value={values[key] || ''}
-                        onChange={(e) =>
-                          change({
-                            [key]: e.target.value,
-                            ...(key === 'startTime' ? { endTime: initialEndTime(e.target.value) } : {})
-                          })
-                        }
-                        InputLabelProps={{ shrink: true }}
-                        SelectProps={{ MenuProps: { PaperProps: { sx: { maxHeight: 288 } } } }}
-                        fullWidth
-                      >
-                        <MenuItem value="" disabled>
-                          Choose a time
-                        </MenuItem>
-                        {values[key] && !timeOptions.includes(values[key]) && (
-                          <MenuItem value={values[key]}>{formatTime(values[key]).toUpperCase()}</MenuItem>
-                        )}
-                        {timeOptions.map((time) => (
-                          <MenuItem key={time} value={time}>
-                            {formatTime(time).toUpperCase()}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    ))}
-                  </Stack>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                    <TimeField
+                      id="package-plan-startTime"
+                      label="Start time"
+                      required
+                      disabled={disabled}
+                      value={values.startTime || ''}
+                      onChange={(startTime) =>
+                        change({
+                          startTime,
+                          endTime: values.endTime
+                            ? shiftEndTime(values.startTime, values.endTime, startTime)
+                            : initialEndTime(startTime)
+                        })
+                      }
+                      min={RULES.earliestStart}
+                      max={RULES.latestStart}
+                      step={30}
+                    />
+                    <EndTimeField
+                      id="package-plan-endTime"
+                      required
+                      disabled={disabled}
+                      startTime={values.startTime || ''}
+                      value={values.endTime || ''}
+                      onChange={(endTime) => change({ endTime })}
+                      sixHourFee={catalog.data?.sixHourFee}
+                      hint={`Events run ${RULES.minEventHours} to ${RULES.maxEventHours} hours.`}
+                    />
+                  </Box>
                 </>
               )}
               {step === 4 && (
@@ -472,7 +456,11 @@ export default function PackagePlanningPanel({
                     occasion={values.occasion}
                     onChange={(styling) => change({ styling })}
                   />
-                  <ReservationColors value={values.styling} onChange={(styling) => change({ styling })} />
+                  <ReservationColors
+                    occasion={values.occasion}
+                    value={values.styling}
+                    onChange={(styling) => change({ styling })}
+                  />
                   <TextField
                     label="Design notes (optional)"
                     value={values.styling.notes || ''}

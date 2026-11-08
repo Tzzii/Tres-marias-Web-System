@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PesoInput } from '@tm/shared';
 import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material';
 import { OCCASIONS, RULES, SERVICE_TYPES, RENTAL_SERVICE, isRental, includesFood } from '@tm/shared/services/config.js';
 import {
@@ -306,7 +307,13 @@ export default function AssistantReservationFields({ step, draft, catalog, disab
               onChange={(styling) => change({ styling })}
             />
           )}
-          {step === 'colors' && <ReservationColors value={value.styling} onChange={(styling) => change({ styling })} />}
+          {step === 'colors' && (
+            <ReservationColors
+              occasion={draft.occasion}
+              value={value.styling}
+              onChange={(styling) => change({ styling })}
+            />
+          )}
           {step === 'menu' && (
             <ReservationMenu
               value={value.menu || {}}
@@ -341,12 +348,10 @@ export default function AssistantReservationFields({ step, draft, catalog, disab
           )}
           {step === 'budget' && (
             <>
-              <TextField
+              <PesoInput
                 label="Target budget"
-                type="number"
                 value={value.budget}
                 onChange={(e) => change({ budget: e.target.value })}
-                inputProps={{ min: 1, max: 10000000, step: 1 }}
                 size="small"
               />
               <TextField

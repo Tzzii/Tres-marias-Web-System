@@ -96,6 +96,56 @@ export function SelectField({ options, placeholder, ...props }) {
   );
 }
 
+/** Whole-peso input: formatted for display, plain digits for existing validation and pricing. */
+export function PesoInput({ value, onChange, InputProps, inputProps, ...props }) {
+  const input = useRef(null);
+  const caret = useRef(null);
+  const raw = String(value ?? '');
+  const display = raw.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  useLayoutEffect(() => {
+    if (caret.current !== null && input.current && document.activeElement === input.current) {
+      input.current.setSelectionRange(caret.current, caret.current);
+    }
+    caret.current = null;
+  });
+  return (
+    <TextField
+      {...props}
+      inputRef={input}
+      type="text"
+      value={display}
+      inputProps={{ ...inputProps, inputMode: 'numeric' }}
+      InputProps={{ ...InputProps, startAdornment: <InputAdornment position="start">₱</InputAdornment> }}
+      onKeyDown={(event) => {
+        const field = event.target;
+        const position = field.selectionStart;
+        if (position !== field.selectionEnd) return;
+        // Delete a digit along with its neighbouring separator so the comma cannot trap the cursor.
+        if (event.key === 'Backspace' && field.value[position - 1] === ',') {
+          field.setSelectionRange(position - 2, position);
+        } else if (event.key === 'Delete' && field.value[position] === ',') {
+          field.setSelectionRange(position, position + 2);
+        }
+      }}
+      onChange={(event) => {
+        const typed = event.target.value;
+        const digits = typed.replace(/[₱,\s]/g, '');
+        if (!/^\d*$/.test(digits)) return;
+        const before = typed.slice(0, event.target.selectionStart ?? typed.length).replace(/\D/g, '').length;
+        const formatted = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        let position = 0;
+        let count = 0;
+        while (position < formatted.length && count < before) {
+          if (/\d/.test(formatted[position])) count += 1;
+          position += 1;
+        }
+        caret.current = position;
+        onChange?.({ target: { value: digits } });
+      }}
+    />
+  );
+}
+
 // Where the cursor sits in "917 123 4567" after the first `count` digits (the spaces come after the 3rd and 6th)
 const mobileCaret = (count) => count + (count > 3 ? 1 : 0) + (count > 6 ? 1 : 0);
 

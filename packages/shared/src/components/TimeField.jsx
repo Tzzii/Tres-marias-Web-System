@@ -83,7 +83,7 @@ function ClockSelect({
   // Change one part and keep the rest; if that combination isn't pickable, fall back to the closest slot.
   // With hourPicksMeridiem a new hour is looked up in either AM or PM, so its own AM/PM comes with it.
   const pick = (patch) => {
-    const want = { hour, minute, meridiem, ...patch };
+    const want = { hour, minute, meridiem: shownMeridiem, ...patch };
     const sameHalf = (s) => (hourPicksMeridiem && patch.hour) || s.meridiem === want.meridiem;
     const match =
       slots.find((s) => sameHalf(s) && s.hour === want.hour && s.minute === want.minute) ||

@@ -321,13 +321,43 @@ try {
     await panel.getByRole('button', { name: 'Catering only', exact: true }).click();
     await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
     await panel.getByLabel('How many guests?', { exact: true }).fill('100');
-    await panel.getByLabel('Total event budget (₱)', { exact: true }).fill('100000');
+    const budgetField = panel.getByLabel('Total event budget (₱)', { exact: true });
+    await budgetField.fill('200000');
+    assert.equal(await budgetField.inputValue(), '200,000');
+    assert.ok((await budgetField.locator('..').innerText()).includes('₱'));
+    await budgetField.fill('₱100,000');
+    assert.equal(await budgetField.inputValue(), '100,000');
+    await budgetField.evaluate((input) => {
+      input.focus();
+      input.setSelectionRange(4, 4);
+    });
+    await budgetField.press('Backspace');
+    assert.equal(await budgetField.inputValue(), '10,000');
+    await budgetField.fill('');
+    assert.equal(await budgetField.inputValue(), '');
+    await budgetField.fill('100000');
     await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
     await panel.getByLabel('Occasion', { exact: true }).selectOption('Other');
     await panel.getByLabel('Your occasion', { exact: true }).fill('Baby shower');
     await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
     assert.equal(offline.state.draft.occasionOther, 'Baby shower');
     assert.equal(offline.state.draft.budget, 100000);
+    assert.equal(await panel.getByRole('grid').count(), 1, 'Use the inline Book an Event calendar');
+    assert.equal(await panel.getByRole('combobox', { name: /^(Start|End) time —/ }).count(), 6);
+    await panel.getByRole('button', { name: 'Next month', exact: true }).click();
+    await panel.locator('[role="gridcell"]:not([disabled])').first().click();
+    const pickTimePart = async (label, option) => {
+      await panel.getByRole('combobox', { name: label, exact: true }).click();
+      await offline.page.getByRole('option', { name: option, exact: true }).click();
+    };
+    await pickTimePart('Start time — Hour', '10');
+    await pickTimePart('Start time — Minutes', '30');
+    await pickTimePart('End time — Hour', '12');
+    await pickTimePart('End time — Minutes', '30');
+    await panel.getByRole('button', { name: 'Save and continue', exact: true }).click();
+    assert.equal(offline.state.draft.startTime, '10:30');
+    assert.equal(offline.state.draft.endTime, '12:30');
+    await panel.getByRole('button', { name: 'Back', exact: true }).click();
     if (mode === 'dark') {
       const color = await panel.evaluate((element) => getComputedStyle(element).backgroundColor);
       assert.ok(
@@ -341,7 +371,7 @@ try {
     assert.ok(await offline.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await offline.page.screenshot({ path: path.join(output, `planning-${mode}-mobile.png`), fullPage: true });
     await offline.page.reload({ waitUntil: 'networkidle' });
-    await offline.page.getByLabel('Event date', { exact: true }).waitFor();
+    await offline.page.getByText('Theme and colors', { exact: true }).waitFor();
     assert.equal(offline.state.generates, 0);
     assert.equal(offline.state.paid, 0);
     assert.deepEqual(offline.errors, []);
@@ -363,6 +393,31 @@ try {
     );
     await offline.browserContext.close();
   }
+
+  const styling = await fixture(browser, {
+    draft: { ...context, planningStarted: true, planningMode: 'custom', occasion: 'Debut', discussed: [] }
+  });
+  await styling.page.goto(`${base}/portal/ai-budgeting`, { waitUntil: 'networkidle' });
+  const themes = styling.page.getByRole('group', { name: 'Recommended themes for Debut', exact: true });
+  assert.equal(await themes.getByRole('button', { name: 'Masquerade', exact: true }).count(), 1);
+  assert.equal(await themes.getByRole('button', { name: 'Graduation', exact: true }).count(), 0);
+  await styling.page.getByText('Recommended color schemes for Debut', { exact: true }).waitFor();
+  await themes.getByRole('button', { name: 'Enchanted Garden', exact: true }).click();
+  await styling.page.getByText('Recommended color schemes for Enchanted Garden', { exact: true }).waitFor();
+  await styling.page.getByRole('button', { name: 'Back', exact: true }).click();
+  await styling.page.getByRole('button', { name: 'Back', exact: true }).click();
+  await styling.page.getByLabel('Occasion', { exact: true }).selectOption('Christening');
+  await styling.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
+  await styling.page.getByRole('button', { name: 'Save and continue', exact: true }).click();
+  const christening = styling.page.getByRole('group', { name: 'Recommended themes for Christening', exact: true });
+  await christening.getByRole('button', { name: 'Baby Angels and Clouds', exact: true }).click();
+  await styling.page.getByText('Recommended color schemes for Baby Angels and Clouds', { exact: true }).waitFor();
+  assert.equal(await christening.getByRole('button', { name: 'Masquerade', exact: true }).count(), 0);
+  assert.equal(styling.state.generates, 0);
+  assert.equal(styling.state.paid, 0);
+  assert.deepEqual(styling.errors, []);
+  passed.push('occasion-specific theme groups and palettes update when the customer changes occasion or theme');
+  await styling.browserContext.close();
 
   const handoff = await fixture(browser, {
     draft: {

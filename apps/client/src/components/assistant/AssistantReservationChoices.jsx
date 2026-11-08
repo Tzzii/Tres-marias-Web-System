@@ -63,24 +63,35 @@ export function ReservationPackages({ catalog, value, onChange, disabled }) {
 
 export function ReservationThemes({ value, occasion, onChange }) {
   const { popular, others } = themesFor(occasion);
+  const buttons = (themes) =>
+    themes.map((theme) => (
+      <Button
+        key={theme}
+        type="button"
+        variant={value.theme === theme ? 'contained' : 'outlined'}
+        aria-pressed={value.theme === theme}
+        onClick={() => onChange({ ...value, theme, themeOther: theme === THEME_OTHER ? value.themeOther || '' : '' })}
+        sx={{ textTransform: 'none', fontSize: 12 }}
+      >
+        {theme}
+      </Button>
+    ));
   return (
-    <Stack spacing={1.5}>
-      {popular.length > 0 && <Typography sx={{ fontSize: 12 }}>Popular for {occasion}</Typography>}
-      <Box className="tm-assistant-choice-grid" role="group" aria-label="Event themes">
-        {[...popular, ...others, THEME_OTHER, THEME_UNDECIDED].map((theme) => (
-          <Button
-            key={theme}
-            type="button"
-            variant={value.theme === theme ? 'contained' : 'outlined'}
-            aria-pressed={value.theme === theme}
-            onClick={() =>
-              onChange({ ...value, theme, themeOther: theme === THEME_OTHER ? value.themeOther || '' : '' })
-            }
-            sx={{ textTransform: 'none', fontSize: 12 }}
-          >
-            {theme}
-          </Button>
-        ))}
+    <Stack spacing={1.5} role="group" aria-label="Event themes">
+      {popular.length > 0 && (
+        <>
+          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>Recommended themes for {occasion}</Typography>
+          <Box className="tm-assistant-choice-grid" role="group" aria-label={`Recommended themes for ${occasion}`}>
+            {buttons(popular)}
+          </Box>
+          <Typography sx={{ fontSize: 12 }}>More themes — you can still choose a different style.</Typography>
+        </>
+      )}
+      <Box className="tm-assistant-choice-grid" role="group" aria-label="More themes">
+        {buttons(others)}
+      </Box>
+      <Box className="tm-assistant-choice-grid" role="group" aria-label="Other theme options">
+        {buttons([THEME_OTHER, THEME_UNDECIDED])}
       </Box>
       {value.theme === THEME_OTHER && (
         <TextField
@@ -96,28 +107,48 @@ export function ReservationThemes({ value, occasion, onChange }) {
   );
 }
 
-export function ReservationColors({ value, onChange }) {
-  const schemes = themeColorSchemes(value.theme);
+export function ReservationColors({ value, occasion, onChange }) {
+  const themeSchemes = themeColorSchemes(value.theme);
+  const occasionSchemes = themesFor(occasion).popular.flatMap((theme) =>
+    themeColorSchemes(theme)
+      .slice(0, 1)
+      .map((scheme) => ({ ...scheme, theme }))
+  );
+  const schemes = themeSchemes.length ? themeSchemes : occasionSchemes;
+  const source = themeSchemes.length ? value.theme : occasion;
   return (
     <Stack spacing={1.5}>
       {schemes.length > 0 && (
         <>
-          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>Recommended color schemes for {value.theme}</Typography>
+          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>Recommended color schemes for {source}</Typography>
           {schemes.map((scheme) => (
             <Button
-              key={scheme.label}
+              key={`${scheme.theme || value.theme}:${scheme.label}`}
               type="button"
               variant="outlined"
-              onClick={() => onChange({ ...value, colors: scheme.colors })}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  ...(scheme.theme ? { theme: scheme.theme, themeOther: '' } : {}),
+                  colors: scheme.colors
+                })
+              }
               sx={{ justifyContent: 'flex-start', gap: 1, flexWrap: 'wrap', textTransform: 'none', fontSize: 12 }}
             >
               {scheme.colors.map((color) => (
                 <ColorSwatch key={color.hex} color={color} size={22} />
               ))}
-              {scheme.label}
+              {scheme.theme ? `${scheme.theme} — ${scheme.label}` : scheme.label}
             </Button>
           ))}
         </>
+      )}
+      {schemes.length > 0 && (
+        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+          {themeSchemes.length
+            ? 'These palettes match your selected theme. Choose one to replace your current colors, or customize below.'
+            : `These palettes come from themes recommended for ${occasion}. Choosing one applies its theme and colors.`}
+        </Typography>
       )}
       <ColorMotifPicker
         id="assistant-color-motif"
