@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.49.1**
+**System version: 1.50.2**
 
 The AI assistant enforces business scope on the server before answering or using booking tools, then independently checks the generated reply before saving or speaking it. Clear entertainment questions receive a fixed business redirect; mixed requests may continue only with a verbatim business excerpt. Unclear or failed checks return clarification. Rejected replies cannot update the booking draft or publish generated cards. Classifier calls share the existing spending controls and turn timeout; semantic accuracy still requires human-reviewed model evaluation.
 
@@ -18,7 +18,7 @@ New **Buffet and Catering** requests use inclusive per-person pricing: guest cou
 
 Custom planning now collects service, event name/occasion, guests/budget and schedule before reviewing setup equipment. Customers explicitly choose offered guest chairs and answer each optional equipment question. Guest dining essentials follow the guest count; buffet food warmers follow the completed four-dish menu. Existing packages and approved recipes are reference sources for newly assembled custom snapshots, not the customer recommendations themselves. Administrators can mark reference components optional and enter an approved adjustment price per piece. For inclusive buffet pricing, the first applicable approved reference defines the standard setup and takes priority for per-item adjustment rates, so identical resulting setups cannot get different discounts from different references. Quantity additions/removals recalculate the estimate using those rates; missing rates remain pending quotation. Changing the service, guest count or menu requires a fresh setup review. The system returns three distinct options when enough approved combinations exist and clearly explains when fewer are available.
 
-The **Package and Budget Recommendation** flow starts at **Plan an Event**. Customers with a package in mind continue to the existing booking form; customers who need a custom package use the dedicated AI Budgeting & Package page to provide service, guests, budget, schedule and preferences. The AI Assistant routes construction/customization requests there and cannot generate packages or display the custom-building form. General questions about existing packages and budgets are answered in chat with a referral for further inquiry; explicit reservations keep their existing flow. The system assembles complete proposals from approved setup recipes and current catalog items, including combinations that do not match a named package. Customers compare inclusions, menu, optional services, pending charges and calculated estimates, then explicitly choose a proposal for review in the booking form or chat. Editing reviewed financial selections requires a fresh package review.
+The **Package and Budget Recommendation** flow starts at **Plan an Event**. Customers with a package in mind continue to the existing booking form; customers who need a custom package use the dedicated Budget recommendation & Package generator page to provide service, guests, budget, schedule and preferences. The AI Assistant routes construction/customization requests there and cannot generate packages or display the custom-building form. General questions about existing packages and budgets are answered in chat with a referral for further inquiry; explicit reservations keep their existing flow. The system assembles complete proposals from approved setup recipes and current catalog items, including combinations that do not match a named package. Customers compare inclusions, menu, optional services, pending charges and calculated estimates, then explicitly choose a proposal for review in the booking form or chat. Editing reviewed financial selections requires a fresh package review.
 
 Administrators configure **Package recommendation rules** in Packages before enabling generation. Rules explicitly approve source setup components, fixed/per-guest quantities, service eligibility, guest ranges, compatible additional services and catering-only setup prices. Buffet food and required standard setup retain inclusive per-person pricing; unknown charges never count as a confirmed budget fit. Existing **Additional Charges → Budget rules** remain the approval source for optional removal, reduction, replacement and dependencies. Missing permissions grant no adjustments. Equipment, staffing, dietary feasibility and final arrangements remain subject to team review; estimates do not hold a slot or stock.
 
@@ -511,6 +511,16 @@ schemes and color controls are shared with the booking form. Customers can edit 
 review the current estimate and explicitly skip optional questions. Selection controls, reviewing and
 uploads do not consume an AI question; natural-language follow-ups do.
 
+The assistant can read a public monthly catering-calendar overview for an explicit month and year.
+It distinguishes dates with scheduled events and remaining openings, fully booked dates, blocked
+dates, and open dates, using the existing calendar capacity/overlap/buffer rules. Pending requests
+and equipment rentals do not take catering event slots. Historical and minimum-notice dates are
+marked separately from calendar status. The tool returns dates, counts and fixed status labels,
+never customer identities, reservation references, payment data or internal block notes/reasons.
+Ambiguous years must be clarified. A monthly overview does not start a reservation, hold a slot,
+or establish equipment/staff availability; customers still need an exact date/time check. Calendar
+failures return an unavailable response rather than an invented empty month.
+
 Date selection checks the calendar immediately; complete times are checked for overlap, buffers,
 blocked dates and capacity. **Find other schedules** offers up to three nearest same-day times with
 the same duration and up to three later dates within fourteen days, optionally weekends only.
@@ -524,7 +534,7 @@ routes and are never sent to the model. Submission transfers the photos to the r
 unsubmitted conversation uploads are cleaned up; reservation photos are retained. Incomplete plans
 can still continue to the existing booking form.
 
-Customers can cancel an unfinished custom package on AI Budgeting & Package, or a guided reservation
+Customers can cancel an unfinished custom package on Budget recommendation & Package generator, or a guided reservation
 in AI Assistant, using that page's visible cancel control. A confirmation lets them keep planning or end the active AI session and start fresh.
 Cancellation preserves the shared AI allowance, independently saved booking forms and submitted
 reservations; it makes no paid AI call. The previous session follows the normal retention policy.
@@ -538,6 +548,15 @@ conversation while preserving the shared question allowance. Activity records id
 and that the request came through AI Assistant. Buffet target budgets are preserved in the existing
 budget snapshot. The administrator still prepares the final quotation and confirms arrangements;
 personal reservation/payment lookups and administrative AI actions are outside the assistant.
+
+Published package cards in AI replies use a responsive two-column grid on wide page views and a
+single column on mobile/floating chat, with balanced photo previews, clear names, catalog guest
+counts and consistently sized detail/booking actions. Prices are not inferred from card layout.
+
+Multi-item AI replies use one item per plain-text bullet, numbered lines for ordered steps, and
+blank lines between the introduction, choices, shared notes and final question. The chat renders
+these as spaced semantic lists/paragraphs in both page and floating views, preserving whole-word
+reveal and treating HTML as inert text. Concise single-fact replies remain ordinary paragraphs.
 
 Optional voice provides tap-to-record questions (up to 30 seconds), editable transcripts and spoken
 replies. Text and voice share one question allowance. Existing-answer playback uses no new question.

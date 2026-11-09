@@ -705,34 +705,126 @@ export default function AssistantPanel({
                     )}
                     {message.response.navigation?.path === ASSISTANT_BUDGET_PATH && (
                       <Button component={RouterLink} to={budgetPath} sx={{ mt: 1 }}>
-                        Open AI Budgeting &amp; Package
+                        Open Budget recommendation &amp; Package generator
                       </Button>
                     )}
-                    {message.response.packages
-                      ?.filter((p) => /^[a-z0-9-]+$/.test(p.slug))
-                      .map((pkg) => (
-                        <Card
-                          key={pkg.id}
-                          variant="outlined"
-                          sx={{ mt: 1.5, borderRadius: 3, borderColor: '#e8dcc6', boxShadow: 'none' }}
+                    {message.response.packages?.some((pkg) => /^[a-z0-9-]+$/.test(pkg.slug)) && (
+                      <Box sx={{ mt: 2.5 }}>
+                        <Typography sx={{ mb: 1.5, fontSize: 14, fontWeight: 700 }}>Packages to explore</Typography>
+                        <Box
+                          className="tm-assistant-package-grid"
+                          role="list"
+                          aria-label="Suggested packages"
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: fullPage
+                              ? { xs: 'minmax(0, 1fr)', lg: 'repeat(2, minmax(0, 1fr))' }
+                              : 'minmax(0, 1fr)',
+                            gap: 2,
+                            alignItems: 'stretch'
+                          }}
                         >
-                          <PackagePhoto pkg={pkg} height={120} thumbnail />
-                          <CardContent sx={{ p: 2 }}>
-                            <Typography variant="subtitle2">{pkg.name}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {pkg.description}
-                            </Typography>
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                              <Button size="small" component={RouterLink} to={`/packages/${pkg.slug}`}>
-                                View package
-                              </Button>
-                              <Button size="small" onClick={() => review({ packageSlug: pkg.slug })}>
-                                Continue to booking
-                              </Button>
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      ))}
+                          {message.response.packages
+                            .filter((pkg) => /^[a-z0-9-]+$/.test(pkg.slug))
+                            .map((pkg) => (
+                              <Card
+                                key={pkg.id}
+                                component="article"
+                                role="listitem"
+                                aria-labelledby={`assistant-package-${message.id}-${pkg.id}`}
+                                variant="outlined"
+                                sx={{
+                                  minWidth: 0,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  overflow: 'hidden',
+                                  borderRadius: 2.5,
+                                  borderColor: 'divider',
+                                  bgcolor: 'background.paper',
+                                  boxShadow: '0 4px 16px rgba(35, 28, 19, 0.04)'
+                                }}
+                              >
+                                <PackagePhoto pkg={pkg} height={{ xs: 180, sm: 200 }} thumbnail />
+                                <CardContent
+                                  sx={{
+                                    p: { xs: 2, sm: 2.5 },
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    '&:last-child': { pb: { xs: 2, sm: 2.5 } }
+                                  }}
+                                >
+                                  <Stack
+                                    direction="row"
+                                    alignItems="flex-start"
+                                    justifyContent="space-between"
+                                    spacing={1}
+                                    sx={{ mb: 1.25 }}
+                                  >
+                                    <Typography
+                                      component="h3"
+                                      variant="h6"
+                                      id={`assistant-package-${message.id}-${pkg.id}`}
+                                      sx={{
+                                        fontSize: 18,
+                                        fontWeight: 700,
+                                        lineHeight: 1.35,
+                                        overflowWrap: 'anywhere',
+                                        minWidth: 0
+                                      }}
+                                    >
+                                      {pkg.name}
+                                    </Typography>
+                                    {Number(pkg.guests) > 0 && (
+                                      <Chip
+                                        label={`Up to ${Number(pkg.guests).toLocaleString('en-PH')} guests`}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ flexShrink: 0, fontSize: 11, height: 26 }}
+                                      />
+                                    )}
+                                  </Stack>
+                                  <Typography
+                                    component="p"
+                                    variant="body1"
+                                    color="text.secondary"
+                                    sx={{ fontSize: 13.5, lineHeight: 1.7, mb: 2, overflowWrap: 'anywhere' }}
+                                  >
+                                    {pkg.description}
+                                  </Typography>
+                                  <Box
+                                    sx={{
+                                      mt: 'auto',
+                                      pt: 0.5,
+                                      display: 'grid',
+                                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                                      gap: 1
+                                    }}
+                                  >
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      component={RouterLink}
+                                      to={`/packages/${pkg.slug}`}
+                                      sx={{ minHeight: 44, px: 1, fontSize: 12 }}
+                                    >
+                                      View package
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      variant="contained"
+                                      onClick={() => review({ packageSlug: pkg.slug })}
+                                      sx={{ minHeight: 44, px: 1, fontSize: 12 }}
+                                    >
+                                      Continue to booking
+                                    </Button>
+                                  </Box>
+                                </CardContent>
+                              </Card>
+                            ))}
+                        </Box>
+                      </Box>
+                    )}
                     {message.response.estimates?.map((estimate) => (
                       <Card
                         key={estimate.id}
@@ -830,7 +922,7 @@ export default function AssistantPanel({
           )}
           {conversation?.bookingDraft?.planningMode === 'custom' && !conversation.selectedPackageProposal && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Continue building your package on AI Budgeting &amp; Package.
+              Continue building your package on Budget recommendation &amp; Package generator.
               <Button component={RouterLink} to={budgetPath}>
                 Continue package plan
               </Button>

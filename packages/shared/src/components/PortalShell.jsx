@@ -207,7 +207,7 @@ export default function PortalShell({
                 flex: 1,
                 minWidth: 0,
                 textAlign: 'left',
-                whiteSpace: 'nowrap',
+                whiteSpace: item.wrapLabel ? 'normal' : 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
               }}

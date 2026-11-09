@@ -76,3 +76,37 @@ export function buildCelebrationSummary(conversation) {
     hasPendingCharges
   };
 }
+
+/** Parse plain-text reply structure without interpreting HTML, links or executable markup. */
+export function assistantAnswerBlocks(answer = '') {
+  const blocks = [];
+  let current = null;
+  for (const line of String(answer).replace(/\r\n?/g, '\n').split('\n')) {
+    if (!line.trim()) {
+      current = null;
+      continue;
+    }
+    const item = line.match(/^\s*(?:([-*•])|([0-9]+)[.)])\s+(.*)$/);
+    if (item) {
+      const ordered = Boolean(item[2]);
+      const start = ordered ? Number(item[2]) : undefined;
+      if (
+        current?.type !== 'list' ||
+        current.ordered !== ordered ||
+        (ordered && start !== current.start + current.items.length)
+      ) {
+        current = { type: 'list', ordered, ...(ordered ? { start } : {}), items: [] };
+        blocks.push(current);
+      }
+      current.items.push(item[3]);
+    } else if (current?.type === 'list' && /^\s+/.test(line)) {
+      current.items[current.items.length - 1] += `\n${line.trim()}`;
+    } else if (current?.type === 'paragraph') {
+      current.text += `\n${line.trim()}`;
+    } else {
+      current = { type: 'paragraph', text: line.trim() };
+      blocks.push(current);
+    }
+  }
+  return blocks;
+}

@@ -286,5 +286,17 @@
     "question": "Puwede Avengers?",
     "tools": [],
     "review": "Clarify whether the visitor means an event theme; do not list characters or assume an offering."
+  },
+  {
+    "id": "calendar-month-taglish",
+    "question": "Anong dates sa November 2090 ang may naka-reserve na?",
+    "tools": ["monthly_calendar_overview"],
+    "review": "Public calendar inquiry, not private-record lookup. Use the overview and reply in Taglish; do not claim every date with an event is fully booked."
+  },
+  {
+    "id": "calendar-month-ambiguous-year",
+    "question": "Aling mga petsa sa Nobyembre ang may pagdiriwang?",
+    "tools": [],
+    "review": "No year is established. Ask which year in Tagalog before using monthly_calendar_overview; do not guess a year or invent date statuses."
   }
 ]

@@ -309,13 +309,13 @@ try {
     }
   });
   await check.page.goto(`${base}/portal/ai-budgeting`, { waitUntil: 'networkidle' });
-  await check.page.getByRole('heading', { name: 'AI Budgeting & Package', exact: true }).waitFor();
+  await check.page.getByRole('heading', { name: 'Budget recommendation & Package generator', exact: true }).waitFor();
   const sidebarLabels = await check.page
     .locator('.tm-sidebar-link')
     .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
-  assert.equal(sidebarLabels.indexOf('AI Budgeting & Package'), sidebarLabels.indexOf('My Reservations') + 1);
+  assert.equal(sidebarLabels.indexOf('Budget recommendation & Package generator'), sidebarLabels.indexOf('My Reservations') + 1);
   assert.equal(
-    await check.page.getByRole('button', { name: 'AI Budgeting & Package', exact: true }).getAttribute('aria-current'),
+    await check.page.getByRole('button', { name: 'Budget recommendation & Package generator', exact: true }).getAttribute('aria-current'),
     'page'
   );
   assert.equal(

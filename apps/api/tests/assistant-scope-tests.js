@@ -120,7 +120,7 @@ for (const text of [
     const result = await h.ask(text);
     assert.equal(result.navigation?.intent, 'package_build');
     assert.equal(result.navigation?.path, '/portal/ai-budgeting');
-    assert.match(result.answer, /AI Budgeting/);
+    assert.match(result.answer, /Budget recommendation & Package generator/);
     assert.equal(result.bookingDraft, undefined);
     assert.deepEqual(result.packageProposals, []);
     assert.equal(h.toolRuns, 0);
@@ -139,7 +139,7 @@ test('budget inquiry answers first and appends the budgeting referral without au
   const h = harness({ generate: () => answer('I can compare our published packages for your guest count.') });
   const result = await h.ask('Ano ang magandang package for 50000?');
   assert.match(result.answer, /compare our published packages/);
-  assert.match(result.answer, /AI Budgeting/);
+  assert.match(result.answer, /Budget recommendation & Package generator/);
   assert.equal(result.navigation?.intent, 'budget_inquiry');
   assert.equal(result.navigation?.automatic, false);
 });
@@ -189,13 +189,13 @@ test('assistant tool capability cannot generate custom options even with a suppl
     }
   });
   const result = await tools.run('generate_package_proposals', {});
-  assert.match(result.error, /AI Budgeting/);
+  assert.match(result.error, /Budget recommendation & Package generator/);
   assert.equal(generated, false);
   const changed = await tools.run('prepare_reservation', {
     patch: { planningMode: 'custom', planningStarted: true },
     clearFields: []
   });
-  assert.match(changed.error, /AI Budgeting/);
+  assert.match(changed.error, /Budget recommendation & Package generator/);
   assert.deepEqual(tools.bookingDraft, {});
 });
 
@@ -660,7 +660,7 @@ test('one conversation switches English to Tagalog to Taglish and back to Englis
     const [language, text, expected] = turns[current];
     const result = await h.ask(text, history);
     assert.ok(result.answer.startsWith(expected));
-    if (current === 2) assert.match(result.answer, /AI Budgeting & Package/);
+    if (current === 2) assert.match(result.answer, /Budget recommendation & Package generator/);
     const generations = h.requests.filter((request) => request.text.format.name === 'tres_marias_assistant');
     assert.match(generations.at(-1).instructions, new RegExp(`Reply language for THIS turn: ${language}`));
     history.push({ role: 'user', content: text }, { role: 'assistant', content: result.answer });

@@ -255,11 +255,82 @@ const browser = await chromium.launch({
 });
 const results = [];
 try {
+  for (const [label, viewport] of [
+    ['desktop', { width: 1440, height: 1000 }],
+    ['mobile', { width: 390, height: 844 }]
+  ]) {
+    const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+    const state = await fixture(context, true);
+    state.onSend = () => ({
+      answer:
+        'Here are the available packages:\n\n- Petite: up to 60 guests.\n- Classic: up to 100 guests.\n- Premier: up to 150 guests.\n\nFull Service options include helpers.\n\nBuffet pricing includes the standard setup.\n\nHow many guests will attend?',
+      packages: packages.filter((entry) => entry.kind !== 'rental').slice(0, 3),
+      estimates: [],
+      needsAdmin: false
+    });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`${base}/portal/assistant`, { waitUntil: 'networkidle' });
+    await page.getByPlaceholder('Ask about your celebration…').fill('Show the published packages');
+    await page.getByRole('button', { name: 'Send question', exact: true }).click();
+    const reply = page.locator('.tm-assistant-answer').last();
+    await reply.getByText('How many guests will attend?', { exact: true }).waitFor();
+    assert.equal(await reply.locator('ul > li').count(), 3);
+    assert.equal(await reply.locator('p').count(), 4);
+    const packageList = page.getByRole('list', { name: 'Suggested packages', exact: true });
+    assert.equal(await packageList.getByRole('listitem').count(), 3);
+    const packageCards = packageList.getByRole('listitem');
+    const firstCard = await packageCards.nth(0).boundingBox();
+    const secondCard = await packageCards.nth(1).boundingBox();
+    if (label === 'desktop') assert.ok(Math.abs(firstCard.y - secondCard.y) < 2 && secondCard.x > firstCard.x);
+    else assert.ok(secondCard.y > firstCard.y);
+    assert.ok((await packageCards.first().locator('.tm-package-photo-surface').boundingBox()).height >= 160);
+    assert.equal(
+      await packageCards.first().getByRole('link', { name: 'View package', exact: true }).getAttribute('href'),
+      `/packages/${packages.filter((entry) => entry.kind !== 'rental')[0].slug}`
+    );
+    assert.ok(
+      (await packageCards.first().getByRole('button', { name: 'Continue to booking', exact: true }).boundingBox())
+        .height >= 40
+    );
+    await packageCards
+      .first()
+      .getByRole('button', { name: /^Enlarge / })
+      .click();
+    await page.getByRole('dialog').waitFor();
+    await page.getByRole('button', { name: 'Close photo', exact: true }).click();
+
+    assert.ok(
+      await reply
+        .locator('li')
+        .first()
+        .evaluate((element) => parseFloat(getComputedStyle(element).marginBottom) > 0)
+    );
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.screenshot({ path: path.join(output, `assistant-spaced-lists-${label}.png`), fullPage: true });
+    state.onSend = () => ({
+      answer: 'Steps:\n\n1. Choose a package.\n2. Review the date.\n\n<img src=x onerror=alert(1)>',
+      packages: [],
+      estimates: [],
+      needsAdmin: false
+    });
+    await page.getByPlaceholder('Ask about your celebration…').fill('What steps should I follow?');
+    await page.getByRole('button', { name: 'Send question', exact: true }).click();
+    await page.getByText('<img src=x onerror=alert(1)>', { exact: true }).waitFor();
+    assert.equal(await page.locator('.tm-assistant-answer').last().locator('ol > li').count(), 2);
+    assert.equal(await page.locator('.tm-assistant-answer').last().locator('img').count(), 0);
+    assert.deepEqual(errors, []);
+    results.push(
+      `${label}: package bullets, separated notes/question and numbered steps keep readable spacing; HTML stays inert`
+    );
+    await context.close();
+  }
   for (const automatic of [false, true]) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
     const state = await fixture(context, true);
     state.onSend = () => ({
-      answer: 'AI Budgeting & Package can help you customize your package.',
+      answer: 'Budget recommendation & Package generator can help you customize your package.',
       packages: [],
       estimates: [],
       needsAdmin: false,
@@ -274,9 +345,9 @@ try {
     await page.getByRole('button', { name: 'Send question', exact: true }).click();
     if (automatic) {
       await page.waitForURL('**/portal/ai-budgeting');
-      await page.getByRole('heading', { name: 'AI Budgeting & Package', exact: true }).waitFor();
+      await page.getByRole('heading', { name: 'Budget recommendation & Package generator', exact: true }).waitFor();
     } else {
-      await page.getByRole('link', { name: 'Open AI Budgeting & Package', exact: true }).waitFor();
+      await page.getByRole('link', { name: 'Open Budget recommendation & Package generator', exact: true }).waitFor();
       assert.equal(new URL(page.url()).pathname, '/portal/assistant');
     }
     await context.close();
@@ -331,7 +402,7 @@ try {
     const navLabels = await chatPage
       .locator('.tm-sidebar-link')
       .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
-    assert.equal(navLabels.indexOf('AI Assistant'), navLabels.indexOf('AI Budgeting & Package') + 1);
+    assert.equal(navLabels.indexOf('AI Assistant'), navLabels.indexOf('Budget recommendation & Package generator') + 1);
     await chatPage.getByLabel('Your question', { exact: true }).fill('Help me plan my party');
     await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
     await chatPage.locator('.tm-assistant-message--user').getByText('Help me plan my party', { exact: true }).waitFor();

@@ -44,6 +44,9 @@ const schemas = {
     })
     .strict(),
   check_availability: z.object({ date, startTime: time, endTime: time }).strict(),
+  monthly_calendar_overview: z
+    .object({ year: z.number().int().min(2000).max(2100), month: z.number().int().min(1).max(12) })
+    .strict(),
   get_booking_guidance: z.object({}).strict(),
   get_reservation_draft: z.object({}).strict(),
   check_reservation_availability: z.object({}).strict(),
@@ -87,6 +90,10 @@ const parameters = {
     }
   },
   check_availability: { date: string, startTime: string, endTime: string },
+  monthly_calendar_overview: {
+    year: { type: 'integer', minimum: 2000, maximum: 2100 },
+    month: { type: 'integer', minimum: 1, maximum: 12 }
+  },
   get_booking_guidance: {},
   get_reservation_draft: {},
   check_reservation_availability: {},
@@ -116,6 +123,8 @@ const descriptions = {
     'Read current package inclusions. Buffet estimates must use estimate_event; never add a package equipment price on top of an inclusive buffet.',
   estimate_event:
     'Calculate an event estimate using current shared pricing. Ask for missing service type, guests and package. Null dates/times are permitted; unresolved amounts remain pending. Returns an estimate ID and booking selections.',
+  monthly_calendar_overview:
+    'Read public catering calendar statuses for one explicit month (1-12) and year (2000-2100). Use for questions about which dates have scheduled events, are fully booked, blocked or have openings. Never equate has_events with fully_booked. No customer identities, references, private records or notes are returned. Ask for an ambiguous year first. Exact time checks are still required; this does not hold a slot or confirm equipment/staff.',
   check_availability:
     'Check an explicit catering calendar date and half-hour start and end times. For rentals use check_reservation_availability. No reservation is created. Equipment, staffing and transport feasibility are not established by this calendar check.',
   get_booking_guidance:
@@ -132,7 +141,8 @@ const descriptions = {
     'Calculate the saved plan from current system prices, including selected additional services or rental quantities. Ask for missing service/package/guests or rental quantities. Returns a reviewable estimate with the complete current draft; never submits.',
   recommend_budget:
     'Compare up to three published packages against the saved target budget, guest count, service and selections, using the system calculator. Returns known subtotals; pending prices mean final affordability is not established. Never automatically select a recommendation.',
-  generate_package_proposals: 'Unavailable in chat. Refer custom package construction to AI Budgeting & Package.',
+  generate_package_proposals:
+    'Unavailable in chat. Refer custom package construction to Budget recommendation & Package generator.',
   alternative_dates:
     'Check up to fourteen later dates near an explicit preferred date and time range. Returns at most three calendar alternatives; never selects one, reserves a slot or establishes equipment/staff availability.'
 };
@@ -166,6 +176,7 @@ const publicPackage = (p) => ({
 export function createAssistantTools({
   getCatalog = catalogService.getCatalog,
   availability = checkAvailability,
+  calendar = getCalendar,
   rentalAvailability = async (date, startTime) => {
     const map = await getCalendar();
     const reason =
@@ -203,9 +214,86 @@ export function createAssistantTools({
             (bookingDraft.planningMode === 'custom' && !bookingDraft.packageProposalRef)))
       )
         return {
-          error: 'Build or customize packages on the AI Budgeting & Package page.',
+          error: 'Build or customize packages on the Budget recommendation & Package generator page.',
           path: '/portal/ai-budgeting'
         };
+      if (name === 'monthly_calendar_overview') {
+        const raw = await calendar();
+        // Reconstruct only the fields used by shared calendar rules. Never return the original map.
+        if (
+          !raw ||
+          !Number.isInteger(Number(raw.capacity)) ||
+          Number(raw.capacity) < 1 ||
+          Number(raw.capacity) > 10 ||
+          !Array.isArray(raw.blocked) ||
+          !Array.isArray(raw.events) ||
+          !raw.booked ||
+          typeof raw.booked !== 'object' ||
+          Array.isArray(raw.booked) ||
+          !raw.events.every(
+            (event) =>
+              validAssistantDate(event.date) &&
+              /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(event.startTime) &&
+              Number.isFinite(Number(event.hours)) &&
+              Number(event.hours) > 0 &&
+              Number(event.hours) <= 24
+          ) ||
+          !raw.blocked.every((entry) => validAssistantDate(entry.date)) ||
+          !Object.entries(raw.booked).every(
+            ([date, count]) => validAssistantDate(date) && Number.isInteger(Number(count)) && Number(count) >= 0
+          )
+        )
+          throw new ApiError(
+            'ASSISTANT_UNAVAILABLE',
+            'The calendar overview is temporarily unavailable. Please try again later.'
+          );
+        const map = {
+          capacity: Number(raw.capacity),
+          blocked: raw.blocked.map(({ date }) => ({ date, reason: 'Blocked' })),
+          booked: raw.booked,
+          events: raw.events.map(({ date, startTime, hours }) => ({ date, startTime, hours: Number(hours) }))
+        };
+        const prefix = `${args.year}-${String(args.month).padStart(2, '0')}`;
+        const total = new Date(Date.UTC(args.year, args.month, 0)).getUTCDate();
+        const days = Array.from({ length: total }, (_, index) => {
+          const date = `${prefix}-${String(index + 1).padStart(2, '0')}`;
+          const calendarReason = dateUnavailableReason(date, map, { enforceLeadTime: false });
+          const bookingReason = dateUnavailableReason(date, map);
+          const scheduledEventCount = Number(map.booked[date] || 0);
+          const status = map.blocked.some((entry) => entry.date === date)
+            ? 'blocked'
+            : calendarReason === 'Fully booked'
+              ? 'fully_booked'
+              : scheduledEventCount > 0
+                ? 'has_events'
+                : 'open';
+          return {
+            date,
+            status,
+            scheduledEventCount,
+            canRequestBooking: !bookingReason,
+            bookingRestriction:
+              bookingReason === 'Past date'
+                ? 'past'
+                : bookingReason.startsWith('Needs ')
+                  ? 'minimum_notice'
+                  : bookingReason
+                    ? status
+                    : null
+          };
+        });
+        return {
+          year: args.year,
+          month: args.month,
+          days,
+          timezone: 'Asia/Manila',
+          checkedAt: Date.now(),
+          holdsSlot: false,
+          exactTimeCheckRequired: true,
+          scope:
+            'Public catering calendar only. has_events still has calendar openings; fully_booked has none under current rules. Past and minimum-notice dates cannot be requested. Pending requests do not hold slots. Equipment and staffing require separate checks.'
+        };
+      }
       if (name === 'check_reservation_availability') {
         const d = bookingDraft,
           rental = isRental(d.serviceType);
@@ -320,7 +408,7 @@ export function createAssistantTools({
         if (bookingDraft.planningMode === 'custom' && !isRental(bookingDraft.serviceType)) {
           if (name === 'recommend_budget' || !bookingDraft.packageProposalRef)
             return {
-              error: 'Continue on AI Budgeting & Package to build and choose custom options.'
+              error: 'Continue on Budget recommendation & Package generator to build and choose custom options.'
             };
           const option = await readPackageProposal?.(bookingDraft.packageProposalRef);
           if (!option) return { error: 'Review and choose a current custom package option.' };

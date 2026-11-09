@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { assistantAnswerBlocks } from '../../lib/assistantSummary.js';
 
 export default function AssistantAnswer({ answer, animate, fullPage }) {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
@@ -25,19 +26,37 @@ export default function AssistantAnswer({ answer, animate, fullPage }) {
       data-word-reveal={revealing ? 'active' : 'complete'}
       aria-busy={revealing}
     >
-      {text
-        .split(/\n\s*\n/)
-        .filter(Boolean)
-        .map((paragraph, index) => (
+      {assistantAnswerBlocks(text).map((block, index) =>
+        block.type === 'list' ? (
+          <Box
+            component={block.ordered ? 'ol' : 'ul'}
+            start={block.ordered ? block.start : undefined}
+            key={index}
+            sx={{ mt: 0, mb: 2, pl: 3, '& > li': { mb: 0.8, pl: 0.25, overflowWrap: 'anywhere' } }}
+          >
+            {block.items.map((item, itemIndex) => (
+              <Box component="li" key={itemIndex}>
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.8 }}
+                >
+                  {item}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        ) : (
           <Typography
             component="p"
             variant="body2"
             key={index}
-            sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.8 }}
+            sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.8, mt: 0, mb: 1.5 }}
           >
-            {paragraph}
+            {block.text}
           </Typography>
-        ))}
+        )
+      )}
     </Box>
   );
 }

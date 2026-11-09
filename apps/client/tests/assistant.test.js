@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cleanAssistantIntent, ASSISTANT_AUTH } from '../../../packages/shared/src/domain/assistant.js';
 import { encodeQuestionWav } from '../src/lib/assistantAudio.js';
 import { canOpenAssistantSession, createAssistantApi, createAssistantDraftWriter } from '../src/lib/assistantApi.js';
-import { buildCelebrationSummary } from '../src/lib/assistantSummary.js';
+import { assistantAnswerBlocks, buildCelebrationSummary } from '../src/lib/assistantSummary.js';
 import { readIntent, saveIntent, saveAssistantIntent } from '../src/lib/booking.js';
 
 function replaceStorage(local, session) {
@@ -280,4 +280,30 @@ test('celebration summary tracks progress, catalog or custom package names, and 
   assert.equal(byLabel['Reference photos'].filled, true);
   assert.equal(catalogDraft.knownEstimateTotal, 78000);
   assert.equal(catalogDraft.hasPendingCharges, true);
+});
+
+test('assistant answer formatting separates introductions, bullet choices, notes and follow-up questions', () => {
+  const blocks = assistantAnswerBlocks(
+    'Available packages:\n\n- Petite: up to 60 guests.\n- Classic: up to 100 guests.\n- Premier: up to 150 guests.\n\nFull Service options include helpers.\n\nHow many guests will attend?'
+  );
+  assert.deepEqual(
+    blocks.map((block) => block.type),
+    ['paragraph', 'list', 'paragraph', 'paragraph']
+  );
+  assert.equal(blocks[1].ordered, false);
+  assert.equal(blocks[1].items.length, 3);
+  assert.equal(blocks[1].items[0], 'Petite: up to 60 guests.');
+  assert.equal(blocks[3].text, 'How many guests will attend?');
+});
+
+test('assistant formatting supports numbered steps, Taglish, CRLF and indented continuations without interpreting HTML', () => {
+  const blocks = assistantAnswerBlocks(
+    'Mga steps:\r\n1. Piliin ang package.\r\n   Review muna ang inclusions.\r\n2. I-check ang date.\r\n\r\n<script>alert(1)</script>'
+  );
+  assert.equal(blocks[1].ordered, true);
+  assert.equal(blocks[1].start, 1);
+  assert.deepEqual(blocks[1].items, ['Piliin ang package.\nReview muna ang inclusions.', 'I-check ang date.']);
+  assert.equal(blocks[2].text, '<script>alert(1)</script>');
+  assert.deepEqual(assistantAnswerBlocks('A short answer.'), [{ type: 'paragraph', text: 'A short answer.' }]);
+  assert.deepEqual(assistantAnswerBlocks(''), []);
 });

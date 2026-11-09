@@ -140,7 +140,8 @@ export default function PortalLayout() {
     },
     {
       key: 'ai-budgeting',
-      label: 'AI Budgeting & Package',
+      label: 'Budget recommendation & Package generator',
+      wrapLabel: true,
       icon: AutoAwesomeOutlinedIcon,
       section: 'My events',
       to: '/portal/ai-budgeting',

@@ -9,7 +9,7 @@ import PackagePlanningPanel from '../../components/assistant/PackagePlanningPane
 import '../../components/assistant/assistantPanel.css';
 
 export default function AiBudgetingPage() {
-  useDocumentTitle('AI Budgeting & Package');
+  useDocumentTitle('Budget recommendation & Package generator');
   const { user } = useAuth();
   const [params] = useSearchParams();
   const [conversation, setConversation] = useState(null);
@@ -52,7 +52,7 @@ export default function AiBudgetingPage() {
   return (
     <Box>
       <PageHeader
-        title="AI Budgeting & Package"
+        title="Budget recommendation & Package generator"
         subtitle="Plan your budget, build a package, and compare options based on current catalog prices."
       />
       <Stack spacing={1} sx={{ maxWidth: 960, mx: 'auto', mt: 1.5 }}>

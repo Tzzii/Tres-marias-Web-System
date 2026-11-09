@@ -197,6 +197,8 @@ test('provider completes a tool loop, validates returned cards and accounts for 
     reservations[1][1],
     Math.ceil((Buffer.byteLength(JSON.stringify(calls[0])) + 4096) * 0.1 + settings.maxOutputTokens * 0.5)
   );
+  assert.match(calls[0].instructions, /one item per line/);
+  assert.match(calls[0].instructions, /Separate the introduction, list/);
   assert.equal(calls[0].store, false);
   assert.equal(calls[0].model, 'gpt-6-luna');
   assert.equal(
@@ -390,7 +392,9 @@ test('live evaluation scenarios cover both languages, prices, schedules, privacy
     'scope-anime-taglish',
     'scope-theme-avengers',
     'scope-theme-anime',
-    'scope-mixed'
+    'scope-mixed',
+    'calendar-month-taglish',
+    'calendar-month-ambiguous-year'
   ])
     assert.ok(cases.some((c) => c.id === id));
 });
@@ -657,3 +661,76 @@ test('duplicate realtime session acknowledgements can create only one paid speec
   assert.equal(settled.length, 1);
   assert.ok(settled[0][1] > 0);
 });
+
+for (const [question, response] of [
+  [
+    'Which November 2090 dates already have bookings?',
+    'November 2090 has calendar openings. What exact date and times would you like checked?'
+  ],
+  [
+    'Aling mga petsa sa Nobyembre 2090 ang may nakaiskedyul na pagdiriwang?',
+    'May mga bukas na iskedyul sa Nobyembre 2090. Anong petsa at oras ang gusto ninyo?'
+  ],
+  [
+    'What dates sa November 2090 ang may naka-reserve na?',
+    'May calendar openings sa November 2090. Anong exact date at time ang gusto mong i-check?'
+  ]
+]) {
+  test(`monthly calendar tool completes the provider loop for a public inquiry: ${question}`, async () => {
+    const calls = [];
+    let reads = 0;
+    const provider = providerWithScopeFixtures({
+      settings,
+      client: {
+        responses: {
+          create: async (body) => {
+            calls.push(structuredClone(body));
+            if (calls.length === 1)
+              return {
+                status: 'completed',
+                output: [
+                  {
+                    type: 'function_call',
+                    call_id: 'monthly-calendar',
+                    name: 'monthly_calendar_overview',
+                    arguments: JSON.stringify({ year: 2090, month: 11 })
+                  }
+                ],
+                usage: { input_tokens: 100, output_tokens: 20 }
+              };
+            return {
+              status: 'completed',
+              output: [],
+              usage: { input_tokens: 100, output_tokens: 20 },
+              output_text: JSON.stringify({ answer: response, packageIds: [], estimateIds: [], needsAdmin: false })
+            };
+          }
+        }
+      }
+    });
+    const tools = createAssistantTools({
+      calendar: async () => {
+        reads++;
+        return { capacity: 2, blocked: [], booked: {}, events: [] };
+      },
+      getCatalog: async () => {
+        throw Error('Monthly overview must not load the catalog');
+      }
+    });
+    const result = await provider.answer({
+      text: question,
+      history: [],
+      tools,
+      spend: { reserve: async () => 'fixture', settle: async () => {} }
+    });
+    assert.equal(result.answer, response);
+    assert.equal(reads, 1);
+    assert.ok(calls[0].tools.some((tool) => tool.name === 'monthly_calendar_overview'));
+    assert.match(calls[0].instructions, /not private-record lookups/);
+    assert.match(calls[0].instructions, /otherwise ask which year/);
+    const output = calls[1].input.find((entry) => entry.type === 'function_call_output');
+    assert.equal(JSON.parse(output.output).days.length, 30);
+    assert.equal(JSON.parse(output.output).holdsSlot, false);
+    assert.deepEqual(tools.bookingDraft, {});
+  });
+}
