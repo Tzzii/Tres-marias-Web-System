@@ -406,7 +406,7 @@ try {
     await chatPage.getByLabel('Your question', { exact: true }).fill('Help me plan my party');
     await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
     await chatPage.locator('.tm-assistant-message--user').getByText('Help me plan my party', { exact: true }).waitFor();
-    await chatPage.getByRole('status').filter({ hasText: 'AI is replying' }).waitFor();
+    await chatPage.getByRole('status').filter({ hasText: 'Replying...' }).waitFor();
     assert.equal(await chatPage.getByLabel('Your question', { exact: true }).inputValue(), '');
     releaseReply();
     await chatPage.locator('[data-word-reveal="active"]').waitFor();

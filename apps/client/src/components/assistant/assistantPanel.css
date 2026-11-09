@@ -1066,7 +1066,39 @@
   }
 }
 
+.tm-assistant-reply-food {
+  width: 42px;
+  height: 36px;
+  flex: 0 0 auto;
+  margin-right: 8px;
+  overflow: visible;
+  vertical-align: middle;
+}
+
+.tm-assistant-reply-food__bite {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: tm-assistant-food-hop 1s infinite;
+}
+
+@keyframes tm-assistant-food-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+  45% {
+    transform: translateY(-9px) rotate(-6deg) scale(0.96, 1.04);
+  }
+  75% {
+    transform: translateY(0) rotate(3deg) scale(1.1, 0.9);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .tm-assistant-reply-food__bite {
+    animation: none;
+  }
+
   .tm-assistant-panel * {
     transition: none !important;
   }

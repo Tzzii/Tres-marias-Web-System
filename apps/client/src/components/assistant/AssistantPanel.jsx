@@ -905,7 +905,17 @@ export default function AssistantPanel({
               )}
             {(pendingMessage || conversation?.allowance.pending) && (
               <Box className="tm-assistant-message tm-assistant-message--reply" role="status" sx={{ mt: 1 }}>
-                <CircularProgress size={14} sx={{ mr: 1 }} /> AI is replying…
+                <svg className="tm-assistant-reply-food" viewBox="0 0 48 40" aria-hidden="true" focusable="false">
+                  <ellipse cx="24" cy="32" rx="21" ry="6" fill="#fffaf0" stroke="#b79568" strokeWidth="1.5" />
+                  <ellipse cx="24" cy="31" rx="15" ry="3" fill="#e9d7ba" />
+                  <g className="tm-assistant-reply-food__bite">
+                    <path d="M14 27c-2-7 2-14 9-14s11 7 9 14Z" fill="#f1b84b" stroke="#aa652a" strokeWidth="1.5" />
+                    <path d="m19 18 2 3m4-4 2 3" stroke="#fff0ba" strokeWidth="2" strokeLinecap="round" />
+                    <path d="M29 27v-7" stroke="#54854a" strokeWidth="3" strokeLinecap="round" />
+                    <path d="M25 21c-4-1-3-6 0-6 0-4 6-5 7-1 5-1 6 6 2 7Z" fill="#71994b" />
+                  </g>
+                </svg>
+                <span>Replying...</span>
               </Box>
             )}
           </Box>
