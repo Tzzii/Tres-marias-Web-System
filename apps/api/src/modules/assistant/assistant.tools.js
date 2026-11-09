@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import * as catalogService from '../catalog/catalog.service.js';
 import { checkAvailability, getCalendar } from '../calendar/calendar.service.js';
 import { bookableAddons, packagePickProblem } from '@tm/shared/src/domain/catalog.js';
@@ -35,7 +35,11 @@ const dishCategoryTerms = {
 };
 const schemas = {
   search_catalog: z
-    .object({ query: z.string().max(120), kind: z.enum(['all', 'packages', 'dishes', 'addons', 'rentals']) })
+    .object({
+      query: z.string().max(120),
+      kind: z.enum(['all', 'packages', 'dishes', 'addons', 'rentals']),
+      packageOffset: z.number().int().min(0).max(10000).nullish()
+    })
     .strict(),
   get_package: z.object({ packageId: id }).strict(),
   estimate_event: z
@@ -75,7 +79,11 @@ const schemas = {
 };
 const string = { type: 'string' };
 const parameters = {
-  search_catalog: { query: string, kind: { type: 'string', enum: ['all', 'packages', 'dishes', 'addons', 'rentals'] } },
+  search_catalog: {
+    query: string,
+    kind: { type: 'string', enum: ['all', 'packages', 'dishes', 'addons', 'rentals'] },
+    packageOffset: { type: ['integer', 'null'], minimum: 0, maximum: 10000 }
+  },
   get_package: { packageId: string },
   estimate_event: {
     packageId: string,
@@ -124,7 +132,7 @@ const parameters = {
 };
 const descriptions = {
   search_catalog:
-    'Search current published packages, dishes, additional services and rental price lists. Use an empty query for an overview; dishes overview includes the full active menu across categories. For dishes, search a name or category keyword such as vegetable/gulay, pork/baboy, chicken/manok or fish/isda, not a full question. No result establishes availability or a final price.',
+    'Search current published packages, dishes, additional services and rental price lists. Use an empty query for an overview. Packages return eight per page with packagePage.total and nextOffset; use packageOffset null or 0 initially, then nextOffset to continue the same query. Never describe an incomplete page as all packages. Dishes overview includes the full active menu across categories. For dishes, search a name or category keyword such as vegetable/gulay, pork/baboy, chicken/manok or fish/isda, not a full question. No result establishes availability or a final price.',
   get_package:
     'Read current package inclusions. Buffet estimates must use estimate_event; never add a package equipment price on top of an inclusive buffet.',
   estimate_event:
@@ -180,7 +188,7 @@ const publicPackage = (p) => ({
 });
 
 export function createAssistantTools({
-  getCatalog = catalogService.getCatalog,
+  getCatalog: loadCatalog = catalogService.getCatalog,
   availability = checkAvailability,
   calendar = getCalendar,
   rentalAvailability = async (date, startTime) => {
@@ -196,6 +204,18 @@ export function createAssistantTools({
   const packages = new Map();
   const estimates = new Map();
   const packageProposals = new Map();
+  let catalogRevision;
+  const getCatalog = async () => {
+    const catalog = await loadCatalog();
+    // Re-read current data, but do not retain cards from an older catalog snapshot.
+    const revision = createHash('sha256').update(JSON.stringify(catalog)).digest('hex');
+    if (catalogRevision && catalogRevision !== revision) {
+      packages.clear();
+      estimates.clear();
+    }
+    catalogRevision = revision;
+    return catalog;
+  };
   let bookingDraft = cleanAssistantIntent(draft);
   return {
     packages,
@@ -379,7 +399,9 @@ export function createAssistantTools({
           next.packageSlug = catalog.packages.find(
             (p) => p.kind === 'rental' && p.visible !== false && !p.archived
           )?.slug;
-        bookingDraft = cleanAssistantIntent(next);
+        const nextDraft = cleanAssistantIntent(next);
+        if (JSON.stringify(nextDraft) !== JSON.stringify(bookingDraft)) estimates.clear();
+        bookingDraft = nextDraft;
         return bookingPlan(bookingDraft, catalog);
       }
       if (name === 'alternative_dates') {
@@ -556,10 +578,14 @@ export function createAssistantTools({
           );
         const result = {};
         if (args.kind === 'all' || args.kind === 'packages') {
-          result.packages = offered
-            .filter((p) => matches(p))
-            .slice(0, 8)
-            .map(publicPackage);
+          const matching = offered.filter((p) => matches(p));
+          const offset = args.packageOffset ?? 0;
+          result.packages = matching.slice(offset, offset + 8).map(publicPackage);
+          result.packagePage = {
+            total: matching.length,
+            offset,
+            nextOffset: offset + result.packages.length < matching.length ? offset + result.packages.length : null
+          };
           result.packages.forEach((p) => packages.set(p.id, p));
         }
         for (const kind of ['dishes', 'addons', 'rentals'])

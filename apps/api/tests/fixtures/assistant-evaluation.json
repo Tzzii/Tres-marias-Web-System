@@ -7,9 +7,9 @@
   },
   {
     "id": "catalog-fil",
-    "question": "Anong package ang bagay sa 100 guests?",
+    "question": "paano naman ung grande package",
     "tools": ["search_catalog"],
-    "review": "Filipino response; clarify service and budget without inventing a total."
+    "review": "Recognize the published Grand package despite the Grande spelling. Answer from current catalog data. Explain that default packages may be adjusted subject to pricing and team review without treating this note as custom package construction or replacing the answer with a scope redirect."
   },
   {
     "id": "catalog-taglish",

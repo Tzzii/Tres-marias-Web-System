@@ -233,6 +233,10 @@ test('provider completes a tool loop, validates returned cards and accounts for 
   assert.match(calls[0].instructions, /Changes may affect pricing and require admin review/);
   assert.equal(calls[0].store, false);
   assert.equal(calls[0].model, 'gpt-6-luna');
+  assert.equal(calls[0].text.format.schema.properties.packageIds.maxItems, 0);
+  assert.deepEqual(calls[1].text.format.schema.properties.packageIds.items.enum, ['pkg-a']);
+  assert.match(calls[1].instructions, /list all matching packages in the answer/);
+  assert.match(calls[1].instructions, /Never combine multiple IDs into one string/);
   assert.equal(
     calls[1].input.some((m) => m.type === 'function_call_output'),
     true
@@ -258,6 +262,348 @@ test('provider completes a tool loop, validates returned cards and accounts for 
     () => forged.answer({ text: 'x', history: [], tools: createAssistantTools(), spend }),
     (e) => e.code === 'ASSISTANT_UNAVAILABLE'
   );
+});
+
+for (const [scenario, invalid] of [
+  ['joined package IDs', { packageIds: ['pkg-a, hidden'] }],
+  ['unknown estimate ID', { estimateIds: ['unavailable-estimate'] }],
+  ['missing card arrays', { packageIds: null }],
+  ['blank answer', { answer: '   ' }],
+  ['malformed JSON', 'not-json'],
+  ['malformed response envelope', null]
+]) {
+  test(`one bounded repair recovers ${scenario} without repeating catalog tools`, async () => {
+    const requests = [];
+    let reads = 0;
+    const valid = {
+      answer: 'Classic is available for 100 guests.',
+      packageIds: ['pkg-a'],
+      estimateIds: [],
+      needsAdmin: false
+    };
+    const provider = providerWithScopeFixtures({
+      settings,
+      client: {
+        responses: {
+          create: async (body) => {
+            requests.push(structuredClone(body));
+            if (requests.length === 1)
+              return {
+                status: 'completed',
+                output: [
+                  { type: 'function_call', call_id: 'catalog', name: 'get_package', arguments: '{"packageId":"pkg-a"}' }
+                ]
+              };
+            if (requests.length === 2)
+              return invalid === null
+                ? { status: 'completed', output: {} }
+                : {
+                    status: 'completed',
+                    output: [],
+                    output_text: typeof invalid === 'string' ? invalid : JSON.stringify({ ...valid, ...invalid })
+                  };
+            return { status: 'completed', output: [], output_text: JSON.stringify(valid) };
+          }
+        }
+      }
+    });
+    const result = await provider.answer({
+      text: 'Show Classic',
+      history: [],
+      tools: createAssistantTools({
+        getCatalog: async () => {
+          reads++;
+          return catalog;
+        }
+      }),
+      spend: { reserve: async () => 'paid', settle: async () => {} }
+    });
+    assert.equal(result.answer, valid.answer);
+    assert.deepEqual(
+      result.packages.map((p) => p.id),
+      ['pkg-a']
+    );
+    assert.equal(reads, 1);
+    assert.equal(requests.length, 3);
+    assert.equal(requests[2].tool_choice, 'none');
+    assert.equal(requests[2].tools, undefined);
+    assert.equal(requests[2].text.format.schema.properties.estimateIds.maxItems, 0);
+  });
+}
+
+test('duplicate known cards are deduplicated before enforcing the three-card limit', async () => {
+  const tools = createAssistantTools({ getCatalog: async () => catalog });
+  await tools.run('get_package', { packageId: 'pkg-a' });
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async () => ({
+          status: 'completed',
+          output: [],
+          output_text: JSON.stringify({
+            answer: 'Classic is available.',
+            packageIds: ['pkg-a', 'pkg-a', 'pkg-a', 'pkg-a'],
+            estimateIds: [],
+            needsAdmin: false
+          })
+        })
+      }
+    }
+  });
+  const result = await provider.answer({
+    text: 'Show Classic',
+    history: [],
+    tools,
+    spend: { reserve: async () => 'paid', settle: async () => {} }
+  });
+  assert.deepEqual(
+    result.packages.map((p) => p.id),
+    ['pkg-a']
+  );
+});
+
+test('estimate card schema permits only estimates produced by this turn', async () => {
+  const tools = createAssistantTools({ getCatalog: async () => catalog });
+  tools.estimates.set('estimate-current', { id: 'estimate-current', knownSubtotal: 15000 });
+  let schema;
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async (body) => {
+          schema = body.text.format.schema;
+          return {
+            status: 'completed',
+            output: [],
+            output_text: JSON.stringify({
+              answer: 'Please review the estimate.',
+              packageIds: [],
+              estimateIds: ['estimate-current'],
+              needsAdmin: false
+            })
+          };
+        }
+      }
+    }
+  });
+  const result = await provider.answer({
+    text: 'Show estimate',
+    history: [],
+    tools,
+    spend: { reserve: async () => 'paid', settle: async () => {} }
+  });
+  assert.deepEqual(schema.properties.estimateIds.items.enum, ['estimate-current']);
+  assert.equal(result.estimates[0].id, 'estimate-current');
+});
+
+test('package overview exposes later pages instead of silently hiding the ninth package', async () => {
+  const packages = Array.from({ length: 11 }, (_, i) => ({
+    ...catalog.packages[0],
+    id: `page-${i}`,
+    name: `Package ${i}`
+  }));
+  const tools = createAssistantTools({
+    getCatalog: async () => ({ ...catalog, packages: [...packages, catalog.packages[1], catalog.packages[2]] })
+  });
+  const first = await tools.run('search_catalog', { query: '', kind: 'packages' });
+  assert.equal(first.packagePage.total, 11);
+  assert.equal(first.packagePage.nextOffset, 8);
+  const last = await tools.run('search_catalog', {
+    query: '',
+    kind: 'packages',
+    packageOffset: first.packagePage.nextOffset
+  });
+  assert.deepEqual(
+    [...first.packages, ...last.packages].map((p) => p.id),
+    packages.map((p) => p.id)
+  );
+  assert.equal(last.packagePage.nextOffset, null);
+  const invalid = await tools.run('search_catalog', { query: '', kind: 'packages', packageOffset: -1 });
+  assert.ok(invalid.error);
+});
+
+test('a fresh catalog read removes cards for packages that were unpublished during the turn', async () => {
+  let current = catalog;
+  const tools = createAssistantTools({ getCatalog: async () => current });
+  await tools.run('get_package', { packageId: 'pkg-a' });
+  current = { ...catalog, packages: catalog.packages.map((p) => ({ ...p, visible: false })) };
+  const result = await tools.run('get_package', { packageId: 'pkg-a' });
+  assert.ok(result.error);
+  assert.equal(tools.packages.has('pkg-a'), false);
+});
+
+test('catalog price changes invalidate previously fetched cards and estimates', async () => {
+  let current = catalog;
+  const tools = createAssistantTools({ getCatalog: async () => current });
+  const estimate = await tools.run('estimate_event', {
+    packageId: 'pkg-a',
+    serviceType: 'Catering only',
+    guests: 100,
+    date: null,
+    startTime: '12:00',
+    endTime: '18:00',
+    addons: []
+  });
+  await tools.run('get_package', { packageId: 'pkg-a' });
+  assert.ok(tools.estimates.has(estimate.id));
+  current = { ...catalog, packages: catalog.packages.map((p) => ({ ...p, price: p.price + 1000 })) };
+  await tools.run('search_catalog', { query: '', kind: 'dishes' });
+  assert.equal(tools.estimates.has(estimate.id), false);
+  assert.equal(tools.packages.has('pkg-a'), false);
+  const refreshed = await tools.run('get_package', { packageId: 'pkg-a' });
+  assert.equal(tools.packages.get('pkg-a').equipmentPrice, 16000);
+});
+
+test('changing the reservation clears earlier estimate cards; a no-op preserves current estimates', async () => {
+  const tools = createAssistantTools({
+    draft: { guests: 100, serviceType: 'Catering only' },
+    getCatalog: async () => catalog
+  });
+  const old = await tools.run('estimate_event', {
+    packageId: 'pkg-a',
+    serviceType: 'Catering only',
+    guests: 100,
+    date: null,
+    startTime: '12:00',
+    endTime: '18:00',
+    addons: []
+  });
+  assert.ok(tools.estimates.has(old.id));
+  await tools.run('prepare_reservation', { patch: { guests: 100 }, clearFields: [] });
+  assert.ok(tools.estimates.has(old.id));
+  await tools.run('prepare_reservation', { patch: { guests: 120 }, clearFields: [] });
+  assert.equal(tools.estimates.has(old.id), false);
+});
+
+for (const maxCalls of [1, 4]) {
+  test(`invalid replies stop after at most one repair within a ${maxCalls}-call limit`, async () => {
+    let calls = 0;
+    const provider = providerWithScopeFixtures({
+      settings: { ...settings, maxCalls },
+      client: {
+        responses: {
+          create: async () => {
+            calls++;
+            return { status: 'completed', output: [], output_text: 'bad-json' };
+          }
+        }
+      }
+    });
+    await assert.rejects(
+      provider.answer({
+        text: 'Show packages',
+        history: [],
+        tools: createAssistantTools(),
+        spend: { reserve: async () => 'paid', settle: async () => {} }
+      }),
+      (error) => error.code === 'ASSISTANT_UNAVAILABLE' && /did not use your question allowance/.test(error.message)
+    );
+    assert.equal(calls, Math.min(maxCalls, 2));
+  });
+}
+
+test('a repair cannot execute tools even if the model ignores tool_choice none', async () => {
+  let calls = 0;
+  const tools = createAssistantTools({ draft: { guests: 100 }, getCatalog: async () => catalog });
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async () => {
+          calls++;
+          return calls === 1
+            ? { status: 'completed', output: [], output_text: 'bad-json' }
+            : {
+                status: 'completed',
+                output: [
+                  {
+                    type: 'function_call',
+                    name: 'prepare_reservation',
+                    call_id: 'repair-bypass',
+                    arguments: '{"patch":{"guests":200},"clearFields":[]}'
+                  }
+                ]
+              };
+        }
+      }
+    }
+  });
+  await assert.rejects(
+    provider.answer({
+      text: 'Show packages',
+      history: [],
+      tools,
+      spend: { reserve: async () => 'paid', settle: async () => {} }
+    }),
+    { code: 'ASSISTANT_UNAVAILABLE' }
+  );
+  assert.equal(tools.bookingDraft.guests, 100);
+  assert.equal(calls, 2);
+});
+
+test('a token-truncated reply can be repaired into a shorter complete reply', async () => {
+  let calls = 0;
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async () =>
+          ++calls === 1
+            ? { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [] }
+            : {
+                status: 'completed',
+                output: [],
+                output_text: JSON.stringify({
+                  answer: 'Which package would you like to compare?',
+                  packageIds: [],
+                  estimateIds: [],
+                  needsAdmin: false
+                })
+              }
+      }
+    }
+  });
+  const result = await provider.answer({
+    text: 'Compare packages',
+    history: [],
+    tools: createAssistantTools(),
+    spend: { reserve: async () => 'paid', settle: async () => {} }
+  });
+  assert.equal(calls, 2);
+  assert.match(result.answer, /Which package/);
+});
+
+test('repair stops when its spend reservation is rejected', async () => {
+  let calls = 0,
+    reservations = 0;
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async () => {
+          calls++;
+          return { status: 'completed', output: [], output_text: 'bad-json' };
+        }
+      }
+    }
+  });
+  await assert.rejects(
+    provider.answer({
+      text: 'Compare packages',
+      history: [],
+      tools: createAssistantTools(),
+      spend: {
+        reserve: async () => {
+          if (++reservations === 3) throw new ApiError('RATE_LIMITED', 'Budget reached');
+          return 'paid';
+        },
+        settle: async () => {}
+      }
+    }),
+    { code: 'RATE_LIMITED' }
+  );
+  assert.equal(calls, 1);
 });
 
 test('failed model requests release question allowance; duplicate completed requests do not call the provider', async () => {

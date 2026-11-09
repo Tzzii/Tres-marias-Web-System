@@ -281,6 +281,25 @@ test('output guard withholds a custom bundle written in plain text', async () =>
   assert.deepEqual(result.packageProposals, []);
   const guard = h.requests.find((request) => request.text.format.name === 'tres_marias_scope_output');
   assert.match(guard.instructions, /Custom package construction is forbidden/);
+  assert.match(guard.instructions, /Explaining that published packages are default starting options/);
+  assert.match(guard.instructions, /is permitted business guidance, not custom package construction/);
+  assert.match(guard.instructions, /Actually choosing changes, inventing a modified bundle/);
+});
+
+test('a repaired response still passes the output guard before it can be returned', async () => {
+  let calls = 0;
+  const h = harness({
+    output: { allowed: false },
+    generate: () =>
+      ++calls === 1
+        ? { ...reply({}), output_text: 'invalid-json' }
+        : answer('A disallowed custom bundle that must not reach the customer.')
+  });
+  const result = await h.ask('Show packages');
+  assert.equal(calls, 2);
+  assert.equal(result.answer, redirect);
+  assert.deepEqual(result.packages, []);
+  assert.equal(result.bookingDraft, undefined);
 });
 
 test('budget inquiry cannot silently start reservation planning', async () => {

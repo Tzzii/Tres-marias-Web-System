@@ -313,9 +313,14 @@ try {
   const sidebarLabels = await check.page
     .locator('.tm-sidebar-link')
     .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
-  assert.equal(sidebarLabels.indexOf('Budget recommendation & Package generator'), sidebarLabels.indexOf('My Reservations') + 1);
   assert.equal(
-    await check.page.getByRole('button', { name: 'Budget recommendation & Package generator', exact: true }).getAttribute('aria-current'),
+    sidebarLabels.indexOf('Budget recommendation & Package generator'),
+    sidebarLabels.indexOf('My Reservations') + 1
+  );
+  assert.equal(
+    await check.page
+      .getByRole('button', { name: 'Budget recommendation & Package generator', exact: true })
+      .getAttribute('aria-current'),
     'page'
   );
   assert.equal(
