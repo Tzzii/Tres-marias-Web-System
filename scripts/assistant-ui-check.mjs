@@ -371,7 +371,10 @@ try {
   if (process.env.UI_SCENARIO === 'package-routing') {
     console.log(JSON.stringify({ passed: results }, null, 2));
   } else {
-    const chatContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const chatContext = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      reducedMotion: 'no-preference'
+    });
     const chatState = await fixture(chatContext, true);
     await chatContext.addInitScript(() => {
       window.__audioPlays = 0;
@@ -407,6 +410,22 @@ try {
     await chatPage.getByRole('button', { name: 'Send question', exact: true }).click();
     await chatPage.locator('.tm-assistant-message--user').getByText('Help me plan my party', { exact: true }).waitFor();
     await chatPage.getByRole('status').filter({ hasText: 'Replying...' }).waitFor();
+    const foodBite = chatPage.locator('.tm-assistant-reply-food__bite');
+    const foodPositions = await foodBite.evaluate((element) => {
+      const animation = element.getAnimations()[0];
+      if (!animation) throw new Error('The portal must not disable the replying food animation');
+      animation.pause();
+      animation.currentTime = 0;
+      const restingY = element.getBoundingClientRect().y;
+      animation.currentTime = 450;
+      const hoppingY = element.getBoundingClientRect().y;
+      animation.play();
+      return { restingY, hoppingY };
+    });
+    assert.ok(foodPositions.hoppingY < foodPositions.restingY - 5, 'Replying food visibly hops above the plate');
+    await chatPage.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await foodBite.evaluate((element) => getComputedStyle(element).animationName), 'none');
+    await chatPage.emulateMedia({ reducedMotion: 'no-preference' });
     assert.equal(await chatPage.getByLabel('Your question', { exact: true }).inputValue(), '');
     releaseReply();
     await chatPage.locator('[data-word-reveal="active"]').waitFor();

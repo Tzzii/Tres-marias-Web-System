@@ -228,6 +228,9 @@ test('provider completes a tool loop, validates returned cards and accounts for 
   );
   assert.match(calls[0].instructions, /one item per line/);
   assert.match(calls[0].instructions, /Separate the introduction, list/);
+  assert.match(calls[0].instructions, /shown packages are default starting options/);
+  assert.match(calls[0].instructions, /adjusted to the customer's preferences and event needs/);
+  assert.match(calls[0].instructions, /Changes may affect pricing and require admin review/);
   assert.equal(calls[0].store, false);
   assert.equal(calls[0].model, 'gpt-6-luna');
   assert.equal(

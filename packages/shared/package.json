@@ -1,6 +1,6 @@
 {
   "name": "@tm/shared",
-  "version": "1.50.4",
+  "version": "1.50.6",
   "private": true,
   "type": "module",
   "description": "Design system, service layer, hooks and components shared by the Customer Portal and the Admin Dashboard.",

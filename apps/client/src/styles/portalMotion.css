@@ -37,3 +37,10 @@ html[data-tm-portal='customer'] .MuiCircularProgress-circleIndeterminate {
   stroke-dasharray: 80px, 200px;
   stroke-dashoffset: 0;
 }
+
+/* The assistant's waiting indicator needs motion even on otherwise static portal pages. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-tm-portal='customer'] .tm-assistant-reply-food__bite {
+    animation: tm-assistant-food-hop 1s infinite !important;
+  }
+}
