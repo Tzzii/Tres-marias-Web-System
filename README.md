@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.50.10**
+**System version: 1.50.11**
 
 The AI assistant enforces business scope on the server before answering or using booking tools, then independently checks the generated reply before saving or speaking it. Clear entertainment questions receive a fixed business redirect; mixed requests may continue only with a verbatim business excerpt. Unclear or failed checks return clarification. Rejected replies cannot update the booking draft or publish generated cards. Classifier calls share the existing spending controls and turn timeout; semantic accuracy still requires human-reviewed model evaluation.
 
@@ -562,8 +562,9 @@ Optional voice provides tap-to-record questions (up to 30 seconds), editable tra
 replies. Text and voice share one question allowance. Existing-answer playback uses no new question.
 The mascot, reduced-motion support and desktop/mobile chat layout remain available.
 
-Package and estimate cards are limited to three distinct IDs of each kind from the current turn's
-tools; longer package lists stay in the reply text. Package searches return eight matches per page
+Package cards may include every distinct matching ID fetched by the current turn's tools for a
+catalog overview; focused recommendations may select a smaller set. Estimate cards remain limited
+to three distinct current IDs. Package searches return eight matches per page
 with totals and a next offset so additional offerings are not silently hidden. Fresh catalog reads
 invalidate cards and estimates when catalog data changes, and reservation changes clear earlier estimate cards. A malformed
 or token-truncated final reply gets at most one repair with tools disabled, within the original call,

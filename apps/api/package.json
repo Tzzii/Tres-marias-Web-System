@@ -1,6 +1,6 @@
 {
   "name": "@tm/api",
-  "version": "1.50.10",
+  "version": "1.50.11",
   "private": true,
   "type": "module",
   "description": "Tres Marias API - Express + MySQL backend for the Customer Portal and the Admin Dashboard.",
@@ -42,7 +42,7 @@
     "test:ai-safety:db": "node --test tests/ai-safety-db-tests.js"
   },
   "dependencies": {
-    "@tm/shared": "1.50.10",
+    "@tm/shared": "1.50.11",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.1",

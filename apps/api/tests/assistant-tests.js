@@ -331,7 +331,7 @@ for (const [scenario, invalid] of [
   });
 }
 
-test('duplicate known cards are deduplicated before enforcing the three-card limit', async () => {
+test('duplicate known cards are deduplicated before validating the fetched-card limit', async () => {
   const tools = createAssistantTools({ getCatalog: async () => catalog });
   await tools.run('get_package', { packageId: 'pkg-a' });
   const provider = providerWithScopeFixtures({
@@ -421,6 +421,182 @@ test('package overview exposes later pages instead of silently hiding the ninth 
   assert.equal(last.packagePage.nextOffset, null);
   const invalid = await tools.run('search_catalog', { query: '', kind: 'packages', packageOffset: -1 });
   assert.ok(invalid.error);
+});
+
+test('all-packages request can return every fetched package card across catalog pages without repair', async () => {
+  const packages = Array.from({ length: 10 }, (_, i) => ({
+    ...catalog.packages[0],
+    id: `overview-${i}`,
+    slug: `overview-${i}`,
+    name: `Published Package ${i}`
+  }));
+  const requests = [];
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async (body) => {
+          requests.push(structuredClone(body));
+          if (requests.length <= 2)
+            return {
+              status: 'completed',
+              output: [
+                {
+                  type: 'function_call',
+                  call_id: `page-${requests.length}`,
+                  name: 'search_catalog',
+                  arguments: JSON.stringify({
+                    query: '',
+                    kind: 'packages',
+                    packageOffset: requests.length === 1 ? 0 : 8
+                  })
+                }
+              ]
+            };
+          return {
+            status: 'completed',
+            output: [],
+            output_text: JSON.stringify({
+              answer: packages.map((pkg) => `- ${pkg.name}`).join('\n'),
+              packageIds: packages.map((pkg) => pkg.id),
+              estimateIds: [],
+              needsAdmin: false
+            })
+          };
+        }
+      }
+    }
+  });
+  const result = await provider.answer({
+    text: 'ilista mo lahat ng pakages na available sa inyo',
+    history: [],
+    tools: createAssistantTools({ getCatalog: async () => ({ ...catalog, packages }) }),
+    spend: { reserve: async () => 'fixture', settle: async () => {} }
+  });
+  assert.deepEqual(
+    result.packages.map((pkg) => pkg.id),
+    packages.map((pkg) => pkg.id)
+  );
+  assert.equal(requests.length, 3);
+  assert.equal(requests[0].text.format.schema.properties.packageIds.maxItems, 0);
+  assert.equal(requests[1].text.format.schema.properties.packageIds.maxItems, 8);
+  assert.equal(requests[2].text.format.schema.properties.packageIds.maxItems, 10);
+  assert.deepEqual(
+    requests[2].text.format.schema.properties.packageIds.items.enum,
+    packages.map((pkg) => pkg.id)
+  );
+});
+
+test('a focused package recommendation can still select a subset without forcing the full catalog', async () => {
+  const packages = Array.from({ length: 5 }, (_, i) => ({ ...catalog.packages[0], id: `choice-${i}` }));
+  const tools = createAssistantTools({ getCatalog: async () => ({ ...catalog, packages }) });
+  await tools.run('search_catalog', { query: '', kind: 'packages' });
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async () => ({
+          status: 'completed',
+          output: [],
+          output_text: JSON.stringify({
+            answer: 'Here are two relevant options.',
+            packageIds: ['choice-1', 'choice-4'],
+            estimateIds: [],
+            needsAdmin: false
+          })
+        })
+      }
+    }
+  });
+  const result = await provider.answer({
+    text: 'Which packages suit my event?',
+    history: [],
+    tools,
+    spend: { reserve: async () => 'fixture', settle: async () => {} }
+  });
+  assert.deepEqual(
+    result.packages.map((pkg) => pkg.id),
+    ['choice-1', 'choice-4']
+  );
+});
+
+test('reply repair preserves more than three requested package cards from existing tool data', async () => {
+  const packages = Array.from({ length: 6 }, (_, i) => ({ ...catalog.packages[0], id: `repair-${i}` }));
+  const tools = createAssistantTools({ getCatalog: async () => ({ ...catalog, packages }) });
+  await tools.run('search_catalog', { query: '', kind: 'packages' });
+  const requests = [];
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async (body) => {
+          requests.push(structuredClone(body));
+          return {
+            status: 'completed',
+            output: [],
+            output_text:
+              requests.length === 1
+                ? 'incomplete-json'
+                : JSON.stringify({
+                    answer: 'Here are the remaining options.',
+                    packageIds: packages.map((pkg) => pkg.id),
+                    estimateIds: [],
+                    needsAdmin: false
+                  })
+          };
+        }
+      }
+    }
+  });
+  const history = [
+    { role: 'user', content: 'Show packages for my event.' },
+    { role: 'assistant', content: 'Here are some options. Would you like to see the other packages?' }
+  ];
+  const result = await provider.answer({
+    text: 'oo pakita mo yung natitira pang pakages',
+    history,
+    tools,
+    spend: { reserve: async () => 'fixture', settle: async () => {} }
+  });
+  assert.equal(result.packages.length, 6);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].tool_choice, 'none');
+  assert.deepEqual(requests[1].input.slice(0, 2), history);
+  assert.equal(requests[1].text.format.schema.properties.packageIds.maxItems, 6);
+});
+
+test('showing more package cards does not remove the three-estimate limit', async () => {
+  const tools = createAssistantTools();
+  for (let i = 0; i < 4; i++) tools.estimates.set(`estimate-${i}`, { id: `estimate-${i}` });
+  const provider = providerWithScopeFixtures({
+    settings,
+    client: {
+      responses: {
+        create: async (body) => {
+          assert.equal(body.text.format.schema.properties.estimateIds.maxItems, 3);
+          return {
+            status: 'completed',
+            output: [],
+            output_text: JSON.stringify({
+              answer: 'Estimates.',
+              packageIds: [],
+              estimateIds: [...tools.estimates.keys()],
+              needsAdmin: false
+            })
+          };
+        }
+      }
+    }
+  });
+  await assert.rejects(
+    provider.answer({
+      text: 'Show estimates',
+      history: [],
+      tools,
+      spend: { reserve: async () => 'fixture', settle: async () => {} }
+    }),
+    { code: 'ASSISTANT_UNAVAILABLE' }
+  );
 });
 
 test('a fresh catalog read removes cards for packages that were unpublished during the turn', async () => {
