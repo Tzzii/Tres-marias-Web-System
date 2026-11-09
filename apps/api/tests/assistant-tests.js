@@ -67,6 +67,35 @@ const catalog = {
   dishes: [{ id: 'kawali', name: 'Lechon Kawali', category: 'pork' }]
 };
 
+test('menu overview includes later vegetable dishes instead of silently stopping at sixteen', async () => {
+  const dishes = [
+    ...Array.from({ length: 17 }, (_, i) => ({ id: `chicken-${i}`, name: `Chicken ${i}`, category: 'chicken' })),
+    { id: 'chopsuey', name: 'Chopsuey', category: 'vegetable' },
+    { id: 'hidden-veg', name: 'Archived vegetable', category: 'vegetable', archived: true }
+  ];
+  const tools = createAssistantTools({ getCatalog: async () => ({ ...catalog, dishes }) });
+  const result = await tools.run('search_catalog', { query: '', kind: 'dishes' });
+  assert.equal(result.dishes.length, 18);
+  assert.ok(result.dishes.some((dish) => dish.id === 'chopsuey'));
+  assert.ok(!result.dishes.some((dish) => dish.archived || dish.id === 'hidden-veg'));
+});
+
+for (const query of ['vegetable', 'vegetables', 'gulay']) {
+  test(`menu search resolves category wording without needing it in the dish name: ${query}`, async () => {
+    const tools = createAssistantTools({
+      getCatalog: async () => ({
+        ...catalog,
+        dishes: [...catalog.dishes, { id: 'chopsuey', name: 'Chopsuey', category: 'vegetable' }]
+      })
+    });
+    const result = await tools.run('search_catalog', { query, kind: 'dishes' });
+    assert.deepEqual(
+      result.dishes.map((dish) => dish.id),
+      ['chopsuey']
+    );
+  });
+}
+
 test('assistant estimates use current inclusive pricing and preserve pending quotation items', async () => {
   const tools = createAssistantTools({ getCatalog: async () => catalog });
   const search = await tools.run('search_catalog', { query: '', kind: 'packages' });

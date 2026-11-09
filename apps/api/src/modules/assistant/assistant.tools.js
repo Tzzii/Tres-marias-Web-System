@@ -27,6 +27,12 @@ import { setupQuestions } from '@tm/shared/src/domain/packageSetup.js';
 const id = z.string().min(1).max(128);
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[03]0$/);
 const date = z.string().refine(validAssistantDate);
+const dishCategoryTerms = {
+  pork: 'pork baboy',
+  chicken: 'chicken manok',
+  fish: 'fish isda',
+  vegetable: 'vegetable vegetables veggie veggies gulay'
+};
 const schemas = {
   search_catalog: z
     .object({ query: z.string().max(120), kind: z.enum(['all', 'packages', 'dishes', 'addons', 'rentals']) })
@@ -118,7 +124,7 @@ const parameters = {
 };
 const descriptions = {
   search_catalog:
-    'Search current published packages, dishes, additional services and rental price lists. Use an empty query for an overview. No result establishes availability or a final price.',
+    'Search current published packages, dishes, additional services and rental price lists. Use an empty query for an overview; dishes overview includes the full active menu across categories. For dishes, search a name or category keyword such as vegetable/gulay, pork/baboy, chicken/manok or fish/isda, not a full question. No result establishes availability or a final price.',
   get_package:
     'Read current package inclusions. Buffet estimates must use estimate_event; never add a package equipment price on top of an inclusive buffet.',
   estimate_event:
@@ -543,20 +549,29 @@ export function createAssistantTools({
           .toLocaleLowerCase()
           .split(/[^\p{L}\p{N}]+/u)
           .filter((s) => s.length > 2);
-        const matches = (entry) =>
+        const matches = (entry, categoryTerms = '') =>
           !words.length ||
-          words.some((word) => `${entry.name} ${entry.description || ''}`.toLocaleLowerCase().includes(word));
+          words.some((word) =>
+            `${entry.name} ${entry.description || ''} ${categoryTerms}`.toLocaleLowerCase().includes(word)
+          );
         const result = {};
         if (args.kind === 'all' || args.kind === 'packages') {
-          result.packages = offered.filter(matches).slice(0, 8).map(publicPackage);
+          result.packages = offered
+            .filter((p) => matches(p))
+            .slice(0, 8)
+            .map(publicPackage);
           result.packages.forEach((p) => packages.set(p.id, p));
         }
         for (const kind of ['dishes', 'addons', 'rentals'])
           if (args.kind === 'all' || args.kind === kind) {
             const entries = kind === 'addons' ? bookableAddons(catalog.addons) : catalog[kind] || [];
             result[kind] = entries
-              .filter((p) => !p.archived && matches(p))
-              .slice(0, 16)
+              .filter(
+                (p) =>
+                  !p.archived && matches(p, kind === 'dishes' ? dishCategoryTerms[p.category] || p.category || '' : '')
+              )
+              // A partial menu can hide entire categories sorted after meat/fish dishes.
+              .slice(0, kind === 'dishes' ? undefined : 16)
               .map((p) => ({
                 id: p.id,
                 name: p.name,

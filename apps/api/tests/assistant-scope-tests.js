@@ -101,6 +101,61 @@ function harness({
   };
 }
 
+for (const [text, history] of [
+  [
+    'cake table',
+    [
+      { role: 'user', content: 'May limit ba sa equipment rental?' },
+      { role: 'assistant', content: 'Anong equipment at ilang piraso ang balak mong i-rent?' }
+    ]
+  ],
+  [
+    'pano sa gfuay',
+    [
+      { role: 'user', content: 'Ano ang food na offer ninyo sa buffet?' },
+      { role: 'assistant', content: 'May pork, chicken at fish dishes. Aling menu ang gusto mo?' }
+    ]
+  ],
+  [
+    'dalawa',
+    [
+      { role: 'user', content: 'Cake table ang gusto ko.' },
+      { role: 'assistant', content: 'Ilang cake table ang kailangan mo?' }
+    ]
+  ]
+]) {
+  test(`both scope gates and generation receive the same conversation for follow-up: ${text}`, async () => {
+    const h = harness();
+    await h.ask(text, history);
+    const input = h.requests.find((body) => body.text?.format?.name === 'tres_marias_scope_input');
+    const generation = h.requests.find((body) => body.text?.format?.name === 'tres_marias_assistant');
+    const output = h.requests.find((body) => body.text?.format?.name === 'tres_marias_scope_output');
+    assert.deepEqual(JSON.parse(input.input[0].content).history, history);
+    assert.deepEqual(generation.input.slice(0, -1), history);
+    assert.deepEqual(JSON.parse(output.input[0].content).history, history);
+    assert.equal(JSON.parse(output.input[0].content).request, text);
+    assert.deepEqual(JSON.parse(output.input[0].content).savedPlan, {});
+  });
+}
+
+test('mixed requests do not reintroduce rejected history into the output gate', async () => {
+  const h = harness({ input: { decision: 'mixed', businessText: 'Show rentals', replyLanguage: 'english' } });
+  await h.ask('Show rentals and explain the Avengers', [{ role: 'user', content: 'Explain movie plots' }]);
+  const output = h.requests.find((body) => body.text?.format?.name === 'tres_marias_scope_output');
+  assert.deepEqual(JSON.parse(output.input[0].content).history, []);
+  assert.equal(JSON.parse(output.input[0].content).request, 'Show rentals');
+});
+
+test('conversation context is request-local and does not leak to the next conversation', async () => {
+  const h = harness();
+  await h.ask('dalawa', [{ role: 'assistant', content: 'Ilang cake table ang kailangan mo?' }]);
+  h.requests.length = 0;
+  await h.ask('Hello', []);
+  for (const request of h.requests) {
+    assert.ok(!JSON.stringify(request.input).includes('cake table'));
+  }
+});
+
 for (const text of [
   'Help me build a package',
   'Gusto kong gumawa ng sarili kong package',
