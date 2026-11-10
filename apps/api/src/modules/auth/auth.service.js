@@ -26,7 +26,7 @@ import { readToken, readUnlockTicket, sessionReplaced, signToken, signUnlockTick
 import * as messages from './auth.messages.js';
 import * as repo from './auth.repo.js';
 import { linkGoogle } from './google.repo.js';
-import { assertCustomerEmailAllowed } from './email-policy.js';
+import { assertCustomerEmailAllowed, assertCustomerEmailAllowedWithDisify } from './email-policy.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
 
 const minutes = (n) => n * 60000;
@@ -128,6 +128,7 @@ export async function startSignUp({
     throw new ApiError('INVALID', 'Please agree to the Terms of Service and Privacy Policy.', { field: 'agree' });
   if (await repo.findCustomerByEmail(address))
     throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
+  await assertCustomerEmailAllowedWithDisify(address);
   await reserveAttempt('code-email', address);
 
   const at = now();
@@ -183,7 +184,7 @@ export async function resendSignUpCode(challengeId) {
 /** Every new Google customer must enter the emailed code before account creation. */
 export async function startGoogleEmailSignup(identity, profile) {
   const address = identity.email;
-  assertCustomerEmailAllowed(address);
+  await assertCustomerEmailAllowedWithDisify(address);
   await reserveAttempt('code-email', address);
   const at = now();
   const code = newCode(RULES.codeLength);
@@ -432,6 +433,7 @@ export async function startCustomerEmailChange(customerId, { email = '', passwor
     throw new ApiError('EMAIL_TAKEN', 'An account with this email already exists.', { field: 'email' });
   }
   await assertCurrentPassword('customer-reauth', customer, password);
+  await assertCustomerEmailAllowedWithDisify(address);
   await reserveAttempt('code-email', address);
 
   const at = now();

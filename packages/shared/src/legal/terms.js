@@ -17,14 +17,11 @@ import { cancelWindowText } from '../domain/cancellation.js';
  * is written for a small catering business under Philippine law, but it is not legal advice.
  */
 
-/**
- * The version customers agree to (a date, "YYYY-MM-DD"); stored on accounts and bookings. 2026-10-10: editing
- * and deleting chat messages (and the earlier text we keep), and the stronger password rule.
- */
-export const TERMS_VERSION = '2026-10-10';
+/** The version customers agree to (a date, "YYYY-MM-DD"); stored on accounts and bookings. */
+export const TERMS_VERSION = '2026-11-11';
 
 /** Latest wording update for both pages; clarifications do not change the version customers accept. */
-export const TERMS_UPDATED = '13 October 2026';
+export const TERMS_UPDATED = '11 November 2026';
 
 // "₱3,000"
 const pesos = (amount) => `₱${Number(amount).toLocaleString('en-PH')}`;
@@ -218,6 +215,7 @@ export function privacyPolicy() {
       ['We never sell your personal information or share it for advertising. We share only what is needed with:'],
       [
         'PayMongo, our payment provider, for QR Ph payments.',
+        'Disify, our email validation provider, receives the email address you submit during sign-up or an email change to check whether it uses a temporary email service.',
         'The company that sends our emails, to deliver codes and updates to you.',
         'The company that hosts our website and database, which stores the information for us.',
         'Partner suppliers (for example, lights and sound), who receive only the event date, time and place they need to know.',
