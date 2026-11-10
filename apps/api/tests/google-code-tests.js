@@ -213,3 +213,23 @@ test('Google verification rechecks a code replaced or consumed during verificati
     assert.equal(f.sessions.length, 0);
   }
 });
+
+test('password sign-in challenges require the emailed code and expire after a password change', async () => {
+  const f = setup();
+  const customer = { id: 'customer-1', email: 'maria@gmail.com', passwordChangedAt: null };
+  const pending = await f.service.start(customer, true, 'password:customer-1');
+  assert.equal(pending.token, undefined);
+  await assert.rejects(f.service.verify({ challengeId: pending.challengeId, code: '000000' }), {
+    code: 'INVALID_CODE'
+  });
+  const session = await f.service.verify({ challengeId: pending.challengeId, code: '123456' });
+  assert.equal(session.remember, true);
+  await assert.rejects(f.service.verify({ challengeId: pending.challengeId, code: '123456' }), {
+    code: 'CHALLENGE_EXPIRED'
+  });
+  const next = await f.service.start(customer, false, 'password:customer-1');
+  f.changeCustomer({ passwordChangedAt: 2000000 });
+  await assert.rejects(f.service.verify({ challengeId: next.challengeId, code: '123456' }), {
+    code: 'CHALLENGE_EXPIRED'
+  });
+});

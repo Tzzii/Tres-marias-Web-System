@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
@@ -8,7 +8,7 @@ import { keyframes } from '@mui/material/styles';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
-import { BrandLogo, formatDateLong, safeNextPath, shakeSx, tokens } from '@tm/shared';
+import { BrandLogo, formatDateLong, shakeSx, tokens } from '@tm/shared';
 import { site } from '../theme/siteTheme.js';
 import { AUTH_COVER_MS, useAuthRouteTransition } from './AuthRouteTransition.jsx';
 
@@ -25,9 +25,7 @@ const welcome = {
       'Follow every reservation from request to event day',
       'Pay securely and keep every receipt',
       'Message the admin directly'
-    ],
-    prompt: 'New to Tres Marias?',
-    action: 'Sign up'
+    ]
   },
   signup: {
     headline: 'One account, every celebration you host.',
@@ -35,9 +33,7 @@ const welcome = {
       'Reserve dates and follow each request live',
       'See quotations, contracts and receipts in one place',
       'Save drafts and finish your booking any time'
-    ],
-    prompt: 'Already have an account?',
-    action: 'Log in'
+    ]
   }
 };
 
@@ -46,27 +42,11 @@ export default function AuthLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { location: targetLocation, switching } = useAuthRouteTransition();
-  const params = new URLSearchParams(targetLocation.search);
   const previousLocation = useRef(location);
   const formPanel = useRef(null);
   const isSignup = targetLocation.pathname === '/signup';
   const mode = isSignup ? 'signup' : 'login';
   const displayedSignup = location.pathname === '/signup';
-  const continuingBooking = isSignup
-    ? params.get('continue') === 'booking'
-    : safeNextPath(params.get('next'), '/portal').startsWith('/portal/book');
-  const continuingAssistant =
-    params.get('continue') === 'assistant' || safeNextPath(params.get('next'), '/portal') === '/portal/assistant';
-  const loginPath = continuingBooking
-    ? '/login?next=/portal/book'
-    : continuingAssistant
-      ? '/login?next=%2Fportal%2Fassistant'
-      : '/login';
-  const signupPath = continuingBooking
-    ? '/signup?continue=booking'
-    : continuingAssistant
-      ? '/signup?continue=assistant'
-      : '/signup';
 
   useLayoutEffect(() => {
     if (previousLocation.current.pathname !== location.pathname) {
@@ -198,14 +178,9 @@ export default function AuthLayout() {
                   ))}
                 </Box>
               </Box>
-              <Typography
-                sx={{ display: { xs: 'none', md: 'block' }, mt: 3, mb: 1.25, fontSize: 13.5, color: site.inkSoft }}
-              >
-                {copy.prompt}
-              </Typography>
               <Button
-                component={RouterLink}
-                to={panelMode === 'login' ? signupPath : loginPath}
+                onClick={() => navigate('/')}
+                startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 16 }} />}
                 variant="outlined"
                 disabled={switching}
                 sx={{
@@ -214,11 +189,11 @@ export default function AuthLayout() {
                   borderRadius: '12px',
                   borderColor: site.inkSoft,
                   color: site.ink,
-                  mt: { xs: 1.5, md: 0 },
+                  mt: { xs: 1.5, md: 3 },
                   '&:hover': { borderColor: site.ink, backgroundColor: 'rgba(255,255,255,0.25)' }
                 }}
               >
-                {copy.action}
+                Back to browsing
               </Button>
             </Box>
           </Box>
@@ -260,20 +235,6 @@ export default function AuthLayout() {
             flexShrink: 0
           }}
         >
-          <Button
-            onClick={() => navigate('/')}
-            startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 16 }} />}
-            sx={{
-              alignSelf: 'flex-start',
-              px: 1,
-              fontSize: 13,
-              fontWeight: 500,
-              color: site.inkSoft,
-              '&:hover': { color: site.goldText, backgroundColor: 'transparent' }
-            }}
-          >
-            Back to browsing
-          </Button>
           <Box
             key={location.pathname}
             className="tm-auth-form-content"

@@ -85,6 +85,7 @@ export const config = {
 
   jwtSecret: text('JWT_SECRET'),
   googleClientId: text('GOOGLE_CLIENT_ID'),
+  turnstileSecret: text('TURNSTILE_SECRET_KEY'),
   assistant: {
     enabled: text('AI_ASSISTANT_ENABLED', 'false') === 'true',
     voiceEnabled: text('AI_ASSISTANT_VOICE_ENABLED', 'false') === 'true',

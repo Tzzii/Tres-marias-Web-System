@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ApiError } from '../lib/ApiError.js';
 import { readToken, sessionReplaced } from '../lib/tokens.js';
 import { findSessionAccount } from '../modules/auth/auth.repo.js';
@@ -18,8 +19,14 @@ export async function readSessionToken(token, findAccount = findSessionAccount) 
     (payload.role !== 'customer' && payload.role !== 'admin')
   )
     return { user: null };
-  const account = await findAccount(payload.role, payload.sub);
+  const account = await findAccount(payload.role, payload.sub, sessionTokenHash(token));
   if (!account || (Number(account.passwordChangedAt) || 0) !== payload.pwv) return { user: null };
+  if (
+    payload.role === 'customer' &&
+    (account.tokenRevoked ||
+      (account.sessionsRevokedAt && (payload.issuedMs ?? payload.iat * 1000) <= account.sessionsRevokedAt))
+  )
+    return { user: null };
   if (payload.role === 'admin') {
     if (typeof payload.sid !== 'string' || !account.sessionId) return { user: null };
     if (payload.sid !== account.sessionId) return { user: null, replaced: true };
@@ -45,3 +52,5 @@ export async function optionalAuth(req, res, next) {
   if (user) req.user = user;
   next();
 }
+
+export const sessionTokenHash = (token) => createHash('sha256').update(token).digest('hex');

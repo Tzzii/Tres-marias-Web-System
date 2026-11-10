@@ -159,6 +159,8 @@ try {
     'existing-customer-link-and-remember',
     { width: 1366, height: 900 },
     (url, body, writes) => {
+      if (url.endsWith('/google/signin-fixture/verify'))
+        return { ...session, user: { ...fixtureUser, hasPassword: true } };
       if (writes.length === 1) return { status: 'link_required', email: fixtureUser.email };
       if (body.password !== 'correct-password')
         return {
@@ -170,7 +172,7 @@ try {
           }
         };
       assert.equal(body.remember, true);
-      return { ...session, user: { ...fixtureUser, hasPassword: true } };
+      return challenge('code_required');
     },
     async ({ page }) => {
       await page.getByRole('checkbox', { name: 'Remember me' }).check();
@@ -180,6 +182,7 @@ try {
       await page.getByText('The existing account password is incorrect.', { exact: true }).waitFor();
       await page.locator('#google-link-password').fill('correct-password');
       await page.getByRole('button', { name: 'Connect and sign in' }).click();
+      await enterCode(page, 'Verify Your Sign-In');
       await page.waitForURL((url) => url.pathname === '/portal/book');
       const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tm.client.session')));
       assert.equal(saved.user.id, fixtureUser.id);
@@ -190,16 +193,21 @@ try {
     { width: 390, height: 844 }
   ]) {
     await scenario(
-      `returning-google-user-direct-login-${viewport.width}`,
+      `returning-google-user-email-verification-${viewport.width}`,
       viewport,
-      (url) => {
-        assert.ok(url.endsWith('/customer/google'), 'returning login never requests or verifies an email code');
-        return session;
+      (url, body) => {
+        if (url.endsWith('/google/signin-fixture/verify')) {
+          assert.equal(body.code, '123456');
+          return session;
+        }
+        assert.ok(url.endsWith('/customer/google'));
+        return challenge('code_required');
       },
       async ({ page, writes }) => {
         await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
+        await enterCode(page, 'Verify Your Sign-In');
         await page.waitForURL((url) => url.pathname === '/portal/book');
-        assert.equal(writes.length, 1);
+        assert.equal(writes.length, 2);
         assert.equal(await page.getByRole('dialog').count(), 0);
         const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('tm.client.session')));
         assert.equal(saved.user.id, fixtureUser.id);

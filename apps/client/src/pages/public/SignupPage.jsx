@@ -35,6 +35,7 @@ import { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
 import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import LegalText from '../../components/LegalText.jsx';
 import GoogleSignIn from '../../components/GoogleSignIn.jsx';
+import SignupCaptcha from '../../components/SignupCaptcha.jsx';
 import { readIntent } from '../../lib/booking.js';
 
 const RULES = {
@@ -56,6 +57,11 @@ export default function SignupPage() {
   const continuingBooking = params.get('continue') === 'booking';
   const intent = continuingBooking ? readIntent() : null;
   const destination = continuingBooking ? '/portal/book' : params.get('continue') === 'assistant' ? '/portal/assistant' : '/portal';
+  const loginPath = continuingBooking
+    ? '/login?next=/portal/book'
+    : params.get('continue') === 'assistant'
+      ? '/login?next=%2Fportal%2Fassistant'
+      : '/login';
 
   const [values, setValues] = useState({ firstName: '', middleName: '', lastName: '', email: '', mobile: '', password: '', confirm: '', agree: false });
   const [errors, setErrors] = useState({});
@@ -64,6 +70,8 @@ export default function SignupPage() {
   const [shake, setShake] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [challenge, setChallenge] = useState(null);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReset, setCaptchaReset] = useState(0);
   const catalog = useResource(() => catalogApi.getCatalog(), []);
   const minimum = catalog.data ? catalogApi.minDownpayment() : null;
 
@@ -86,10 +94,16 @@ export default function SignupPage() {
       if (first) first.focus();
       return;
     }
+    if (!captchaToken) {
+      setFormError('Please complete the security check.');
+      return;
+    }
     setBusy(true);
     try {
-      setChallenge(await authApi.startSignUp({ ...values, agreeTerms: values.agree }));
+      setChallenge(await authApi.startSignUp({ ...values, agreeTerms: values.agree, captchaToken }));
     } catch (error) {
+      setCaptchaToken('');
+      setCaptchaReset((count) => count + 1);
       setShake(true);
       if (error.meta && error.meta.field) setErrors((e) => ({ ...e, [error.meta.field]: error.message }));
       else setFormError(error.message);
@@ -151,9 +165,16 @@ export default function SignupPage() {
           {errors.agree && <FormHelperText error sx={{ mx: 0 }}>{errors.agree}</FormHelperText>}
         </Box>
 
+        <SignupCaptcha onChange={setCaptchaToken} resetCount={captchaReset} />
         <BusyButton type="submit" size="large" busy={busy} sx={{ py: 1.3 }}>
           Create an account
         </BusyButton>
+        <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
+          Already have an account?{' '}
+          <Link component={RouterLink} to={loginPath} sx={{ fontWeight: 700, color: tokens.goldDark }}>
+            Log In
+          </Link>
+        </Typography>
 
         <GoogleSignIn disabled={busy} onBusyChange={setBusy}
           onSignedIn={(session) => { signIn(session); navigate(destination, { replace: true }); }} />

@@ -1,3 +1,4 @@
+import { createGoogleSignInCodeService } from './google-code.service.js';
 import express from 'express';
 import { optionalAuth } from '../../middleware/auth.js';
 import { authLimiter } from '../../middleware/rateLimit.js';
@@ -5,6 +6,7 @@ import { validate } from '../../middleware/validate.js';
 import * as schemas from './auth.schemas.js';
 import * as auth from './auth.service.js';
 import { createGoogleRoutes } from './google.routes.js';
+import { verifySignupCaptcha } from './turnstile.js';
 
 export const authRoutes = express.Router();
 authRoutes.use(createGoogleRoutes());
@@ -13,9 +15,34 @@ authRoutes.post('/customer/login', authLimiter, validate({ body: schemas.custome
   res.json(await auth.customerLogin(req.valid.body));
 });
 
-authRoutes.post('/customer/register', authLimiter, validate({ body: schemas.customerRegister }), async (req, res) => {
-  res.json(await auth.startSignUp(req.valid.body));
-});
+authRoutes.post(
+  '/customer/login/:id/verify',
+  authLimiter,
+  validate({ params: schemas.requestParams, body: schemas.codeBody }),
+  async (req, res) => {
+    res.json(
+      await createGoogleSignInCodeService().verify({ challengeId: req.valid.params.id, code: req.valid.body.code })
+    );
+  }
+);
+authRoutes.post(
+  '/customer/login/:id/resend',
+  authLimiter,
+  validate({ params: schemas.requestParams }),
+  async (req, res) => {
+    res.json(await createGoogleSignInCodeService().resend(req.valid.params.id));
+  }
+);
+
+authRoutes.post(
+  '/customer/register',
+  authLimiter,
+  validate({ body: schemas.customerRegister }),
+  verifySignupCaptcha,
+  async (req, res) => {
+    res.json(await auth.startSignUp(req.valid.body));
+  }
+);
 authRoutes.post(
   '/customer/register/:id/resend',
   authLimiter,
@@ -65,7 +92,7 @@ authRoutes.post(
   async (req, res) => {
     res.json(
       await auth.completePasswordReset(
-        { challengeId: req.valid.params.id, password: req.valid.body.password },
+        { challengeId: req.valid.params.id, password: req.valid.body.password, resetToken: req.valid.body.resetToken },
         req.user || null
       )
     );

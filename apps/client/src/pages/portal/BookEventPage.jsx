@@ -341,24 +341,6 @@ export default function BookEventPage() {
   }, [form, user.id]);
 
   useEffect(() => {
-    if (!catalog.data) return undefined;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id.replace('sec-', ''));
-      },
-      { rootMargin: '-90px 0px -55% 0px' }
-    );
-    SECTIONS.forEach(([key]) => {
-      const el = document.getElementById(`sec-${key}`);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, [catalog.data, form.serviceType]);
-
-  useEffect(() => {
     const bar = chipBar.current;
     const chip = bar && bar.querySelector(`[data-section="${active}"]`);
     if (!chip || bar.scrollWidth <= bar.clientWidth) return;
@@ -582,8 +564,8 @@ export default function BookEventPage() {
   };
 
   const scrollTo = (key) => {
-    const el = document.getElementById(`sec-${key}`);
-    if (el) el.scrollIntoView({ behavior: 'instant', block: 'start' });
+    setActive(key);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const validate = () => {
@@ -833,6 +815,10 @@ export default function BookEventPage() {
     rental && key === 'venue' ? 'Pick Up or Delivery' : label,
     rental && key === 'venue' ? 'Pick-up / delivery' : short
   ]);
+  const sectionKeys = sections.map(([key]) => key).join(',');
+  useEffect(() => {
+    if (!sections.some(([key]) => key === active)) setActive(sections[0]?.[0] || 'details');
+  }, [sectionKeys, active]);
   const sectionNo = (key) => sections.findIndex(([k]) => k === key) + 1;
   const nextSectionFor = (key) => {
     const idx = sections.findIndex(([k]) => k === key);
@@ -1474,7 +1460,7 @@ export default function BookEventPage() {
                 id="package"
                 index={sectionNo('package')}
                 title="Package"
-                subtitle="Choose a package closest to your guest count. Signature Wedding and Royal Wedding are available only for Wedding occasions."
+                subtitle="Packages for your selected occasion. Choose the setup closest to your guest count."
                 error={errors.packageId}
                 done={sectionDone.package}
                 active={active === 'package'}
@@ -2740,6 +2726,20 @@ export default function BookEventPage() {
                 )}
               </Box>
             </Section>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
+              <Button
+                variant="outlined"
+                disabled={sectionNo(active) <= 1}
+                onClick={() => scrollTo(sections[sectionNo(active) - 2][0])}
+              >
+                Previous step
+              </Button>
+              {sectionNo(active) < sections.length && (
+                <Button variant="contained" onClick={() => scrollTo(sections[sectionNo(active)][0])}>
+                  Next step
+                </Button>
+              )}
+            </Box>
           </Box>
 
           <Box

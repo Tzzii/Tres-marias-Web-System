@@ -134,13 +134,27 @@ export async function updateAdminContact(conn, id, field, value) {
   await conn.query('UPDATE ?? SET ?? = ? WHERE id = ?', ['admins', field, value, id]);
 }
 
-export async function findSessionAccount(role, id) {
+export async function findSessionAccount(role, id, tokenHash) {
   if (role === 'admin') {
     const row = first(await pool.query('SELECT name, password_changed_at, session_id FROM admins WHERE id = ?', [id]));
     return row && { name: row.name, passwordChangedAt: row.password_changed_at, sessionId: row.session_id };
   }
-  const row = first(await pool.query('SELECT name, password_changed_at FROM customers WHERE id = ?', [id]));
-  return row && { name: row.name, passwordChangedAt: row.password_changed_at };
+  const row = first(
+    await pool.query(
+      `SELECT name, password_changed_at, sessions_revoked_at,
+       EXISTS(SELECT 1 FROM revoked_customer_tokens WHERE token_hash = ? AND expires_at > ?) AS token_revoked
+       FROM customers WHERE id = ?`,
+      [tokenHash || '', Date.now(), id]
+    )
+  );
+  return (
+    row && {
+      name: row.name,
+      passwordChangedAt: row.password_changed_at,
+      sessionsRevokedAt: Number(row.sessions_revoked_at) || 0,
+      tokenRevoked: Boolean(row.token_revoked)
+    }
+  );
 }
 
 const toChallenge = (row) =>
@@ -235,12 +249,10 @@ export async function deleteReset(id) {
 }
 
 export async function replaceResetCode(id, { codeHash, expiresAt, resendAt }) {
-  await pool.query('UPDATE password_resets SET code_hash = ?, expires_at = ?, resend_at = ? WHERE id = ?', [
-    codeHash,
-    expiresAt,
-    resendAt,
-    id
-  ]);
+  await pool.query(
+    'UPDATE password_resets SET code_hash = ?, expires_at = ?, resend_at = ?, verified_at = NULL WHERE id = ?',
+    [codeHash, expiresAt, resendAt, id]
+  );
 }
 
 export async function setResetResendAt(id, resendAt) {
@@ -251,15 +263,19 @@ export async function addResetAttempt(id) {
   await pool.query('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', [id]);
 }
 
-export async function markResetVerified(id, { at, expiresAt }) {
-  await pool.query('UPDATE password_resets SET verified_at = ?, expires_at = ? WHERE id = ?', [at, expiresAt, id]);
+export async function markResetVerified(id, { at, expiresAt, codeHash }) {
+  const [result] = await pool.query(
+    'UPDATE password_resets SET verified_at = ?, expires_at = ? WHERE id = ? AND code_hash = ? AND used_at IS NULL AND expires_at >= ?',
+    [at, expiresAt, id, codeHash, at]
+  );
+  return result.affectedRows === 1;
 }
 
-export async function markResetUsed(conn, id, at) {
-  const [result] = await conn.query('UPDATE password_resets SET used_at = ? WHERE id = ? AND used_at IS NULL', [
-    at,
-    id
-  ]);
+export async function markResetUsed(conn, id, at, { codeHash, verifiedAt }) {
+  const [result] = await conn.query(
+    'UPDATE password_resets SET used_at = ? WHERE id = ? AND used_at IS NULL AND code_hash = ? AND verified_at = ? AND expires_at >= ?',
+    [at, id, codeHash, verifiedAt, at]
+  );
   return result.affectedRows === 1;
 }
 
@@ -504,4 +520,19 @@ export async function saveAttempts(conn, scope, identifier, { count, lockedUntil
 
 export async function deleteAttempts(scope, identifier) {
   await pool.query('DELETE FROM login_attempts WHERE scope = ? AND identifier = ?', [scope, identifier]);
+}
+
+export async function revokeCustomerToken(tokenHash, expiresAt) {
+  await pool.query('DELETE FROM revoked_customer_tokens WHERE expires_at <= ? LIMIT 100', [Date.now()]);
+  await pool.query(
+    'INSERT INTO revoked_customer_tokens (token_hash, expires_at) VALUES (?, ?) ON DUPLICATE KEY UPDATE expires_at = GREATEST(expires_at, VALUES(expires_at))',
+    [tokenHash, expiresAt]
+  );
+}
+
+export async function revokeAllCustomerSessions(customerId) {
+  await pool.query(
+    'UPDATE customers SET sessions_revoked_at = GREATEST(COALESCE(sessions_revoked_at, 0), ?) WHERE id = ?',
+    [Date.now(), customerId]
+  );
 }

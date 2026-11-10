@@ -6,7 +6,17 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.50.12**
+**System version: 1.53.1**
+
+Signup uses Cloudflare Turnstile before sending a registration code. The API validates the token server-side, including new Google-customer profile submissions. Set `VITE_TURNSTILE_SITE_KEY` in the customer build and `TURNSTILE_SECRET_KEY` on the API using keys from the same widget. Configure the customer website hostname in Cloudflare. Production signup requests fail closed until the API secret is configured. Local development can use Cloudflare test keys.
+
+Customer password and Google login require an emailed code before issuing a portal session. Signup and email changes reject known disposable-email providers using the bundled `disposable-email-domains-js` list. Update that dependency periodically as providers change. Existing customers retain login and recovery access to their registered email.
+
+Customer abuse limits are stored in MySQL and shared across API workers. A network can make 20 signup/Google sign-in attempts per hour, a customer can submit 5 booking requests per hour, and a customer can send 20 messages per minute. Attempts consume the allowance even when later validation fails. These limits supplement the existing endpoint, password, and email-code limits. Legitimate customers sharing a network also share its allowance.
+
+Password-reset completion requires a short-lived proof issued after successful code verification. A resend invalidates that proof. Customer logout revokes the current token when the API receives the request, and the profile's **Log out of all devices** action waits for server confirmation. Offline logout clears local browser storage while server revocation requires connectivity. Run `npm run db:migrate` before starting an updated API against an existing database to add session-revocation storage without removing existing records.
+
+These controls reduce account and booking abuse. Email access alone cannot establish a customer's real name or intention to attend an event. New disposable providers, distributed low-volume bots, compromised inboxes, and existing signup email-in-use responses remain relevant limitations. SMS verification, passkeys, and an external anti-bot challenge require further integration.
 
 The AI assistant enforces business scope on the server before answering or using booking tools, then independently checks the generated reply before saving or speaking it. Clear entertainment questions receive a fixed business redirect; mixed requests may continue only with a verbatim business excerpt. Unclear or failed checks return clarification. Rejected replies cannot update the booking draft or publish generated cards. Classifier calls share the existing spending controls and turn timeout; semantic accuracy still requires human-reviewed model evaluation.
 

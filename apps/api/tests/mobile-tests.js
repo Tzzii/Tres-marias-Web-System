@@ -50,10 +50,10 @@ test('recognized mobile ranges across networks, including 8-series, are supporte
   assert.equal(formatMobile('08131234567'), '+63 813 123 4567');
 });
 
-test('extra digits stay visible and cannot turn into a valid number on paste', () => {
+test('interactive input stops at 11 digits while the API rejects extra digits', () => {
   assert.equal(nationalMobile(invalid), '91234567896');
-  assert.equal(mobileInputValue(invalid), '091234567896');
-  assert.match(validateMobile(mobileInputValue(invalid)), /exactly 10 digits/);
+  assert.equal(mobileInputValue(invalid), '09123456789');
+  assert.match(validateMobile(invalid), /exactly 10 digits/);
   assert.equal(cleanMobile(invalid), invalid);
   assert.equal(readPhilippineMobile(invalid), null);
 });
@@ -70,7 +70,6 @@ test('short, long, duplicated prefix, foreign, landline and unknown mobile range
     '00000000000'
   ]) {
     assert.notEqual(validateMobile(input), '', input);
-    assert.notEqual(validateMobile(mobileInputValue(input)), '', input);
     assert.equal(partnerProblem({ ...partner, mobile: input }).meta.field, 'mobile', input);
   }
 });
@@ -84,7 +83,6 @@ test('letters, commas, extensions and embedded text cannot be silently stripped 
     '+63(0)9171234567'
   ]) {
     assert.notEqual(validateMobile(input), '', input);
-    assert.notEqual(validateMobile(mobileInputValue(input)), '', input);
     assert.equal(readPhilippineMobile(input), null);
   }
 });

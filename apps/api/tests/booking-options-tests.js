@@ -29,6 +29,13 @@ test('regular and rental packages remain available for all occasions', () => {
       assert.equal(catalogRules.packageAllowsOccasion({ slug }, occasion), true);
 });
 
+test('occasion-named packages follow the selected event type', () => {
+  const debut = { slug: 'grand-debut', name: 'Grand Debut' };
+  assert.equal(catalogRules.packageAllowsOccasion(debut, 'Debut'), true);
+  assert.equal(catalogRules.packageAllowsOccasion(debut, 'Wedding'), false);
+  assert.equal(catalogRules.packageAllowsOccasion({ name: 'Birthday Celebration' }, 'Debut'), false);
+});
+
 const menu = {
   pork: ['Lechon Kawali', 'Kare-Kare'],
   chicken: ['Inasal'],

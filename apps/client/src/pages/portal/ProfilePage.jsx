@@ -35,7 +35,7 @@ import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
 export default function ProfilePage() {
   const notify = useNotify();
   const navigate = useNavigate();
-  const { user, updateUser, signOut } = useAuth();
+  const { user, updateUser, signOut, signOutAll } = useAuth();
 
   const [profile, setProfile] = useState({ name: user.name, mobile: user.mobile, company: user.company || '' });
   const [profileErrors, setProfileErrors] = useState({});
@@ -336,6 +336,20 @@ export default function ProfilePage() {
               }}
             >
               Log out of this device
+            </Button>
+            <Button
+              color="error"
+              sx={{ mt: 2, ml: 1 }}
+              onClick={async () => {
+                try {
+                  await signOutAll();
+                  navigate('/', { replace: true });
+                } catch (error) {
+                  notify(error.message || 'Could not reach the server. Please try again.', 'error');
+                }
+              }}
+            >
+              Log out of all devices
             </Button>
           </DashCard>
         </Box>

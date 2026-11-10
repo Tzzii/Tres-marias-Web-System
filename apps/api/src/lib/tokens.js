@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { ApiError } from './ApiError.js';
@@ -7,6 +8,8 @@ const ALGORITHM = 'HS256';
 export function signToken({ id, role, name, passwordChangedAt, sessionId }, { ttl, expiresAt } = {}) {
   const payload = {
     sub: id,
+    issuedMs: Date.now(),
+    jti: randomUUID(),
     role,
     name,
     pwv: Number(passwordChangedAt) || 0,

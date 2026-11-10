@@ -12,10 +12,10 @@ export const nationalMobile = (value = '') => {
   return compact;
 };
 
-/** A field change in domestic form, without truncating or silently repairing invalid input. */
+/** A field change in domestic form, capped to 11 digits for interactive input only. */
 export const mobileInputValue = (value) => {
-  const national = nationalMobile(value);
-  return national && /^\d+$/.test(national) ? `0${national}` : national;
+  const national = nationalMobile(value).replace(/\D/g, '').slice(0, 10);
+  return national ? `0${national}` : '';
 };
 
 /** Strict PH mobile format and allocated mobile ranges; this does not verify SIM activity/ownership. */

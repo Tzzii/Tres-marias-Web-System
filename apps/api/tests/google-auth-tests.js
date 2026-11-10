@@ -122,12 +122,10 @@ test('matching email requires the existing account password and preserves its ID
   await assert.rejects(f.service.signIn({ password: 'incorrect' }), { code: 'INVALID_CREDENTIALS' });
   assert.equal(f.links().length, 0);
   const result = await f.service.signIn({ password: 'correct' });
-  assert.equal(result.token, 'session-token');
-  assert.equal(result.user.id, existing.id);
-  assert.equal(result.user.name, existing.name);
-  assert.equal(result.remember, false);
-  assert.equal(result.challengeId, undefined);
-  assert.deepEqual(f.signIns, []);
+  assert.equal(result.token, undefined);
+  assert.equal(result.status, 'code_required');
+  assert.equal(f.signIns[0].user.id, existing.id);
+  assert.equal(f.signIns[0].subject, identity.sub);
   assert.equal(f.records().length, 1);
   assert.equal(f.links()[0].customerId, existing.id);
 });
@@ -136,12 +134,11 @@ test('returning Google users are found by sub even after their application email
   const customer = { id: 'existing', email: 'changed@example.com', name: 'Saved Name' };
   const f = setup({ customers: [customer], identities: [{ sub: identity.sub, customerId: customer.id }] });
   const result = await f.service.signIn({ profile: { ...profile, firstName: 'Overwrite' }, remember: true });
-  assert.equal(result.token, 'session-token');
-  assert.equal(result.challengeId, undefined);
-  assert.equal(result.user.email, 'changed@example.com');
-  assert.equal(result.user.name, 'Saved Name');
-  assert.equal(result.remember, true);
-  assert.deepEqual(f.signIns, [], 'returning customers do not receive an email code');
+  assert.equal(result.token, undefined);
+  assert.equal(result.status, 'code_required');
+  assert.equal(f.signIns[0].user.email, 'changed@example.com');
+  assert.equal(f.signIns[0].user.name, 'Saved Name');
+  assert.equal(f.signIns[0].remember, true);
   assert.deepEqual(f.cleared, [['customer', customer.email]]);
 });
 

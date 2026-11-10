@@ -7,6 +7,8 @@ import { requireAuth, requireRole } from './middleware/auth.js';
 import { stampWrites } from './middleware/changes.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { apiLimiter } from './middleware/rateLimit.js';
+import { createCustomerAbuseGuard, createCustomerWriteGuard } from './middleware/customerAbuse.js';
+import { customerSessionRoutes } from './modules/auth/session.routes.js';
 import { adminAccountRoutes, authRoutes, customerAccountRoutes } from './modules/auth/auth.routes.js';
 import { calendarAdminRoutes, calendarRoutes } from './modules/calendar/calendar.routes.js';
 import { catalogAdminRoutes, catalogRoutes } from './modules/catalog/catalog.routes.js';
@@ -65,11 +67,13 @@ export function createApp() {
 
   app.use('/api', stampWrites);
 
+  app.use('/api', createCustomerAbuseGuard());
+  app.use('/api/auth/customer', customerSessionRoutes);
   app.use('/api/auth', authRoutes);
 
   app.use('/api/me', requireAuth, requireRole('customer'), customerAccountRoutes);
-  app.use('/api/reservations', requireAuth, requireRole('customer'), reservationRoutes);
-  app.use('/api/threads', requireAuth, requireRole('customer'), threadRoutes);
+  app.use('/api/reservations', requireAuth, requireRole('customer'), createCustomerWriteGuard(), reservationRoutes);
+  app.use('/api/threads', requireAuth, requireRole('customer'), createCustomerWriteGuard(), threadRoutes);
 
   app.use('/api/payments', requireAuth, requireRole('customer'), paymentRoutes);
   app.use('/api/refunds', requireAuth, requireRole('customer'), refundRoutes);

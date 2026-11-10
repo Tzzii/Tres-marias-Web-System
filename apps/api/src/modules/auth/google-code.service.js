@@ -44,7 +44,10 @@ export function createGoogleSignInCodeService({
 
   async function currentCustomer(request, conn, lock = false) {
     if (lock) await repo.findCustomerForUpdate(request.customerId, conn);
-    const customer = await repo.findGoogleCustomer(request.googleSubject, conn);
+    const customer =
+      request.googleSubject === `password:${request.customerId}`
+        ? await repo.findCustomerForUpdate(request.customerId, conn)
+        : await repo.findGoogleCustomer(request.googleSubject, conn);
     if (
       !customer ||
       customer.id !== request.customerId ||

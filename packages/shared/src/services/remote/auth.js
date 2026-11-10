@@ -70,14 +70,19 @@ const segment = (id) => encodeURIComponent(String(id || ''));
 
 /**
  * Customer log in. `remember` ("Remember me") asks for the longer-lasting token; the page decides
- * where the session is kept (createAuth). Returns { token, user }.
+ * where the session is kept (createAuth). Returns an email-code challenge before a session is issued.
  */
 export const customerLogin = ({ email, password, remember = false }) =>
   trackLock('customer', email, () => http.post('/auth/customer/login', { email, password, remember }));
 
+export const verifyCustomerSignInCode = ({ challengeId, code }) =>
+  http.post(`/auth/customer/login/${segment(challengeId)}/verify`, { code });
+export const resendCustomerSignInCode = (challengeId) =>
+  http.post(`/auth/customer/login/${segment(challengeId)}/resend`);
+
 export const getGoogleSignInConfig = () => http.get('/auth/customer/google/config', { quiet: true });
 export const customerGoogleLogin = (values) => http.post('/auth/customer/google', values, { quiet: true });
-/** Complete a pending legacy Google login code challenge issued before direct login. */
+/** Complete the emailed Google login verification. */
 export const verifyGoogleSignInCode = ({ challengeId, code }) =>
   http.post(`/auth/customer/google/${segment(challengeId)}/verify`, { code }, { quiet: true });
 export const resendGoogleSignInCode = (challengeId) =>
@@ -95,8 +100,19 @@ export const startSignUp = ({
   email = '',
   mobile = '',
   password = '',
-  agreeTerms = false
-}) => http.post('/auth/customer/register', { firstName, middleName, lastName, email, mobile, password, agreeTerms });
+  agreeTerms = false,
+  captchaToken = ''
+}) =>
+  http.post('/auth/customer/register', {
+    firstName,
+    middleName,
+    lastName,
+    email,
+    mobile,
+    password,
+    agreeTerms,
+    captchaToken
+  });
 
 /** Sign-up: email a new code (after the resend cooldown): { expiresAt, resendAt } */
 export const resendSignUpCode = (challengeId) => http.post(`/auth/customer/register/${segment(challengeId)}/resend`);
@@ -112,7 +128,7 @@ export const startPasswordReset = ({ email }) => http.post('/auth/customer/passw
 export const resendPasswordResetCode = (challengeId) =>
   http.post(`/auth/customer/password-reset/${segment(challengeId)}/resend`);
 
-/** Step 2: check the emailed code: { ok: true } */
+/** Step 2: check the emailed code and receive the completion proof. */
 export const verifyPasswordResetCode = ({ challengeId, code }) =>
   http.post(`/auth/customer/password-reset/${segment(challengeId)}/verify`, { code });
 
@@ -122,10 +138,10 @@ export const verifyPasswordResetCode = ({ challengeId, code }) =>
  * it (the reset ends every older session); it is saved (emitTokenRenewed) before the change event, so
  * the page stays signed in. From the Log in page there is no session and no token.
  */
-export async function completePasswordReset({ challengeId, password }) {
+export async function completePasswordReset({ challengeId, password, resetToken }) {
   const result = await http.post(
     `/auth/customer/password-reset/${segment(challengeId)}/complete`,
-    { password },
+    { password, resetToken },
     { quiet: true }
   );
   if (result.token) emitTokenRenewed(result.token);

@@ -36,7 +36,7 @@ import {
 import { SectionBar } from '../../components/SectionTabs.jsx';
 import ReservationsSheet from './ReservationsSheet.jsx';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 const STATUS_TABS = [
   'all',
   'pending',
@@ -71,7 +71,7 @@ export default function AllReservationsSection() {
   const setStatus = (value) => updateParam('status', value);
   const setWhen = (value) => updateParam('when', value);
   const setQuery = (value) => updateParam('q', value);
-  const sort = { key: params.get('sort') || 'date', direction: params.get('direction') === 'desc' ? 'desc' : 'asc' };
+  const sort = { key: params.get('sort') || 'createdAt', direction: params.get('direction') === 'asc' ? 'asc' : 'desc' };
   const sortValue = (r, key) => ({ customer: r.customerName, package: r.packageName, pax: r.guests })[key] ?? r[key];
   const setSort = (nextSort) =>
     setParams(
@@ -172,6 +172,7 @@ export default function AllReservationsSection() {
       )
     },
     { key: 'date', label: 'Event Date', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</Box> },
+    { key: 'createdAt', label: 'Reserved', render: (r) => <Box sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.createdAt)}</Box> },
     { key: 'package', label: 'Package', render: (r) => r.packageName },
     { key: 'pax', label: 'Pax', align: 'right', render: (r) => (isRental(r.serviceType) ? 'Rental' : r.guests) },
     { key: 'total', label: 'Total', align: 'right', render: (r) => peso(r.total) },

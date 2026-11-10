@@ -20,6 +20,7 @@ import {
 import { CodeEntry, useCodeEntry } from './EmailCode.jsx';
 
 export default function PasswordResetDialog({ open, onClose, initialEmail = '', accountEmail = '', onDone }) {
+  const [resetToken, setResetToken] = useState('');
   const [step, setStep] = useState('email');
   const [email, setEmail] = useState(accountEmail || initialEmail);
   const entry = useCodeEntry();
@@ -32,6 +33,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
 
   useEffect(() => {
     if (open) {
+      setResetToken('');
       setStep('email');
       setEmail(accountEmail || initialEmail);
       begin(null);
@@ -42,6 +44,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
   }, [open, initialEmail, accountEmail, begin]);
 
   const restart = (message) => {
+    setResetToken('');
     setStep('email');
     begin(null);
     setFormError(message);
@@ -76,7 +79,8 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     setBusy(true);
     setFormError('');
     try {
-      await authApi.verifyPasswordResetCode({ challengeId: entry.challenge.challengeId, code: value });
+      const proof = await authApi.verifyPasswordResetCode({ challengeId: entry.challenge.challengeId, code: value });
+      setResetToken(proof.resetToken);
       entry.succeed(() => setStep('password'));
     } catch (error) {
       if (error.code === 'CHALLENGE_EXPIRED') restart(error.message);
@@ -115,6 +119,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
     try {
       const result = await authApi.completePasswordReset({
         challengeId: entry.challenge.challengeId,
+        resetToken,
         password: values.password
       });
       onDone(result);
@@ -132,7 +137,7 @@ export default function PasswordResetDialog({ open, onClose, initialEmail = '', 
       title: 'Reset Your Password',
       description: accountEmail
         ? ''
-        : 'Enter the email you used to sign up. We will email you a code to choose a new password.',
+        : 'Enter the email you used to sign up. If an account exists, we will email a password reset code.',
       action: accountEmail ? 'Send code' : 'Proceed',
       onClick: proceed
     },

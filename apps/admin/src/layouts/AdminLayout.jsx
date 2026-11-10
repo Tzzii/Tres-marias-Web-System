@@ -13,7 +13,6 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import RestaurantMenuOutlinedIcon from '@mui/icons-material/RestaurantMenuOutlined';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   PortalShell,
   PortalSearch,
@@ -201,7 +200,7 @@ export default function AdminLayout() {
       defaultSidebarCollapsed={false}
       navItems={navItems}
       bottomNav={bottomNav}
-      secondaryNavItems={[{ key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/settings' }]}
+      secondaryNavItems={[]}
       user={user}
       profileItems={[
         { key: 'account', label: 'My Account', icon: ManageAccountsOutlinedIcon, to: '/settings?tab=account' }

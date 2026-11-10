@@ -31,6 +31,7 @@ export const customerGoogle = z.object({
   challenge: text(2000).min(1),
   remember: z.boolean().default(false),
   password: password.optional(),
+  captchaToken: text(2048).optional(),
   profile: z
     .object({
       firstName: text(60),
@@ -50,11 +51,12 @@ export const customerRegister = z.object({
   email: text(254),
   mobile: text(20),
   password,
+  captchaToken: text(2048).optional(),
   agreeTerms: z.boolean({ error: 'Please agree to the Terms of Service and Privacy Policy.' }).default(false)
 });
 
 export const passwordResetStart = z.object({ email: text(254) });
-export const passwordResetComplete = z.object({ password });
+export const passwordResetComplete = z.object({ password, resetToken: text(2000).min(1) });
 
 export const adminStart = z.object({ email: text(254), password });
 export const adminResend = z.object({ challengeId: requestId });

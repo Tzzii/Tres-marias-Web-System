@@ -31,7 +31,8 @@ export function createGoogleCustomerService({
   assertNotLocked,
   reserveAttempt,
   wrongAnswer,
-  startEmailSignup
+  startEmailSignup,
+  startSignInCode
 }) {
   const changed = () => new ApiError('INVALID_STATE', 'Your account changed. Please start Google sign-in again.');
   return {
@@ -41,7 +42,7 @@ export function createGoogleCustomerService({
       if (linked) {
         await assertNotLocked('customer', linked.email);
         await clearAttempts('customer', linked.email);
-        return session(linked, remember);
+        return { status: 'code_required', ...(await startSignInCode(linked, remember, identity.sub)) };
       }
       const existing = await repo.findCustomerByEmail(identity.email);
       if (existing) {
@@ -68,7 +69,7 @@ export function createGoogleCustomerService({
           throw error;
         }
         await clearAttempts('customer', customer.email);
-        return session(customer, remember);
+        return { status: 'code_required', ...(await startSignInCode(customer, remember, identity.sub)) };
       }
       if (!profile)
         return {

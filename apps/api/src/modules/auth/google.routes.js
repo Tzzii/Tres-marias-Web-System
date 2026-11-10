@@ -11,6 +11,7 @@ import { customerSession, startGoogleEmailSignup } from './auth.service.js';
 import { customerGoogle, codeBody, requestParams } from './auth.schemas.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
 import * as repo from './google.repo.js';
+import { verifyGoogleSignupCaptcha } from './turnstile.js';
 
 export function createGoogleRoutes({
   identity = createGoogleIdentity({ clientId: config.googleClientId, secret: config.jwtSecret }),
@@ -26,7 +27,8 @@ export function createGoogleRoutes({
     assertNotLocked,
     reserveAttempt,
     wrongAnswer,
-    startEmailSignup: startGoogleEmailSignup
+    startEmailSignup: startGoogleEmailSignup,
+    startSignInCode: codes.start
   })
 } = {}) {
   const router = express.Router();
@@ -39,6 +41,7 @@ export function createGoogleRoutes({
     requireGoogleOrigin(origins),
     authLimiter,
     validate({ body: customerGoogle }),
+    verifyGoogleSignupCaptcha,
     async (req, res) => {
       res.set('Cache-Control', 'no-store');
       res.json(await service.signIn(req.valid.body));

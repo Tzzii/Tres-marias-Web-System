@@ -11,7 +11,6 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   PortalShell,
   PortalSearch,
@@ -223,7 +222,6 @@ export default function PortalLayout() {
       to: '/portal/messages',
       badge: unreadMessages
     },
-    { key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/portal/settings' }
   ];
 
   return (
@@ -231,7 +229,7 @@ export default function PortalLayout() {
       portalKey={`client.${user.id}`}
       defaultSidebarCollapsed={false}
       navItems={navItems}
-      secondaryNavItems={[{ key: 'settings', label: 'Settings', icon: SettingsOutlinedIcon, to: '/portal/settings' }]}
+      secondaryNavItems={[]}
       bottomNav={bottomNav}
       user={{ ...user, role: 'Customer' }}
       profileItems={[

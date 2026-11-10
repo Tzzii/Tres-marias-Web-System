@@ -65,15 +65,14 @@ function customerSignUp(data) {
 
 function customerGoogleSignIn(data) {
   return {
-    subject: `Your ${BUSINESS.shortName} Google sign-in code`,
+    subject: `Your ${BUSINESS.shortName} sign-in code`,
     ...renderCodeEmail({
       ...common(data),
-      label: 'Google Sign-In Code',
+      label: 'Sign-In Code',
       heading: 'Finish Signing In',
-      intro: `Use this code to finish signing in with Google to your ${BUSINESS.shortName} customer account:`,
-      ifNotYou:
-        'If you did not try to sign in, ignore this email. Your account cannot be opened with Google without this code.',
-      reason: `You're receiving this because a Google sign-in to your ${BUSINESS.shortName} customer account was started.`
+      intro: `Use this code to finish signing in to your ${BUSINESS.shortName} customer account:`,
+      ifNotYou: 'If you did not try to sign in, ignore this email. Your account cannot be opened without this code.',
+      reason: `You're receiving this because a sign-in to your ${BUSINESS.shortName} customer account was started.`
     })
   };
 }

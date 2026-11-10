@@ -1,6 +1,7 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS revoked_customer_tokens;
 DROP TABLE IF EXISTS password_changes;
 DROP TABLE IF EXISTS customer_email_changes;
 DROP TABLE IF EXISTS customer_google_signins;
@@ -75,6 +76,7 @@ CREATE TABLE customers (
   company             VARCHAR(160)    NOT NULL DEFAULT '',
   created_at          BIGINT UNSIGNED NOT NULL,
   password_changed_at BIGINT UNSIGNED NULL,
+  sessions_revoked_at BIGINT UNSIGNED NULL,
   terms_version       VARCHAR(20)     NOT NULL DEFAULT '',
   terms_accepted_at   BIGINT UNSIGNED NULL,
   PRIMARY KEY (id),
@@ -854,3 +856,10 @@ INSERT INTO catalog_settings (id, price_per_plate, min_downpayment, updated_at) 
 INSERT INTO calendar_settings (id, daily_capacity, updated_at) VALUES (1, 2, UNIX_TIMESTAMP() * 1000);
 
 INSERT INTO counters (name, value) VALUES ('receipt', 0), ('payment', 0), ('inventory', 0), ('outsource', 0), ('refund', 0);
+
+CREATE TABLE revoked_customer_tokens (
+  token_hash CHAR(64) NOT NULL,
+  expires_at BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (token_hash),
+  KEY idx_revoked_tokens_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -89,7 +89,8 @@ try {
     await verifyLayout(page, false, desktop);
     await page.locator('#login-email').fill('preview@example.test');
     const brand = page.locator('.tm-auth-brand-panel[aria-hidden="false"]');
-    await brand.getByRole('link', { name: 'Sign up', exact: true }).click();
+    assert.equal(await brand.getByRole('button', { name: 'Back to browsing' }).count(), 1);
+    await page.locator('form').getByRole('link', { name: 'Sign Up', exact: true }).click();
     await page.waitForURL('**/signup?continue=booking');
     if (desktop && !scenario.reduced) {
       assert.equal(
@@ -108,14 +109,15 @@ try {
     assert.equal(signup.focus, 'H1', 'route change focuses the new heading');
     await page.screenshot({ path: path.join(output, `${scenario.name}-signup.png`), fullPage: true });
 
-    // Account switching stays in the brand panel on desktop and mobile.
-    await brand.getByRole('link', { name: 'Log in', exact: true }).click();
+    // Account switching stays under each primary form button on desktop and mobile.
+    assert.equal(await brand.getByRole('button', { name: 'Back to browsing' }).count(), 1);
+    await page.locator('form').getByRole('link', { name: 'Log In', exact: true }).click();
     await page.waitForURL('**/login?next=/portal/book');
     await verifyLayout(page, false, desktop);
     assert.equal(await page.evaluate(() => window.scrollY), 0, 'mobile document scroll resets immediately');
     assert.equal(await page.locator('.tm-auth-form-panel').evaluate((node) => node.scrollTop), 0);
 
-    await brand.getByRole('link', { name: 'Sign up', exact: true }).click();
+    await page.locator('form').getByRole('link', { name: 'Sign Up', exact: true }).click();
     await page.waitForURL('**/signup?continue=booking');
     await verifyLayout(page, true, desktop);
     // Reverse navigation before the route-swap timer fires; no stale timer may win afterwards.

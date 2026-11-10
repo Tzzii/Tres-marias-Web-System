@@ -1,9 +1,13 @@
-import { ADDON_PRICE_RANGE, INVENTORY_CATEGORIES } from '../services/config.js';
+import { ADDON_PRICE_RANGE, INVENTORY_CATEGORIES, OCCASIONS } from '../services/config.js';
 
 /** The two wedding setups are bookable only when the selected occasion is Wedding. */
-export const packageAllowsOccasion = (pkg, occasion) =>
-  occasion === 'Wedding' ||
-  !(['pkg-wedding-1', 'pkg-wedding-2'].includes(pkg?.id) || ['signature-wedding', 'royal-wedding'].includes(pkg?.slug));
+export const packageAllowsOccasion = (pkg, occasion) => {
+  const namedFor = OCCASIONS.filter(
+    (name) => name !== 'Other' && new RegExp(`\\b${name}\\b`, 'i').test(`${pkg?.name || ''} ${pkg?.slug || ''}`)
+  );
+  if (['pkg-wedding-1', 'pkg-wedding-2'].includes(pkg?.id) && !namedFor.includes('Wedding')) namedFor.push('Wedding');
+  return namedFor.length === 0 || namedFor.includes(occasion);
+};
 
 /**
  * Catalogue rules that need no stored data: how a package name becomes the URL name (slug) that

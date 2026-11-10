@@ -1,3 +1,5 @@
+import { issueResetProof, hasResetProof } from './reset-proof.js';
+import { createGoogleSignInCodeService } from './google-code.service.js';
 import { TERMS_VERSION } from '@tm/shared/src/legal/terms.js';
 import { RULES } from '@tm/shared/src/services/config.js';
 import {
@@ -24,6 +26,7 @@ import { readToken, readUnlockTicket, sessionReplaced, signToken, signUnlockTick
 import * as messages from './auth.messages.js';
 import * as repo from './auth.repo.js';
 import { linkGoogle } from './google.repo.js';
+import { assertCustomerEmailAllowed } from './email-policy.js';
 import { assertNotLocked, clearAttempts, reserveAttempt, wrongAnswer } from './lockout.js';
 
 const minutes = (n) => n * 60000;
@@ -94,7 +97,10 @@ export async function customerLogin({ email, password, remember = false }) {
     throw wrongAnswer('customer', attempt, new ApiError('INVALID_CREDENTIALS', 'Incorrect email or password.'));
   }
   await clearAttempts('customer', address);
-  return customerSession(customer, remember);
+  return {
+    status: 'code_required',
+    ...(await createGoogleSignInCodeService().start(customer, remember, `password:${customer.id}`))
+  };
 }
 
 export async function startSignUp({
@@ -117,6 +123,7 @@ export async function startSignUp({
     (validateMobile(mobile) && { field: 'mobile', message: validateMobile(mobile) }) ||
     (validatePassword(password) && { field: 'password', message: validatePassword(password) });
   if (problem) throw new ApiError('INVALID', problem.message, { field: problem.field });
+  assertCustomerEmailAllowed(address);
   if (agreeTerms !== true)
     throw new ApiError('INVALID', 'Please agree to the Terms of Service and Privacy Policy.', { field: 'agree' });
   if (await repo.findCustomerByEmail(address))
@@ -157,6 +164,7 @@ export async function resendSignUpCode(challengeId) {
   const at = now();
   const request = await repo.findSignup(challengeId);
   if (isDead(request, at)) throw new ApiError('CHALLENGE_EXPIRED', 'Your sign-up request expired. Please start again.');
+  assertCustomerEmailAllowed(request.email);
   if (request.resendAt > at) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
   await reserveAttempt('code-email', request.email);
 
@@ -175,6 +183,7 @@ export async function resendSignUpCode(challengeId) {
 /** Every new Google customer must enter the emailed code before account creation. */
 export async function startGoogleEmailSignup(identity, profile) {
   const address = identity.email;
+  assertCustomerEmailAllowed(address);
   await reserveAttempt('code-email', address);
   const at = now();
   const code = newCode(RULES.codeLength);
@@ -209,6 +218,7 @@ export async function confirmSignUp({ challengeId, code, remember = false }) {
   const expired = new ApiError('CHALLENGE_EXPIRED', 'Your sign-up request expired. Please start again.');
   const request = await repo.findSignup(challengeId);
   if (isDead(request, at)) throw expired;
+  assertCustomerEmailAllowed(request.email);
   await assertNotLocked('signup-code', request.email);
   if (request.expiresAt < at) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
 
@@ -254,8 +264,10 @@ export async function startPasswordReset({ email }) {
   const emailError = validateEmail(address);
   if (emailError) throw new ApiError('INVALID', emailError, { field: 'email' });
   const customer = await repo.findCustomerByEmail(address);
-  if (!customer) throw new ApiError('NOT_FOUND', 'We could not find an account with this email.', { field: 'email' });
   await reserveAttempt('code-email', address);
+  if (!customer) {
+    return { challengeId: newId('rst'), maskedEmail: maskEmail(address), ...codeTimes(now()) };
+  }
 
   const at = now();
   const code = newCode(RULES.codeLength);
@@ -320,15 +332,24 @@ export async function verifyPasswordResetCode({ challengeId, code }) {
     throw wrongAnswer('reset-code', attempt, new ApiError('INVALID_CODE', 'That code is incorrect.'));
   }
   await clearAttempts('reset-code', customer.email);
-  await repo.markResetVerified(reset.id, { at, expiresAt: at + minutes(RULES.codeValidMinutes) });
-  return { ok: true };
+  if (
+    !(await repo.markResetVerified(reset.id, {
+      at,
+      expiresAt: at + minutes(RULES.codeValidMinutes),
+      codeHash: reset.codeHash
+    }))
+  )
+    throw expired;
+  const resetToken = issueResetProof(reset, at, config.jwtSecret, RULES.codeValidMinutes);
+  return { ok: true, resetToken };
 }
 
-export async function completePasswordReset({ challengeId, password }, user = null) {
+export async function completePasswordReset({ challengeId, password, resetToken }, user = null) {
   const at = now();
   const expired = new ApiError('CHALLENGE_EXPIRED', 'Your reset request expired. Please start again.');
   const reset = await repo.findReset(challengeId);
   if (isDead(reset, at) || !reset.verifiedAt || reset.expiresAt < at) throw expired;
+  if (!hasResetProof(resetToken, reset, config.jwtSecret)) throw expired;
   const passwordError = validatePassword(password);
   if (passwordError) throw new ApiError('INVALID', passwordError, { field: 'password' });
   const customer = await repo.findCustomerById(reset.customerId);
@@ -336,7 +357,8 @@ export async function completePasswordReset({ challengeId, password }, user = nu
 
   const passwordHash = await hashSecret(password);
   await tx(async (conn) => {
-    if (!(await repo.markResetUsed(conn, reset.id, at))) throw expired;
+    if (!(await repo.markResetUsed(conn, reset.id, at, { codeHash: reset.codeHash, verifiedAt: reset.verifiedAt })))
+      throw expired;
     await repo.updateCustomerPassword(customer.id, passwordHash, at, conn);
     await repo.deleteWaitingPasswordRequests(customer.id, conn);
   });
@@ -402,6 +424,7 @@ export async function startCustomerEmailChange(customerId, { email = '', passwor
   const address = normaliseEmail(email);
   const problem = validateEmail(address);
   if (problem) throw new ApiError('INVALID', problem, { field: 'email' });
+  assertCustomerEmailAllowed(address);
   if (address === normaliseEmail(customer.email)) {
     throw new ApiError('INVALID', 'This is already your email.', { field: 'email' });
   }
@@ -448,6 +471,7 @@ async function ownCustomerEmailChange(customerId, challengeId, at) {
 export async function resendCustomerEmailChangeCode(customerId, challengeId) {
   const at = now();
   const change = await ownCustomerEmailChange(customerId, challengeId, at);
+  assertCustomerEmailAllowed(change.newEmail);
   if (change.resendAt > at) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
   const customer = await repo.findCustomerById(customerId);
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
@@ -470,6 +494,7 @@ export async function confirmCustomerEmailChange(customerId, { challengeId, code
   const expired = new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
   const change = await ownCustomerEmailChange(customerId, challengeId, at);
   await assertNotLocked('email-change-code', customerId);
+  assertCustomerEmailAllowed(change.newEmail);
   if (change.expiresAt < at) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
 
   const attempt = await reserveAttempt('email-change-code', customerId);

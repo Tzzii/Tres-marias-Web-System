@@ -515,7 +515,7 @@ test('real HTTP routes retain admin guards and scope reservation reads to the JW
   const queries = [];
   pool.query = async (sql, params) => {
     if (sql.includes('FROM customers WHERE id = ?')) {
-      const account = f.accounts.get(`customer:${params[0]}`);
+      const account = f.accounts.get(`customer:${params.at(-1)}`);
       return [account ? [{ name: account.name, password_changed_at: account.passwordChangedAt }] : []];
     }
     throw new Error('Unexpected SQL in the HTTP guard test');

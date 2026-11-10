@@ -152,7 +152,7 @@ const mobileCaret = (count) => count + (count > 3 ? 1 : 0) + (count > 6 ? 1 : 0)
 /**
  * Philippine mobile number input with a fixed "+63" in front. The person types the 10 digits after it and
  * the spaces appear as they type ("917 123 4567"); a pasted or autofilled "0917…", "+63 917…" or "63917…"
- * loses its prefix first (nationalMobile). Extra digits and invalid text remain visible and are rejected.
+ * loses its prefix first (nationalMobile). Invalid characters and overflow are ignored.
  * The cursor stays after
  * the digit it followed when a digit is typed or deleted in the middle.
  * `value` may be written any of those ways (e.g. the stored "09171234567"). `onChange` gets
@@ -197,12 +197,11 @@ export const MobileField = forwardRef(function MobileField(
   const handleChange = (e) => {
     const typed = e.target.value;
     const national = nationalMobile(typed);
+    if (!/^\d*$/.test(national) || national.length > 10) return;
     // Digits before the cursor, less the prefix that was removed from the front
     const before = typed.slice(0, e.target.selectionStart ?? typed.length).replace(/\D/g, '').length;
     const removed = typed.replace(/\D/g, '').length - national.length;
-    caret.current = /^\d*$/.test(national)
-      ? mobileCaret(Math.min(national.length, Math.max(0, before - removed)))
-      : Math.max(0, (e.target.selectionStart ?? typed.length) - (typed.length - national.length));
+    caret.current = mobileCaret(Math.min(10, Math.max(0, before - removed)));
     if (onChange) onChange({ target: { value: mobileInputValue(typed) } });
   };
 
@@ -222,7 +221,7 @@ export const MobileField = forwardRef(function MobileField(
             ? `${hint} Philippine mobile: 10 digits after +63.`
             : 'Philippine mobile: 10 digits after +63.'
       }
-      inputProps={{ ...inputProps, inputMode: 'tel' }}
+      inputProps={{ ...inputProps, inputMode: 'numeric', maxLength: 12 }}
       InputProps={{
         ...InputProps,
         startAdornment: (

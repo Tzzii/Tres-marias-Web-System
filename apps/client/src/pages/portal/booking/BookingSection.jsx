@@ -21,6 +21,7 @@ export default function Section({
       id={`sec-${id}`}
       aria-labelledby={`sec-${id}-title`}
       sx={{
+        display: active ? undefined : 'none',
         scrollMarginTop: `${tokens.headerHeight + 68}px`,
         p: { xs: 2, sm: 2.5, md: 3 },
         borderRadius: 2.5,

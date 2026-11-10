@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { apiUrl } from '../services/http.js';
 import { RULES } from '../services/config.js';
 import { onSignedOut, onTokenRenewed } from '../services/events.js';
 import { startRealtimeSync } from '../services/realtime.js';
@@ -163,12 +164,32 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
 
     // End the session (and any lock: the next sign-in needs the code); `reason` is shown on the login page
     const signOut = useCallback((reason = null) => {
+      const current = readSession();
+      if (current?.user?.role === 'customer' && !['expired', 'replaced', 'revoked'].includes(reason)) {
+        // Capture the token before clearing storage. keepalive lets navigation finish the revocation.
+        void fetch(apiUrl('/auth/customer/logout'), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${current.token}` },
+          keepalive: true
+        }).catch(() => {});
+      }
       clearSession();
       clearLock();
       setLocked(null);
       setEndReason(reason);
       setSession(null);
     }, []);
+
+    const signOutAll = useCallback(async () => {
+      const current = readSession();
+      if (!current || current.user.role !== 'customer') return;
+      const response = await fetch(apiUrl('/auth/customer/logout-all'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${current.token}` }
+      });
+      if (!response.ok) throw new Error('Could not sign out your devices. Please try again.');
+      signOut('revoked');
+    }, [signOut]);
 
     // Idle: lock the session when this portal locks and the ticket is good, otherwise end it
     const goIdle = useCallback(
@@ -277,11 +298,12 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
         isAuthenticated: Boolean(session),
         signIn,
         signOut,
+        signOutAll,
         updateUser,
         endReason,
         locked
       }),
-      [session, signIn, signOut, updateUser, endReason, locked]
+      [session, signIn, signOut, signOutAll, updateUser, endReason, locked]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

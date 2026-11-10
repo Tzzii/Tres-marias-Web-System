@@ -20,6 +20,7 @@ import {
 } from '@tm/shared';
 import { loadGoogleIdentity } from '../lib/googleIdentity.js';
 import { EmailCodeDialog } from './EmailCode.jsx';
+import SignupCaptcha from './SignupCaptcha.jsx';
 
 const clientId = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 
@@ -50,6 +51,8 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
   });
   const [password, setPassword] = useState('');
   const [emailChallenge, setEmailChallenge] = useState(null);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReset, setCaptchaReset] = useState(0);
   dialogOpen.current = Boolean(flow || emailChallenge);
 
   const close = () => {
@@ -90,6 +93,10 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
       } else throw new Error('Google sign-in could not be completed. Please try again.');
     } catch (err) {
       if (!active.current) return;
+      if (values.profile) {
+        setCaptchaToken('');
+        setCaptchaReset((count) => count + 1);
+      }
       setError(err.message);
       if ((err.code === 'INVALID_CREDENTIALS' && !err.meta?.field) || err.code === 'INVALID_STATE') {
         setPending(null);
@@ -180,7 +187,11 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
         setError(problem);
         return;
       }
-      exchange({ ...pending, profile: { ...profile, termsVersion: TERMS_VERSION } });
+      if (!captchaToken) {
+        setError('Please complete the security check.');
+        return;
+      }
+      exchange({ ...pending, profile: { ...profile, termsVersion: TERMS_VERSION }, captchaToken });
     }
   };
   const change = (field) => (event) => {
@@ -313,6 +324,7 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
                 onChange={change('mobile')}
                 disabled={busy}
               />
+              <SignupCaptcha onChange={setCaptchaToken} resetCount={captchaReset} />
               <FormControlLabel
                 control={
                   <Checkbox

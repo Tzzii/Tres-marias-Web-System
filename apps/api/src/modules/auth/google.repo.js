@@ -11,7 +11,7 @@ export async function findGoogleCustomer(subject, conn = pool) {
   return toCustomer(row);
 }
 
-export async function findCustomerForUpdate(id, conn) {
+export async function findCustomerForUpdate(id, conn = pool) {
   const [[row]] = await conn.query('SELECT * FROM customers WHERE id = ? FOR UPDATE', [id]);
   return toCustomer(row);
 }

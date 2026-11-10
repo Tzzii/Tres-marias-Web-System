@@ -96,14 +96,15 @@ export default function QuotationCard({ r, closed, onSend }) {
   });
   const [busy, setBusy] = useState(false);
 
-  const set = (key) => (e) => setValues((v) => ({ ...v, [key]: e.target.value }));
+  const digits = (value) => value.replace(/\D/g, '');
+  const set = (key) => (e) => setValues((v) => ({ ...v, [key]: key === 'note' ? e.target.value : digits(e.target.value) }));
   const setAddonPrice = (id) => (e) =>
-    setValues((v) => ({ ...v, addonPrices: { ...v.addonPrices, [id]: e.target.value } }));
+    setValues((v) => ({ ...v, addonPrices: { ...v.addonPrices, [id]: digits(e.target.value) } }));
   const setItemCount = (name) => (e) =>
-    setValues((v) => ({ ...v, itemCounts: { ...v.itemCounts, [name]: e.target.value } }));
+    setValues((v) => ({ ...v, itemCounts: { ...v.itemCounts, [name]: digits(e.target.value) } }));
   const itemCount = (name) => (values.itemCounts || {})[name] ?? '';
   const setOtherCharge = (id, key) => (e) => {
-    const value = e.target.value;
+    const value = key === 'amount' ? digits(e.target.value) : e.target.value;
     setValues((v) => ({
       ...v,
       otherChargeItems: v.otherChargeItems.map((line) => (line.id === id ? { ...line, [key]: value } : line))
@@ -297,13 +298,13 @@ export default function QuotationCard({ r, closed, onSend }) {
               id="q-delivery"
               label="Delivery fee"
               required
-              type="number"
+              type="text"
               value={values.deliveryFee}
               onChange={set('deliveryFee')}
               error={amountError(values.deliveryFee)}
               hint={`Standard ${peso(RENTAL.deliveryFee)}. Set more for a large order.`}
               InputProps={peso0}
-              inputProps={{ min: 0, step: 50 }}
+              inputProps={{ inputMode: 'numeric', min: 0, step: 50 }}
             />
           )}
           {extraGuests > 0 && (
@@ -313,13 +314,13 @@ export default function QuotationCard({ r, closed, onSend }) {
                   id="q-extra-guests"
                   label={`Extra ${extraGuests} guests (equipment)`}
                   required
-                  type="number"
+                  type="text"
                   value={values.extraGuestsCharge}
                   onChange={set('extraGuestsCharge')}
                   error={amountError(values.extraGuestsCharge)}
                   hint={`${r.guests} guests on a package for ${pricingPackage.guests}. Plates, glasses, cutlery, chairs and tables grow by themselves; enter 0 to waive the charge.`}
                   InputProps={peso0}
-                  inputProps={{ min: 0, step: 500 }}
+                  inputProps={{ inputMode: 'numeric', min: 0, step: 500 }}
                 />
               )}
               {confirmItems.length > 0 && (
@@ -335,12 +336,12 @@ export default function QuotationCard({ r, closed, onSend }) {
                         id={`q-count-${item.name}`}
                         label={item.name}
                         required
-                        type="number"
+                        type="text"
                         value={itemCount(item.name)}
                         onChange={setItemCount(item.name)}
                         error={countError(itemCount(item.name))}
                         hint={`Package: ${item.defaultQty} for ${pricingPackage.guests} guests`}
-                        inputProps={{ min: 1, step: 1 }}
+                        inputProps={{ inputMode: 'numeric', min: 1, step: 1 }}
                       />
                     ))}
                   </Box>
@@ -354,7 +355,7 @@ export default function QuotationCard({ r, closed, onSend }) {
               id={`q-addon-${a.id}`}
               label={addonLabel(a)}
               required
-              type="number"
+              type="text"
               value={values.addonPrices[a.id] ?? ''}
               onChange={setAddonPrice(a.id)}
               error={amountError(values.addonPrices[a.id] ?? '')}
@@ -364,7 +365,7 @@ export default function QuotationCard({ r, closed, onSend }) {
                   : undefined
               }
               InputProps={peso0}
-              inputProps={{ min: 0, step: 500 }}
+              inputProps={{ inputMode: 'numeric', min: 0, step: 500 }}
             />
           ))}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -383,12 +384,12 @@ export default function QuotationCard({ r, closed, onSend }) {
                     id={`q-other-${line.id}`}
                     label={index === 0 ? 'Other charges' : `Other charge ${index + 1}`}
                     optional
-                    type="number"
+                    type="text"
                     value={line.amount}
                     onChange={setOtherCharge(line.id, 'amount')}
                     error={otherAmountError(line.amount)}
                     InputProps={peso0}
-                    inputProps={{ min: 0, max: 10000000, step: 1 }}
+                    inputProps={{ inputMode: 'numeric', min: 0, max: 10000000, step: 1 }}
                   />
                   <FormField
                     id={`q-other-label-${line.id}`}
@@ -426,12 +427,12 @@ export default function QuotationCard({ r, closed, onSend }) {
             id="q-discount"
             label="Discount"
             optional
-            type="number"
+            type="text"
             value={values.discount}
             onChange={set('discount')}
             error={discountError}
             InputProps={peso0}
-            inputProps={{ min: 0, step: 500 }}
+            inputProps={{ inputMode: 'numeric', min: 0, step: 500 }}
           />
         </Box>
       )}

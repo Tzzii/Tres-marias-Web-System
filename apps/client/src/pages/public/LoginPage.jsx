@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../../auth.js';
 import { BookingIntentBanner, FormCard } from '../../components/AuthLayout.jsx';
 import PasswordResetDialog from '../../components/PasswordResetDialog.jsx';
+import { EmailCodeDialog } from '../../components/EmailCode.jsx';
 import GoogleSignIn from '../../components/GoogleSignIn.jsx';
 import { readIntent } from '../../lib/booking.js';
 
@@ -34,6 +35,11 @@ export default function LoginPage() {
 
   const next = safeNextPath(params.get('next'), '/portal');
   const continuingBooking = next.startsWith('/portal/book');
+  const signupPath = continuingBooking
+    ? '/signup?continue=booking'
+    : next === '/portal/assistant'
+      ? '/signup?continue=assistant'
+      : '/signup';
   const intent = continuingBooking ? readIntent() : null;
 
   const [email, setEmail] = useState(() => {
@@ -43,6 +49,7 @@ export default function LoginPage() {
       return '';
     }
   });
+  const [challenge, setChallenge] = useState(null);
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(() => Boolean(email));
   const [errors, setErrors] = useState({});
@@ -81,8 +88,9 @@ export default function LoginPage() {
         else localStorage.removeItem(REMEMBERED_EMAIL);
       } catch (e) {
       }
-      signIn(result, { remember });
-      navigate(next, { replace: true });
+      setChallenge({ ...result, remember });
+      setPassword('');
+      setBusy(false);
     } catch (error) {
       setBusy(false);
       setPassword('');
@@ -163,11 +171,28 @@ export default function LoginPage() {
         <BusyButton type="submit" size="large" busy={busy} disabled={locked} sx={{ py: 1.3 }}>
           Log in
         </BusyButton>
+        <Typography sx={{ textAlign: 'center', fontSize: 13.5, color: tokens.textSecondary }}>
+          Don't have an account?{' '}
+          <Link component={RouterLink} to={signupPath} sx={{ fontWeight: 700, color: tokens.goldDark }}>
+            Sign Up
+          </Link>
+        </Typography>
 
         <GoogleSignIn remember={remember} disabled={busy || locked} onBusyChange={setBusy}
           onSignedIn={(session, options) => { signIn(session, options); navigate(next, { replace: true }); }} />
       </FormCard>
 
+      <EmailCodeDialog
+        challenge={challenge}
+        title="Verify Your Sign-In"
+        actionLabel="Verify and sign in"
+        loadingLabel="Opening your account…"
+        onVerify={(code) => authApi.verifyCustomerSignInCode({ challengeId: challenge.challengeId, code })}
+        onVerified={(session) => { signIn(session, { remember: challenge.remember }); setChallenge(null); navigate(next, { replace: true }); }}
+        onResend={() => authApi.resendCustomerSignInCode(challenge.challengeId)}
+        onRestart={(message) => { setChallenge(null); setFormError(message); }}
+        onClose={() => setChallenge(null)}
+      />
       <PasswordResetDialog
         open={forgotOpen}
         onClose={() => setForgotOpen(false)}

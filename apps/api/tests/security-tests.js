@@ -878,9 +878,16 @@ async function runTests(call, fx) {
         body: { code: codeIn(await lastEmailTo(C.email)) }
       });
       ok(res.status === 200, `C verifies the emailed reset code: ${said(res)}`);
+      const resetToken = res.body.resetToken;
+      const withoutProof = await call('POST', `/auth/customer/password-reset/${resetId}/complete`, {
+        ip: nextIp(),
+        body: { password: 'Unauthorized-Reset-2026' }
+      });
+      ok(withoutProof.status === 400, 'A reset ID alone cannot change the password');
+
       res = await call('POST', `/auth/customer/password-reset/${resetId}/complete`, {
         ip: nextIp(),
-        body: { password: 'Reset-Test-2026' }
+        body: { password: 'Reset-Test-2026', resetToken }
       });
       ok(
         res.status === 200 && !res.body.token,
@@ -890,7 +897,27 @@ async function runTests(call, fx) {
         ip: nextIp(),
         body: { email: C.email, password: 'Reset-Test-2026' }
       });
-      ok(res.status === 200, `C logs in with the new password: ${said(res)} (the reset lifted the lock)`);
+      ok(
+        res.status === 200 && !res.body.token && res.body.status === 'code_required',
+        'Password alone produces a challenge'
+      );
+      const signInId = res.body.challengeId;
+      const signInCode = codeIn(await lastEmailTo(C.email));
+      res = await call('POST', `/auth/customer/login/${signInId}/verify`, {
+        ip: nextIp(),
+        body: { code: signInCode }
+      });
+      ok(res.status === 200 && res.body.token, 'The emailed login code produces a session');
+      res = await call('POST', `/auth/customer/login/${signInId}/verify`, {
+        ip: nextIp(),
+        body: { code: signInCode }
+      });
+      ok(res.status === 410, 'The login code cannot be reused');
+      res = await call('POST', `/auth/customer/password-reset/${resetId}/complete`, {
+        ip: nextIp(),
+        body: { password: 'Replayed-Reset-2026', resetToken }
+      });
+      ok(res.status === 410, 'The reset completion proof cannot be reused');
       res = await call('GET', '/me', { token: C.token });
       ok(res.status === 401, `C's session from before the reset: ${said(res)} (every older session ended)`);
 
