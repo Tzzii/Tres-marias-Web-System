@@ -1,10 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanAssistantIntent, ASSISTANT_AUTH } from '../../../packages/shared/src/domain/assistant.js';
-import { encodeQuestionWav } from '../src/lib/assistantAudio.js';
+import { encodeQuestionWav, startQuestionRecording } from '../src/lib/assistantAudio.js';
 import { canOpenAssistantSession, createAssistantApi, createAssistantDraftWriter } from '../src/lib/assistantApi.js';
 import { assistantAnswerBlocks, buildCelebrationSummary } from '../src/lib/assistantSummary.js';
 import { readIntent, saveIntent, saveAssistantIntent } from '../src/lib/booking.js';
+
+test('server microphone policy failures explain why no browser permission prompt appears', async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { permissionsPolicy: { allowsFeature: (feature) => feature !== 'microphone' } }
+  });
+  try {
+    await assert.rejects(
+      startQuestionRecording(() => {}),
+      (error) => {
+        assert.match(error.message, /website.*blocks microphone/i);
+        assert.match(error.message, /permission prompt/i);
+        return true;
+      }
+    );
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'document', original);
+    else delete globalThis.document;
+  }
+});
 
 function replaceStorage(local, session) {
   const originals = new Map(

@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.50.11**
+**System version: 1.50.12**
 
 The AI assistant enforces business scope on the server before answering or using booking tools, then independently checks the generated reply before saving or speaking it. Clear entertainment questions receive a fixed business redirect; mixed requests may continue only with a verbatim business excerpt. Unclear or failed checks return clarification. Rejected replies cannot update the booking draft or publish generated cards. Classifier calls share the existing spending controls and turn timeout; semantic accuracy still requires human-reviewed model evaluation.
 
@@ -685,6 +685,16 @@ Before starting a production API, configure:
 - `CORS_ORIGINS` containing the exact customer and admin origins.
 - PayMongo credentials and webhook configuration if QR payments are enabled.
 - HTTPS, reverse proxy settings, process management, database backups, and upload backups.
+
+The customer portal's voice assistant requires microphone access on its HTTPS origin. In the existing Nginx customer-site server block, replace any `Permissions-Policy` header that contains `microphone=()` with:
+
+```nginx
+add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;
+```
+
+Keep only one effective `Permissions-Policy` header for the customer site; a second restrictive header can still block recording. Leave the admin site's policy unchanged unless it also needs recording. Validate the configuration with `sudo nginx -t` before reloading Nginx. After applying an authorized live update, check `curl -I https://tresmariascater.com` for `microphone=(self)`, then reload the customer page and click the microphone in a browser with site permission reset to Ask. Confirm the permission prompt, recording, stop, and transcript review. An existing browser Block permission must be changed to Allow in the address bar's site settings; the website cannot override it.
+
+When `microphone=()` is sent by the server, browsers deny recording without showing a permission prompt. Rebuilding the frontend alone does not change this server policy.
 
 For Socket.IO behind Nginx, the API server needs a WebSocket-capable location:
 

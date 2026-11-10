@@ -406,8 +406,13 @@ export default function AssistantPanel({
       recorder.current = capture;
       setSeconds(0);
       setRecording(true);
-    } catch {
-      if (alive.current) setError('Microphone access is unavailable. Allow it in your browser or type your question.');
+    } catch (failure) {
+      if (alive.current)
+        setError(
+          failure.name === 'MicrophonePolicyError'
+            ? failure.message
+            : 'Microphone access is unavailable. Open the site settings beside the address bar, allow Microphone, then try again. You can also type your question.'
+        );
     } finally {
       if (alive.current) setBusy(false);
     }

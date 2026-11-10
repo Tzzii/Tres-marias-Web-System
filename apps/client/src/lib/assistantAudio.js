@@ -31,6 +31,14 @@ export function encodeQuestionWav(samples, sampleRate) {
 
 /** Capture only while explicitly recording. Close every microphone track and audio node on every exit. */
 export async function startQuestionRecording(onComplete) {
+  const policy = globalThis.document?.permissionsPolicy || globalThis.document?.featurePolicy;
+  if (policy?.allowsFeature('microphone') === false) {
+    const error = new Error(
+      'This website blocks microphone access in its server settings, so the browser cannot show a permission prompt. Please type your question while microphone access is being restored.'
+    );
+    error.name = 'MicrophonePolicyError';
+    throw error;
+  }
   if (!navigator.mediaDevices?.getUserMedia)
     throw new Error('Voice recording is unavailable here. You can type your question.');
   const stream = await navigator.mediaDevices.getUserMedia({
