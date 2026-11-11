@@ -87,6 +87,8 @@ export const config = {
   googleClientId: text('GOOGLE_CLIENT_ID'),
   turnstileSecret: text('TURNSTILE_SECRET_KEY'),
   disifyApiKey: text('DISIFY_API_KEY'),
+  abstractEmailApiKey: text('ABSTRACT_EMAIL_API_KEY'),
+  abstractPhoneApiKey: text('ABSTRACT_PHONE_API_KEY'),
   assistant: {
     enabled: text('AI_ASSISTANT_ENABLED', 'false') === 'true',
     voiceEnabled: text('AI_ASSISTANT_VOICE_ENABLED', 'false') === 'true',

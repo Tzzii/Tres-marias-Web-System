@@ -1,10 +1,11 @@
 import { cleanMobile, normaliseEmail } from '@tm/shared/src/domain/account.js';
 import { customerBookings, customerDirectory, customerSummary } from '@tm/shared/src/domain/customer.js';
 import { validateEmail, validateMobile } from '@tm/shared/src/utils/validation.js';
-import { tx } from '../../db.js';
+import { pool, tx } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { findReservations } from '../reservations/reservations.repo.js';
 import * as repo from './customers.repo.js';
+import { assertCustomerMobileAllowedWithAbstract } from '../auth/mobile-policy.js';
 
 const notFound = () => new ApiError('NOT_FOUND', 'Customer not found.');
 const emailTaken = () => new ApiError('EMAIL_TAKEN', 'Another account already uses this email.', { field: 'email' });
@@ -36,10 +37,18 @@ export async function updateCustomerContact(customerId, { email = '', mobile = '
   if (emailError) throw new ApiError('INVALID', emailError, { field: 'email' });
   const mobileError = validateMobile(mobile);
   if (mobileError) throw new ApiError('INVALID', mobileError, { field: 'mobile' });
+  // Complete the external lookup without holding a connection or customer row lock.
+  const current = await exactCustomer(pool, customerId);
+  if (cleanMobile(mobile) !== cleanMobile(current.mobile)) await assertCustomerMobileAllowedWithAbstract(mobile);
   try {
     return await tx(async (conn) => {
       const locked = typeof customerId === 'string' && customerId ? await repo.lockCustomer(conn, customerId) : null;
       if (!locked || locked.id !== customerId) throw notFound();
+      if (cleanMobile(locked.mobile) !== cleanMobile(current.mobile)) {
+        throw new ApiError('INVALID_STATE', 'The customer mobile number changed. Reload the customer and try again.', {
+          field: 'mobile'
+        });
+      }
       if (await repo.emailUsedByAnother(conn, address, locked.id)) throw emailTaken();
       const customer = { ...locked, email: address, mobile: cleanMobile(mobile) };
       await repo.updateContact(conn, customer.id, customer);

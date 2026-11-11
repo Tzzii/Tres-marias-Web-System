@@ -3,6 +3,7 @@ import { disposableEmailBlocklistSet } from 'disposable-email-domains-js';
 import { validateEmail } from '@tm/shared/src/utils/validation.js';
 import { config } from '../../config.js';
 import { ApiError } from '../../lib/ApiError.js';
+import { createAbstractLookup } from '../../integrations/abstract.js';
 
 // Keep the bundled list as the policy when the external check is unavailable.
 const disposableDomains = disposableEmailBlocklistSet();
@@ -73,4 +74,31 @@ export async function assertCustomerEmailAllowedWithDisify(email) {
       { field: 'email' }
     );
   }
+}
+
+const checkEmail = createAbstractLookup({
+  endpoint: 'https://emailreputation.abstractapi.com/v1/',
+  parameter: 'email',
+  apiKey: () => config.abstractEmailApiKey,
+  readVerdict: (result, address) => {
+    if (typeof result?.email_address !== 'string' || result.email_address.trim().toLowerCase() !== address.toLowerCase()) return;
+    const status = result.email_deliverability?.status;
+    if (status === 'deliverable') return true;
+    if (status === 'undeliverable') return false;
+  }
+});
+
+export async function assertCustomerEmailAllowedWithAbstract(email) {
+  assertCustomerEmailAllowed(email);
+  const address = String(email).trim();
+  if ((await checkEmail(address)) === false) {
+    throw new ApiError('INVALID', 'This address cannot receive email right now. Check the address or use another email.', {
+      field: 'email'
+    });
+  }
+}
+
+export async function assertCustomerEmailAllowedWithProviders(email) {
+  await assertCustomerEmailAllowedWithDisify(email);
+  await assertCustomerEmailAllowedWithAbstract(email);
 }
