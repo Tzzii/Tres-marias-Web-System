@@ -33,6 +33,7 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
   const active = useRef(false);
   const working = useRef(false);
   const dialogOpen = useRef(false);
+  const setupRetries = useRef(0);
   const latest = useRef({ onSignedIn, onBusyChange, remember, disabled });
   latest.current = { onSignedIn, onBusyChange, remember, disabled };
   const [reload, setReload] = useState(0);
@@ -117,6 +118,36 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
     active.current = true;
     let cancelled = false;
     let observer;
+    let readyTimer;
+    let retryTimer;
+    let refreshTimer;
+    let refreshAt = Infinity;
+    let renderedWidth;
+    const refresh = () => {
+      if (cancelled) return;
+      clearTimeout(refreshTimer);
+      if (working.current || dialogOpen.current) {
+        refreshTimer = setTimeout(refresh, 30000);
+        return;
+      }
+      setReload((n) => n + 1);
+    };
+    const resume = () => {
+      if (Date.now() >= refreshAt) refresh();
+    };
+    const failed = () => {
+      if (cancelled) return;
+      setLoadError(true);
+      setLoading(false);
+      // Recover a transient setup failure after returning from an ended session.
+      // Retry only once; a persistent outage keeps the email/password fallback.
+      if (setupRetries.current < 1) {
+        setupRetries.current++;
+        retryTimer = setTimeout(refresh, 1000);
+      }
+    };
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
     setLoading(true);
     setLoadError(false);
     Promise.all([authApi.getGoogleSignInConfig(), loadGoogleIdentity()])
@@ -124,6 +155,10 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
         if (cancelled) return;
         if (config.clientId !== clientId || !config.challenge || !config.nonce)
           throw new Error('Google sign-in is unavailable.');
+        // Server challenges last ten minutes. Renew early, including after a
+        // suspended tab resumes, without interrupting an account/code dialog.
+        refreshAt = Date.now() + 9 * 60000;
+        refreshTimer = setTimeout(refresh, 9 * 60000);
         sdk.initialize({
           client_id: clientId,
           nonce: config.nonce,
@@ -131,6 +166,11 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
           callback: (response) => {
             if (cancelled || working.current || dialogOpen.current || latest.current.disabled || !response.credential)
               return;
+            if (Date.now() >= refreshAt) {
+              setError('Your Google sign-in request expired. Please choose your Google account again.');
+              refresh();
+              return;
+            }
             const values = { credential: response.credential, challenge: config.challenge };
             setPending(values);
             exchange(values);
@@ -138,6 +178,11 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
         });
         const render = () => {
           if (!button.current || cancelled) return;
+          const width = Math.min(400, Math.floor(button.current.clientWidth || 280));
+          if (width === renderedWidth) return;
+          renderedWidth = width;
+          clearTimeout(readyTimer);
+          setLoading(true);
           button.current.replaceChildren();
           sdk.renderButton(button.current, {
             type: 'standard',
@@ -146,24 +191,38 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
             text: 'continue_with',
             locale: 'en',
             shape: 'rectangular',
-            width: Math.min(400, Math.floor(button.current.clientWidth || 280))
+            width
           });
+          // The SDK returns before its iframe is ready. Keep its initial markup
+          // hidden so downloading Google's styles cannot flash oversized content.
+          const frame = button.current.querySelector('iframe');
+          if (frame) {
+            frame.addEventListener(
+              'load',
+              () => {
+                if (cancelled || !button.current?.contains(frame)) return;
+                clearTimeout(readyTimer);
+                setLoading(false);
+              },
+              { once: true }
+            );
+            readyTimer = setTimeout(failed, 15000);
+          } else setLoading(false);
         };
         render();
         observer = new ResizeObserver(render);
         observer.observe(button.current);
-        setLoading(false);
       })
-      .catch(() => {
-        if (!cancelled) {
-          setLoadError(true);
-          setLoading(false);
-        }
-      });
+      .catch(failed);
     return () => {
       cancelled = true;
       active.current = false;
       observer?.disconnect();
+      clearTimeout(readyTimer);
+      clearTimeout(retryTimer);
+      clearTimeout(refreshTimer);
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', resume);
     };
   }, [reload]);
 
@@ -206,11 +265,6 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
     <>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Divider sx={{ color: tokens.textMuted, fontSize: 12 }}>or</Divider>
-        {loading && (
-          <Typography role="status" sx={{ textAlign: 'center', fontSize: 13, color: tokens.textSecondary }}>
-            Loading Google sign-in…
-          </Typography>
-        )}
         {loadError && (
           <AlertBanner tone="info">
             Google sign-in is unavailable. You can use email and password.
@@ -219,19 +273,37 @@ function GoogleSignInFlow({ onSignedIn, onBusyChange, remember = false, disabled
             </Button>
           </AlertBanner>
         )}
-        <Box
-          ref={button}
-          aria-label="Continue with Google"
-          aria-disabled={disabled || busy}
-          sx={{
-            width: '100%',
-            minHeight: loading || loadError ? 0 : 44,
-            display: loadError ? 'none' : 'block',
-            pointerEvents: disabled || busy ? 'none' : 'auto',
-            opacity: disabled || busy ? 0.55 : 1,
-            '& > div': { display: 'flex', justifyContent: 'center' }
-          }}
-        />
+        <Box sx={{ position: 'relative', height: 44, display: loadError ? 'none' : 'block' }}>
+          {loading && (
+            <Typography
+              role="status"
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: 13,
+                color: tokens.textSecondary
+              }}
+            >
+              Loading Google sign-in…
+            </Typography>
+          )}
+          <Box
+            ref={button}
+            aria-label="Continue with Google"
+            aria-disabled={disabled || busy}
+            sx={{
+              width: '100%',
+              height: 44,
+              overflow: 'hidden',
+              visibility: loading ? 'hidden' : 'visible',
+              pointerEvents: disabled || busy ? 'none' : 'auto',
+              opacity: disabled || busy ? 0.55 : 1,
+              '& > div': { display: 'flex', justifyContent: 'center' }
+            }}
+          />
+        </Box>
         {error && !flow && <AlertBanner tone="error">{error}</AlertBanner>}
       </Box>
 

@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.56.0**
+**System version: 1.56.2**
 
 Signup uses Cloudflare Turnstile before sending a registration code. The API validates the token server-side, including new Google-customer profile submissions. Set `VITE_TURNSTILE_SITE_KEY` in the customer build and `TURNSTILE_SECRET_KEY` on the API using keys from the same widget. Configure the customer website hostname in Cloudflare. Production signup requests fail closed until the API secret is configured. Local development can use Cloudflare test keys.
 

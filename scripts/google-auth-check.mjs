@@ -52,19 +52,35 @@ async function enterCode(page, title = 'Confirm Your Email', code = '123456') {
   await dialog.locator('input').first().focus();
   await page.keyboard.type(code);
 }
-const sdk = `window.google={accounts:{id:{initialize(options){window.googleFixtureOptions=options},renderButton(parent){
+const sdk = `window.google={accounts:{id:{initialize(options){window.googleFixtureOptions=options},renderButton(parent,options){
+ window.googleFixtureRenders=(window.googleFixtureRenders||0)+1;
+ (window.googleFixtureWidths ||= []).push(options.width);
  const button=document.createElement('button');button.type='button';button.textContent='Continue with Google';
  button.style.cssText='display:block;margin:auto;width:100%;height:44px;background:white;border:1px solid #dadce0;border-radius:4px;font:500 14px Arial';
- button.onclick=()=>window.googleFixtureOptions.callback({credential:'fixture-google-token'});parent.appendChild(button)
+ button.onclick=()=>window.googleFixtureOptions.callback({credential:'fixture-google-token'});parent.appendChild(button);
+ const frame=document.createElement('iframe');frame.style.display='none';frame.src='https://accounts.google.com/gsi/fixture-button';parent.appendChild(frame);
 }}}};`;
 
-async function scenario(name, viewport, reply, run, { failedSdk = false } = {}) {
+async function scenario(
+  name,
+  viewport,
+  reply,
+  run,
+  { failedSdk = false, configDelayMs = 0, configFailures = [], installClock = false } = {}
+) {
+  if (process.env.GOOGLE_UI_SCENARIO && !name.includes(process.env.GOOGLE_UI_SCENARIO)) return;
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
   const page = await context.newPage();
+  if (installClock) await page.clock.install();
   const writes = [];
   const errors = [];
   let scripts = 0;
+  let configReads = 0;
   page.on('pageerror', (err) => errors.push(err.message));
+  await page.route('https://accounts.google.com/gsi/fixture-button', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Google button fixture</title>' });
+  });
   await page.route('https://accounts.google.com/gsi/client?hl=en', (route) => {
     scripts++;
     return failedSdk && scripts === 1
@@ -84,8 +100,13 @@ async function scenario(name, viewport, reply, run, { failedSdk = false } = {}) 
       const result = await reply(url.pathname, body, writes);
       return json(result.body ?? result, Number.isInteger(result.status) ? result.status : 200);
     }
-    if (url.pathname.endsWith('/auth/customer/google/config'))
+    if (url.pathname.endsWith('/auth/customer/google/config')) {
+      configReads++;
+      if (configFailures.includes(configReads))
+        return json({ code: 'SERVER_ERROR', message: 'Google sign-in is unavailable.' }, 503);
+      if (configDelayMs) await new Promise((resolve) => setTimeout(resolve, configDelayMs));
       return json({ clientId, nonce: 'fixture-nonce', challenge: 'fixture-challenge' });
+    }
     if (url.pathname.endsWith('/me')) return json(fixtureUser);
     if (url.pathname.endsWith('/catalog'))
       return json({ packages: [], addons: [], dishes: [], categories: [], minDownpayment: 3000 });
@@ -95,7 +116,7 @@ async function scenario(name, viewport, reply, run, { failedSdk = false } = {}) 
   try {
     await page.goto(`${base}/login?next=/portal/book`);
     await page.getByRole('heading', { name: 'Log In', exact: true }).waitFor();
-    await run({ page, writes, scripts: () => scripts });
+    await run({ page, writes, scripts: () => scripts, configReads: () => configReads });
     assert.deepEqual(errors, [], 'no unhandled application errors');
     assert.equal(
       writes.filter((entry) => entry.path.endsWith('/customer/login')).length,
@@ -114,6 +135,114 @@ async function scenario(name, viewport, reply, run, { failedSdk = false } = {}) 
 }
 
 try {
+  await scenario(
+    'google-relogin-after-idle-timeout',
+    { width: 1366, height: 900 },
+    (url) => {
+      if (url.endsWith('/logout')) return { ok: true };
+      if (url.endsWith('/google/signin-fixture/verify')) return session;
+      assert.ok(url.endsWith('/customer/google'));
+      return challenge('code_required');
+    },
+    async ({ page, configReads, scripts }) => {
+      await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
+      await enterCode(page, 'Verify Your Sign-In');
+      await page.waitForURL((url) => url.pathname === '/portal/book');
+      const previousReads = configReads();
+      const previousScripts = scripts();
+      await page.evaluate(() => {
+        const current = JSON.parse(sessionStorage.getItem('tm.client.session'));
+        current.lastActivity = Date.now() - 16 * 60000;
+        sessionStorage.setItem('tm.client.session', JSON.stringify(current));
+      });
+      await page.clock.runFor(20000);
+      await page.waitForURL((url) => url.pathname === '/login' && url.searchParams.get('reason') === 'idle');
+      await page.getByRole('button', { name: 'Continue with Google', exact: true }).click({ timeout: 5000 });
+      assert.ok(
+        configReads() > previousReads + 1,
+        'a failed setup after idle recovers automatically with a fresh challenge'
+      );
+      assert.equal(scripts(), previousScripts, 'relogin reuses the loaded Google SDK');
+      await enterCode(page, 'Verify Your Sign-In');
+      await page.waitForURL((url) => url.pathname === '/portal/book');
+    },
+    { configFailures: [2], installClock: true }
+  );
+  await scenario(
+    'google-challenge-refresh-without-page-reload',
+    { width: 390, height: 844 },
+    () => challenge('code_required'),
+    async ({ page, configReads }) => {
+      await page.getByRole('button', { name: 'Continue with Google', exact: true }).waitFor();
+      const initialReads = configReads();
+      await page.clock.fastForward(9 * 60000);
+      await page.waitForTimeout(300);
+      assert.ok(configReads() > initialReads, 'renew the challenge before its ten-minute expiry');
+      await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
+      await page.getByRole('heading', { name: 'Verify Your Sign-In', exact: true }).waitFor();
+      const dialogReads = configReads();
+      await page.clock.fastForward(9 * 60000);
+      assert.equal(configReads(), dialogReads, 'challenge renewal leaves an open verification dialog intact');
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await page.clock.fastForward(30000);
+      await page.waitForTimeout(300);
+      assert.ok(configReads() > dialogReads, 'deferred renewal resumes after the verification dialog closes');
+    },
+    { installClock: true }
+  );
+  await scenario(
+    'google-setup-retry-is-bounded',
+    { width: 390, height: 844 },
+    () => {
+      throw new Error('No writes expected');
+    },
+    async ({ page, configReads }) => {
+      await page.waitForFunction(() => document.body.textContent.includes('Google sign-in is unavailable.'));
+      await page.waitForTimeout(2500);
+      assert.equal(configReads(), 2, 'persistent setup failures stop after one automatic retry');
+      await page.getByRole('button', { name: 'Try again', exact: true }).click();
+      await page.getByRole('button', { name: 'Continue with Google', exact: true }).waitFor();
+      assert.equal(configReads(), 3, 'manual retry remains available after an outage');
+    },
+    { configFailures: [1, 2] }
+  );
+  for (const width of [1440, 390]) {
+    await scenario(
+      `google-button-stable-on-refresh-${width}`,
+      { width, height: 1000 },
+      () => {
+        throw new Error('No writes expected');
+      },
+      async ({ page }) => {
+        for (let refresh = 0; refresh < 3; refresh++) {
+          if (refresh) await page.reload();
+          await page.getByRole('status').filter({ hasText: 'Loading Google sign-in' }).waitFor();
+          const slot = page.locator('[aria-label="Continue with Google"]');
+          const before = await slot.boundingBox();
+          assert.equal(before.height, 44, 'loading reserves the final button height');
+          await page.waitForFunction(() => window.googleFixtureRenders === 1);
+          assert.equal(await slot.isVisible(), false, 'SDK markup stays hidden until its iframe loads');
+          await page.getByRole('button', { name: 'Continue with Google', exact: true }).waitFor();
+          await page.waitForTimeout(250);
+          assert.equal((await slot.boundingBox()).height, before.height, 'SDK arrival keeps the slot height stable');
+          assert.equal(
+            await page.evaluate(() => window.googleFixtureRenders),
+            1,
+            'initial ResizeObserver delivery must not recreate the Google button'
+          );
+        }
+        await page.setViewportSize({ width: 360, height: 1000 });
+        await page.waitForTimeout(250);
+        const widths = await page.evaluate(() => window.googleFixtureWidths);
+        assert.ok(widths.length >= 2, 'a changed button width is rendered');
+        assert.ok(
+          widths.every((width, i) => i === 0 || width !== widths[i - 1]),
+          'unchanged widths never recreate the button'
+        );
+      },
+      { configDelayMs: 700 }
+    );
+  }
   for (const viewport of [
     { width: 1440, height: 1000 },
     { width: 390, height: 844 }
