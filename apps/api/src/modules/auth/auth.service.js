@@ -309,7 +309,7 @@ export async function resendPasswordResetCode(challengeId) {
   if (isDead(reset, at)) throw expired;
   if (reset.resendAt > at) throw new ApiError('TOO_SOON', 'Please wait before requesting another code.');
   const customer = await repo.findCustomerById(reset.customerId);
-  if (!customer) throw expired;
+  if (!customer || (customer.sessionsRevokedAt && reset.createdAt <= customer.sessionsRevokedAt)) throw expired;
   await reserveAttempt('code-email', normaliseEmail(customer.email));
 
   const code = newCode(RULES.codeLength);
@@ -330,7 +330,7 @@ export async function verifyPasswordResetCode({ challengeId, code }) {
   const reset = await repo.findReset(challengeId);
   if (isDead(reset, at)) throw expired;
   const customer = await repo.findCustomerById(reset.customerId);
-  if (!customer) throw expired;
+  if (!customer || (customer.sessionsRevokedAt && reset.createdAt <= customer.sessionsRevokedAt)) throw expired;
   await assertNotLocked('reset-code', customer.email);
   if (reset.expiresAt < at) throw new ApiError('CODE_EXPIRED', 'This code has expired. Request a new one.');
 
@@ -361,11 +361,11 @@ export async function completePasswordReset({ challengeId, password, resetToken 
   const passwordError = validatePassword(password);
   if (passwordError) throw new ApiError('INVALID', passwordError, { field: 'password' });
   const customer = await repo.findCustomerById(reset.customerId);
-  if (!customer) throw expired;
+  if (!customer || (customer.sessionsRevokedAt && reset.createdAt <= customer.sessionsRevokedAt)) throw expired;
 
   const passwordHash = await hashSecret(password);
   await tx(async (conn) => {
-    await repo.lockActiveCustomer(conn, customer.id);
+    await repo.lockActiveCustomer(conn, customer.id, reset.createdAt);
     if (!(await repo.markResetUsed(conn, reset.id, at, { codeHash: reset.codeHash, verifiedAt: reset.verifiedAt })))
       throw expired;
     await repo.updateCustomerPassword(customer.id, passwordHash, at, conn);
@@ -476,6 +476,9 @@ async function ownCustomerEmailChange(customerId, challengeId, at) {
   if (isDead(change, at) || change.customerId !== customerId) {
     throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
   }
+  const customer = await repo.findCustomerById(customerId);
+  if (!customer || (customer.sessionsRevokedAt && change.createdAt <= customer.sessionsRevokedAt))
+    throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
   return change;
 }
 
@@ -521,7 +524,7 @@ export async function confirmCustomerEmailChange(customerId, { challengeId, code
   if (await repo.emailUsedByOtherCustomer(change.newEmail, customerId)) throw taken;
   try {
     await tx(async (conn) => {
-      await repo.lockActiveCustomer(conn, customerId);
+      await repo.lockActiveCustomer(conn, customerId, change.createdAt);
       if (!(await repo.markEmailChangeUsed(conn, change.id, at))) throw expired;
       await repo.updateCustomerEmail(conn, customerId, change.newEmail);
     });
@@ -573,6 +576,9 @@ async function ownPasswordChange(customerId, challengeId, at) {
   const change = await repo.findChange(challengeId);
   if (isDead(change, at) || change.customerId !== customerId)
     throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
+  const customer = await repo.findCustomerById(customerId);
+  if (!customer || (customer.sessionsRevokedAt && change.createdAt <= customer.sessionsRevokedAt))
+    throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
   return change;
 }
 
@@ -613,7 +619,7 @@ export async function confirmPasswordChange(user, { challengeId, code }) {
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
 
   await tx(async (conn) => {
-    await repo.lockActiveCustomer(conn, customer.id);
+    await repo.lockActiveCustomer(conn, customer.id, change.createdAt);
     if (!(await repo.markChangeUsed(conn, change.id, at))) throw expired;
     await repo.updateCustomerPassword(customer.id, change.newPasswordHash, at, conn);
     await repo.deleteWaitingPasswordRequests(customer.id, conn);

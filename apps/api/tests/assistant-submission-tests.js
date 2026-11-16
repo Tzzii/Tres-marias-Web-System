@@ -48,6 +48,8 @@ function database(overrides = {}) {
   };
   let tail = Promise.resolve();
   const query = async (sql, values = []) => {
+    if (sql.startsWith('SELECT removed_at, sessions_revoked_at FROM customers'))
+      return [[{ removed_at: null, sessions_revoked_at: 0 }]];
     if (sql.startsWith('SELECT * FROM assistant_conversations WHERE id = ?'))
       return [
         [
@@ -458,7 +460,7 @@ test('submission reconstructs saved selections on its transaction connection and
 test('an account deleted after authentication cannot submit its saved draft', async () => {
   const db = database();
   const query = db.query;
-  db.query = async (sql, values) => (sql.startsWith('SELECT id, name FROM customers') ? [[]] : query(sql, values));
+  db.query = async (sql, values) => (sql.includes('FROM customers') ? [[]] : query(sql, values));
   // Bind the transaction's connection to this missing-account adapter too.
   db.transact = async (fn) => fn({ query: db.query });
   await assert.rejects(

@@ -21,15 +21,21 @@ export async function findCustomers(db, { customerId } = {}) {
 }
 
 export async function removeAccess(conn, customerId, adminId, reason, at) {
-  await conn.query('UPDATE customers SET removed_at = ?, removed_by = ?, removal_reason = ? WHERE id = ?', [
-    at,
-    adminId,
-    reason,
-    customerId
-  ]);
+  await conn.query(
+    'UPDATE customers SET removed_at = ?, removed_by = ?, removal_reason = ?, sessions_revoked_at = GREATEST(COALESCE(sessions_revoked_at, 0), ?) WHERE id = ?',
+    [at, adminId, reason, at, customerId]
+  );
   for (const table of ['password_resets', 'password_changes', 'customer_email_changes']) {
     await conn.query('UPDATE ?? SET used_at = ? WHERE customer_id = ? AND used_at IS NULL', [table, at, customerId]);
   }
+}
+
+export async function restoreAccess(conn, customerId, at) {
+  await conn.query(
+    `UPDATE customers SET removed_at = NULL, removed_by = NULL, removal_reason = '',
+    sessions_revoked_at = GREATEST(COALESCE(sessions_revoked_at, 0), ?) WHERE id = ?`,
+    [at, customerId]
+  );
 }
 
 export async function lockCustomer(conn, customerId) {

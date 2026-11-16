@@ -56,6 +56,7 @@ export function createGoogleSignInCodeService({
       !customer ||
       customer.id !== request.customerId ||
       customer.email !== request.email ||
+      (customer.sessionsRevokedAt && request.createdAt <= customer.sessionsRevokedAt) ||
       (customer.passwordChangedAt ?? null) !== request.passwordChangedAt
     )
       throw expired();

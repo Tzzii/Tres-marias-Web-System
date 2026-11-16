@@ -6,6 +6,7 @@ import { ASSISTANT_GUEST_LIMIT, ASSISTANT_GUEST_RESET_MS } from '@tm/shared/src/
 import { cleanReferencePhotos, REFERENCE_PHOTO_MAX_COUNT } from '@tm/shared/src/domain/referencePhoto.js';
 import { isRental } from '@tm/shared/src/services/config.js';
 import { storage } from '../../integrations/storage/index.js';
+import { lockActiveCustomer } from '../auth/auth.repo.js';
 
 const decode = (value) => (typeof value === 'string' ? JSON.parse(value) : value);
 export const visitorHash = (token) =>
@@ -51,6 +52,7 @@ export function createAssistantRepository({
   // anchors the shorter allowance window, including existing visitor records.
   const guestResetAt = (row) => Number(row.expires_at) - settings.visitorTtlMs + ASSISTANT_GUEST_RESET_MS;
   async function ensureQuota(db, actor) {
+    if (actor.customerId) await lockActiveCustomer(db, actor.customerId);
     const q = quota(actor);
     await db.query('INSERT INTO assistant_allowances (id, expires_at) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = id', [
       q.key,
@@ -90,6 +92,7 @@ export function createAssistantRepository({
     return conversation;
   }
   async function owned(db, id, actor, lock = false) {
+    if (lock && actor.customerId) await lockActiveCustomer(db, actor.customerId);
     const [[row]] = await db.query(`SELECT * FROM assistant_conversations WHERE id = ?${lock ? ' FOR UPDATE' : ''}`, [
       id
     ]);
@@ -126,6 +129,7 @@ export function createAssistantRepository({
   const repo = {
     async open(actor, requestedId, { fresh = false } = {}) {
       return transact(async (db) => {
+        if (actor.customerId) await lockActiveCustomer(db, actor.customerId);
         let token;
         if (!actor.customerId) {
           const [[prior]] = actor.visitorHash
@@ -417,6 +421,7 @@ export function createAssistantRepository({
     async reserveSpend(kind, ownerKey, upperMicro) {
       if (!Number.isSafeInteger(upperMicro) || upperMicro < 1) throw new Error('Invalid assistant spend reservation.');
       return transact(async (db) => {
+        if (ownerKey.startsWith('c:')) await lockActiveCustomer(db, ownerKey.slice(2));
         const day = manilaDay(clock());
         const keys = [`d:${day}`, `m:${day.slice(0, 7)}`];
         const limits = [settings.dailyBudgetMicro, settings.monthlyBudgetMicro];

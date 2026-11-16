@@ -19,6 +19,11 @@ export const listCustomers = () => http.get('/admin/customers');
 export const removeCustomerAccess = (customerId, reason) =>
   http.post(`/admin/customers/${segment(customerId)}/remove-access`, { reason });
 
+export const restoreCustomerAccess = (customerId) =>
+  http.post(`/admin/customers/${segment(customerId)}/restore-access`);
+export const deleteCustomerAccount = (customerId, confirmationEmail) =>
+  http.post(`/admin/customers/${segment(customerId)}/delete-account`, { confirmationEmail });
+
 /** Admin: one customer's summary plus their reservations, newest date first. NOT_FOUND for no id at all. */
 export async function getCustomer(customerId) {
   if (!customerId) throw new ApiError('NOT_FOUND', 'Customer not found.');

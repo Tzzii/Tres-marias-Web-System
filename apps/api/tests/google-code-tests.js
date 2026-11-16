@@ -111,6 +111,22 @@ test('removed customers cannot start, resend, or verify sign-in codes', async ()
   assert.equal(f.sessions.length, 0);
 });
 
+test('restoring access does not revive an older sign-in challenge', async () => {
+  const f = setup();
+  const challenge = await f.start();
+  f.advance(60000);
+  f.changeCustomer({ removedAt: null, sessionsRevokedAt: 1000001 });
+  await assert.rejects(f.service.resend(challenge.challengeId), { code: 'CHALLENGE_EXPIRED' });
+  await assert.rejects(f.service.verify({ challengeId: challenge.challengeId, code: '123456' }), {
+    code: 'CHALLENGE_EXPIRED'
+  });
+  const fresh = await f.start();
+  assert.equal(
+    (await f.service.verify({ challengeId: fresh.challengeId, code: '123456' })).token,
+    'application-session'
+  );
+});
+
 test('Google login emails a hashed code without issuing a session, then verifies once with server-held remember', async () => {
   const f = setup();
   const challenge = await f.start(true);

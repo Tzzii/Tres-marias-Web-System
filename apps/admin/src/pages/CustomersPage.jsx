@@ -405,7 +405,7 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
               </Button>
 
               <Divider sx={{ my: 2.5 }} />
-              <CustomerAccess data={data} />
+              <CustomerAccess data={data} onDeleted={onClose} />
               <Divider sx={{ my: 2.5 }} />
               <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
                 Reservations · {data.reservations.length}
@@ -449,29 +449,44 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
   );
 }
 
-function CustomerAccess({ data }) {
+function CustomerAccess({ data, onDeleted }) {
   const notify = useNotify();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [removed, setRemoved] = useState(null);
+  const [action, setAction] = useState('remove');
+  const [confirmationEmail, setConfirmationEmail] = useState('');
   const account = removed || data;
   const pending = data.reservations.filter((r) => r.status === 'pending').length;
   const active = data.reservations.filter((r) => !['completed', 'declined', 'cancelled'].includes(r.status)).length;
 
   const remove = async () => {
     if (busy) return;
-    if (!reason.trim() || reason.trim().length > 1000) {
+    if (action === 'remove' && (!reason.trim() || reason.trim().length > 1000)) {
       setError('Enter a reason of up to 1000 characters.');
+      return;
+    }
+    if (action === 'delete' && confirmationEmail.trim().toLowerCase() !== data.email.toLowerCase()) {
+      setError('Type the customer email exactly to confirm permanent deletion.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      setRemoved(await customerApi.removeCustomerAccess(data.id, reason.trim()));
+      if (action === 'delete') {
+        await customerApi.deleteCustomerAccount(data.id, confirmationEmail.trim());
+        notify('Customer account and all linked history permanently deleted.');
+        onDeleted();
+      } else if (action === 'restore') {
+        setRemoved(await customerApi.restoreCustomerAccess(data.id));
+        notify('Customer access restored. The customer can sign in again.');
+      } else {
+        setRemoved(await customerApi.removeCustomerAccess(data.id, reason.trim()));
+        notify('Customer account access removed. Review pending requests below.');
+      }
       setOpen(false);
-      notify('Customer account access removed. Review pending requests below.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -479,39 +494,68 @@ function CustomerAccess({ data }) {
     }
   };
 
-  if (account.removedAt != null)
-    return (
-      <Box>
-        <Typography sx={{ fontWeight: 700 }}>Account access removed</Typography>
-        <Typography sx={{ mt: 1, fontSize: 13, overflowWrap: 'anywhere' }}>{account.removalReason}</Typography>
-        <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textSecondary }}>
-          {new Date(Number(account.removedAt)).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} · Admin{' '}
-          {account.removedBy}
-        </Typography>
-        <Typography sx={{ mt: 1, fontSize: 13 }}>
-          Review pending requests below and decline those identified as spam.
-        </Typography>
-      </Box>
-    );
+  const begin = (next) => {
+    setAction(next);
+    setError('');
+    setConfirmationEmail('');
+    setOpen(true);
+  };
 
   return (
     <>
-      <Button color="error" variant="outlined" fullWidth onClick={() => setOpen(true)}>
-        Remove account access
+      {account.removedAt != null ? (
+        <Box>
+          <Typography sx={{ fontWeight: 700 }}>Account access removed</Typography>
+          <Typography sx={{ mt: 1, fontSize: 13, overflowWrap: 'anywhere' }}>{account.removalReason}</Typography>
+          <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textSecondary }}>
+            {new Date(Number(account.removedAt)).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} · Admin{' '}
+            {account.removedBy}
+          </Typography>
+          <Typography sx={{ mt: 1, fontSize: 13 }}>
+            Review pending requests below and decline those identified as spam.
+          </Typography>
+          <Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => begin('restore')}>
+            Restore access
+          </Button>
+        </Box>
+      ) : (
+        <Button color="error" variant="outlined" fullWidth onClick={() => begin('remove')}>
+          Remove account access
+        </Button>
+      )}
+      <Button color="error" fullWidth sx={{ mt: 1 }} onClick={() => begin('delete')}>
+        Permanently delete account
       </Button>
       <AppDialog
         open={open}
         onClose={() => setOpen(false)}
-        title="Remove customer account access?"
-        description="The customer will lose sign-in and reservation access. Booking, payment and message history will be retained. Review pending requests individually to decline spam."
+        title={
+          action === 'delete'
+            ? 'Permanently delete customer account?'
+            : action === 'restore'
+              ? 'Restore customer access?'
+              : 'Remove customer account access?'
+        }
+        description={
+          action === 'delete'
+            ? 'This permanently deletes the account and all linked reservations, payments, refunds, messages, reviews, proposals and uploaded customer files. Stock allocations and rental dispatch records are also removed. This cannot be undone.'
+            : action === 'restore'
+              ? 'The customer can sign in again using the same account. They will need to complete a fresh sign-in.'
+              : 'The customer will lose sign-in and reservation access. Booking, payment and message history will be retained. You can restore access later.'
+        }
         busy={busy}
         actions={
           <>
             <Button disabled={busy} onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <BusyButton color="error" variant="contained" busy={busy} onClick={remove}>
-              Remove access
+            <BusyButton
+              color={action === 'restore' ? 'primary' : 'error'}
+              variant="contained"
+              busy={busy}
+              onClick={remove}
+            >
+              {action === 'delete' ? 'Permanently delete' : action === 'restore' ? 'Restore access' : 'Remove access'}
             </BusyButton>
           </>
         }
@@ -522,17 +566,35 @@ function CustomerAccess({ data }) {
           {pending} pending requests · {active} open bookings · Balance {peso(data.balance)}. Check booking details for
           payments, refunds and outstanding rentals before proceeding.
         </Typography>
-        <FormField
-          id="remove-customer-reason"
-          label="Reason for removal"
-          multiline
-          rows={3}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          error={error}
-          disabled={busy}
-          inputProps={{ maxLength: 1000 }}
-        />
+        {action === 'remove' && (
+          <FormField
+            id="remove-customer-reason"
+            label="Reason for removal"
+            multiline
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            error={error}
+            disabled={busy}
+            inputProps={{ maxLength: 1000 }}
+          />
+        )}
+        {action === 'delete' && (
+          <FormField
+            id="delete-customer-email"
+            label="Type customer email to confirm"
+            value={confirmationEmail}
+            onChange={(event) => setConfirmationEmail(event.target.value)}
+            error={error}
+            disabled={busy}
+            autoComplete="off"
+          />
+        )}
+        {action === 'restore' && error && (
+          <Typography color="error" role="alert">
+            {error}
+          </Typography>
+        )}
       </AppDialog>
     </>
   );

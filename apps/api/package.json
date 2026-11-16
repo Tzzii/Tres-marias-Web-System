@@ -1,6 +1,6 @@
 {
   "name": "@tm/api",
-  "version": "1.57.0",
+  "version": "1.58.0",
   "private": true,
   "type": "module",
   "description": "Tres Marias API - Express + MySQL backend for the Customer Portal and the Admin Dashboard.",
@@ -40,11 +40,11 @@
     "test:package-proposals": "node --test tests/package-proposal-engine-tests.js tests/package-proposal-policy-tests.js tests/package-proposal-backend-tests.js tests/package-proposal-compatibility-tests.js tests/package-proposal-revision-tests.js tests/package-proposal-offline-planning-tests.js tests/package-proposal-recovery-tests.js",
     "test:package-proposals:db": "node --test tests/package-proposal-db-tests.js",
     "test:ai-safety:db": "node --test tests/ai-safety-db-tests.js",
-    "test:customers:db": "node --test tests/customer-management-db-tests.js tests/customer-management-concurrency-db-tests.js",
+    "test:customers:db": "node --test tests/customer-management-db-tests.js tests/customer-management-concurrency-db-tests.js tests/customer-lifecycle-concurrency-db-tests.js",
     "test:presence:db": "node --test tests/admin-presence-db-tests.js"
   },
   "dependencies": {
-    "@tm/shared": "1.57.0",
+    "@tm/shared": "1.58.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "disposable-email-domains-js": "1.26.0",

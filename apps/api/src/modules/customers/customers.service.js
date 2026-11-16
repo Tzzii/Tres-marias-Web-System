@@ -6,9 +6,39 @@ import { ApiError } from '../../lib/ApiError.js';
 import { findReservations } from '../reservations/reservations.repo.js';
 import * as repo from './customers.repo.js';
 import { assertCustomerMobileAllowedWithAbstract } from '../auth/mobile-policy.js';
+import { purgeCustomer, processCustomerFileDeletions } from './customers.deletion.js';
 
 const notFound = () => new ApiError('NOT_FOUND', 'Customer not found.');
 const emailTaken = () => new ApiError('EMAIL_TAKEN', 'Another account already uses this email.', { field: 'email' });
+
+export async function restoreCustomerAccess(customerId, admin, { transact = tx } = {}) {
+  if (admin?.role !== 'admin' || !admin.id) throw new ApiError('FORBIDDEN', 'Admin access is required.');
+  return transact(async (conn) => {
+    const customer = await repo.lockCustomer(conn, customerId);
+    if (!customer || customer.id !== customerId) throw notFound();
+    if (customer.removedAt != null) await repo.restoreAccess(conn, customerId, Date.now());
+    const [saved] = await repo.findCustomers(conn, { customerId });
+    return customerSummary(saved, await findReservations(conn, { customerId }));
+  });
+}
+
+export async function deleteCustomerAccount(customerId, { confirmationEmail = '' }, admin, { transact = tx } = {}) {
+  if (admin?.role !== 'admin' || !admin.id) throw new ApiError('FORBIDDEN', 'Admin access is required.');
+  if (typeof confirmationEmail !== 'string' || !confirmationEmail.trim())
+    throw new ApiError('INVALID', 'Type the customer email to confirm permanent deletion.', {
+      field: 'confirmationEmail'
+    });
+  return transact(async (conn) => {
+    const customer = await repo.lockCustomer(conn, customerId);
+    if (!customer) return { deleted: true }; // A completed deletion can be retried safely.
+    if (customer.id !== customerId) throw notFound();
+    if (normaliseEmail(confirmationEmail) !== normaliseEmail(customer.email))
+      throw new ApiError('INVALID', 'The email does not match this customer.', { field: 'confirmationEmail' });
+    await purgeCustomer(conn, customer);
+    conn.afterCommit?.(() => processCustomerFileDeletions());
+    return { deleted: true };
+  });
+}
 
 export async function removeCustomerAccess(customerId, { reason = '' }, admin, { transact = tx } = {}) {
   if (admin?.role !== 'admin' || !admin.id) throw new ApiError('FORBIDDEN', 'Admin access is required.');

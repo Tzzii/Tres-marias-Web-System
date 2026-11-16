@@ -873,6 +873,14 @@ INSERT INTO calendar_settings (id, daily_capacity, updated_at) VALUES (1, 2, UNI
 
 INSERT INTO counters (name, value) VALUES ('receipt', 0), ('payment', 0), ('inventory', 0), ('outsource', 0), ('refund', 0);
 
+CREATE TABLE customer_file_deletions (
+  file_key VARCHAR(255) NOT NULL,
+  created_at BIGINT UNSIGNED NOT NULL,
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  next_attempt_at BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (file_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE revoked_customer_tokens (
   token_hash CHAR(64) NOT NULL,
   expires_at BIGINT UNSIGNED NOT NULL,

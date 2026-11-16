@@ -9,7 +9,12 @@ import { signToken } from '../src/lib/tokens.js';
 import { requireAuth, requireRole, readSessionToken } from '../src/middleware/auth.js';
 import { errorHandler } from '../src/middleware/errors.js';
 import { customerAdminRoutes } from '../src/modules/customers/customers.routes.js';
-import { getCustomer, updateCustomerContact } from '../src/modules/customers/customers.service.js';
+import {
+  getCustomer,
+  updateCustomerContact,
+  restoreCustomerAccess,
+  deleteCustomerAccount
+} from '../src/modules/customers/customers.service.js';
 import { createReservation } from '../src/modules/reservations/reservations.service.js';
 import { customerLogin, customerSession, startPasswordReset, startSignUp } from '../src/modules/auth/auth.service.js';
 import { findCustomerById } from '../src/modules/auth/auth.repo.js';
@@ -140,6 +145,111 @@ test('admin removal preserves bookings, revokes access and recovery, and is safe
       { transact: (fn) => fn(conn) }
     );
     assert.equal(nextBooking.status, 'pending');
+
+    await t.test('restore requires admin access, preserves history and never revives old sessions', async () => {
+      const restoreUrl = url.replace('/remove-access', '/restore-access');
+      assert.equal((await fetch(restoreUrl, { method: 'POST' })).status, 401);
+      const otherToken = customerSession(await findCustomerById(otherId)).token;
+      assert.equal(
+        (await fetch(restoreUrl, { method: 'POST', headers: { Authorization: `Bearer ${otherToken}` } })).status,
+        403
+      );
+      const restored = await restoreCustomerAccess(id, { id: adminId, role: 'admin' });
+      assert.equal(restored.removedAt, null);
+      assert.equal((await readSessionToken(customerToken)).user, null);
+      assert.deepEqual((await getCustomer(id)).reservations, before.reservations);
+      const freshToken = customerSession(await findCustomerById(id)).token;
+      assert.ok((await readSessionToken(freshToken)).user);
+      await restoreCustomerAccess(id, { id: adminId, role: 'admin' });
+      assert.ok((await readSessionToken(freshToken)).user, 'Retrying restore does not revoke a new sign-in');
+    });
+
+    const confirmation = { confirmationEmail: email };
+    const adminMailId = `mail-${id}`;
+    await conn.query(
+      `INSERT INTO outbox (id, channel, to_address, body, status, provider, meta, created_at)
+      VALUES (?, 'email', ?, 'Admin sign-in history', 'sent', 'log', ?, ?)`,
+      [adminMailId, email, JSON.stringify({ purpose: 'admin_sign_in', adminId }), Date.now()]
+    );
+    const admin = { id: adminId, role: 'admin' };
+    await assert.rejects(deleteCustomerAccount(id, { confirmationEmail: otherEmail }, admin), { code: 'INVALID' });
+    await conn.query('UPDATE payments SET proof_key = ? WHERE id = ?', [`qa-delete/${id}.png`, id]);
+    await conn.query(
+      'INSERT INTO assistant_conversations (id, customer_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+      [randomUUID(), id, Date.now(), Date.now() + 60000]
+    );
+    const [inventory] = await conn.query('SELECT id FROM inventory_items ORDER BY id LIMIT 1');
+    await conn.query('INSERT INTO inventory_allocations (item_id, reservation_ref, qty) VALUES (?, ?, 1)', [
+      inventory[0].id,
+      booking.ref
+    ]);
+
+    await t.test('a failure during deletion rolls back the account, history and file queue together', async () => {
+      const failingConn = {
+        query: async (sql, args) => {
+          if (sql === 'DELETE FROM ?? WHERE ?? IN (?)' && args[0] === 'customers')
+            throw new Error('Fixture delete failure');
+          return conn.query(sql, args);
+        }
+      };
+      const transact = async (fn) => {
+        await conn.query('SAVEPOINT hard_delete_failure');
+        try {
+          return await fn(failingConn);
+        } catch (error) {
+          await conn.query('ROLLBACK TO SAVEPOINT hard_delete_failure');
+          throw error;
+        }
+      };
+      await assert.rejects(deleteCustomerAccount(id, confirmation, admin, { transact }), /Fixture delete failure/);
+      assert.equal((await getCustomer(id)).reservations.length, 2);
+      const [[queue]] = await conn.query('SELECT COUNT(*) AS n FROM customer_file_deletions WHERE file_key = ?', [
+        `qa-delete/${id}.png`
+      ]);
+      assert.equal(queue.n, 0);
+    });
+
+    await t.test('hard delete removes the actual account and linked history, then permits safe retries', async () => {
+      await deleteCustomerAccount(id, confirmation, admin, { transact: (fn) => fn(conn) });
+      for (const table of [
+        'customers',
+        'reservations',
+        'payments',
+        'refunds',
+        'qr_payments',
+        'threads',
+        'customer_google_accounts',
+        'customer_google_signins',
+        'password_resets',
+        'password_changes',
+        'customer_email_changes',
+        'budget_proposals',
+        'package_proposals',
+        'testimonials',
+        'assistant_conversations'
+      ]) {
+        const [[count]] = await conn.query('SELECT COUNT(*) AS n FROM ?? WHERE ?? = ?', [
+          table,
+          table === 'customers' ? 'id' : 'customer_id',
+          id
+        ]);
+        assert.equal(count.n, 0, `${table} cleared`);
+      }
+      const [[allocation]] = await conn.query(
+        'SELECT COUNT(*) AS n FROM inventory_allocations WHERE reservation_ref = ?',
+        [booking.ref]
+      );
+      assert.equal(allocation.n, 0);
+      const [[queue]] = await conn.query('SELECT COUNT(*) AS n FROM customer_file_deletions WHERE file_key = ?', [
+        `qa-delete/${id}.png`
+      ]);
+      assert.equal(queue.n, 1, 'Uploaded proof is queued only after its records are deleted');
+      assert.equal((await getCustomer(otherId)).reservations[0].ref, nextBooking.ref);
+      const [[adminMail]] = await conn.query('SELECT COUNT(*) AS n FROM outbox WHERE id = ?', [adminMailId]);
+      assert.equal(adminMail.n, 1, 'Admin mail with the same recipient is preserved');
+      assert.deepEqual(await deleteCustomerAccount(id, confirmation, admin), { deleted: true });
+      await assert.rejects(getCustomer(id), { code: 'NOT_FOUND' });
+    });
   } finally {
     if (server) await new Promise((resolve) => server.close(resolve));
     t.mock.restoreAll();

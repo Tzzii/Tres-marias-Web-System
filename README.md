@@ -6,7 +6,7 @@ Bookings, quotations, payments, notes, inventory and activity continue to use th
 
 Run `npm run test:experience` for upload, financial, search and contrast regression tests. `npm run test:premium-ui` checks the running customer and admin applications using isolated sessions and intercepted API fixtures, without database writes. It requires Playwright and Chrome; when Playwright is supplied by a separate runtime, set `PLAYWRIGHT_MODULE_PATH` to its absolute module directory. Optional `UI_CLIENT_URL`, `UI_ADMIN_URL` and `UI_OUTPUT_DIR` select the local servers and screenshot/report destination.
 
-**System version: 1.57.0**
+**System version: 1.58.0**
 
 Signup uses Cloudflare Turnstile before sending a registration code. The API validates the token server-side, including new Google-customer profile submissions. Set `VITE_TURNSTILE_SITE_KEY` in the customer build and `TURNSTILE_SECRET_KEY` on the API using keys from the same widget. Configure the customer website hostname in Cloudflare. Production signup requests fail closed until the API secret is configured. Local development can use Cloudflare test keys.
 
@@ -126,7 +126,7 @@ Guests can browse the public website. Customers sign in to manage their own reco
 | Payments and reports | Verify bank transfers, record cash payments, track balances and refunds, and generate reports |
 | Inventory | Manage equipment, appearance photos, physical stock, checkouts, returns, damage, repairs, and movement history |
 | Equipment rentals | Track rented items and automatically check out confirmed rentals when their scheduled pickup or delivery time arrives |
-| Customers | View profiles and booking records, remove customer account access with a recorded reason, and review removed accounts |
+| Customers | View profiles and bookings, remove or restore access, and permanently delete an account with all linked history |
 | Outsourcing | Manage partners, supply requests, deliveries, request history, and PDF documents |
 | Messages | View and respond to customer conversations from the Messages page or the floating chat window on other admin pages |
 | Feedbacks | Publish, feature, flag, archive, and reply to customer reviews |
@@ -654,7 +654,11 @@ Run `npm run check:versions` to verify all workspace versions, internal dependen
 
 Run `npm run test:portal-workflow-ui` with both local portals running to check floating replies, customer selection, unread counts, quotation draft recovery, retry handling, mobile sizing, and circular theme reveals. All API traffic in this check uses isolated fixtures; it does not send messages to real customers or change the database.
 
-Customer access removal uses the existing admin role. In Customers, open a profile and choose **Remove account access**, then enter a reason and confirm. Removed accounts appear under **Removed**. Existing bookings, payments and messages stay available to the admin. Review pending requests individually to decline spam. The removed email and linked Google identity stay reserved, and existing sessions lose access. Run `npm run db:migrate` before using this feature on an existing database. Run `npm run test:customers:db` against local development MySQL to verify removal, retained paid bookings and concurrent booking rejection. The test uses temporary fixtures and cleans them up.
+Customer account management uses the existing admin role. In Customers, open a profile and choose **Remove account access**, then enter a reason and confirm. Removed accounts appear under **Removed**. **Restore access** enables that same account again and requires a fresh sign-in. Sessions and verification requests issued before access was removed stay invalid. Existing bookings, payments and messages remain available during soft removal.
+
+**Permanently delete account** is available for active and removed customers. Confirm by typing the customer email. This deletes the actual customer record and all linked reservations, payments, refunds, chat, reviews, proposals, assistant conversations, rental dispatch history, stock allocations and customer notification history. Reports change when their underlying financial records are deleted. Shared catalogue, inventory item definitions, other customers and unrelated admin email history are preserved. Account and history deletion run in one transaction. Uploaded customer files are queued in that transaction and removed after commit, with failed storage operations retried by the API's cleanup worker. Permanent deletion cannot be restored and frees the email and linked Google identity for a new registration.
+
+Run `npm run db:migrate` before using these actions on an existing database. Run `npm run test:customers:db` against local development MySQL to verify access restoration, old-session rejection, permanent deletion, rollback, and concurrent booking or assistant activity. The tests use temporary fixtures and clean them up.
 
 Customer chat displays admin availability and elapsed offline time. Each signed-in admin tab renews a 90-second presence lease every 25 seconds. Logout, idle lock and normal tab closure end that tab's lease, while another signed-in tab can keep the admin online. An abruptly disconnected browser expires within 90 seconds. Customers refresh the indicator every 15 seconds while the chat is visible. Availability history starts when this feature first records an admin connection. The admin portal collects no customer presence.
 

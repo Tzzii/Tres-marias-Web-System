@@ -1,9 +1,13 @@
 import { pool } from '../../db.js';
 import { ApiError } from '../../lib/ApiError.js';
 
-export async function lockActiveCustomer(conn, id) {
-  const [[row]] = await conn.query('SELECT removed_at FROM customers WHERE id = ? FOR UPDATE', [id]);
+export async function lockActiveCustomer(conn, id, requestCreatedAt = null) {
+  const [[row]] = await conn.query('SELECT removed_at, sessions_revoked_at FROM customers WHERE id = ? FOR UPDATE', [
+    id
+  ]);
   if (!row || row.removed_at != null) throw new ApiError('UNAUTHENTICATED', 'Please sign in again.');
+  if (requestCreatedAt != null && row.sessions_revoked_at && requestCreatedAt <= Number(row.sessions_revoked_at))
+    throw new ApiError('CHALLENGE_EXPIRED', 'This request expired. Please start again.');
 }
 
 export const toCustomer = (row) =>
@@ -20,6 +24,7 @@ export const toCustomer = (row) =>
     createdAt: row.created_at,
     passwordChangedAt: row.password_changed_at,
     removedAt: row.removed_at ?? null,
+    sessionsRevokedAt: Number(row.sessions_revoked_at) || 0,
     termsVersion: row.terms_version || '',
     termsAcceptedAt: row.terms_accepted_at ?? null
   };
