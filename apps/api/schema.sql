@@ -64,6 +64,18 @@ CREATE TABLE admins (
   UNIQUE KEY uq_admins_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE admin_presence (
+  client_id       VARCHAR(64) NOT NULL,
+  admin_id        VARCHAR(40) NOT NULL,
+  session_id      VARCHAR(40) NOT NULL,
+  sequence_no     BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  last_seen_at    BIGINT UNSIGNED NOT NULL,
+  online_until    BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (client_id),
+  KEY idx_admin_presence_admin (admin_id),
+  CONSTRAINT fk_presence_admin FOREIGN KEY (admin_id) REFERENCES admins (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE customers (
   id                  VARCHAR(40)     NOT NULL,
   first_name          VARCHAR(60)     NOT NULL DEFAULT '',
@@ -79,6 +91,9 @@ CREATE TABLE customers (
   sessions_revoked_at BIGINT UNSIGNED NULL,
   terms_version       VARCHAR(20)     NOT NULL DEFAULT '',
   terms_accepted_at   BIGINT UNSIGNED NULL,
+  removed_at          BIGINT UNSIGNED NULL,
+  removed_by          VARCHAR(40) NULL,
+  removal_reason      VARCHAR(1000) NOT NULL DEFAULT '',
   PRIMARY KEY (id),
   UNIQUE KEY uq_customers_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -396,6 +411,7 @@ CREATE TABLE webhook_events (
 CREATE TABLE threads (
   id          VARCHAR(40) NOT NULL,
   customer_id VARCHAR(40) NOT NULL,
+  away_reply_at BIGINT UNSIGNED NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_threads_customer (customer_id),
   CONSTRAINT fk_threads_customer FOREIGN KEY (customer_id) REFERENCES customers (id)

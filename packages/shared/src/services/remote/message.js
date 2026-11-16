@@ -19,6 +19,8 @@ const segment = (id) => encodeURIComponent(String(id || ''));
 // The chat address for a side
 const base = (side) => (side === 'admin' ? '/admin/threads' : '/threads');
 
+export const getAdminPresence = () => http.get('/threads/admin-presence');
+
 /** All threads (admin; with `customerId`, that customer's) or the signed-in customer's thread, most recently active first. */
 export function listThreads({ customerId, side } = {}) {
   if (side === 'admin' && customerId) return http.get(`/admin/threads?${new URLSearchParams({ customerId })}`);

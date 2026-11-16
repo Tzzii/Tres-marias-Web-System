@@ -1,4 +1,4 @@
-const FIELDS = 'id, name, email, mobile, company, created_at';
+const FIELDS = 'id, name, email, mobile, company, created_at, removed_at, removed_by, removal_reason';
 
 const toCustomer = (row) => ({
   id: row.id,
@@ -6,7 +6,10 @@ const toCustomer = (row) => ({
   email: row.email,
   mobile: row.mobile,
   company: row.company,
-  createdAt: row.created_at
+  createdAt: row.created_at,
+  removedAt: row.removed_at ?? null,
+  removedBy: row.removed_by ?? null,
+  removalReason: row.removal_reason || ''
 });
 
 export async function findCustomers(db, { customerId } = {}) {
@@ -15,6 +18,18 @@ export async function findCustomers(db, { customerId } = {}) {
       ? await db.query(`SELECT ${FIELDS} FROM customers WHERE id = ?`, [customerId])
       : await db.query(`SELECT ${FIELDS} FROM customers ORDER BY created_at, id`);
   return rows.map(toCustomer);
+}
+
+export async function removeAccess(conn, customerId, adminId, reason, at) {
+  await conn.query('UPDATE customers SET removed_at = ?, removed_by = ?, removal_reason = ? WHERE id = ?', [
+    at,
+    adminId,
+    reason,
+    customerId
+  ]);
+  for (const table of ['password_resets', 'password_changes', 'customer_email_changes']) {
+    await conn.query('UPDATE ?? SET used_at = ? WHERE customer_id = ? AND used_at IS NULL', [table, at, customerId]);
+  }
 }
 
 export async function lockCustomer(conn, customerId) {

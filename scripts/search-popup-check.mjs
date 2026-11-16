@@ -53,6 +53,8 @@ async function fixture(side, mobile = false) {
       'access-control-allow-methods': '*'
     };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (new URL(request.url()).pathname === '/api/admin/presence' && request.method() === 'POST')
+      return route.fulfill({ json: { ok: true }, headers });
     assert.equal(request.method(), 'GET', 'search must not write');
     const endpoint = new URL(request.url()).pathname.replace(/^\/api/, '');
     calls.set(endpoint, (calls.get(endpoint) || 0) + 1);

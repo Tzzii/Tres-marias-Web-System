@@ -99,6 +99,18 @@ function setup() {
   };
 }
 
+test('removed customers cannot start, resend, or verify sign-in codes', async () => {
+  const f = setup();
+  const challenge = await f.start();
+  f.advance(60000);
+  f.changeCustomer({ removedAt: 123 });
+  await assert.rejects(f.start(), { code: 'FORBIDDEN' });
+  await assert.rejects(f.service.resend(challenge.challengeId), { code: 'FORBIDDEN' });
+  await assert.rejects(f.service.verify({ challengeId: challenge.challengeId, code: '123456' }), { code: 'FORBIDDEN' });
+  assert.equal(f.mails.length, 1);
+  assert.equal(f.sessions.length, 0);
+});
+
 test('Google login emails a hashed code without issuing a session, then verifies once with server-held remember', async () => {
   const f = setup();
   const challenge = await f.start(true);

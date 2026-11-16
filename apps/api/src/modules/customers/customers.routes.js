@@ -5,6 +5,14 @@ import * as customers from './customers.service.js';
 
 export const customerAdminRoutes = express.Router();
 
+customerAdminRoutes.post(
+  '/:id/remove-access',
+  validate({ params: schemas.idParams, body: schemas.removalBody }),
+  async (req, res) => {
+    res.json(await customers.removeCustomerAccess(req.valid.params.id, req.valid.body, req.user));
+  }
+);
+
 customerAdminRoutes.get('/', async (req, res) => {
   res.json(await customers.listCustomers());
 });

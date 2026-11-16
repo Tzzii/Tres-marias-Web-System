@@ -12,6 +12,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import {
+  AppDialog,
   BusyButton,
   DashCard,
   DataTable,
@@ -45,10 +46,11 @@ import {
 
 const PAGE_SIZE = 10;
 const FILTERS = [
-  ['all', 'All', () => true],
+  ['all', 'Active', () => true],
   ['upcoming', 'With Upcoming Events', (c) => c.upcomingCount > 0],
   ['balance', 'With Balance', (c) => c.balance > 0],
-  ['repeat', 'Repeat Customers', (c) => c.completedCount >= 2]
+  ['repeat', 'Repeat Customers', (c) => c.completedCount >= 2],
+  ['removed', 'Removed', (c) => c.removedAt != null]
 ];
 
 export default function CustomersPage() {
@@ -65,11 +67,18 @@ export default function CustomersPage() {
   useEffect(() => setPage(1), [filter, query]);
 
   const rows = data || [];
-  const counts = useMemo(() => Object.fromEntries(FILTERS.map(([k, , t]) => [k, rows.filter(t).length])), [rows]);
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(
+        FILTERS.map(([k, , t]) => [k, rows.filter((c) => (k === 'removed' || c.removedAt == null) && t(c)).length])
+      ),
+    [rows]
+  );
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s/g, '');
     const test = FILTERS.find(([k]) => k === filter)[2];
     return rows
+      .filter((c) => filter === 'removed' || c.removedAt == null)
       .filter(test)
       .filter(
         (c) =>
@@ -207,6 +216,7 @@ export default function CustomersPage() {
       </DashCard>
 
       <CustomerDrawer
+        key={openId || 'closed'}
         customerId={openId}
         onClose={() => setParams({})}
         onMessage={message}
@@ -260,6 +270,7 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
   return (
     <LightSurface>
       <Drawer
+        sx={{ zIndex: (theme) => theme.zIndex.drawer + 2 }}
         anchor={isPhone ? 'bottom' : 'right'}
         open={Boolean(customerId)}
         onClose={onClose}
@@ -336,7 +347,7 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
               <Box sx={{ mt: 2.5 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Contact Details</Typography>
-                  {!editing && (
+                  {!editing && data.removedAt == null && (
                     <Button size="small" onClick={() => setEditing(true)}>
                       Correct
                     </Button>
@@ -394,6 +405,8 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
               </Button>
 
               <Divider sx={{ my: 2.5 }} />
+              <CustomerAccess data={data} />
+              <Divider sx={{ my: 2.5 }} />
               <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1 }}>
                 Reservations · {data.reservations.length}
               </Typography>
@@ -433,5 +446,94 @@ function CustomerDrawer({ customerId, onClose, onMessage, onOpenReservation }) {
         </Box>
       </Drawer>
     </LightSurface>
+  );
+}
+
+function CustomerAccess({ data }) {
+  const notify = useNotify();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [removed, setRemoved] = useState(null);
+  const account = removed || data;
+  const pending = data.reservations.filter((r) => r.status === 'pending').length;
+  const active = data.reservations.filter((r) => !['completed', 'declined', 'cancelled'].includes(r.status)).length;
+
+  const remove = async () => {
+    if (busy) return;
+    if (!reason.trim() || reason.trim().length > 1000) {
+      setError('Enter a reason of up to 1000 characters.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      setRemoved(await customerApi.removeCustomerAccess(data.id, reason.trim()));
+      setOpen(false);
+      notify('Customer account access removed. Review pending requests below.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (account.removedAt != null)
+    return (
+      <Box>
+        <Typography sx={{ fontWeight: 700 }}>Account access removed</Typography>
+        <Typography sx={{ mt: 1, fontSize: 13, overflowWrap: 'anywhere' }}>{account.removalReason}</Typography>
+        <Typography sx={{ mt: 1, fontSize: 12, color: tokens.textSecondary }}>
+          {new Date(Number(account.removedAt)).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} · Admin{' '}
+          {account.removedBy}
+        </Typography>
+        <Typography sx={{ mt: 1, fontSize: 13 }}>
+          Review pending requests below and decline those identified as spam.
+        </Typography>
+      </Box>
+    );
+
+  return (
+    <>
+      <Button color="error" variant="outlined" fullWidth onClick={() => setOpen(true)}>
+        Remove account access
+      </Button>
+      <AppDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Remove customer account access?"
+        description="The customer will lose sign-in and reservation access. Booking, payment and message history will be retained. Review pending requests individually to decline spam."
+        busy={busy}
+        actions={
+          <>
+            <Button disabled={busy} onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <BusyButton color="error" variant="contained" busy={busy} onClick={remove}>
+              Remove access
+            </BusyButton>
+          </>
+        }
+      >
+        <Typography sx={{ fontWeight: 700 }}>{data.name}</Typography>
+        <Typography sx={{ overflowWrap: 'anywhere' }}>{data.email}</Typography>
+        <Typography sx={{ my: 2, fontSize: 13 }}>
+          {pending} pending requests · {active} open bookings · Balance {peso(data.balance)}. Check booking details for
+          payments, refunds and outstanding rentals before proceeding.
+        </Typography>
+        <FormField
+          id="remove-customer-reason"
+          label="Reason for removal"
+          multiline
+          rows={3}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          error={error}
+          disabled={busy}
+          inputProps={{ maxLength: 1000 }}
+        />
+      </AppDialog>
+    </>
   );
 }

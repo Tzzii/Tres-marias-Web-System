@@ -438,6 +438,9 @@ async function book(
   referencePhotos,
   { throughAssistant = false, customerRequestNotes = '', onReplay = () => {} } = {}
 ) {
+  // Serialize account removal with new bookings before taking availability locks.
+  const [[account]] = await conn.query('SELECT id, removed_at FROM customers WHERE id = ? FOR UPDATE', [customer.id]);
+  if (!account || account.removed_at != null) throw new ApiError('UNAUTHENTICATED', 'Please sign in again.');
   await lockAvailability(conn);
   if (form.agreeTerms !== true)
     throw invalid('Please read and agree to the Terms of Service before sending your request.', 'agreeTerms');

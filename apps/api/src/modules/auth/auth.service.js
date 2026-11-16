@@ -70,6 +70,8 @@ const adminProfile = (a) => ({
 });
 
 export function customerSession(customer, remember = false) {
+  if (customer.removedAt != null)
+    throw new ApiError('FORBIDDEN', 'Account access has been removed. Please contact Tres Marias.');
   const token = signToken(
     { id: customer.id, role: 'customer', name: customer.name, passwordChangedAt: customer.passwordChangedAt },
     { ttl: remember ? config.jwt.customerRememberTtl : config.jwt.customerTtl }
@@ -268,6 +270,8 @@ export async function startPasswordReset({ email }) {
   const emailError = validateEmail(address);
   if (emailError) throw new ApiError('INVALID', emailError, { field: 'email' });
   const customer = await repo.findCustomerByEmail(address);
+  if (customer?.removedAt != null)
+    throw new ApiError('FORBIDDEN', 'Account access has been removed. Please contact Tres Marias.');
   await reserveAttempt('code-email', address);
   if (!customer) {
     return { challengeId: newId('rst'), maskedEmail: maskEmail(address), ...codeTimes(now()) };
@@ -361,6 +365,7 @@ export async function completePasswordReset({ challengeId, password, resetToken 
 
   const passwordHash = await hashSecret(password);
   await tx(async (conn) => {
+    await repo.lockActiveCustomer(conn, customer.id);
     if (!(await repo.markResetUsed(conn, reset.id, at, { codeHash: reset.codeHash, verifiedAt: reset.verifiedAt })))
       throw expired;
     await repo.updateCustomerPassword(customer.id, passwordHash, at, conn);
@@ -516,6 +521,7 @@ export async function confirmCustomerEmailChange(customerId, { challengeId, code
   if (await repo.emailUsedByOtherCustomer(change.newEmail, customerId)) throw taken;
   try {
     await tx(async (conn) => {
+      await repo.lockActiveCustomer(conn, customerId);
       if (!(await repo.markEmailChangeUsed(conn, change.id, at))) throw expired;
       await repo.updateCustomerEmail(conn, customerId, change.newEmail);
     });
@@ -607,6 +613,7 @@ export async function confirmPasswordChange(user, { challengeId, code }) {
   if (!customer) throw new ApiError('NOT_FOUND', 'Account not found.');
 
   await tx(async (conn) => {
+    await repo.lockActiveCustomer(conn, customer.id);
     if (!(await repo.markChangeUsed(conn, change.id, at))) throw expired;
     await repo.updateCustomerPassword(customer.id, change.newPasswordHash, at, conn);
     await repo.deleteWaitingPasswordRequests(customer.id, conn);

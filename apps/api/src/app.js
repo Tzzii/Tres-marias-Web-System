@@ -35,6 +35,9 @@ import { createAssistantRoutes } from './modules/assistant/assistant.routes.js';
 import { packageProposalRoutes } from './modules/package-proposals/packageProposal.routes.js';
 import { createAIAdmission } from './modules/assistant/aiSafety.js';
 import { createAISafetyRepository } from './modules/assistant/aiSafety.repo.js';
+import { updateAdminPresence } from './modules/messages/presence.service.js';
+import { presenceBody } from './modules/messages/messages.schemas.js';
+import { readToken } from './lib/tokens.js';
 
 export function createApp() {
   const app = express();
@@ -94,6 +97,12 @@ export function createApp() {
   admin.get('/ai-usage', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json(await safety.snapshot());
+  });
+  admin.post('/presence', async (req, res) => {
+    const parsed = presenceBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ code: 'INVALID', message: 'Invalid presence update.' });
+    const claims = readToken((req.get('Authorization') || '').slice(7));
+    res.json(await updateAdminPresence(req.user, claims?.sid, parsed.data));
   });
   admin.use('/me', adminAccountRoutes);
   admin.use('/appearance', appearanceAdminRoutes);

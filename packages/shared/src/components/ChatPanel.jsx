@@ -23,6 +23,8 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import { DELETED_MESSAGE_TEXT, MESSAGE_CHANGE_MS, messageChangeable, messagePreview } from '../domain/messages.js';
 import { RULES } from '../services/config.js';
+import { getAdminPresence } from '../services/remote/message.js';
+import { presenceLabel } from '../domain/presence.js';
 import { tokens } from '../theme/tokens.js';
 import { ConfirmDialog } from './AppDialog.jsx';
 import { MessageHistoryDialog } from './MessageHistory.jsx';
@@ -36,6 +38,56 @@ import {
   toISODate,
   todayISO
 } from '../utils/format.js';
+
+function AdminPresenceIndicator() {
+  const [presence, setPresence] = useState(null);
+  useEffect(() => {
+    let live = true;
+    let pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const value = await getAdminPresence();
+        if (live) setPresence(value);
+      } catch {
+        if (live) setPresence(null);
+      } finally {
+        pending = false;
+      }
+    };
+    const visible = () => {
+      if (!document.hidden) void refresh();
+    };
+    void refresh();
+    const timer = setInterval(visible, 15000);
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, []);
+  return (
+    <Box
+      role="status"
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.75,
+        px: 2,
+        py: 0.75,
+        borderBottom: `1px solid ${tokens.cardLightBorder}`
+      }}
+    >
+      <Box
+        aria-hidden
+        sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: presence?.online ? 'success.main' : tokens.textMuted }}
+      />
+      <Typography sx={{ fontSize: 12, color: tokens.textSecondary }}>Admin · {presenceLabel(presence)}</Typography>
+    </Box>
+  );
+}
 
 /**
  * Messaging UI shared by the customer Chat page (1l) and the admin Messages page. The admin gets two
@@ -402,6 +454,7 @@ export function ChatPanel({
                 {headerAction}
               </Box>
 
+              {side === 'customer' && <AdminPresenceIndicator />}
               <Box
                 ref={scroller}
                 className="tm-scroll"
@@ -426,6 +479,7 @@ export function ChatPanel({
                 ) : (
                   thread.messages.map((m, i) => {
                     const mine = m.from === side; // my messages go on the right in dark bubbles
+                    const automatedReply = m.senderName === 'Automated reply' && !m.typed;
                     const deleted = Boolean(m.deletedAt);
                     const isEditing = Boolean(editing && editing.id === m.id);
                     // My own typed message, still inside the time limit: it gets the ⋮ (Edit, Delete)
@@ -482,11 +536,11 @@ export function ChatPanel({
                             }}
                           >
                             {/* Sender above the other side's bubbles: "Admin" for customers, the customer's name for the admin */}
-                            {!mine && (
+                            {(!mine || automatedReply) && (
                               <Typography
                                 sx={{ fontSize: 11.5, fontWeight: 600, color: tokens.textMuted, mb: 0.25, ml: 0.5 }}
                               >
-                                {side === 'customer' ? 'Admin' : m.senderName}
+                                {automatedReply ? 'Automated reply' : side === 'customer' ? 'Admin' : m.senderName}
                               </Typography>
                             )}
                             {/* The event this message is about */}

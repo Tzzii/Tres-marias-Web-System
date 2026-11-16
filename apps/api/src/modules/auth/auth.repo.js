@@ -1,4 +1,10 @@
 import { pool } from '../../db.js';
+import { ApiError } from '../../lib/ApiError.js';
+
+export async function lockActiveCustomer(conn, id) {
+  const [[row]] = await conn.query('SELECT removed_at FROM customers WHERE id = ? FOR UPDATE', [id]);
+  if (!row || row.removed_at != null) throw new ApiError('UNAUTHENTICATED', 'Please sign in again.');
+}
 
 export const toCustomer = (row) =>
   row && {
@@ -13,6 +19,7 @@ export const toCustomer = (row) =>
     company: row.company,
     createdAt: row.created_at,
     passwordChangedAt: row.password_changed_at,
+    removedAt: row.removed_at ?? null,
     termsVersion: row.terms_version || '',
     termsAcceptedAt: row.terms_accepted_at ?? null
   };
@@ -41,7 +48,7 @@ export const findCustomerByEmail = async (email) =>
   toCustomer(first(await pool.query('SELECT * FROM customers WHERE email = ?', [email])));
 
 export const findCustomerById = async (id) =>
-  toCustomer(first(await pool.query('SELECT * FROM customers WHERE id = ?', [id])));
+  toCustomer(first(await pool.query('SELECT * FROM customers WHERE id = ? AND removed_at IS NULL', [id])));
 
 export async function insertCustomer(c, conn = pool) {
   await conn.query(
@@ -82,7 +89,8 @@ export async function emailUsedByOtherCustomer(email, customerId) {
 }
 
 export async function updateCustomerEmail(conn, id, email) {
-  await conn.query('UPDATE customers SET email = ? WHERE id = ?', [email, id]);
+  const [result] = await conn.query('UPDATE customers SET email = ? WHERE id = ? AND removed_at IS NULL', [email, id]);
+  if (!result.affectedRows) throw new ApiError('UNAUTHENTICATED', 'Please sign in again.');
 }
 
 export async function updateCustomerPassword(id, passwordHash, at, conn = pool) {
@@ -143,7 +151,7 @@ export async function findSessionAccount(role, id, tokenHash) {
     await pool.query(
       `SELECT name, password_changed_at, sessions_revoked_at,
        EXISTS(SELECT 1 FROM revoked_customer_tokens WHERE token_hash = ? AND expires_at > ?) AS token_revoked
-       FROM customers WHERE id = ?`,
+       FROM customers WHERE id = ? AND removed_at IS NULL`,
       [tokenHash || '', Date.now(), id]
     )
   );

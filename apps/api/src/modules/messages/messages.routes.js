@@ -2,8 +2,13 @@ import express from 'express';
 import { validate } from '../../middleware/validate.js';
 import * as schemas from './messages.schemas.js';
 import * as messages from './messages.service.js';
+import { getAdminPresence } from './presence.service.js';
 
 export const threadRoutes = express.Router();
+
+threadRoutes.get('/admin-presence', async (req, res) => {
+  res.set('Cache-Control', 'no-store').json(await getAdminPresence());
+});
 
 threadRoutes.get('/', async (req, res) => {
   res.json(await messages.listThreads({ customerId: req.user.id, side: 'customer' }));

@@ -38,6 +38,10 @@ export function createGoogleSignInCodeService({
   clearAttempts: clear = clearAttempts,
   wrongAnswer: wrong = wrongAnswer
 } = {}) {
+  function assertActive(customer) {
+    if (customer?.removedAt != null)
+      throw new ApiError('FORBIDDEN', 'Account access has been removed. Please contact Tres Marias.');
+  }
   function assertLive(request, at = clock()) {
     if (!request || request.usedAt || request.createdAt + REQUEST_LIFETIME <= at) throw expired();
   }
@@ -55,6 +59,7 @@ export function createGoogleSignInCodeService({
       (customer.passwordChangedAt ?? null) !== request.passwordChangedAt
     )
       throw expired();
+    assertActive(customer);
     return customer;
   }
 
@@ -65,6 +70,7 @@ export function createGoogleSignInCodeService({
 
   return {
     async start(customer, remember = false, googleSubject) {
+      assertActive(customer);
       await assertAccountUnlocked(customer.email);
       await reserve('code-email', customer.email);
       const code = generateCode(RULES.codeLength);

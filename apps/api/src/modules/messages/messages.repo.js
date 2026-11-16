@@ -103,7 +103,7 @@ export async function customerThreadId(conn, customerId) {
 
 export async function postMessage(
   conn,
-  { customerId, ref = null, from, senderName, body, attachment = null, typed = false }
+  { customerId, ref = null, from, senderName, body, attachment = null, typed = false, at = null }
 ) {
   const threadId = await customerThreadId(conn, customerId);
   const message = {
@@ -112,7 +112,7 @@ export async function postMessage(
     senderName,
     body,
     ref,
-    at: now(),
+    at: at ?? now(),
     readByCustomer: from === 'customer',
     readByAdmin: from === 'admin',
     attachment,

@@ -77,6 +77,15 @@ function setup({ customers = [], identities = [], person = identity, locked = fa
   return { service, repo, records: () => records, links: () => links, queued: () => queued, cleared, signIns };
 }
 
+test('removed customers cannot sign in through linked Google or link a new Google identity', async () => {
+  const customer = { id: 'removed', email: identity.email, removedAt: 123, passwordHash: 'hash:password' };
+  for (const identities of [[], [{ sub: identity.sub, customerId: customer.id }]]) {
+    const f = setup({ customers: [customer], identities });
+    await assert.rejects(f.service.signIn({ password: 'password' }), { code: 'FORBIDDEN' });
+    assert.equal(f.links().length, identities.length);
+  }
+});
+
 test('a new Google identity receives profile completion before any customer or session exists', async () => {
   const f = setup();
   const result = await f.service.signIn({});

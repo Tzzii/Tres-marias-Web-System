@@ -9,3 +9,5 @@ const text = (max) =>
 export const idParams = z.object({ id: z.string() });
 
 export const contactBody = z.object({ email: text(254), mobile: text(40) });
+
+export const removalBody = z.object({ reason: z.string().trim().min(1, 'Enter a reason.').max(1000) });

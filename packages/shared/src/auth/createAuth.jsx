@@ -4,6 +4,7 @@ import { apiUrl } from '../services/http.js';
 import { RULES } from '../services/config.js';
 import { onSignedOut, onTokenRenewed } from '../services/events.js';
 import { startRealtimeSync } from '../services/realtime.js';
+import { startAdminPresence } from '../services/adminPresence.js';
 
 /**
  * Builds the session layer for one portal. Each portal gets its own storage key,
@@ -272,6 +273,10 @@ export function createAuth({ storageKey, loginPath, idlePath = loginPath, lockOn
 
     // Close on sign-out / lock and reconnect when a renewed or different token is saved.
     const sessionToken = session?.token;
+    useEffect(
+      () => (lockOnIdle && sessionToken ? startAdminPresence(sessionToken) : undefined),
+      [sessionToken]
+    );
     useEffect(
       () => (sessionToken ? startRealtimeSync(sessionToken, { getToken: () => readSession()?.token }) : undefined),
       [sessionToken]

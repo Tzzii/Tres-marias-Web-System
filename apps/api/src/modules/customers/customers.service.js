@@ -10,6 +10,22 @@ import { assertCustomerMobileAllowedWithAbstract } from '../auth/mobile-policy.j
 const notFound = () => new ApiError('NOT_FOUND', 'Customer not found.');
 const emailTaken = () => new ApiError('EMAIL_TAKEN', 'Another account already uses this email.', { field: 'email' });
 
+export async function removeCustomerAccess(customerId, { reason = '' }, admin, { transact = tx } = {}) {
+  if (admin?.role !== 'admin' || !admin.id) throw new ApiError('FORBIDDEN', 'Admin access is required.');
+  const text = typeof reason === 'string' ? reason.trim() : '';
+  if (!text || text.length > 1000)
+    throw new ApiError('INVALID', 'Enter a reason of up to 1000 characters.', { field: 'reason' });
+  return transact(async (conn) => {
+    const customer = await repo.lockCustomer(conn, customerId);
+    if (!customer || customer.id !== customerId) throw notFound();
+    if (customer.removedAt == null) {
+      await repo.removeAccess(conn, customerId, admin.id, text, Date.now());
+    }
+    const [saved] = await repo.findCustomers(conn, { customerId });
+    return customerSummary(saved, await findReservations(conn, { customerId }));
+  });
+}
+
 async function exactCustomer(db, customerId) {
   const [found] = typeof customerId === 'string' && customerId ? await repo.findCustomers(db, { customerId }) : [];
   if (!found || found.id !== customerId) throw notFound();
@@ -39,6 +55,8 @@ export async function updateCustomerContact(customerId, { email = '', mobile = '
   if (mobileError) throw new ApiError('INVALID', mobileError, { field: 'mobile' });
   // Complete the external lookup without holding a connection or customer row lock.
   const current = await exactCustomer(pool, customerId);
+  if (current.removedAt != null)
+    throw new ApiError('INVALID_STATE', 'Contact details of a removed account cannot be changed.');
   if (cleanMobile(mobile) !== cleanMobile(current.mobile)) await assertCustomerMobileAllowedWithAbstract(mobile);
   try {
     return await tx(async (conn) => {
@@ -49,6 +67,8 @@ export async function updateCustomerContact(customerId, { email = '', mobile = '
           field: 'mobile'
         });
       }
+      if (locked.removedAt != null)
+        throw new ApiError('INVALID_STATE', 'Contact details of a removed account cannot be changed.');
       if (await repo.emailUsedByAnother(conn, address, locked.id)) throw emailTaken();
       const customer = { ...locked, email: address, mobile: cleanMobile(mobile) };
       await repo.updateContact(conn, customer.id, customer);

@@ -24,3 +24,9 @@ export const editBody = z.object({
 export const listQuery = z.object({ customerId: passThrough });
 
 export const openBody = z.object({ customerId: passThrough });
+
+export const presenceBody = z.object({
+  clientId: z.string().uuid(),
+  sequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  active: z.boolean()
+});

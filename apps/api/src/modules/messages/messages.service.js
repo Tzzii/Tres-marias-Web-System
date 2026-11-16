@@ -5,6 +5,8 @@ import { ApiError } from '../../lib/ApiError.js';
 import { now } from '../../lib/time.js';
 import { lockOwner } from '../reservations/reservations.repo.js';
 import * as repo from './messages.repo.js';
+import { getAdminPresence } from './presence.service.js';
+import { shouldSendAwayReply } from '@tm/shared/src/domain/presence.js';
 
 const MESSAGE_MAX = 2000;
 
@@ -72,6 +74,21 @@ export async function sendMessage(threadId, { side, senderName, body, customerId
       body: text,
       typed: true
     });
+    if (side === 'customer') {
+      const presence = await getAdminPresence(conn);
+      // postMessage holds the thread row lock, so simultaneous messages share one acknowledgment.
+      const [[stored]] = await conn.query('SELECT away_reply_at FROM threads WHERE id = ? FOR UPDATE', [thread.id]);
+      if (shouldSendAwayReply(presence, stored.away_reply_at)) {
+        const { message: reply } = await repo.postMessage(conn, {
+          customerId: thread.customerId,
+          from: 'admin',
+          senderName: 'Automated reply',
+          at: Math.max(now(), message.at + 1),
+          body: 'Thank you for messaging Tres Marias! Our admin is currently offline. We have received your message and will reply when we are back online. You can browse our Packages page while waiting.'
+        });
+        await conn.query('UPDATE threads SET away_reply_at = ? WHERE id = ?', [reply.at, thread.id]);
+      }
+    }
     return forSide(message, side);
   });
 }

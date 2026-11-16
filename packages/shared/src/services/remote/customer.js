@@ -16,6 +16,9 @@ const segment = (id) => encodeURIComponent(String(id || ''));
 /** Admin: every customer with their summary (booking counts, balance, total spend), sorted by name. */
 export const listCustomers = () => http.get('/admin/customers');
 
+export const removeCustomerAccess = (customerId, reason) =>
+  http.post(`/admin/customers/${segment(customerId)}/remove-access`, { reason });
+
 /** Admin: one customer's summary plus their reservations, newest date first. NOT_FOUND for no id at all. */
 export async function getCustomer(customerId) {
   if (!customerId) throw new ApiError('NOT_FOUND', 'Customer not found.');

@@ -35,17 +35,23 @@ export function createGoogleCustomerService({
   startSignInCode
 }) {
   const changed = () => new ApiError('INVALID_STATE', 'Your account changed. Please start Google sign-in again.');
+  const assertActive = (customer) => {
+    if (customer.removedAt != null)
+      throw new ApiError('FORBIDDEN', 'Account access has been removed. Please contact Tres Marias.');
+  };
   return {
     async signIn({ credential, challenge, profile, password, remember = false }) {
       const identity = await verify({ credential, challenge });
       const linked = await repo.findGoogleCustomer(identity.sub);
       if (linked) {
+        assertActive(linked);
         await assertNotLocked('customer', linked.email);
         await clearAttempts('customer', linked.email);
         return { status: 'code_required', ...(await startSignInCode(linked, remember, identity.sub)) };
       }
       const existing = await repo.findCustomerByEmail(identity.email);
       if (existing) {
+        assertActive(existing);
         await assertNotLocked('customer', existing.email);
         if (!password) return { status: 'link_required', email: identity.email };
         const attempt = await reserveAttempt('customer', existing.email);
@@ -59,6 +65,7 @@ export function createGoogleCustomerService({
         try {
           customer = await transaction(async (conn) => {
             const current = await repo.findCustomerForUpdate(existing.id, conn);
+            if (current) assertActive(current);
             if (!current || current.passwordHash !== existing.passwordHash || current.email !== identity.email)
               throw changed();
             await repo.linkGoogle(identity.sub, current.id, conn);

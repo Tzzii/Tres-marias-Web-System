@@ -183,6 +183,8 @@ async function fixture({
     };
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
     const reply = (json, status = 200) => route.fulfill({ json, status, headers });
+    if (endpoint === '/admin/presence' && method === 'POST') return reply({ ok: true });
+    if (endpoint === '/threads/admin-presence') return reply({ online: false, offlineSince: null, serverTime: Date.now() });
     const quoteMatch = endpoint.match(/^\/admin\/reservations\/([^/]+)\/quotation$/);
     if (quoteMatch && method === 'POST') {
       if (state.failQuote) return reply({ code: 'SERVER_ERROR', message: 'Quotation could not be sent.' }, 503);

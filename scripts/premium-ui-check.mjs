@@ -154,6 +154,8 @@ async function fixture(side) {
           'access-control-allow-methods': '*'
         }
       });
+    if (new URL(route.request().url()).pathname === '/api/admin/presence' && route.request().method() === 'POST')
+      return route.fulfill({ json: { ok: true }, headers: { 'access-control-allow-origin': '*' } });
     if (route.request().method() !== 'GET') {
       writes.push(route.request().method() + ' ' + route.request().url());
       return route.abort();
